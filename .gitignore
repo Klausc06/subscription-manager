@@ -1,0 +1,14 @@
+.DS_Store
+
+# Codex session artifacts
+work/
+outputs/
+
+# Xcode
+DerivedData/
+*.xcuserstate
+xcuserdata/
+
+# Swift Package Manager
+.build/
+.swiftpm/
