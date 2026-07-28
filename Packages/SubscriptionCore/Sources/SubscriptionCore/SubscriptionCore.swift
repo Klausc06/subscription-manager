@@ -611,12 +611,15 @@ public final class SubscriptionWorkspace {
                       chargedDate,
                       timeZone: timeZone
                   ),
-                  normalizedScheduledDate <= today
+                  localCalendar.startOfDay(for: normalizedScheduledDate)
+                    <= today
             else {
                 paymentHistoryActionError = .scheduledDateInFuture
                 return
             }
-            guard normalizedChargedDate <= today else {
+            guard localCalendar.startOfDay(for: normalizedChargedDate)
+                <= today
+            else {
                 paymentHistoryActionError = .chargedDateInFuture
                 return
             }
@@ -1101,8 +1104,11 @@ public final class SubscriptionWorkspace {
             month: components.month ?? 0,
             day: components.day ?? 0
         )
+        let scheduledDay = calendar.startOfDay(for: scheduledDate)
         let amount = subscription.priceChanges
-            .filter { $0.effectiveDate <= scheduledDate }
+            .filter {
+                calendar.startOfDay(for: $0.effectiveDate) <= scheduledDay
+            }
             .max { $0.effectiveDate < $1.effectiveDate }?
             .amount ?? subscription.originalAmount
         return ExpectedCharge(
@@ -1193,7 +1199,12 @@ public final class SubscriptionWorkspace {
                     calendar: localCalendar
                 )
             }
-            .filter { $0 >= subscription.startDate && $0 <= today }
+            .filter {
+                let occurrenceDay = localCalendar.startOfDay(for: $0)
+                return occurrenceDay >= localCalendar.startOfDay(
+                    for: subscription.startDate
+                ) && occurrenceDay <= today
+            }
             .map {
                 expectedCharge(
                     for: subscription,

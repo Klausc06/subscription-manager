@@ -1551,6 +1551,57 @@ private struct FailingSubscriptionRepository: SubscriptionRepository {
         #expect(stored.confirmedCharges.last?.amount == actualAmount)
     }
 
+    @Test("A scheduled charge on the current billing day can be confirmed")
+    @MainActor
+    func confirmingCurrentBillingDayCharge() throws {
+        let calendar = actionCalendar()
+        let scheduledDate = try actionDate(
+            year: 2026, month: 7, day: 29, hour: 12, calendar: calendar
+        )
+        let now = try actionDate(
+            year: 2026, month: 7, day: 29, hour: 14, calendar: calendar
+        )
+        let nextRenewal = try actionDate(
+            year: 2026, month: 8, day: 29, hour: 12, calendar: calendar
+        )
+        let subscription = Subscription(
+            id: actionTargetID,
+            serviceIdentity: ServiceIdentity(rawValue: "manual:current-day"),
+            serviceName: "Current Day",
+            plan: "Monthly",
+            category: "Other",
+            originalAmount: Money(minorUnits: 999, currency: .usd),
+            billingSchedule: FixedBillingSchedule(
+                interval: .monthly,
+                renewalAnchor: scheduledDate,
+                timeZoneIdentifier: calendar.timeZone.identifier
+            ),
+            startDate: scheduledDate,
+            confirmedNextRenewal: nextRenewal,
+            managementURL: nil,
+            notes: ""
+        )
+        let repository = InMemorySubscriptionRepository(
+            subscriptions: [subscription]
+        )
+        let workspace = SubscriptionWorkspace(
+            repository: repository, now: { now }, calendar: calendar
+        )
+
+        workspace.confirmCharge(
+            id: subscription.id,
+            scheduledDate: scheduledDate,
+            chargedDate: scheduledDate,
+            amount: Money(minorUnits: 999, currency: .usd)
+        )
+
+        #expect(
+            repository.storedSubscription(id: subscription.id)?
+                .confirmedCharges.count == 1
+        )
+        #expect(workspace.paymentHistoryActionError == nil)
+    }
+
     @Test("Price changes apply on their effective billing day without rewriting facts")
     @MainActor
     func priceChangesResolveFutureForecastWithoutRewritingFacts() throws {
