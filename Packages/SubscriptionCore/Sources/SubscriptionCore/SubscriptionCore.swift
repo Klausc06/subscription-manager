@@ -467,6 +467,19 @@ public protocol SubscriptionRepository {
     func subscription(id: UUID) throws -> Subscription?
 }
 
+public enum LibrarySyncStatus: Equatable, Sendable {
+    case notLoaded
+    case localOnly
+    case synchronizing
+    case current
+    case signedOut
+    case requiresAttention
+}
+
+public protocol LibrarySyncMonitor: Sendable {
+    func refreshStatus() async -> LibrarySyncStatus
+}
+
 @MainActor
 @Observable
 public final class SubscriptionWorkspace {
@@ -489,6 +502,7 @@ public final class SubscriptionWorkspace {
     public private(set) var setupState: SetupState = .notLoaded
     public private(set) var exchangeRateStatus: ExchangeRateStatus = .notLoaded
     public private(set) var insightsState: SpendingInsightsState = .notLoaded
+    public private(set) var syncStatus: LibrarySyncStatus = .notLoaded
 
     private let repository: any SubscriptionRepository
     private let preferencesRepository: (any UserPreferencesRepository)?
@@ -497,6 +511,7 @@ public final class SubscriptionWorkspace {
     private let catalogCache: (any CatalogCache)?
     private let exchangeRateSource: (any ExchangeRateSource)?
     private let exchangeRateCache: (any ExchangeRateCache)?
+    private let syncMonitor: (any LibrarySyncMonitor)?
     private let identifierGenerator: () -> UUID
     private let now: () -> Date
     private let calendar: Calendar
@@ -515,6 +530,7 @@ public final class SubscriptionWorkspace {
         catalogCache: (any CatalogCache)? = nil,
         exchangeRateSource: (any ExchangeRateSource)? = nil,
         exchangeRateCache: (any ExchangeRateCache)? = nil,
+        syncMonitor: (any LibrarySyncMonitor)? = nil,
         identifierGenerator: @escaping () -> UUID = UUID.init,
         now: @escaping () -> Date = Date.init,
         calendar: Calendar? = nil
@@ -526,9 +542,23 @@ public final class SubscriptionWorkspace {
         self.catalogCache = catalogCache
         self.exchangeRateSource = exchangeRateSource
         self.exchangeRateCache = exchangeRateCache
+        self.syncMonitor = syncMonitor
         self.identifierGenerator = identifierGenerator
         self.now = now
         self.calendar = calendar ?? Self.defaultRenewalCalendar()
+    }
+
+    public func refreshSyncStatus() async {
+        syncStatus = await syncMonitor?.refreshStatus() ?? .localOnly
+    }
+
+    private func markLocalChangesForSync() {
+        switch syncStatus {
+        case .current, .synchronizing:
+            syncStatus = .synchronizing
+        case .notLoaded, .localOnly, .signedOut, .requiresAttention:
+            break
+        }
     }
 
     public func loadSetup(libraryIsEmpty: Bool) {
@@ -617,6 +647,9 @@ public final class SubscriptionWorkspace {
     ) {
         do {
             try preferencesRepository?.savePreferences(preferences)
+            if preferencesRepository != nil {
+                markLocalChangesForSync()
+            }
             setupState = stateOnSuccess?(preferences)
                 ?? setupState(for: preferences)
         } catch {
@@ -1014,6 +1047,7 @@ public final class SubscriptionWorkspace {
 
         do {
             try repository.createSubscription(subscription)
+            markLocalChangesForSync()
             detailState = makeDetail(subscription)
             loadLibrary()
         } catch {
@@ -1064,6 +1098,7 @@ public final class SubscriptionWorkspace {
                 isArchived: existing.isArchived
             )
             try repository.updateSubscription(edited)
+            markLocalChangesForSync()
             detailState = makeDetail(edited)
             loadLibrary()
             let forecastRequest = forecastThrough.map {
@@ -1244,6 +1279,7 @@ public final class SubscriptionWorkspace {
                 ]
             )
             try repository.updateSubscription(updated)
+            markLocalChangesForSync()
             detailState = makeDetail(updated)
             loadLibrary()
         } catch {
@@ -1305,6 +1341,7 @@ public final class SubscriptionWorkspace {
                 ]
             )
             try repository.updateSubscription(updated)
+            markLocalChangesForSync()
             detailState = makeDetail(updated)
             loadLibrary()
         } catch {
@@ -1412,6 +1449,7 @@ public final class SubscriptionWorkspace {
             let refreshedExpectedCharges: [ExpectedCharge]? =
                 clearsExpectedCharges ? nil : expectedCharges
             try repository.deleteSubscription(id: id)
+            markLocalChangesForSync()
 
             detailState = .notFound
             expectedCharges = refreshedExpectedCharges
@@ -1592,6 +1630,7 @@ public final class SubscriptionWorkspace {
     private func finishLifecycleUpdate(
         _ subscription: Subscription
     ) {
+        markLocalChangesForSync()
         let scope = carriedLibraryScope
         let refreshedDetailState = makeDetail(subscription)
         let refreshedExpectedCharges: [ExpectedCharge]? =

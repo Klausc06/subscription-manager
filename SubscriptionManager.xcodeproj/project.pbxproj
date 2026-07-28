@@ -41,6 +41,7 @@
 		1B0600010000000000000010 /* CatalogPresetDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1B0600010000000000000011 /* CatalogPresetDetailView.swift */; };
 		1B0700010000000000000001 /* FileCatalogCache.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1B0700010000000000000002 /* FileCatalogCache.swift */; };
 		1B0700010000000000000003 /* GitHubCatalogUpdateSource.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1B0700010000000000000004 /* GitHubCatalogUpdateSource.swift */; };
+		1B1600010000000000000001 /* CloudKitLibrarySyncMonitor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1B1600010000000000000002 /* CloudKitLibrarySyncMonitor.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -98,6 +99,7 @@
 		1B0600010000000000000011 /* CatalogPresetDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CatalogPresetDetailView.swift; sourceTree = "<group>"; };
 		1B0700010000000000000002 /* FileCatalogCache.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FileCatalogCache.swift; sourceTree = "<group>"; };
 		1B0700010000000000000004 /* GitHubCatalogUpdateSource.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GitHubCatalogUpdateSource.swift; sourceTree = "<group>"; };
+		1B1600010000000000000002 /* CloudKitLibrarySyncMonitor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CloudKitLibrarySyncMonitor.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -145,6 +147,7 @@
 				1B0600010000000000000007 /* Catalog */,
 				438293401ACA5626F66CBFAC /* Library */,
 				EF3A0C116AD330A62C107F93 /* Persistence */,
+				1B1600010000000000000003 /* Sync */,
 				8AC3B566569D42543C5D51CB /* Resources */,
 			);
 			path = SubscriptionManager;
@@ -191,6 +194,14 @@
 				1B0700010000000000000004 /* GitHubCatalogUpdateSource.swift */,
 			);
 			path = Catalog;
+			sourceTree = "<group>";
+		};
+		1B1600010000000000000003 /* Sync */ = {
+			isa = PBXGroup;
+			children = (
+				1B1600010000000000000002 /* CloudKitLibrarySyncMonitor.swift */,
+			);
+			path = Sync;
 			sourceTree = "<group>";
 		};
 		5354945DBF005C0FA67FB4EC /* SubscriptionManagerUITests */ = {
@@ -366,6 +377,7 @@
 				1B0600010000000000000005 /* BundledCatalogRepository.swift in Sources */,
 				1B0700010000000000000001 /* FileCatalogCache.swift in Sources */,
 				1B0700010000000000000003 /* GitHubCatalogUpdateSource.swift in Sources */,
+				1B1600010000000000000001 /* CloudKitLibrarySyncMonitor.swift in Sources */,
 				95DD1A1B26E3AC5313818053 /* AddSubscriptionView.swift in Sources */,
 				1B0500010000000000000001 /* ConfirmChargeView.swift in Sources */,
 				8BDFDA89FC3799D7A394A305 /* AppDependencies.swift in Sources */,
@@ -492,6 +504,7 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
+				CODE_SIGN_ENTITLEMENTS = SubscriptionManager/SubscriptionManager.entitlements;
 				"CODE_SIGN_IDENTITY[sdk=macosx*]" = "-";
 				"CODE_SIGN_STYLE[sdk=macosx*]" = Manual;
 				"DEVELOPMENT_TEAM[sdk=macosx*]" = "";
@@ -541,6 +554,7 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
+				CODE_SIGN_ENTITLEMENTS = SubscriptionManager/SubscriptionManager.entitlements;
 				"CODE_SIGN_IDENTITY[sdk=macosx*]" = "-";
 				"CODE_SIGN_STYLE[sdk=macosx*]" = Manual;
 				"DEVELOPMENT_TEAM[sdk=macosx*]" = "";

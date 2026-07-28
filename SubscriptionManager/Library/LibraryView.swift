@@ -862,6 +862,10 @@ struct UserPreferencesView: View {
                     }
                 }
 
+                Section("iCloud") {
+                    SyncStatusView(workspace: workspace)
+                }
+
                 if saveFailed {
                     Section {
                         Text("Couldn’t save preferences. Try again.")
@@ -883,6 +887,9 @@ struct UserPreferencesView: View {
                 }
             }
             .navigationTitle("Settings")
+            .task {
+                await workspace.refreshSyncStatus()
+            }
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Cancel") {
@@ -946,6 +953,56 @@ struct UserPreferencesView: View {
             horizon = preferences.calendarProjectionHorizon
         case .notLoaded:
             break
+        }
+    }
+}
+
+private struct SyncStatusView: View {
+    let workspace: SubscriptionWorkspace
+
+    var body: some View {
+        HStack {
+            Label(title, systemImage: symbol)
+            Spacer()
+            if workspace.syncStatus == .requiresAttention {
+                Button("Try Again") {
+                    Task { await workspace.refreshSyncStatus() }
+                }
+            }
+        }
+        .accessibilityElement(children: .combine)
+        .accessibilityIdentifier("sync.status.\(identifier)")
+    }
+
+    private var title: LocalizedStringKey {
+        switch workspace.syncStatus {
+        case .notLoaded: "Checking iCloud"
+        case .localOnly: "Stored on This Device"
+        case .synchronizing: "Syncing with iCloud"
+        case .current: "iCloud Up to Date"
+        case .signedOut: "iCloud Signed Out"
+        case .requiresAttention: "iCloud Needs Attention"
+        }
+    }
+
+    private var symbol: String {
+        switch workspace.syncStatus {
+        case .notLoaded, .synchronizing: "arrow.triangle.2.circlepath"
+        case .localOnly: "internaldrive"
+        case .current: "checkmark.icloud"
+        case .signedOut: "icloud.slash"
+        case .requiresAttention: "exclamationmark.icloud"
+        }
+    }
+
+    private var identifier: String {
+        switch workspace.syncStatus {
+        case .notLoaded: "checking"
+        case .localOnly: "local-only"
+        case .synchronizing: "synchronizing"
+        case .current: "current"
+        case .signedOut: "signed-out"
+        case .requiresAttention: "attention"
         }
     }
 }

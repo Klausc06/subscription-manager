@@ -4,6 +4,62 @@ import Testing
 
 @Suite("Subscription workspace")
 struct SubscriptionWorkspaceTests {
+    @Test("Sync status remains local-first when iCloud is signed out")
+    @MainActor
+    func signedOutSyncStatusDoesNotBlockCreation() async throws {
+        let startDate = Date(timeIntervalSince1970: 1_767_225_600)
+        let renewalDate = Date(timeIntervalSince1970: 1_769_904_000)
+        let repository = InMemorySubscriptionRepository()
+        let workspace = SubscriptionWorkspace(
+            repository: repository,
+            syncMonitor: SyncMonitorFixture(result: .signedOut)
+        )
+
+        await workspace.refreshSyncStatus()
+        workspace.createSubscription(
+            SubscriptionCreationInput(
+                serviceName: "Atlas",
+                plan: "Monthly",
+                category: "Productivity",
+                originalAmount: Money(minorUnits: 999, currency: .usd),
+                startDate: startDate,
+                confirmedNextRenewal: renewalDate,
+                managementURL: nil,
+                notes: ""
+            )
+        )
+
+        #expect(workspace.syncStatus == .signedOut)
+        #expect(try repository.listSubscriptions().count == 1)
+    }
+
+    @Test("A saved local subscription becomes pending for an available account")
+    @MainActor
+    func availableSyncStatusBecomesSynchronizingAfterCreation() async {
+        let startDate = Date(timeIntervalSince1970: 1_767_225_600)
+        let renewalDate = Date(timeIntervalSince1970: 1_769_904_000)
+        let workspace = SubscriptionWorkspace(
+            repository: InMemorySubscriptionRepository(),
+            syncMonitor: SyncMonitorFixture(result: .current)
+        )
+
+        await workspace.refreshSyncStatus()
+        workspace.createSubscription(
+            SubscriptionCreationInput(
+                serviceName: "Beacon",
+                plan: "Monthly",
+                category: "Music",
+                originalAmount: Money(minorUnits: 1_200, currency: .usd),
+                startDate: startDate,
+                confirmedNextRenewal: renewalDate,
+                managementURL: nil,
+                notes: ""
+            )
+        )
+
+        #expect(workspace.syncStatus == .synchronizing)
+    }
+
     @Test("Table query searches visible fields and keeps sorting stable")
     func tableQueryFiltersAndSortsSummaries() {
         let firstID = UUID(uuidString: "11111111-2222-3333-4444-555555555555")!
@@ -2026,6 +2082,14 @@ private final class RecordingExchangeRateSource: ExchangeRateSource {
 
 private enum ExchangeRateFixtureError: Error {
     case offline
+}
+
+private struct SyncMonitorFixture: LibrarySyncMonitor {
+    let result: LibrarySyncStatus
+
+    func refreshStatus() async -> LibrarySyncStatus {
+        result
+    }
 }
 
 @MainActor
