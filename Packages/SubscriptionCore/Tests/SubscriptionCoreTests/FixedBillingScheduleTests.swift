@@ -616,6 +616,72 @@ struct FixedBillingScheduleTests {
             ]
         )
     }
+
+    @Test("Ordinary edits preserve lifecycle, archive state, and confirmed charges")
+    @MainActor
+    func ordinaryEditPreservesLifecycleArchiveStateAndConfirmedCharges() throws {
+        let calendar = pinnedCalendar(timeZoneIdentifier: "UTC")
+        let anchor = try date(
+            year: 2025,
+            month: 8,
+            day: 1,
+            hour: 12,
+            calendar: calendar
+        )
+        let lifecycle = SubscriptionLifecycle.cancelled(
+            cancelledAt: try date(
+                year: 2025,
+                month: 8,
+                day: 2,
+                hour: 12,
+                calendar: calendar
+            ),
+            accessUntil: try date(
+                year: 2025,
+                month: 8,
+                day: 31,
+                hour: 12,
+                calendar: calendar
+            )
+        )
+        let confirmedCharge = ConfirmedCharge(
+            id: UUID(uuidString: "88888888-8888-8888-8888-888888888888")!,
+            chargedDate: anchor,
+            amount: Money(minorUnits: 999, currency: .usd)
+        )
+        let subscription = makeSubscription(
+            schedule: FixedBillingSchedule(
+                interval: .monthly,
+                renewalAnchor: anchor,
+                timeZoneIdentifier: "UTC"
+            ),
+            confirmedCharges: [confirmedCharge],
+            lifecycle: lifecycle,
+            isArchived: true
+        )
+        let repository = ScheduleRepository(subscription: subscription)
+        let workspace = SubscriptionWorkspace(
+            repository: repository,
+            calendar: calendar
+        )
+
+        workspace.editSubscription(
+            id: subscription.id,
+            input: SubscriptionEditInput(
+                subscription: subscription,
+                billingSchedule: FixedBillingSchedule(
+                    interval: .weekly,
+                    renewalAnchor: anchor,
+                    timeZoneIdentifier: "UTC"
+                )
+            )
+        )
+
+        let edited = try #require(repository.storedSubscription)
+        #expect(edited.lifecycle == lifecycle)
+        #expect(edited.isArchived == true)
+        #expect(edited.confirmedCharges == [confirmedCharge])
+    }
 }
 
 @MainActor
@@ -648,7 +714,9 @@ private final class ScheduleRepository: SubscriptionRepository {
 private func makeSubscription(
     schedule: FixedBillingSchedule,
     confirmedNextRenewal: Date? = nil,
-    confirmedCharges: [ConfirmedCharge] = []
+    confirmedCharges: [ConfirmedCharge] = [],
+    lifecycle: SubscriptionLifecycle = .active,
+    isArchived: Bool = false
 ) -> Subscription {
     let id = UUID(uuidString: "11111111-2222-3333-4444-555555555555")!
     return Subscription(
@@ -663,7 +731,9 @@ private func makeSubscription(
         confirmedNextRenewal: confirmedNextRenewal,
         managementURL: nil,
         notes: "",
-        confirmedCharges: confirmedCharges
+        confirmedCharges: confirmedCharges,
+        lifecycle: lifecycle,
+        isArchived: isArchived
     )
 }
 

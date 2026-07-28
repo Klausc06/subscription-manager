@@ -417,7 +417,9 @@ public final class SubscriptionWorkspace {
                 confirmedNextRenewal: input.confirmedNextRenewal,
                 managementURL: input.managementURL,
                 notes: input.notes,
-                confirmedCharges: existing.confirmedCharges
+                confirmedCharges: existing.confirmedCharges,
+                lifecycle: existing.lifecycle,
+                isArchived: existing.isArchived
             )
             try repository.updateSubscription(edited)
             detailState = .loaded(edited)
