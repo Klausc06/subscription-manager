@@ -42,25 +42,188 @@ struct SwiftDataSubscriptionRepositoryTests {
         #expect(subscriptions.isEmpty)
     }
 
-    @Test("A saved record keeps its stable identifier")
+    @Test("A created subscription reloads with every source field intact")
     @MainActor
-    func savedRecordKeepsItsIdentifier() throws {
-        let expectedID = UUID(
+    func createdSubscriptionReloadsWithEverySourceFieldIntact() throws {
+        let subscriptionID = UUID(
             uuidString: "6FD01C11-CE25-4987-9C6F-02B46F080D63"
+        )!
+        let startDate = Date(timeIntervalSince1970: 1_767_225_600)
+        let renewalDate = Date(timeIntervalSince1970: 1_769_904_000)
+        let expectedSubscription = Subscription(
+            id: subscriptionID,
+            serviceIdentity: ServiceIdentity(
+                rawValue: "manual:\(subscriptionID.uuidString)"
+            ),
+            serviceName: "Example Cloud",
+            plan: "Professional",
+            category: "Cloud storage",
+            originalAmount: Money(
+                minorUnits: 9_007_199_254_740_993,
+                currency: .cny
+            ),
+            billingCycle: .monthly,
+            startDate: startDate,
+            confirmedNextRenewal: renewalDate,
+            managementURL: URL(string: "https://example.com/account?lang=zh"),
+            notes: "工作文件"
+        )
+        let configuration = ModelConfiguration(isStoredInMemoryOnly: true)
+        let container = try ModelContainer(
+            for: SubscriptionRecord.self,
+            configurations: configuration
+        )
+        let creationRepository = SwiftDataSubscriptionRepository(
+            modelContainer: container
+        )
+        try creationRepository.createSubscription(expectedSubscription)
+
+        let reloadedRepository = SwiftDataSubscriptionRepository(
+            modelContainer: container
+        )
+        let reloadedSubscription = try reloadedRepository.subscription(
+            id: subscriptionID
+        )
+
+        #expect(reloadedSubscription == expectedSubscription)
+        #expect(
+            reloadedSubscription?.firstExpectedCharge
+                == ExpectedCharge(
+                    subscriptionID: subscriptionID,
+                    scheduledDate: renewalDate,
+                    amount: Money(
+                        minorUnits: 9_007_199_254_740_993,
+                        currency: .cny
+                    )
+                )
+        )
+    }
+
+    @Test("A USD subscription with empty optional text appears in the library")
+    @MainActor
+    func usdSubscriptionWithEmptyOptionalTextAppearsInLibrary() throws {
+        let subscription = Subscription(
+            id: UUID(
+                uuidString: "AAAAAAAA-BBBB-CCCC-DDDD-EEEEEEEEEEEE"
+            )!,
+            serviceIdentity: ServiceIdentity(rawValue: "catalog:example"),
+            serviceName: "Example Video",
+            plan: "Standard",
+            category: "Entertainment",
+            originalAmount: Money(minorUnits: 1_299, currency: .usd),
+            billingCycle: .monthly,
+            startDate: Date(timeIntervalSince1970: 1_767_225_600),
+            confirmedNextRenewal: Date(
+                timeIntervalSince1970: 1_769_904_000
+            ),
+            managementURL: nil,
+            notes: ""
+        )
+        let configuration = ModelConfiguration(isStoredInMemoryOnly: true)
+        let container = try ModelContainer(
+            for: SubscriptionRecord.self,
+            configurations: configuration
+        )
+        let repository = SwiftDataSubscriptionRepository(
+            modelContainer: container
+        )
+        try repository.createSubscription(subscription)
+
+        let subscriptions = try SwiftDataSubscriptionRepository(
+            modelContainer: container
+        ).listSubscriptions()
+
+        #expect(
+            subscriptions == [SubscriptionSummary(subscription: subscription)]
+        )
+    }
+
+    @Test("Looking up an unknown identifier returns no subscription")
+    @MainActor
+    func unknownIdentifierReturnsNoSubscription() throws {
+        let configuration = ModelConfiguration(isStoredInMemoryOnly: true)
+        let container = try ModelContainer(
+            for: SubscriptionRecord.self,
+            configurations: configuration
+        )
+        let repository = SwiftDataSubscriptionRepository(
+            modelContainer: container
+        )
+
+        let subscription = try repository.subscription(
+            id: UUID(uuidString: "00000000-0000-0000-0000-000000000001")!
+        )
+
+        #expect(subscription == nil)
+    }
+
+    @Test("A walking-skeleton record remains readable after schema expansion")
+    @MainActor
+    func walkingSkeletonRecordRemainsReadable() throws {
+        let subscriptionID = UUID(
+            uuidString: "BBBBBBBB-CCCC-DDDD-EEEE-FFFFFFFFFFFF"
         )!
         let configuration = ModelConfiguration(isStoredInMemoryOnly: true)
         let container = try ModelContainer(
             for: SubscriptionRecord.self,
             configurations: configuration
         )
-        container.mainContext.insert(SubscriptionRecord(id: expectedID))
+        container.mainContext.insert(SubscriptionRecord(id: subscriptionID))
         try container.mainContext.save()
         let repository = SwiftDataSubscriptionRepository(
             modelContainer: container
         )
 
-        let subscriptions = try repository.listSubscriptions()
+        let subscription = try repository.subscription(id: subscriptionID)
 
-        #expect(subscriptions.map(\.id) == [expectedID])
+        #expect(subscription?.id == subscriptionID)
+        #expect(
+            subscription?.serviceIdentity
+                == ServiceIdentity(
+                    rawValue: "manual:\(subscriptionID.uuidString)"
+                )
+        )
+        #expect(subscription?.originalAmount == Money(
+            minorUnits: 0,
+            currency: .usd
+        ))
+        #expect(subscription?.billingCycle == .monthly)
+        #expect(subscription?.managementURL == nil)
+        #expect(subscription?.notes == "")
+    }
+
+    @Test("UI testing launches use separate in-memory libraries")
+    @MainActor
+    func uiTestingLaunchesUseSeparateInMemoryLibraries() {
+        let input = MonthlySubscriptionCreationInput(
+            serviceName: "Example",
+            plan: "Standard",
+            category: "Other",
+            originalAmount: Money(minorUnits: 999, currency: .usd),
+            startDate: Date(timeIntervalSince1970: 1_767_225_600),
+            confirmedNextRenewal: Date(
+                timeIntervalSince1970: 1_769_904_000
+            ),
+            managementURL: nil,
+            notes: ""
+        )
+
+        guard case .ready(let firstLaunch) = AppDependencies.live(
+            arguments: ["SubscriptionManager", "--ui-testing"]
+        ) else {
+            Issue.record("Expected the first UI testing launch to be ready")
+            return
+        }
+        firstLaunch.workspace.createMonthlySubscription(input)
+
+        guard case .ready(let secondLaunch) = AppDependencies.live(
+            arguments: ["SubscriptionManager", "--ui-testing"]
+        ) else {
+            Issue.record("Expected the second UI testing launch to be ready")
+            return
+        }
+        secondLaunch.workspace.loadLibrary()
+
+        #expect(secondLaunch.workspace.libraryState == .empty)
     }
 }
