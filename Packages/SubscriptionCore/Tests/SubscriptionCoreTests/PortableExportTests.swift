@@ -87,6 +87,35 @@ struct PortableExportTests {
         #expect(rows[1][12] == "A \"quoted\" note")
         #expect(rows[1][13] == "true")
     }
+
+    @Test("Workspace export includes archived records without changing the library")
+    @MainActor
+    func workspaceExportIsReadOnlyAndIncludesArchivedSubscriptions() throws {
+        let archived = Subscription(
+            id: UUID(uuidString: "99999999-2222-3333-4444-555555555555")!,
+            serviceIdentity: ServiceIdentity(rawValue: "atlas"),
+            serviceName: "Atlas",
+            plan: "Pro",
+            category: "Productivity",
+            originalAmount: Money(minorUnits: 1_299, currency: .usd),
+            billingCycle: .yearly,
+            startDate: Date(timeIntervalSince1970: 1_704_067_200),
+            confirmedNextRenewal: Date(timeIntervalSince1970: 1_735_689_600),
+            billingTimeZoneIdentifier: "UTC",
+            managementURL: nil,
+            notes: "",
+            isArchived: true
+        )
+        let repository = ExportRepositoryFixture(
+            subscriptions: [archived]
+        )
+        let workspace = SubscriptionWorkspace(repository: repository)
+
+        let backup = try #require(workspace.makePortableBackup())
+
+        #expect(backup.subscriptions == [archived])
+        #expect(try repository.listSubscriptions() == [archived])
+    }
 }
 
 private struct CSVFixtureParser {
@@ -127,4 +156,33 @@ private struct CSVFixtureParser {
         }
         return rows
     }
+}
+
+@MainActor
+private final class ExportRepositoryFixture: SubscriptionRepository {
+    private var subscriptions: [UUID: Subscription]
+
+    init(subscriptions: [Subscription]) {
+        self.subscriptions = Dictionary(
+            uniqueKeysWithValues: subscriptions.map { ($0.id, $0) }
+        )
+    }
+
+    func createSubscription(_ subscription: Subscription) throws {
+        subscriptions[subscription.id] = subscription
+    }
+
+    func updateSubscription(_ subscription: Subscription) throws {
+        subscriptions[subscription.id] = subscription
+    }
+
+    func deleteSubscription(id: UUID) throws {
+        subscriptions.removeValue(forKey: id)
+    }
+
+    func listSubscriptions() throws -> [Subscription] {
+        subscriptions.values.sorted { $0.id.uuidString < $1.id.uuidString }
+    }
+
+    func subscription(id: UUID) throws -> Subscription? { subscriptions[id] }
 }

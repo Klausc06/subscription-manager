@@ -1593,6 +1593,20 @@ public final class SubscriptionWorkspace {
         }
     }
 
+    public func makePortableBackup() -> PortableBackup? {
+        do {
+            let subscriptions = try repository.listSubscriptions()
+            let preferences = try preferencesRepository?.loadPreferences()
+                ?? currentPreferences
+            return PortableBackup(
+                preferences: preferences,
+                subscriptions: subscriptions
+            )
+        } catch {
+            return nil
+        }
+    }
+
     public func importCalendarProjection(
         _ events: [CalendarProjectionEvent]
     ) async {
