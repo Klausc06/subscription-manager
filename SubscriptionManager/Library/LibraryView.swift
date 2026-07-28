@@ -701,12 +701,7 @@ private struct ScopedLibraryView: View {
             .navigationTitle(navigationTitle)
             .toolbar {
                 if scope == .current {
-                    ToolbarItem(placement: .topBarLeading) {
-                        Button("Settings", systemImage: "gearshape") {
-                            onPreferences()
-                        }
-                        .accessibilityIdentifier("library.settings")
-                    }
+                    settingsToolbarItem
                     ToolbarItemGroup(placement: .primaryAction) {
                         NavigationLink(
                             value: SubscriptionLibraryScope.archived
@@ -722,6 +717,26 @@ private struct ScopedLibraryView: View {
             .task(id: scope) {
                 workspace.loadLibrary(scope: scope)
             }
+    }
+
+    @ToolbarContentBuilder
+    private var settingsToolbarItem: some ToolbarContent {
+        #if os(macOS)
+        ToolbarItem(placement: .automatic) {
+            settingsButton
+        }
+        #else
+        ToolbarItem(placement: .topBarLeading) {
+            settingsButton
+        }
+        #endif
+    }
+
+    private var settingsButton: some View {
+        Button("Settings", systemImage: "gearshape") {
+            onPreferences()
+        }
+        .accessibilityIdentifier("library.settings")
     }
 
     private var navigationTitle: LocalizedStringKey {
@@ -793,7 +808,7 @@ private struct ScopedLibraryView: View {
     }
 }
 
-private struct UserPreferencesView: View {
+struct UserPreferencesView: View {
     @Environment(\.dismiss) private var dismiss
 
     let workspace: SubscriptionWorkspace

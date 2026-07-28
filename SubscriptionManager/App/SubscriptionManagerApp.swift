@@ -30,10 +30,46 @@ struct SubscriptionManagerApp: App {
                 )
             }
         }
+        #if os(macOS)
+        .commands { MacWindowCommands() }
+        #endif
     }
 }
 
 #if os(macOS)
+private enum MacWindowCommand {
+    static let add = Notification.Name("MacWindowCommand.add")
+    static let edit = Notification.Name("MacWindowCommand.edit")
+    static let archive = Notification.Name("MacWindowCommand.archive")
+    static let search = Notification.Name("MacWindowCommand.search")
+    static let settings = Notification.Name("MacWindowCommand.settings")
+}
+
+private struct MacWindowCommands: Commands {
+    var body: some Commands {
+        CommandGroup(after: .newItem) {
+            Button("Add Subscription") { post(MacWindowCommand.add) }
+                .keyboardShortcut("n", modifiers: [.command])
+        }
+        CommandMenu("Subscription") {
+            Button("Edit") { post(MacWindowCommand.edit) }
+                .keyboardShortcut("e", modifiers: [.command])
+            Button("Archive") { post(MacWindowCommand.archive) }
+                .keyboardShortcut("a", modifiers: [.command, .option])
+        }
+        CommandGroup(after: .toolbar) {
+            Button("Search Subscriptions") { post(MacWindowCommand.search) }
+                .keyboardShortcut("f", modifiers: [.command])
+            Button("Settings") { post(MacWindowCommand.settings) }
+                .keyboardShortcut(",", modifiers: [.command])
+        }
+    }
+
+    private func post(_ name: Notification.Name) {
+        NotificationCenter.default.post(name: name, object: nil)
+    }
+}
+
 private struct MacLibraryView: View {
     let workspace: SubscriptionWorkspace
 
@@ -43,6 +79,9 @@ private struct MacLibraryView: View {
     @State private var ascending = true
     @State private var selection: Set<UUID> = []
     @State private var isAddingSubscription = false
+    @State private var editingSubscription: Subscription?
+    @State private var isPreferencesPresented = false
+    @FocusState private var isSearchFocused: Bool
 
     var body: some View {
         NavigationSplitView {
@@ -57,6 +96,7 @@ private struct MacLibraryView: View {
             tableContent
                 .navigationTitle(scope == .current ? "Subscriptions" : "Archived")
                 .searchable(text: $searchText, prompt: "Search Subscriptions")
+                .focused($isSearchFocused)
                 .toolbar {
                     ToolbarItemGroup {
                         Button("Add Subscription", systemImage: "plus") {
@@ -78,9 +118,7 @@ private struct MacLibraryView: View {
                         }
 
                         Button("Archive", systemImage: "archivebox") {
-                            selection.forEach(workspace.archive)
-                            workspace.loadLibrary(scope: scope)
-                            selection.removeAll()
+                            archiveSelection()
                         }
                         .disabled(scope != .current || selection.isEmpty)
                     }
@@ -93,6 +131,14 @@ private struct MacLibraryView: View {
             AddSubscriptionView(workspace: workspace)
                 .frame(minWidth: 520, minHeight: 560)
         }
+        .sheet(item: $editingSubscription) { subscription in
+            EditSubscriptionView(workspace: workspace, subscription: subscription)
+                .frame(minWidth: 520, minHeight: 560)
+        }
+        .sheet(isPresented: $isPreferencesPresented) {
+            UserPreferencesView(workspace: workspace) {}
+                .frame(minWidth: 480, minHeight: 460)
+        }
         .task {
             workspace.loadLibrary(scope: scope)
         }
@@ -100,12 +146,27 @@ private struct MacLibraryView: View {
             selection.removeAll()
             workspace.loadLibrary(scope: scope)
         }
+        .onReceive(NotificationCenter.default.publisher(for: MacWindowCommand.add)) { _ in
+            isAddingSubscription = true
+        }
+        .onReceive(NotificationCenter.default.publisher(for: MacWindowCommand.edit)) { _ in
+            beginEditingSelection()
+        }
+        .onReceive(NotificationCenter.default.publisher(for: MacWindowCommand.archive)) { _ in
+            archiveSelection()
+        }
+        .onReceive(NotificationCenter.default.publisher(for: MacWindowCommand.search)) { _ in
+            isSearchFocused = true
+        }
+        .onReceive(NotificationCenter.default.publisher(for: MacWindowCommand.settings)) { _ in
+            isPreferencesPresented = true
+        }
     }
 
     @ViewBuilder
     private var tableContent: some View {
         switch workspace.libraryState {
-        case .loaded(_, let summaries):
+        case .loaded:
             Table(visibleSummaries, selection: $selection) {
                 TableColumn("Service") { summary in
                     Text(summary.serviceName)
@@ -178,6 +239,23 @@ private struct MacLibraryView: View {
         case .nextRenewal: "Next Renewal"
         case .amount: "Amount"
         }
+    }
+
+    private func archiveSelection() {
+        guard scope == .current else { return }
+        selection.forEach(workspace.archive)
+        workspace.loadLibrary(scope: scope)
+        selection.removeAll()
+    }
+
+    private func beginEditingSelection() {
+        guard selection.count == 1, let id = selection.first else { return }
+        workspace.loadSubscription(id: id)
+        guard case .loaded(let subscription, _, _) = workspace.detailState else {
+            return
+        }
+        workspace.beginEditing()
+        editingSubscription = subscription
     }
 }
 #endif
