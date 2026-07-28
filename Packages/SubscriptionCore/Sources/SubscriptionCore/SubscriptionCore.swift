@@ -49,16 +49,13 @@ public struct Subscription: Codable, Equatable, Identifiable, Sendable {
     public let originalAmount: Money
     public let billingSchedule: FixedBillingSchedule
     public let startDate: Date
+    public let confirmedNextRenewal: Date
     public let managementURL: URL?
     public let notes: String
     public let confirmedCharges: [ConfirmedCharge]
 
     public var billingCycle: BillingInterval {
         billingSchedule.interval
-    }
-
-    public var confirmedNextRenewal: Date {
-        billingSchedule.renewalAnchor
     }
 
     public var firstExpectedCharge: ExpectedCharge {
@@ -78,6 +75,7 @@ public struct Subscription: Codable, Equatable, Identifiable, Sendable {
         originalAmount: Money,
         billingSchedule: FixedBillingSchedule,
         startDate: Date,
+        confirmedNextRenewal: Date? = nil,
         managementURL: URL?,
         notes: String,
         confirmedCharges: [ConfirmedCharge] = []
@@ -90,6 +88,8 @@ public struct Subscription: Codable, Equatable, Identifiable, Sendable {
         self.originalAmount = originalAmount
         self.billingSchedule = billingSchedule
         self.startDate = startDate
+        self.confirmedNextRenewal =
+            confirmedNextRenewal ?? billingSchedule.renewalAnchor
         self.managementURL = managementURL
         self.notes = notes
         self.confirmedCharges = confirmedCharges
@@ -119,10 +119,11 @@ public struct Subscription: Codable, Equatable, Identifiable, Sendable {
             originalAmount: originalAmount,
             billingSchedule: FixedBillingSchedule(
                 interval: billingCycle,
-                renewalAnchor: confirmedNextRenewal,
+                renewalAnchor: startDate,
                 timeZoneIdentifier: billingTimeZoneIdentifier
             ),
             startDate: startDate,
+            confirmedNextRenewal: confirmedNextRenewal,
             managementURL: managementURL,
             notes: notes,
             confirmedCharges: confirmedCharges
@@ -138,11 +139,8 @@ public struct SubscriptionSummary: Codable, Equatable, Identifiable, Sendable {
     public let category: String
     public let originalAmount: Money
     public let billingSchedule: FixedBillingSchedule
+    public let confirmedNextRenewal: Date
     public let firstExpectedCharge: ExpectedCharge
-
-    public var confirmedNextRenewal: Date {
-        billingSchedule.renewalAnchor
-    }
 
     public init(subscription: Subscription) {
         id = subscription.id
@@ -152,6 +150,7 @@ public struct SubscriptionSummary: Codable, Equatable, Identifiable, Sendable {
         category = subscription.category
         originalAmount = subscription.originalAmount
         billingSchedule = subscription.billingSchedule
+        confirmedNextRenewal = subscription.confirmedNextRenewal
         firstExpectedCharge = subscription.firstExpectedCharge
     }
 }
@@ -163,6 +162,7 @@ public struct MonthlySubscriptionCreationInput: Equatable, Sendable {
     public let originalAmount: Money?
     public let billingInterval: BillingInterval
     public let startDate: Date
+    public let renewalAnchor: Date
     public let confirmedNextRenewal: Date
     public let billingTimeZoneIdentifier: String
     public let managementURL: URL?
@@ -175,6 +175,7 @@ public struct MonthlySubscriptionCreationInput: Equatable, Sendable {
         originalAmount: Money?,
         billingInterval: BillingInterval = .monthly,
         startDate: Date,
+        renewalAnchor: Date? = nil,
         confirmedNextRenewal: Date,
         billingTimeZoneIdentifier: String = TimeZone.autoupdatingCurrent.identifier,
         managementURL: URL?,
@@ -186,6 +187,7 @@ public struct MonthlySubscriptionCreationInput: Equatable, Sendable {
         self.originalAmount = originalAmount
         self.billingInterval = billingInterval
         self.startDate = startDate
+        self.renewalAnchor = renewalAnchor ?? startDate
         self.confirmedNextRenewal = confirmedNextRenewal
         self.billingTimeZoneIdentifier = billingTimeZoneIdentifier
         self.managementURL = managementURL
@@ -200,6 +202,7 @@ public struct SubscriptionEditInput: Equatable, Sendable {
     public let originalAmount: Money?
     public let billingSchedule: FixedBillingSchedule
     public let startDate: Date
+    public let confirmedNextRenewal: Date
     public let managementURL: URL?
     public let notes: String
 
@@ -210,6 +213,7 @@ public struct SubscriptionEditInput: Equatable, Sendable {
         originalAmount: Money?,
         billingSchedule: FixedBillingSchedule,
         startDate: Date,
+        confirmedNextRenewal: Date? = nil,
         managementURL: URL?,
         notes: String
     ) {
@@ -219,6 +223,8 @@ public struct SubscriptionEditInput: Equatable, Sendable {
         self.originalAmount = originalAmount
         self.billingSchedule = billingSchedule
         self.startDate = startDate
+        self.confirmedNextRenewal =
+            confirmedNextRenewal ?? billingSchedule.renewalAnchor
         self.managementURL = managementURL
         self.notes = notes
     }
@@ -234,6 +240,7 @@ public struct SubscriptionEditInput: Equatable, Sendable {
             originalAmount: subscription.originalAmount,
             billingSchedule: billingSchedule,
             startDate: subscription.startDate,
+            confirmedNextRenewal: billingSchedule.renewalAnchor,
             managementURL: subscription.managementURL,
             notes: subscription.notes
         )
@@ -245,6 +252,7 @@ public enum SubscriptionCreationField: Hashable, Sendable {
     case plan
     case category
     case originalAmount
+    case renewalAnchor
     case confirmedNextRenewal
     case billingSchedule
 }
@@ -346,10 +354,11 @@ public final class SubscriptionWorkspace {
             originalAmount: originalAmount,
             billingSchedule: FixedBillingSchedule(
                 interval: input.billingInterval,
-                renewalAnchor: input.confirmedNextRenewal,
+                renewalAnchor: input.renewalAnchor,
                 timeZoneIdentifier: input.billingTimeZoneIdentifier
             ),
             startDate: input.startDate,
+            confirmedNextRenewal: input.confirmedNextRenewal,
             managementURL: input.managementURL,
             notes: input.notes
         )
@@ -398,6 +407,7 @@ public final class SubscriptionWorkspace {
                 originalAmount: originalAmount,
                 billingSchedule: input.billingSchedule,
                 startDate: input.startDate,
+                confirmedNextRenewal: input.confirmedNextRenewal,
                 managementURL: input.managementURL,
                 notes: input.notes,
                 confirmedCharges: existing.confirmedCharges
@@ -438,6 +448,10 @@ public final class SubscriptionWorkspace {
         } catch {
             libraryState = .failed
         }
+    }
+
+    public func beginEditing() {
+        editingValidationErrors = [:]
     }
 
     public func loadSubscription(id: UUID) {
@@ -506,6 +520,9 @@ public final class SubscriptionWorkspace {
         if input.confirmedNextRenewal < input.startDate {
             errors[.confirmedNextRenewal] = .beforeStartDate
         }
+        if input.renewalAnchor < input.startDate {
+            errors[.renewalAnchor] = .beforeStartDate
+        }
         if !input.billingInterval.isValid {
             errors[.billingSchedule] = .mustBePositive
         } else if TimeZone(
@@ -542,6 +559,9 @@ public final class SubscriptionWorkspace {
             errors[.originalAmount] = .required
         }
         if input.billingSchedule.renewalAnchor < input.startDate {
+            errors[.renewalAnchor] = .beforeStartDate
+        }
+        if input.confirmedNextRenewal < input.startDate {
             errors[.confirmedNextRenewal] = .beforeStartDate
         }
         if !input.billingSchedule.interval.isValid {
@@ -572,6 +592,10 @@ public final class SubscriptionWorkspace {
         var renewalCalendar = calendar
         renewalCalendar.timeZone = timeZone
         let currentDate = now()
+        let firstForecastDate = max(
+            currentDate,
+            subscription.confirmedNextRenewal
+        )
         var charges: [ExpectedCharge] = []
         var occurrenceIndex = 0
 
@@ -586,7 +610,7 @@ public final class SubscriptionWorkspace {
             if scheduledDate > horizon {
                 break
             }
-            if scheduledDate >= currentDate {
+            if scheduledDate >= firstForecastDate {
                 charges.append(
                     ExpectedCharge(
                         subscriptionID: subscription.id,

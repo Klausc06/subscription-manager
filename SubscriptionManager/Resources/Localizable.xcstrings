@@ -277,6 +277,12 @@
         "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "每季度" } }
       }
     },
+    "Renewal Anchor" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Renewal Anchor" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "续费锚点" } }
+      }
+    },
     "Reopen the app to try again." : {
       "localizations" : {
         "en" : {

@@ -85,6 +85,10 @@ final class SwiftDataSubscriptionRepository: SubscriptionRepository {
                     record.billingTimeZoneIdentifier = backfill
                     needsSave = true
                 }
+                if let backfill = result.renewalAnchorBackfill {
+                    record.renewalAnchor = backfill
+                    needsSave = true
+                }
                 subscriptions.append(result.subscription)
             }
             if needsSave {
@@ -113,6 +117,13 @@ final class SwiftDataSubscriptionRepository: SubscriptionRepository {
             let result = try makeSubscription(from: record)
             if let backfill = result.billingTimeZoneBackfill {
                 record.billingTimeZoneIdentifier = backfill
+            }
+            if let backfill = result.renewalAnchorBackfill {
+                record.renewalAnchor = backfill
+            }
+            if result.billingTimeZoneBackfill != nil
+                || result.renewalAnchorBackfill != nil
+            {
                 try save(modelContext)
             }
             return result.subscription
@@ -140,8 +151,8 @@ final class SwiftDataSubscriptionRepository: SubscriptionRepository {
         record.billingTimeZoneIdentifier =
             subscription.billingSchedule.timeZoneIdentifier
         record.startDate = subscription.startDate
-        record.confirmedNextRenewal =
-            subscription.billingSchedule.renewalAnchor
+        record.renewalAnchor = subscription.billingSchedule.renewalAnchor
+        record.confirmedNextRenewal = subscription.confirmedNextRenewal
         record.managementURLString =
             subscription.managementURL?.absoluteString
         record.notes = subscription.notes
@@ -154,7 +165,8 @@ final class SwiftDataSubscriptionRepository: SubscriptionRepository {
         from record: SubscriptionRecord
     ) throws -> (
         subscription: Subscription,
-        billingTimeZoneBackfill: String?
+        billingTimeZoneBackfill: String?,
+        renewalAnchorBackfill: Date?
     ) {
         let serviceIdentityRawValue = record.serviceIdentityRawValue.isEmpty
             ? "manual:\(record.id.uuidString)"
@@ -181,6 +193,11 @@ final class SwiftDataSubscriptionRepository: SubscriptionRepository {
             }
         let timeZoneIdentifier =
             storedTimeZoneIdentifier ?? defaultBillingTimeZone().identifier
+        let renewalAnchor = record.renewalAnchor
+            ?? inferredRenewalAnchor(
+                from: record,
+                timeZoneIdentifier: timeZoneIdentifier
+            )
         let confirmedCharges: [ConfirmedCharge]
         if let data = record.confirmedChargesData {
             confirmedCharges = try decoder.decode(
@@ -205,10 +222,11 @@ final class SwiftDataSubscriptionRepository: SubscriptionRepository {
             ),
             billingSchedule: FixedBillingSchedule(
                 interval: interval,
-                renewalAnchor: record.confirmedNextRenewal,
+                renewalAnchor: renewalAnchor,
                 timeZoneIdentifier: timeZoneIdentifier
             ),
             startDate: record.startDate,
+            confirmedNextRenewal: record.confirmedNextRenewal,
             managementURL: managementURL,
             notes: record.notes ?? "",
             confirmedCharges: confirmedCharges
@@ -217,8 +235,105 @@ final class SwiftDataSubscriptionRepository: SubscriptionRepository {
             subscription: subscription,
             billingTimeZoneBackfill: storedTimeZoneIdentifier == nil
                 ? timeZoneIdentifier
+                : nil,
+            renewalAnchorBackfill: record.renewalAnchor == nil
+                ? renewalAnchor
                 : nil
         )
+    }
+
+    private func inferredRenewalAnchor(
+        from record: SubscriptionRecord,
+        timeZoneIdentifier: String
+    ) -> Date {
+        guard record.billingCycleRawValue == BillingInterval.monthly.rawValue,
+              record.confirmedNextRenewal >= record.startDate,
+              let timeZone = TimeZone(identifier: timeZoneIdentifier)
+        else {
+            return record.confirmedNextRenewal
+        }
+
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.locale = Locale(identifier: "en_US_POSIX")
+        calendar.timeZone = timeZone
+        let start = calendar.dateComponents(
+            [.year, .month],
+            from: record.startDate
+        )
+        let renewal = calendar.dateComponents(
+            [.year, .month],
+            from: record.confirmedNextRenewal
+        )
+        guard let startYear = start.year,
+              let startMonth = start.month,
+              let renewalYear = renewal.year,
+              let renewalMonth = renewal.month
+        else {
+            return record.confirmedNextRenewal
+        }
+        let monthOffset =
+            (renewalYear - startYear) * 12 + renewalMonth - startMonth
+        guard monthOffset >= 0,
+              let projectedDate = clampedMonthDate(
+                  from: record.startDate,
+                  monthOffset: monthOffset,
+                  calendar: calendar
+              )
+        else {
+            return record.confirmedNextRenewal
+        }
+        let projectedDay = calendar.dateComponents(
+            [.year, .month, .day],
+            from: projectedDate
+        )
+        let renewalDay = calendar.dateComponents(
+            [.year, .month, .day],
+            from: record.confirmedNextRenewal
+        )
+        return projectedDay == renewalDay
+            ? record.startDate
+            : record.confirmedNextRenewal
+    }
+
+    private func clampedMonthDate(
+        from anchor: Date,
+        monthOffset: Int,
+        calendar: Calendar
+    ) -> Date? {
+        var components = calendar.dateComponents(
+            [
+                .era,
+                .year,
+                .month,
+                .day,
+                .hour,
+                .minute,
+                .second,
+                .nanosecond,
+            ],
+            from: anchor
+        )
+        guard let anchorYear = components.year,
+              let anchorMonth = components.month,
+              let anchorDay = components.day
+        else {
+            return nil
+        }
+        let monthIndex = anchorMonth - 1 + monthOffset
+        components.year = anchorYear + monthIndex / 12
+        components.month = monthIndex % 12 + 1
+        components.day = 1
+        guard let firstOfMonth = calendar.date(from: components),
+              let days = calendar.range(
+                  of: .day,
+                  in: .month,
+                  for: firstOfMonth
+              )
+        else {
+            return nil
+        }
+        components.day = min(anchorDay, days.count)
+        return calendar.date(from: components)
     }
 
     private enum RepositoryError: Error {

@@ -18,6 +18,7 @@ struct EditSubscriptionView: View {
     @State private var customUnit: BillingIntervalUnit
     @State private var startDate: Date
     @State private var renewalAnchor: Date
+    @State private var confirmedNextRenewal: Date
     @State private var managementURLText: String
     @State private var notes: String
     @State private var amountInputIsInvalid = false
@@ -53,9 +54,25 @@ struct EditSubscriptionView: View {
             initialValue:
                 subscription.billingSchedule.interval.customUnit ?? .day
         )
-        _startDate = State(initialValue: subscription.startDate)
+        let timeZoneIdentifier =
+            subscription.billingSchedule.timeZoneIdentifier
+        _startDate = State(
+            initialValue: normalizedBillingDate(
+                subscription.startDate,
+                timeZoneIdentifier: timeZoneIdentifier
+            ) ?? subscription.startDate
+        )
         _renewalAnchor = State(
-            initialValue: subscription.billingSchedule.renewalAnchor
+            initialValue: normalizedBillingDate(
+                subscription.billingSchedule.renewalAnchor,
+                timeZoneIdentifier: timeZoneIdentifier
+            ) ?? subscription.billingSchedule.renewalAnchor
+        )
+        _confirmedNextRenewal = State(
+            initialValue: normalizedBillingDate(
+                subscription.confirmedNextRenewal,
+                timeZoneIdentifier: timeZoneIdentifier
+            ) ?? subscription.confirmedNextRenewal
         )
         _managementURLText = State(
             initialValue: subscription.managementURL?.absoluteString ?? ""
@@ -82,6 +99,9 @@ struct EditSubscriptionView: View {
             }
         }
         .accessibilityIdentifier("subscription.form")
+        .onAppear {
+            workspace.beginEditing()
+        }
         .navigationTitle("Edit Subscription")
         #if os(iOS)
             .navigationBarTitleDisplayMode(.inline)
@@ -170,12 +190,20 @@ struct EditSubscriptionView: View {
             .accessibilityIdentifier("subscription.form.start-date")
 
             DatePicker(
-                "Next Renewal",
+                "Renewal Anchor",
                 selection: $renewalAnchor,
+                displayedComponents: .date
+            )
+            .accessibilityIdentifier("subscription.form.renewal-anchor")
+
+            DatePicker(
+                "Next Renewal",
+                selection: $confirmedNextRenewal,
                 displayedComponents: .date
             )
             .accessibilityIdentifier("subscription.form.next-renewal")
 
+            validationMessage(for: .renewalAnchor)
             validationMessage(for: .confirmedNextRenewal)
         }
         .environment(
@@ -232,6 +260,24 @@ struct EditSubscriptionView: View {
         guard !managementURLIsInvalid else {
             return
         }
+        let timeZoneIdentifier =
+            subscription.billingSchedule.timeZoneIdentifier
+        guard let normalizedStartDate = normalizedBillingDate(
+                  startDate,
+                  timeZoneIdentifier: timeZoneIdentifier
+              ),
+              let normalizedRenewalAnchor = normalizedBillingDate(
+                  renewalAnchor,
+                  timeZoneIdentifier: timeZoneIdentifier
+              ),
+              let normalizedNextRenewal = normalizedBillingDate(
+                  confirmedNextRenewal,
+                  timeZoneIdentifier: timeZoneIdentifier
+              )
+        else {
+            saveFailed = true
+            return
+        }
 
         let interval = intervalChoice.interval(
             customValueText: customValueText,
@@ -246,11 +292,11 @@ struct EditSubscriptionView: View {
                 originalAmount: amount,
                 billingSchedule: FixedBillingSchedule(
                     interval: interval,
-                    renewalAnchor: renewalAnchor,
-                    timeZoneIdentifier:
-                        subscription.billingSchedule.timeZoneIdentifier
+                    renewalAnchor: normalizedRenewalAnchor,
+                    timeZoneIdentifier: timeZoneIdentifier
                 ),
-                startDate: startDate,
+                startDate: normalizedStartDate,
+                confirmedNextRenewal: normalizedNextRenewal,
                 managementURL: managementURL(from: managementURLResult),
                 notes: notes
             )

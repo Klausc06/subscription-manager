@@ -16,6 +16,7 @@ struct AddSubscriptionView: View {
     @State private var customValueText = ""
     @State private var customUnit: BillingIntervalUnit = .day
     @State private var startDate = Date()
+    @State private var renewalAnchor = Date()
     @State private var confirmedNextRenewal =
         Calendar.current.date(byAdding: .month, value: 1, to: Date()) ?? Date()
     @State private var managementURLText = ""
@@ -131,6 +132,13 @@ struct AddSubscriptionView: View {
             .accessibilityIdentifier("subscription.form.start-date")
 
             DatePicker(
+                "Renewal Anchor",
+                selection: $renewalAnchor,
+                displayedComponents: .date
+            )
+            .accessibilityIdentifier("subscription.form.renewal-anchor")
+
+            DatePicker(
                 "Next Renewal",
                 selection: $confirmedNextRenewal,
                 displayedComponents: .date
@@ -138,6 +146,7 @@ struct AddSubscriptionView: View {
             .accessibilityIdentifier("subscription.form.next-renewal")
 
             validationMessage(for: .confirmedNextRenewal)
+            validationMessage(for: .renewalAnchor)
         }
     }
 
@@ -189,6 +198,23 @@ struct AddSubscriptionView: View {
         guard !managementURLIsInvalid else {
             return
         }
+        let timeZoneIdentifier = TimeZone.autoupdatingCurrent.identifier
+        guard let normalizedStartDate = normalizedBillingDate(
+                  startDate,
+                  timeZoneIdentifier: timeZoneIdentifier
+              ),
+              let normalizedRenewalAnchor = normalizedBillingDate(
+                  renewalAnchor,
+                  timeZoneIdentifier: timeZoneIdentifier
+              ),
+              let normalizedNextRenewal = normalizedBillingDate(
+                  confirmedNextRenewal,
+                  timeZoneIdentifier: timeZoneIdentifier
+              )
+        else {
+            saveFailed = true
+            return
+        }
 
         workspace.createSubscription(
             MonthlySubscriptionCreationInput(
@@ -200,8 +226,10 @@ struct AddSubscriptionView: View {
                     customValueText: customValueText,
                     customUnit: customUnit
                 ),
-                startDate: startDate,
-                confirmedNextRenewal: confirmedNextRenewal,
+                startDate: normalizedStartDate,
+                renewalAnchor: normalizedRenewalAnchor,
+                confirmedNextRenewal: normalizedNextRenewal,
+                billingTimeZoneIdentifier: timeZoneIdentifier,
                 managementURL: managementURL(from: managementURLResult),
                 notes: notes
             )

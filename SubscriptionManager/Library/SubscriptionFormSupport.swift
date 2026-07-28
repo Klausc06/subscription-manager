@@ -69,6 +69,8 @@ extension SubscriptionCreationField {
             "category"
         case .originalAmount:
             "amount"
+        case .renewalAnchor:
+            "renewal-anchor"
         case .confirmedNextRenewal:
             "next-renewal"
         case .billingSchedule:

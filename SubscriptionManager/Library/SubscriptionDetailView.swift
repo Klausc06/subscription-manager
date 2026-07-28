@@ -15,6 +15,7 @@ struct SubscriptionDetailView: View {
                 {
                     ToolbarItem(placement: .primaryAction) {
                         Button("Edit", systemImage: "pencil") {
+                            workspace.beginEditing()
                             subscriptionToEdit = subscription
                         }
                         .accessibilityIdentifier("subscription.edit")
@@ -74,7 +75,15 @@ struct SubscriptionDetailView: View {
 }
 
 private struct SubscriptionDetailForm: View {
+    @Environment(\.locale) private var locale
+
     let subscription: Subscription
+
+    private var timeZone: TimeZone {
+        billingTimeZone(
+            identifier: subscription.billingSchedule.timeZoneIdentifier
+        )
+    }
 
     var body: some View {
         Form {
@@ -115,10 +124,12 @@ private struct SubscriptionDetailForm: View {
                     "subscription.detail.expected-charge.amount"
                 )
                 LabeledContent {
-                    Text(
+                    Text(formattedBillingDate(
                         subscription.firstExpectedCharge.scheduledDate,
-                        format: .dateTime.year().month().day()
-                    )
+                        timeZoneIdentifier:
+                            subscription.billingSchedule.timeZoneIdentifier,
+                        locale: locale
+                    ))
                 } label: {
                     Text("Date")
                 }
@@ -126,18 +137,32 @@ private struct SubscriptionDetailForm: View {
 
             Section("Billing Dates") {
                 LabeledContent {
-                    Text(
+                    Text(formattedBillingDate(
                         subscription.startDate,
-                        format: .dateTime.year().month().day()
-                    )
+                        timeZoneIdentifier:
+                            subscription.billingSchedule.timeZoneIdentifier,
+                        locale: locale
+                    ))
                 } label: {
                     Text("Start Date")
                 }
                 LabeledContent {
-                    Text(
+                    Text(formattedBillingDate(
+                        subscription.billingSchedule.renewalAnchor,
+                        timeZoneIdentifier:
+                            subscription.billingSchedule.timeZoneIdentifier,
+                        locale: locale
+                    ))
+                } label: {
+                    Text("Renewal Anchor")
+                }
+                LabeledContent {
+                    Text(formattedBillingDate(
                         subscription.confirmedNextRenewal,
-                        format: .dateTime.year().month().day()
-                    )
+                        timeZoneIdentifier:
+                            subscription.billingSchedule.timeZoneIdentifier,
+                        locale: locale
+                    ))
                 } label: {
                     Text("Next Renewal")
                 }
@@ -158,5 +183,6 @@ private struct SubscriptionDetailForm: View {
             }
         }
         .accessibilityIdentifier("subscription.detail")
+        .environment(\.timeZone, timeZone)
     }
 }

@@ -419,6 +419,65 @@ struct SwiftDataSubscriptionRepositoryTests {
         )
     }
 
+    @Test("Migration reconstructs a clamped monthly renewal anchor")
+    @MainActor
+    func migrationReconstructsClampedMonthlyAnchor() throws {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(identifier: "UTC")!
+        let startDate = try #require(
+            calendar.date(
+                from: DateComponents(
+                    year: 2025,
+                    month: 1,
+                    day: 31,
+                    hour: 12
+                )
+            )
+        )
+        let nextRenewal = try #require(
+            calendar.date(
+                from: DateComponents(
+                    year: 2025,
+                    month: 2,
+                    day: 28,
+                    hour: 12
+                )
+            )
+        )
+        let subscriptionID = UUID(
+            uuidString: "D531C53E-E65E-4B08-A388-8944218B6D1C"
+        )!
+        let configuration = ModelConfiguration(isStoredInMemoryOnly: true)
+        let container = try ModelContainer(
+            for: SubscriptionRecord.self,
+            configurations: configuration
+        )
+        container.mainContext.insert(
+            SubscriptionRecord(
+                id: subscriptionID,
+                startDate: startDate,
+                confirmedNextRenewal: nextRenewal
+            )
+        )
+        try container.mainContext.save()
+        let repository = SwiftDataSubscriptionRepository(
+            modelContainer: container,
+            defaultBillingTimeZone: {
+                TimeZone(identifier: "UTC")!
+            }
+        )
+
+        let migrated = try repository.subscription(id: subscriptionID)
+
+        #expect(migrated?.billingSchedule.renewalAnchor == startDate)
+        #expect(migrated?.confirmedNextRenewal == nextRenewal)
+        #expect(
+            try container.mainContext.fetch(
+                FetchDescriptor<SubscriptionRecord>()
+            ).first?.renewalAnchor == startDate
+        )
+    }
+
     @Test("UI testing launches use separate in-memory libraries")
     @MainActor
     func uiTestingLaunchesUseSeparateInMemoryLibraries() {

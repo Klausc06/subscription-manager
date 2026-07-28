@@ -135,6 +135,76 @@ struct FixedBillingScheduleTests {
         )
     }
 
+    @Test("Creation keeps the next renewal separate from the original anchor")
+    @MainActor
+    func creationKeepsNextRenewalSeparateFromAnchor() throws {
+        let calendar = pinnedCalendar(timeZoneIdentifier: "UTC")
+        let anchor = try date(
+            year: 2025,
+            month: 1,
+            day: 31,
+            hour: 12,
+            calendar: calendar
+        )
+        let nextRenewal = try date(
+            year: 2025,
+            month: 2,
+            day: 28,
+            hour: 12,
+            calendar: calendar
+        )
+        let repository = ScheduleRepository(subscription: nil)
+        let workspace = SubscriptionWorkspace(
+            repository: repository,
+            now: { nextRenewal },
+            calendar: calendar
+        )
+
+        workspace.createSubscription(
+            MonthlySubscriptionCreationInput(
+                serviceName: "Example",
+                plan: "Standard",
+                category: "Other",
+                originalAmount: Money(
+                    minorUnits: 999,
+                    currency: .usd
+                ),
+                billingInterval: .monthly,
+                startDate: anchor,
+                renewalAnchor: anchor,
+                confirmedNextRenewal: nextRenewal,
+                billingTimeZoneIdentifier: "UTC",
+                managementURL: nil,
+                notes: ""
+            )
+        )
+        workspace.loadExpectedCharges(
+            subscriptionID: try #require(
+                repository.storedSubscription?.id
+            ),
+            through: try date(
+                year: 2025,
+                month: 3,
+                day: 31,
+                hour: 12,
+                calendar: calendar
+            )
+        )
+
+        let created = try #require(repository.storedSubscription)
+        #expect(created.billingSchedule.renewalAnchor == anchor)
+        #expect(created.confirmedNextRenewal == nextRenewal)
+        #expect(
+            try localDays(
+                workspace.expectedCharges,
+                calendar: calendar
+            ) == [
+                "2025-02-28",
+                "2025-03-31",
+            ]
+        )
+    }
+
     @Test("February 29 yearly renewals return on the next leap year")
     @MainActor
     func leapDayReturnsAfterClampedYears() throws {
@@ -343,6 +413,47 @@ struct FixedBillingScheduleTests {
                 == .mustBePositive
         )
         #expect(repository.storedSubscription == subscription)
+    }
+
+    @Test("Beginning another edit clears stale validation errors")
+    @MainActor
+    func beginningEditClearsStaleValidationErrors() throws {
+        let calendar = pinnedCalendar(timeZoneIdentifier: "UTC")
+        let anchor = try date(
+            year: 2025,
+            month: 8,
+            day: 1,
+            hour: 12,
+            calendar: calendar
+        )
+        let subscription = makeSubscription(
+            schedule: FixedBillingSchedule(
+                interval: .monthly,
+                renewalAnchor: anchor,
+                timeZoneIdentifier: "UTC"
+            )
+        )
+        let workspace = SubscriptionWorkspace(
+            repository: ScheduleRepository(subscription: subscription),
+            calendar: calendar
+        )
+
+        workspace.editSubscription(
+            id: subscription.id,
+            input: SubscriptionEditInput(
+                subscription: subscription,
+                billingSchedule: FixedBillingSchedule(
+                    interval: .custom(value: 0, unit: .day),
+                    renewalAnchor: anchor,
+                    timeZoneIdentifier: "UTC"
+                )
+            )
+        )
+        #expect(!workspace.editingValidationErrors.isEmpty)
+
+        workspace.beginEditing()
+
+        #expect(workspace.editingValidationErrors.isEmpty)
     }
 
     @Test("Editing replaces future forecasts and preserves confirmed history")

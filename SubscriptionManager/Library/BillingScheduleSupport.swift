@@ -1,5 +1,42 @@
+import Foundation
 import SubscriptionCore
 import SwiftUI
+
+func normalizedBillingDate(
+    _ date: Date,
+    timeZoneIdentifier: String
+) -> Date? {
+    guard let timeZone = TimeZone(identifier: timeZoneIdentifier) else {
+        return nil
+    }
+    var calendar = Calendar(identifier: .gregorian)
+    calendar.locale = Locale(identifier: "en_US_POSIX")
+    calendar.timeZone = timeZone
+    var components = calendar.dateComponents(
+        [.year, .month, .day],
+        from: date
+    )
+    components.hour = 12
+    return calendar.date(from: components)
+}
+
+func billingTimeZone(identifier: String) -> TimeZone {
+    TimeZone(identifier: identifier) ?? .autoupdatingCurrent
+}
+
+func formattedBillingDate(
+    _ date: Date,
+    timeZoneIdentifier: String,
+    locale: Locale
+) -> String {
+    let formatter = DateFormatter()
+    formatter.locale = locale
+    formatter.calendar = Calendar(identifier: .gregorian)
+    formatter.timeZone = billingTimeZone(identifier: timeZoneIdentifier)
+    formatter.dateStyle = .medium
+    formatter.timeStyle = .none
+    return formatter.string(from: date)
+}
 
 enum BillingIntervalChoice: String, CaseIterable, Identifiable {
     case weekly

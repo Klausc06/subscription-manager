@@ -15,6 +15,7 @@ final class SubscriptionRecord {
     var billingIntervalUnitRawValue: String?
     var billingTimeZoneIdentifier: String?
     var startDate: Date = Date(timeIntervalSinceReferenceDate: 0)
+    var renewalAnchor: Date?
     var confirmedNextRenewal: Date = Date(timeIntervalSinceReferenceDate: 0)
     var managementURLString: String?
     var notes: String?
@@ -33,6 +34,7 @@ final class SubscriptionRecord {
         billingIntervalUnitRawValue: String? = nil,
         billingTimeZoneIdentifier: String? = nil,
         startDate: Date = Date(timeIntervalSinceReferenceDate: 0),
+        renewalAnchor: Date? = nil,
         confirmedNextRenewal: Date = Date(
             timeIntervalSinceReferenceDate: 0
         ),
@@ -52,6 +54,7 @@ final class SubscriptionRecord {
         self.billingIntervalUnitRawValue = billingIntervalUnitRawValue
         self.billingTimeZoneIdentifier = billingTimeZoneIdentifier
         self.startDate = startDate
+        self.renewalAnchor = renewalAnchor
         self.confirmedNextRenewal = confirmedNextRenewal
         self.managementURLString = managementURLString
         self.notes = notes
