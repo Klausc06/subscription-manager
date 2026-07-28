@@ -881,6 +881,18 @@ struct UserPreferencesView: View {
                     SyncStatusView(workspace: workspace)
                 }
 
+                Section("Data") {
+                    NavigationLink {
+                        PortableExportView(workspace: workspace)
+                    } label: {
+                        Label(
+                            "Export Backup & CSV",
+                            systemImage: "square.and.arrow.up"
+                        )
+                    }
+                    .accessibilityIdentifier("preferences.portable-export")
+                }
+
                 if saveFailed {
                     Section {
                         Text("Couldn’t save preferences. Try again.")
