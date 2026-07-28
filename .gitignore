@@ -1,14 +1,27 @@
 .DS_Store
 
 # Codex session artifacts
+.omo/
 work/
 outputs/
 
 # Xcode
 DerivedData/
+*.xcresult
 *.xcuserstate
 xcuserdata/
 
 # Swift Package Manager
 .build/
 .swiftpm/
+
+# Local credentials and Apple signing material
+.env
+.env.*
+!.env.example
+*.p12
+*.p8
+*.mobileprovision
+credentials.json
+secrets.json
+Secrets.xcconfig

@@ -1,0 +1,667 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 77;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		54723BACD6E59DC50EEFDCED /* SwiftDataSubscriptionRepository.swift in Sources */ = {isa = PBXBuildFile; fileRef = 58208DD28479A9E167C08113 /* SwiftDataSubscriptionRepository.swift */; };
+		5EFACBCB58F5A772FF61FF4B /* SubscriptionManagerApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 03DFA150363397FA01C93872 /* SubscriptionManagerApp.swift */; };
+		665528E003EC11A9189C1B7D /* InfoPlist.xcstrings in Resources */ = {isa = PBXBuildFile; fileRef = 4D90D49FB3AEDF62EFA48202 /* InfoPlist.xcstrings */; };
+		73C2C4432A240F796882FCD9 /* SubscriptionCore in Frameworks */ = {isa = PBXBuildFile; productRef = 30FD0B5354BE8274C66402A8 /* SubscriptionCore */; };
+		866177EEBBB6B76DADA471C2 /* SubscriptionRecord.swift in Sources */ = {isa = PBXBuildFile; fileRef = 12BBDD4A3C3D5A6F92B3775B /* SubscriptionRecord.swift */; };
+		8BDFDA89FC3799D7A394A305 /* AppDependencies.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9FEF1B3C25246E96015F3FB1 /* AppDependencies.swift */; };
+		9C86757EC90F9573E7228788 /* Localizable.xcstrings in Resources */ = {isa = PBXBuildFile; fileRef = 0AB60CE097AABC95DB396296 /* Localizable.xcstrings */; };
+		BFE237030B51A0B5AFBF49CE /* SubscriptionCore in Frameworks */ = {isa = PBXBuildFile; productRef = 68D9CBCB130A9BFEC4CE076E /* SubscriptionCore */; };
+		C90E83DF13A2B2073C083FBF /* SwiftDataSubscriptionRepositoryTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6F44B60853F624BFCF8B2F53 /* SwiftDataSubscriptionRepositoryTests.swift */; };
+		C9F6A31BE02C4B3821562DFC /* LibraryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 15EA34A86C81D0560BC4A8A0 /* LibraryView.swift */; };
+		F227D20F28F63E3A1A7D0681 /* SubscriptionManagerUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4C522F69323C0F092E76973D /* SubscriptionManagerUITests.swift */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXContainerItemProxy section */
+		A8AFB8CFEFF5090F4BAA973D /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 7027914DB025F3AD4DCB8619 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 56B439A7F4EE5BEA55D5EE49;
+			remoteInfo = SubscriptionManager;
+		};
+		F6ADE214110C6AAEAF9E7231 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 7027914DB025F3AD4DCB8619 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 56B439A7F4EE5BEA55D5EE49;
+			remoteInfo = SubscriptionManager;
+		};
+/* End PBXContainerItemProxy section */
+
+/* Begin PBXFileReference section */
+		03DFA150363397FA01C93872 /* SubscriptionManagerApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SubscriptionManagerApp.swift; sourceTree = "<group>"; };
+		0AB60CE097AABC95DB396296 /* Localizable.xcstrings */ = {isa = PBXFileReference; lastKnownFileType = text.json.xcstrings; path = Localizable.xcstrings; sourceTree = "<group>"; };
+		12BBDD4A3C3D5A6F92B3775B /* SubscriptionRecord.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SubscriptionRecord.swift; sourceTree = "<group>"; };
+		15EA34A86C81D0560BC4A8A0 /* LibraryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LibraryView.swift; sourceTree = "<group>"; };
+		417B504B82A0927D26DDDB31 /* SubscriptionManagerUITests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = SubscriptionManagerUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		4C522F69323C0F092E76973D /* SubscriptionManagerUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SubscriptionManagerUITests.swift; sourceTree = "<group>"; };
+		4D90D49FB3AEDF62EFA48202 /* InfoPlist.xcstrings */ = {isa = PBXFileReference; lastKnownFileType = text.json.xcstrings; path = InfoPlist.xcstrings; sourceTree = "<group>"; };
+		58208DD28479A9E167C08113 /* SwiftDataSubscriptionRepository.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SwiftDataSubscriptionRepository.swift; sourceTree = "<group>"; };
+		6F44B60853F624BFCF8B2F53 /* SwiftDataSubscriptionRepositoryTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SwiftDataSubscriptionRepositoryTests.swift; sourceTree = "<group>"; };
+		8D1784DAF6D526C287B9B8CF /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
+		99D687DDF8D151CB8B4AB595 /* SubscriptionManagerTests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = SubscriptionManagerTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		9FEF1B3C25246E96015F3FB1 /* AppDependencies.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDependencies.swift; sourceTree = "<group>"; };
+		A51067E214337D512DCE7E15 /* SubscriptionManager.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = SubscriptionManager.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		BC563C5D4CFE9FE1F0148C35 /* SubscriptionCore */ = {isa = PBXFileReference; lastKnownFileType = folder; name = SubscriptionCore; path = Packages/SubscriptionCore; sourceTree = SOURCE_ROOT; };
+/* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		283069763F899FC288C5E9BD /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				73C2C4432A240F796882FCD9 /* SubscriptionCore in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		56391C7CCBE0DD97C44297FC /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				BFE237030B51A0B5AFBF49CE /* SubscriptionCore in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		14B5D7E66DACAF27289354FD /* Packages */ = {
+			isa = PBXGroup;
+			children = (
+				BC563C5D4CFE9FE1F0148C35 /* SubscriptionCore */,
+			);
+			path = Packages;
+			sourceTree = "<group>";
+		};
+		2360679A7B1308DF2E926578 /* App */ = {
+			isa = PBXGroup;
+			children = (
+				9FEF1B3C25246E96015F3FB1 /* AppDependencies.swift */,
+				03DFA150363397FA01C93872 /* SubscriptionManagerApp.swift */,
+			);
+			path = App;
+			sourceTree = "<group>";
+		};
+		290714ACD769A082A5CCAE7D /* SubscriptionManager */ = {
+			isa = PBXGroup;
+			children = (
+				8D1784DAF6D526C287B9B8CF /* Info.plist */,
+				2360679A7B1308DF2E926578 /* App */,
+				438293401ACA5626F66CBFAC /* Library */,
+				EF3A0C116AD330A62C107F93 /* Persistence */,
+				8AC3B566569D42543C5D51CB /* Resources */,
+			);
+			path = SubscriptionManager;
+			sourceTree = "<group>";
+		};
+		330771DFBD330C997380DE27 = {
+			isa = PBXGroup;
+			children = (
+				14B5D7E66DACAF27289354FD /* Packages */,
+				290714ACD769A082A5CCAE7D /* SubscriptionManager */,
+				8DE509BE733D1FCB078CC966 /* SubscriptionManagerTests */,
+				5354945DBF005C0FA67FB4EC /* SubscriptionManagerUITests */,
+				91D10F42CF493F725CBDF4AC /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		438293401ACA5626F66CBFAC /* Library */ = {
+			isa = PBXGroup;
+			children = (
+				15EA34A86C81D0560BC4A8A0 /* LibraryView.swift */,
+			);
+			path = Library;
+			sourceTree = "<group>";
+		};
+		5354945DBF005C0FA67FB4EC /* SubscriptionManagerUITests */ = {
+			isa = PBXGroup;
+			children = (
+				4C522F69323C0F092E76973D /* SubscriptionManagerUITests.swift */,
+			);
+			path = SubscriptionManagerUITests;
+			sourceTree = "<group>";
+		};
+		8AC3B566569D42543C5D51CB /* Resources */ = {
+			isa = PBXGroup;
+			children = (
+				4D90D49FB3AEDF62EFA48202 /* InfoPlist.xcstrings */,
+				0AB60CE097AABC95DB396296 /* Localizable.xcstrings */,
+			);
+			path = Resources;
+			sourceTree = "<group>";
+		};
+		8DE509BE733D1FCB078CC966 /* SubscriptionManagerTests */ = {
+			isa = PBXGroup;
+			children = (
+				6F44B60853F624BFCF8B2F53 /* SwiftDataSubscriptionRepositoryTests.swift */,
+			);
+			path = SubscriptionManagerTests;
+			sourceTree = "<group>";
+		};
+		91D10F42CF493F725CBDF4AC /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				A51067E214337D512DCE7E15 /* SubscriptionManager.app */,
+				99D687DDF8D151CB8B4AB595 /* SubscriptionManagerTests.xctest */,
+				417B504B82A0927D26DDDB31 /* SubscriptionManagerUITests.xctest */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		EF3A0C116AD330A62C107F93 /* Persistence */ = {
+			isa = PBXGroup;
+			children = (
+				12BBDD4A3C3D5A6F92B3775B /* SubscriptionRecord.swift */,
+				58208DD28479A9E167C08113 /* SwiftDataSubscriptionRepository.swift */,
+			);
+			path = Persistence;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		56B439A7F4EE5BEA55D5EE49 /* SubscriptionManager */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 399D641B54CC2C910B7B2090 /* Build configuration list for PBXNativeTarget "SubscriptionManager" */;
+			buildPhases = (
+				79057D6825C052EBE1FBA7B0 /* Sources */,
+				EF0F8F628B42511776D79188 /* Resources */,
+				56391C7CCBE0DD97C44297FC /* Frameworks */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = SubscriptionManager;
+			packageProductDependencies = (
+				68D9CBCB130A9BFEC4CE076E /* SubscriptionCore */,
+			);
+			productName = SubscriptionManager;
+			productReference = A51067E214337D512DCE7E15 /* SubscriptionManager.app */;
+			productType = "com.apple.product-type.application";
+		};
+		8EF6D325FD11789E1AAF40EF /* SubscriptionManagerTests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 57181758D9D60D941937DCFC /* Build configuration list for PBXNativeTarget "SubscriptionManagerTests" */;
+			buildPhases = (
+				B8726DBC44A1417F0E5B276B /* Sources */,
+				283069763F899FC288C5E9BD /* Frameworks */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				E68F9056E1EF6C13BC991365 /* PBXTargetDependency */,
+			);
+			name = SubscriptionManagerTests;
+			packageProductDependencies = (
+				30FD0B5354BE8274C66402A8 /* SubscriptionCore */,
+			);
+			productName = SubscriptionManagerTests;
+			productReference = 99D687DDF8D151CB8B4AB595 /* SubscriptionManagerTests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
+		C31F72127A379DD9E25117AA /* SubscriptionManagerUITests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 825A209A58936F91A1832428 /* Build configuration list for PBXNativeTarget "SubscriptionManagerUITests" */;
+			buildPhases = (
+				AA7F7FD9AB14DB92EF5770B0 /* Sources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				553FCED0035B072963B64B81 /* PBXTargetDependency */,
+			);
+			name = SubscriptionManagerUITests;
+			packageProductDependencies = (
+			);
+			productName = SubscriptionManagerUITests;
+			productReference = 417B504B82A0927D26DDDB31 /* SubscriptionManagerUITests.xctest */;
+			productType = "com.apple.product-type.bundle.ui-testing";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		7027914DB025F3AD4DCB8619 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = YES;
+				LastUpgradeCheck = 1430;
+				TargetAttributes = {
+					C31F72127A379DD9E25117AA = {
+						TestTargetID = 56B439A7F4EE5BEA55D5EE49;
+					};
+				};
+			};
+			buildConfigurationList = 24516FB50F0FB41A988ADA9E /* Build configuration list for PBXProject "SubscriptionManager" */;
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				Base,
+				en,
+				"zh-Hans",
+			);
+			mainGroup = 330771DFBD330C997380DE27;
+			minimizedProjectReferenceProxies = 1;
+			packageReferences = (
+				3B254E47BCBD6A6DC4777DE3 /* XCLocalSwiftPackageReference "Packages/SubscriptionCore" */,
+			);
+			preferredProjectObjectVersion = 77;
+			productRefGroup = 91D10F42CF493F725CBDF4AC /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				56B439A7F4EE5BEA55D5EE49 /* SubscriptionManager */,
+				8EF6D325FD11789E1AAF40EF /* SubscriptionManagerTests */,
+				C31F72127A379DD9E25117AA /* SubscriptionManagerUITests */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		EF0F8F628B42511776D79188 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				665528E003EC11A9189C1B7D /* InfoPlist.xcstrings in Resources */,
+				9C86757EC90F9573E7228788 /* Localizable.xcstrings in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		79057D6825C052EBE1FBA7B0 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				8BDFDA89FC3799D7A394A305 /* AppDependencies.swift in Sources */,
+				C9F6A31BE02C4B3821562DFC /* LibraryView.swift in Sources */,
+				5EFACBCB58F5A772FF61FF4B /* SubscriptionManagerApp.swift in Sources */,
+				866177EEBBB6B76DADA471C2 /* SubscriptionRecord.swift in Sources */,
+				54723BACD6E59DC50EEFDCED /* SwiftDataSubscriptionRepository.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		AA7F7FD9AB14DB92EF5770B0 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				F227D20F28F63E3A1A7D0681 /* SubscriptionManagerUITests.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		B8726DBC44A1417F0E5B276B /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				C90E83DF13A2B2073C083FBF /* SwiftDataSubscriptionRepositoryTests.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		553FCED0035B072963B64B81 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 56B439A7F4EE5BEA55D5EE49 /* SubscriptionManager */;
+			targetProxy = F6ADE214110C6AAEAF9E7231 /* PBXContainerItemProxy */;
+		};
+		E68F9056E1EF6C13BC991365 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 56B439A7F4EE5BEA55D5EE49 /* SubscriptionManager */;
+			targetProxy = A8AFB8CFEFF5090F4BAA973D /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
+
+/* Begin XCBuildConfiguration section */
+		14A92FB91C013BCCA1945D17 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				CURRENT_PROJECT_VERSION = 1;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_PREVIEWS = YES;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 27.0;
+				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
+				MACOSX_DEPLOYMENT_TARGET = 27.0;
+				MARKETING_VERSION = 0.1.0;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				MTL_FAST_MATH = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = auto;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_OPTIMIZATION_LEVEL = "-O";
+				SWIFT_STRICT_CONCURRENCY = complete;
+				SWIFT_VERSION = 6.0;
+			};
+			name = Release;
+		};
+		235D4C6A2EF97463CDAF1134 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_IDENTITY = "iPhone Developer";
+				"CODE_SIGN_IDENTITY[sdk=macosx*]" = "-";
+				"CODE_SIGN_STYLE[sdk=macosx*]" = Manual;
+				"DEVELOPMENT_TEAM[sdk=macosx*]" = "";
+				INFOPLIST_FILE = SubscriptionManager/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.klausc06.SubscriptionManager;
+				SDKROOT = auto;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator macosx";
+				SUPPORTS_MACCATALYST = NO;
+				SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = NO;
+				SUPPORTS_XR_DESIGNED_FOR_IPHONE_IPAD = YES;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
+		428CAC3EBD89A202CED8485E /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				"BUNDLE_LOADER[sdk=macosx*]" = "$(TEST_HOST)";
+				"CODE_SIGN_IDENTITY[sdk=macosx*]" = "-";
+				"CODE_SIGN_STYLE[sdk=macosx*]" = Manual;
+				"DEVELOPMENT_TEAM[sdk=macosx*]" = "";
+				GENERATE_INFOPLIST_FILE = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.klausc06.SubscriptionManagerTests;
+				SDKROOT = auto;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator macosx";
+				SUPPORTS_MACCATALYST = NO;
+				SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = NO;
+				SUPPORTS_XR_DESIGNED_FOR_IPHONE_IPAD = YES;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/SubscriptionManager.app/SubscriptionManager";
+				"TEST_HOST[sdk=macosx*]" = "$(BUILT_PRODUCTS_DIR)/SubscriptionManager.app/Contents/MacOS/SubscriptionManager";
+			};
+			name = Debug;
+		};
+		906C8C11EB8C1922291138CE /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_IDENTITY = "iPhone Developer";
+				"CODE_SIGN_IDENTITY[sdk=macosx*]" = "-";
+				"CODE_SIGN_STYLE[sdk=macosx*]" = Manual;
+				"DEVELOPMENT_TEAM[sdk=macosx*]" = "";
+				INFOPLIST_FILE = SubscriptionManager/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.klausc06.SubscriptionManager;
+				SDKROOT = auto;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator macosx";
+				SUPPORTS_MACCATALYST = NO;
+				SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = NO;
+				SUPPORTS_XR_DESIGNED_FOR_IPHONE_IPAD = YES;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		AAAB5A17629537F9F5D5B6EC /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				"CODE_SIGN_IDENTITY[sdk=macosx*]" = "-";
+				"CODE_SIGN_STYLE[sdk=macosx*]" = Manual;
+				"DEVELOPMENT_TEAM[sdk=macosx*]" = "";
+				GENERATE_INFOPLIST_FILE = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.klausc06.SubscriptionManagerUITests;
+				SDKROOT = auto;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator macosx";
+				SUPPORTS_MACCATALYST = NO;
+				SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = NO;
+				SUPPORTS_XR_DESIGNED_FOR_IPHONE_IPAD = YES;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_TARGET_NAME = SubscriptionManager;
+			};
+			name = Debug;
+		};
+		C96116A8325E980C813C47E3 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				CURRENT_PROJECT_VERSION = 1;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				ENABLE_PREVIEWS = YES;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"$(inherited)",
+					"DEBUG=1",
+				);
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 27.0;
+				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
+				MACOSX_DEPLOYMENT_TARGET = 27.0;
+				MARKETING_VERSION = 0.1.0;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				MTL_FAST_MATH = YES;
+				ONLY_ACTIVE_ARCH = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = auto;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				SWIFT_STRICT_CONCURRENCY = complete;
+				SWIFT_VERSION = 6.0;
+			};
+			name = Debug;
+		};
+		E4176EA6D439E187792956ED /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				"CODE_SIGN_IDENTITY[sdk=macosx*]" = "-";
+				"CODE_SIGN_STYLE[sdk=macosx*]" = Manual;
+				"DEVELOPMENT_TEAM[sdk=macosx*]" = "";
+				GENERATE_INFOPLIST_FILE = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.klausc06.SubscriptionManagerUITests;
+				SDKROOT = auto;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator macosx";
+				SUPPORTS_MACCATALYST = NO;
+				SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = NO;
+				SUPPORTS_XR_DESIGNED_FOR_IPHONE_IPAD = YES;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_TARGET_NAME = SubscriptionManager;
+			};
+			name = Release;
+		};
+		F8E42B3B668ED10335A7E313 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				"BUNDLE_LOADER[sdk=macosx*]" = "$(TEST_HOST)";
+				"CODE_SIGN_IDENTITY[sdk=macosx*]" = "-";
+				"CODE_SIGN_STYLE[sdk=macosx*]" = Manual;
+				"DEVELOPMENT_TEAM[sdk=macosx*]" = "";
+				GENERATE_INFOPLIST_FILE = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.klausc06.SubscriptionManagerTests;
+				SDKROOT = auto;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator macosx";
+				SUPPORTS_MACCATALYST = NO;
+				SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = NO;
+				SUPPORTS_XR_DESIGNED_FOR_IPHONE_IPAD = YES;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/SubscriptionManager.app/SubscriptionManager";
+				"TEST_HOST[sdk=macosx*]" = "$(BUILT_PRODUCTS_DIR)/SubscriptionManager.app/Contents/MacOS/SubscriptionManager";
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		24516FB50F0FB41A988ADA9E /* Build configuration list for PBXProject "SubscriptionManager" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				C96116A8325E980C813C47E3 /* Debug */,
+				14A92FB91C013BCCA1945D17 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		399D641B54CC2C910B7B2090 /* Build configuration list for PBXNativeTarget "SubscriptionManager" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				906C8C11EB8C1922291138CE /* Debug */,
+				235D4C6A2EF97463CDAF1134 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		57181758D9D60D941937DCFC /* Build configuration list for PBXNativeTarget "SubscriptionManagerTests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				428CAC3EBD89A202CED8485E /* Debug */,
+				F8E42B3B668ED10335A7E313 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		825A209A58936F91A1832428 /* Build configuration list for PBXNativeTarget "SubscriptionManagerUITests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				AAAB5A17629537F9F5D5B6EC /* Debug */,
+				E4176EA6D439E187792956ED /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+/* End XCConfigurationList section */
+
+/* Begin XCLocalSwiftPackageReference section */
+		3B254E47BCBD6A6DC4777DE3 /* XCLocalSwiftPackageReference "Packages/SubscriptionCore" */ = {
+			isa = XCLocalSwiftPackageReference;
+			relativePath = Packages/SubscriptionCore;
+		};
+/* End XCLocalSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		30FD0B5354BE8274C66402A8 /* SubscriptionCore */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = SubscriptionCore;
+		};
+		68D9CBCB130A9BFEC4CE076E /* SubscriptionCore */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = SubscriptionCore;
+		};
+/* End XCSwiftPackageProductDependency section */
+	};
+	rootObject = 7027914DB025F3AD4DCB8619 /* Project object */;
+}
