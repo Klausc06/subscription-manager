@@ -209,15 +209,16 @@ public final class SubscriptionWorkspace {
             return
         }
 
+        let whitespace = CharacterSet.whitespacesAndNewlines
         let id = identifierGenerator()
         let subscription = Subscription(
             id: id,
             serviceIdentity: ServiceIdentity(
                 rawValue: "manual:\(id.uuidString)"
             ),
-            serviceName: input.serviceName,
-            plan: input.plan,
-            category: input.category,
+            serviceName: input.serviceName.trimmingCharacters(in: whitespace),
+            plan: input.plan.trimmingCharacters(in: whitespace),
+            category: input.category.trimmingCharacters(in: whitespace),
             originalAmount: originalAmount,
             billingCycle: .monthly,
             startDate: input.startDate,

@@ -117,6 +117,76 @@ struct SubscriptionWorkspaceTests {
         )
     }
 
+    @Test("Monthly subscription text is normalized before it is saved")
+    @MainActor
+    func monthlySubscriptionTextIsNormalizedBeforeItIsSaved() {
+        let repository = InMemorySubscriptionRepository()
+        let subscriptionID = UUID(
+            uuidString: "22222222-3333-4444-5555-666666666666"
+        )!
+        let startDate = Date(timeIntervalSince1970: 1_767_225_600)
+        let renewalDate = Date(timeIntervalSince1970: 1_769_904_000)
+        let workspace = SubscriptionWorkspace(
+            repository: repository,
+            identifierGenerator: { subscriptionID }
+        )
+        let input = MonthlySubscriptionCreationInput(
+            serviceName: " \n Example Cloud \t",
+            plan: "\t Pro \n",
+            category: "\n Cloud storage ",
+            originalAmount: Money(minorUnits: 1_999, currency: .cny),
+            startDate: startDate,
+            confirmedNextRenewal: renewalDate,
+            managementURL: nil,
+            notes: ""
+        )
+
+        workspace.createMonthlySubscription(input)
+
+        let expectedSubscription = Subscription(
+            id: subscriptionID,
+            serviceIdentity: ServiceIdentity(
+                rawValue: "manual:\(subscriptionID.uuidString)"
+            ),
+            serviceName: "Example Cloud",
+            plan: "Pro",
+            category: "Cloud storage",
+            originalAmount: Money(minorUnits: 1_999, currency: .cny),
+            billingCycle: .monthly,
+            startDate: startDate,
+            confirmedNextRenewal: renewalDate,
+            managementURL: nil,
+            notes: ""
+        )
+        #expect(workspace.detailState == .loaded(expectedSubscription))
+        #expect(
+            workspace.libraryState
+                == .loaded([
+                    SubscriptionSummary(subscription: expectedSubscription)
+                ])
+        )
+    }
+
+    @Test("The in-memory repository lists subscriptions in stable identifier order")
+    @MainActor
+    func inMemoryRepositoryListsSubscriptionsInStableIdentifierOrder() throws {
+        let repository = InMemorySubscriptionRepository()
+        let firstID = UUID(
+            uuidString: "11111111-1111-1111-1111-111111111111"
+        )!
+        let secondID = UUID(
+            uuidString: "FFFFFFFF-FFFF-FFFF-FFFF-FFFFFFFFFFFF"
+        )!
+
+        try repository.createSubscription(makeSubscription(id: secondID))
+        try repository.createSubscription(makeSubscription(id: firstID))
+
+        #expect(
+            try repository.listSubscriptions().map(\.id)
+                == [firstID, secondID]
+        )
+    }
+
     @Test("A fresh workspace loads an empty subscription library")
     @MainActor
     func freshWorkspaceLoadsEmptyLibrary() {
@@ -219,7 +289,9 @@ private final class InMemorySubscriptionRepository: SubscriptionRepository {
     }
 
     func listSubscriptions() throws -> [SubscriptionSummary] {
-        subscriptions.values.map(SubscriptionSummary.init(subscription:))
+        subscriptions.values
+            .sorted { $0.id.uuidString < $1.id.uuidString }
+            .map(SubscriptionSummary.init(subscription:))
     }
 
     func subscription(id: UUID) throws -> Subscription? {
