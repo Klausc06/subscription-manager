@@ -19,12 +19,6 @@
         "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "金额" } }
       }
     },
-    "Billing Cycle" : {
-      "localizations" : {
-        "en" : { "stringUnit" : { "state" : "translated", "value" : "Billing Cycle" } },
-        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "计费周期" } }
-      }
-    },
     "Billing Interval" : {
       "localizations" : {
         "en" : { "stringUnit" : { "state" : "translated", "value" : "Billing Interval" } },

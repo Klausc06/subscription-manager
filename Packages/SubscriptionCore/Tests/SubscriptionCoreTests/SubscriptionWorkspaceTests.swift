@@ -10,7 +10,7 @@ struct SubscriptionWorkspaceTests {
         let repository = InMemorySubscriptionRepository()
         let startDate = Date(timeIntervalSince1970: 1_767_225_600)
         let workspace = SubscriptionWorkspace(repository: repository)
-        let input = MonthlySubscriptionCreationInput(
+        let input = SubscriptionCreationInput(
             serviceName: "Example",
             plan: "Standard",
             category: "Other",
@@ -21,7 +21,7 @@ struct SubscriptionWorkspaceTests {
             notes: ""
         )
 
-        workspace.createMonthlySubscription(input)
+        workspace.createSubscription(input)
         workspace.loadLibrary()
 
         #expect(
@@ -37,7 +37,7 @@ struct SubscriptionWorkspaceTests {
         let repository = InMemorySubscriptionRepository()
         let startDate = Date(timeIntervalSince1970: 1_769_904_000)
         let workspace = SubscriptionWorkspace(repository: repository)
-        let input = MonthlySubscriptionCreationInput(
+        let input = SubscriptionCreationInput(
             serviceName: "   ",
             plan: "",
             category: "\n",
@@ -48,7 +48,7 @@ struct SubscriptionWorkspaceTests {
             notes: ""
         )
 
-        workspace.createMonthlySubscription(input)
+        workspace.createSubscription(input)
         workspace.loadLibrary()
 
         #expect(
@@ -72,7 +72,7 @@ struct SubscriptionWorkspaceTests {
         )!
         let startDate = Date(timeIntervalSince1970: 1_767_225_600)
         let renewalDate = Date(timeIntervalSince1970: 1_769_904_000)
-        let input = MonthlySubscriptionCreationInput(
+        let input = SubscriptionCreationInput(
             serviceName: "Example Cloud",
             plan: "Pro",
             category: "Cloud storage",
@@ -87,7 +87,7 @@ struct SubscriptionWorkspaceTests {
             identifierGenerator: { subscriptionID }
         )
 
-        creationWorkspace.createMonthlySubscription(input)
+        creationWorkspace.createSubscription(input)
 
         let reloadedWorkspace = SubscriptionWorkspace(repository: repository)
         reloadedWorkspace.loadLibrary()
@@ -130,7 +130,7 @@ struct SubscriptionWorkspaceTests {
             repository: repository,
             identifierGenerator: { subscriptionID }
         )
-        let input = MonthlySubscriptionCreationInput(
+        let input = SubscriptionCreationInput(
             serviceName: " \n Example Cloud \t",
             plan: "\t Pro \n",
             category: "\n Cloud storage ",
@@ -141,7 +141,7 @@ struct SubscriptionWorkspaceTests {
             notes: ""
         )
 
-        workspace.createMonthlySubscription(input)
+        workspace.createSubscription(input)
 
         let expectedSubscription = Subscription(
             id: subscriptionID,
@@ -237,6 +237,8 @@ struct SubscriptionWorkspaceTests {
 private struct EmptySubscriptionRepository: SubscriptionRepository {
     func createSubscription(_ subscription: Subscription) throws {}
 
+    func updateSubscription(_ subscription: Subscription) throws {}
+
     func listSubscriptions() throws -> [SubscriptionSummary] {
         []
     }
@@ -249,6 +251,10 @@ private struct EmptySubscriptionRepository: SubscriptionRepository {
 @MainActor
 private struct FailingSubscriptionRepository: SubscriptionRepository {
     func createSubscription(_ subscription: Subscription) throws {
+        throw RepositoryError.unavailable
+    }
+
+    func updateSubscription(_ subscription: Subscription) throws {
         throw RepositoryError.unavailable
     }
 
@@ -271,6 +277,8 @@ private struct PopulatedSubscriptionRepository: SubscriptionRepository {
 
     func createSubscription(_ subscription: Subscription) throws {}
 
+    func updateSubscription(_ subscription: Subscription) throws {}
+
     func listSubscriptions() throws -> [SubscriptionSummary] {
         subscriptions
     }
@@ -285,6 +293,10 @@ private final class InMemorySubscriptionRepository: SubscriptionRepository {
     private var subscriptions: [UUID: Subscription] = [:]
 
     func createSubscription(_ subscription: Subscription) throws {
+        subscriptions[subscription.id] = subscription
+    }
+
+    func updateSubscription(_ subscription: Subscription) throws {
         subscriptions[subscription.id] = subscription
     }
 

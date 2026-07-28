@@ -155,7 +155,7 @@ public struct SubscriptionSummary: Codable, Equatable, Identifiable, Sendable {
     }
 }
 
-public struct MonthlySubscriptionCreationInput: Equatable, Sendable {
+public struct SubscriptionCreationInput: Equatable, Sendable {
     public let serviceName: String
     public let plan: String
     public let category: String
@@ -194,6 +194,9 @@ public struct MonthlySubscriptionCreationInput: Equatable, Sendable {
         self.notes = notes
     }
 }
+
+@available(*, deprecated, renamed: "SubscriptionCreationInput")
+public typealias MonthlySubscriptionCreationInput = SubscriptionCreationInput
 
 public struct SubscriptionEditInput: Equatable, Sendable {
     public let serviceName: String
@@ -285,16 +288,6 @@ public protocol SubscriptionRepository {
     func subscription(id: UUID) throws -> Subscription?
 }
 
-public enum SubscriptionRepositoryError: Error {
-    case updateUnsupported
-}
-
-public extension SubscriptionRepository {
-    func updateSubscription(_ subscription: Subscription) throws {
-        throw SubscriptionRepositoryError.updateUnsupported
-    }
-}
-
 @MainActor
 @Observable
 public final class SubscriptionWorkspace {
@@ -332,7 +325,7 @@ public final class SubscriptionWorkspace {
     }
 
     public func createSubscription(
-        _ input: MonthlySubscriptionCreationInput
+        _ input: SubscriptionCreationInput
     ) {
         creationValidationErrors = validate(input)
         guard creationValidationErrors.isEmpty,
@@ -372,8 +365,9 @@ public final class SubscriptionWorkspace {
         }
     }
 
+    @available(*, deprecated, renamed: "createSubscription")
     public func createMonthlySubscription(
-        _ input: MonthlySubscriptionCreationInput
+        _ input: SubscriptionCreationInput
     ) {
         createSubscription(input)
     }
@@ -494,7 +488,7 @@ public final class SubscriptionWorkspace {
     }
 
     private func validate(
-        _ input: MonthlySubscriptionCreationInput
+        _ input: SubscriptionCreationInput
     ) -> [SubscriptionCreationField: SubscriptionCreationValidationError] {
         var errors:
             [SubscriptionCreationField: SubscriptionCreationValidationError]
@@ -597,7 +591,11 @@ public final class SubscriptionWorkspace {
             subscription.confirmedNextRenewal
         )
         var charges: [ExpectedCharge] = []
-        var occurrenceIndex = 0
+        var occurrenceIndex = estimatedOccurrenceIndex(
+            for: subscription.billingSchedule,
+            onOrAfter: firstForecastDate,
+            calendar: renewalCalendar
+        )
 
         while charges.count < maximumCount {
             guard let scheduledDate = scheduledDate(
@@ -623,6 +621,146 @@ public final class SubscriptionWorkspace {
         }
 
         return charges
+    }
+
+    private func estimatedOccurrenceIndex(
+        for schedule: FixedBillingSchedule,
+        onOrAfter targetDate: Date,
+        calendar: Calendar
+    ) -> Int {
+        guard targetDate > schedule.renewalAnchor else {
+            return 0
+        }
+
+        let estimate: Int
+        switch schedule.interval {
+        case .weekly:
+            estimate = estimatedDayOccurrenceIndex(
+                anchor: schedule.renewalAnchor,
+                targetDate: targetDate,
+                intervalDays: 7,
+                calendar: calendar
+            )
+        case .monthly:
+            estimate = estimatedMonthOccurrenceIndex(
+                anchor: schedule.renewalAnchor,
+                targetDate: targetDate,
+                intervalMonths: 1,
+                calendar: calendar
+            )
+        case .quarterly:
+            estimate = estimatedMonthOccurrenceIndex(
+                anchor: schedule.renewalAnchor,
+                targetDate: targetDate,
+                intervalMonths: 3,
+                calendar: calendar
+            )
+        case .halfYearly:
+            estimate = estimatedMonthOccurrenceIndex(
+                anchor: schedule.renewalAnchor,
+                targetDate: targetDate,
+                intervalMonths: 6,
+                calendar: calendar
+            )
+        case .yearly:
+            estimate = estimatedMonthOccurrenceIndex(
+                anchor: schedule.renewalAnchor,
+                targetDate: targetDate,
+                intervalMonths: 12,
+                calendar: calendar
+            )
+        case .custom(let value, let unit):
+            switch unit {
+            case .day:
+                estimate = estimatedDayOccurrenceIndex(
+                    anchor: schedule.renewalAnchor,
+                    targetDate: targetDate,
+                    intervalDays: value,
+                    calendar: calendar
+                )
+            case .week:
+                let (days, overflow) = value.multipliedReportingOverflow(
+                    by: 7
+                )
+                guard !overflow else {
+                    return 0
+                }
+                estimate = estimatedDayOccurrenceIndex(
+                    anchor: schedule.renewalAnchor,
+                    targetDate: targetDate,
+                    intervalDays: days,
+                    calendar: calendar
+                )
+            case .month:
+                estimate = estimatedMonthOccurrenceIndex(
+                    anchor: schedule.renewalAnchor,
+                    targetDate: targetDate,
+                    intervalMonths: value,
+                    calendar: calendar
+                )
+            case .year:
+                let (months, overflow) = value.multipliedReportingOverflow(
+                    by: 12
+                )
+                guard !overflow else {
+                    return 0
+                }
+                estimate = estimatedMonthOccurrenceIndex(
+                    anchor: schedule.renewalAnchor,
+                    targetDate: targetDate,
+                    intervalMonths: months,
+                    calendar: calendar
+                )
+            }
+        }
+
+        return max(0, estimate - 1)
+    }
+
+    private func estimatedDayOccurrenceIndex(
+        anchor: Date,
+        targetDate: Date,
+        intervalDays: Int,
+        calendar: Calendar
+    ) -> Int {
+        guard intervalDays > 0 else {
+            return 0
+        }
+        let dayDistance = calendar.dateComponents(
+            [.day],
+            from: calendar.startOfDay(for: anchor),
+            to: calendar.startOfDay(for: targetDate)
+        ).day ?? 0
+        return max(0, dayDistance / intervalDays)
+    }
+
+    private func estimatedMonthOccurrenceIndex(
+        anchor: Date,
+        targetDate: Date,
+        intervalMonths: Int,
+        calendar: Calendar
+    ) -> Int {
+        guard intervalMonths > 0 else {
+            return 0
+        }
+        let anchorComponents = calendar.dateComponents(
+            [.year, .month],
+            from: anchor
+        )
+        let targetComponents = calendar.dateComponents(
+            [.year, .month],
+            from: targetDate
+        )
+        guard let anchorYear = anchorComponents.year,
+              let anchorMonth = anchorComponents.month,
+              let targetYear = targetComponents.year,
+              let targetMonth = targetComponents.month
+        else {
+            return 0
+        }
+        let monthDistance =
+            (targetYear - anchorYear) * 12 + targetMonth - anchorMonth
+        return max(0, monthDistance / intervalMonths)
     }
 
     private func scheduledDate(

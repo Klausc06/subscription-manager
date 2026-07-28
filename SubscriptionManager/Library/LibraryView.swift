@@ -105,6 +105,8 @@ private enum LibrarySheet: String, Identifiable {
 private struct PreviewSubscriptionRepository: SubscriptionRepository {
     func createSubscription(_ subscription: Subscription) throws {}
 
+    func updateSubscription(_ subscription: Subscription) throws {}
+
     func listSubscriptions() throws -> [SubscriptionSummary] {
         []
     }

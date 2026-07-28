@@ -4,6 +4,19 @@ import Testing
 
 @Suite("Fixed billing schedules")
 struct FixedBillingScheduleTests {
+    @Test("Custom intervals preserve their value and unit when encoded")
+    func customIntervalCodableRoundTrip() throws {
+        let interval = BillingInterval.custom(value: 7, unit: .week)
+
+        let data = try JSONEncoder().encode(interval)
+        let decoded = try JSONDecoder().decode(
+            BillingInterval.self,
+            from: data
+        )
+
+        #expect(decoded == interval)
+    }
+
     @Test("The production renewal calendar is Gregorian and locale-stable")
     func productionRenewalCalendarIsPinned() {
         let calendar = SubscriptionWorkspace.defaultRenewalCalendar()
@@ -161,7 +174,7 @@ struct FixedBillingScheduleTests {
         )
 
         workspace.createSubscription(
-            MonthlySubscriptionCreationInput(
+            SubscriptionCreationInput(
                 serviceName: "Example",
                 plan: "Standard",
                 category: "Other",
@@ -364,9 +377,23 @@ struct FixedBillingScheduleTests {
             through: horizon
         )
 
+        let expectedDays = [
+            "2025-10-31",
+            "2025-11-30",
+            "2025-12-31",
+            "2026-01-31",
+        ]
         #expect(
-            firstWorkspace.expectedCharges
-                == relaunchedWorkspace.expectedCharges
+            try localDays(
+                firstWorkspace.expectedCharges,
+                calendar: creationCalendar
+            ) == expectedDays
+        )
+        #expect(
+            try localDays(
+                relaunchedWorkspace.expectedCharges,
+                calendar: creationCalendar
+            ) == expectedDays
         )
     }
 

@@ -217,7 +217,7 @@ struct AddSubscriptionView: View {
         }
 
         workspace.createSubscription(
-            MonthlySubscriptionCreationInput(
+            SubscriptionCreationInput(
                 serviceName: serviceName,
                 plan: plan,
                 category: category,

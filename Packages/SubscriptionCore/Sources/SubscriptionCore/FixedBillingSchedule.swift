@@ -69,6 +69,57 @@ public enum BillingInterval: Codable, Equatable, RawRepresentable, Sendable {
         }
         return value > 0
     }
+
+    public init(from decoder: any Decoder) throws {
+        if let singleValue = try? decoder.singleValueContainer(),
+           let rawValue = try? singleValue.decode(String.self),
+           let interval = BillingInterval(rawValue: rawValue)
+        {
+            self = interval
+            return
+        }
+
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        let rawValue = try container.decode(
+            String.self,
+            forKey: .rawValue
+        )
+        if rawValue == "custom" {
+            self = .custom(
+                value: try container.decode(
+                    Int.self,
+                    forKey: .customValue
+                ),
+                unit: try container.decode(
+                    BillingIntervalUnit.self,
+                    forKey: .customUnit
+                )
+            )
+        } else if let interval = BillingInterval(rawValue: rawValue) {
+            self = interval
+        } else {
+            throw DecodingError.dataCorruptedError(
+                forKey: .rawValue,
+                in: container,
+                debugDescription: "Unsupported billing interval."
+            )
+        }
+    }
+
+    public func encode(to encoder: any Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(rawValue, forKey: .rawValue)
+        if case .custom(let value, let unit) = self {
+            try container.encode(value, forKey: .customValue)
+            try container.encode(unit, forKey: .customUnit)
+        }
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case rawValue
+        case customValue
+        case customUnit
+    }
 }
 
 @available(*, deprecated, renamed: "BillingInterval")

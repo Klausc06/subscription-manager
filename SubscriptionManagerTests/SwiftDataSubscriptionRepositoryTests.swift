@@ -481,7 +481,7 @@ struct SwiftDataSubscriptionRepositoryTests {
     @Test("UI testing launches use separate in-memory libraries")
     @MainActor
     func uiTestingLaunchesUseSeparateInMemoryLibraries() {
-        let input = MonthlySubscriptionCreationInput(
+        let input = SubscriptionCreationInput(
             serviceName: "Example",
             plan: "Standard",
             category: "Other",
@@ -500,7 +500,7 @@ struct SwiftDataSubscriptionRepositoryTests {
             Issue.record("Expected the first UI testing launch to be ready")
             return
         }
-        firstLaunch.workspace.createMonthlySubscription(input)
+        firstLaunch.workspace.createSubscription(input)
 
         guard case .ready(let secondLaunch) = AppDependencies.live(
             arguments: ["SubscriptionManager", "--ui-testing"]
@@ -530,7 +530,7 @@ struct SwiftDataSubscriptionRepositoryTests {
             "--ui-testing-store",
             "relaunch-contract",
         ]
-        let input = MonthlySubscriptionCreationInput(
+        let input = SubscriptionCreationInput(
             serviceName: "Example",
             plan: "Standard",
             category: "Other",
@@ -551,7 +551,7 @@ struct SwiftDataSubscriptionRepositoryTests {
                 Issue.record("Expected the first disk-backed launch to be ready")
                 return
             }
-            firstLaunch.workspace.createMonthlySubscription(input)
+            firstLaunch.workspace.createSubscription(input)
         }
 
         guard case .ready(let relaunchedApp) = AppDependencies.live(
