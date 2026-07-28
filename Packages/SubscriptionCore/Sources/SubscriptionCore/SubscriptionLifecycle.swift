@@ -89,6 +89,7 @@ extension Subscription {
             managementURL: managementURL,
             notes: notes,
             confirmedCharges: confirmedCharges,
+            priceChanges: priceChanges,
             lifecycle: lifecycle ?? self.lifecycle,
             isArchived: isArchived ?? self.isArchived
         )

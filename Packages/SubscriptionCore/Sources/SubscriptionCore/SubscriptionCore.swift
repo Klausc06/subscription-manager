@@ -53,6 +53,7 @@ public struct Subscription: Codable, Equatable, Identifiable, Sendable {
     public let managementURL: URL?
     public let notes: String
     public let confirmedCharges: [ConfirmedCharge]
+    public let priceChanges: [PriceChange]
     public let lifecycle: SubscriptionLifecycle
     public let isArchived: Bool
 
@@ -73,6 +74,7 @@ public struct Subscription: Codable, Equatable, Identifiable, Sendable {
         managementURL: URL?,
         notes: String,
         confirmedCharges: [ConfirmedCharge] = [],
+        priceChanges: [PriceChange] = [],
         lifecycle: SubscriptionLifecycle = .active,
         isArchived: Bool = false
     ) {
@@ -89,6 +91,7 @@ public struct Subscription: Codable, Equatable, Identifiable, Sendable {
         self.managementURL = managementURL
         self.notes = notes
         self.confirmedCharges = confirmedCharges
+        self.priceChanges = priceChanges
         self.lifecycle = lifecycle
         self.isArchived = isArchived
     }
@@ -107,6 +110,7 @@ public struct Subscription: Codable, Equatable, Identifiable, Sendable {
         managementURL: URL?,
         notes: String,
         confirmedCharges: [ConfirmedCharge] = [],
+        priceChanges: [PriceChange] = [],
         lifecycle: SubscriptionLifecycle = .active,
         isArchived: Bool = false
     ) {
@@ -127,6 +131,7 @@ public struct Subscription: Codable, Equatable, Identifiable, Sendable {
             managementURL: managementURL,
             notes: notes,
             confirmedCharges: confirmedCharges,
+            priceChanges: priceChanges,
             lifecycle: lifecycle,
             isArchived: isArchived
         )

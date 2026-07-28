@@ -163,14 +163,52 @@ public struct FixedBillingSchedule: Codable, Equatable, Sendable {
     }
 }
 
+public struct ScheduledChargeID: Codable, Equatable, Hashable, Sendable {
+    public let subscriptionID: UUID
+    public let year: Int
+    public let month: Int
+    public let day: Int
+
+    public init(
+        subscriptionID: UUID,
+        year: Int,
+        month: Int,
+        day: Int
+    ) {
+        self.subscriptionID = subscriptionID
+        self.year = year
+        self.month = month
+        self.day = day
+    }
+}
+
 public struct ConfirmedCharge: Codable, Equatable, Identifiable, Sendable {
     public let id: UUID
     public let chargedDate: Date
     public let amount: Money
+    public let sourceScheduledChargeID: ScheduledChargeID?
 
-    public init(id: UUID, chargedDate: Date, amount: Money) {
+    public init(
+        id: UUID,
+        chargedDate: Date,
+        amount: Money,
+        sourceScheduledChargeID: ScheduledChargeID? = nil
+    ) {
         self.id = id
         self.chargedDate = chargedDate
+        self.amount = amount
+        self.sourceScheduledChargeID = sourceScheduledChargeID
+    }
+}
+
+public struct PriceChange: Codable, Equatable, Identifiable, Sendable {
+    public let id: UUID
+    public let effectiveDate: Date
+    public let amount: Money
+
+    public init(id: UUID, effectiveDate: Date, amount: Money) {
+        self.id = id
+        self.effectiveDate = effectiveDate
         self.amount = amount
     }
 }
