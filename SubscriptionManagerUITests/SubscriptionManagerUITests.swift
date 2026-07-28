@@ -619,6 +619,39 @@ final class SubscriptionManagerUITests: XCTestCase {
         XCTAssertTrue(relaunchedInterval.label.contains("Yearly"))
     }
 
+    func testConfirmsChargeAndRecordsPriceHistory() {
+        let app = launch(
+            language: "en",
+            locale: "en_US",
+            storeToken: "payment-history-\(UUID().uuidString)"
+        )
+        createSubscription(named: "Example Payments", in: app)
+        app.buttons["subscription.row"].firstMatch.tap()
+
+        app.buttons["subscription.lifecycle.actions"].tap()
+        XCTAssertTrue(app.buttons["subscription.confirm"].waitForExistence(
+            timeout: 5
+        ))
+        app.buttons["subscription.confirm"].tap()
+        XCTAssertTrue(app.buttons["subscription.confirm.save"].waitForExistence(
+            timeout: 5
+        ))
+        app.buttons["subscription.confirm.save"].tap()
+        XCTAssertTrue(app.descendants(matching: .any)[
+            "subscription.history.confirmed"
+        ].waitForExistence(timeout: 5))
+
+        app.buttons["subscription.lifecycle.actions"].tap()
+        app.buttons["subscription.price-change"].tap()
+        XCTAssertTrue(app.buttons["subscription.price-change.save"].waitForExistence(
+            timeout: 5
+        ))
+        app.buttons["subscription.price-change.save"].tap()
+        XCTAssertTrue(app.descendants(matching: .any)[
+            "subscription.history.price-change"
+        ].waitForExistence(timeout: 5))
+    }
+
     func testInvalidCustomIntervalIsExplainedInline() {
         let app = launch(language: "en", locale: "en_US")
         createSubscription(named: "Example Fitness", in: app)

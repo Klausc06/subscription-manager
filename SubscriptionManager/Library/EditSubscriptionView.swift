@@ -11,8 +11,6 @@ struct EditSubscriptionView: View {
     @State private var serviceName: String
     @State private var plan: String
     @State private var category: String
-    @State private var amountText: String
-    @State private var currency: Currency
     @State private var intervalChoice: BillingIntervalChoice
     @State private var customValueText: String
     @State private var customUnit: BillingIntervalUnit
@@ -21,7 +19,6 @@ struct EditSubscriptionView: View {
     @State private var confirmedNextRenewal: Date
     @State private var managementURLText: String
     @State private var notes: String
-    @State private var amountInputIsInvalid = false
     @State private var managementURLIsInvalid = false
     @State private var saveFailed = false
 
@@ -34,13 +31,6 @@ struct EditSubscriptionView: View {
         _serviceName = State(initialValue: subscription.serviceName)
         _plan = State(initialValue: subscription.plan)
         _category = State(initialValue: subscription.category)
-        _amountText = State(
-            initialValue: editableMoneyText(
-                subscription.originalAmount,
-                locale: .current
-            )
-        )
-        _currency = State(initialValue: subscription.originalAmount.currency)
         _intervalChoice = State(
             initialValue: BillingIntervalChoice(
                 interval: subscription.billingSchedule.interval
@@ -84,7 +74,6 @@ struct EditSubscriptionView: View {
         Form {
             serviceSection
             subscriptionSection
-            priceSection
             billingScheduleSection
             billingDatesSection
             optionalSection
@@ -140,31 +129,6 @@ struct EditSubscriptionView: View {
             TextField("Category", text: $category)
                 .accessibilityIdentifier("subscription.form.category")
             validationMessage(for: .category)
-        }
-    }
-
-    private var priceSection: some View {
-        Section("Price") {
-            TextField("Amount", text: $amountText)
-                .subscriptionDecimalKeyboard()
-                .accessibilityIdentifier("subscription.form.amount")
-
-            Picker("Currency", selection: $currency) {
-                ForEach(Currency.allCases, id: \.rawValue) { currency in
-                    Text(currency.rawValue).tag(currency)
-                }
-            }
-            .pickerStyle(.segmented)
-            .accessibilityIdentifier("subscription.form.currency")
-
-            if amountInputIsInvalid {
-                ValidationMessage(
-                    "Enter a valid amount.",
-                    identifier: "subscription.validation.amount"
-                )
-            } else {
-                validationMessage(for: .originalAmount)
-            }
         }
     }
 
@@ -247,12 +211,6 @@ struct EditSubscriptionView: View {
     }
 
     private func save() {
-        let amount = MoneyTextParser.parse(
-            amountText,
-            currency: currency,
-            locale: .current
-        )
-        amountInputIsInvalid = amount == nil
         let managementURLResult = ManagementURLParser.parse(managementURLText)
         managementURLIsInvalid = managementURLResult == .invalid
         saveFailed = false
@@ -289,7 +247,6 @@ struct EditSubscriptionView: View {
                 serviceName: serviceName,
                 plan: plan,
                 category: category,
-                originalAmount: amount,
                 billingSchedule: FixedBillingSchedule(
                     interval: interval,
                     renewalAnchor: normalizedRenewalAnchor,

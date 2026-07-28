@@ -6,6 +6,7 @@ struct SubscriptionDetailView: View {
     let subscriptionID: UUID
     @State private var subscriptionToEdit: Subscription?
     @State private var lifecycleSheet: LifecycleSheet?
+    @State private var paymentSheet: PaymentSheet?
     @State private var subscriptionPendingDeletion: Subscription?
     @State private var directActionError:
         SubscriptionLifecycleActionError?
@@ -46,6 +47,22 @@ struct SubscriptionDetailView: View {
 
                                 switch status {
                                 case .trial, .active:
+                                    Button(
+                                        "Confirm Charge",
+                                        systemImage: "checkmark.circle"
+                                    ) {
+                                        paymentSheet = .confirmCharge(subscription)
+                                    }
+                                    .accessibilityIdentifier("subscription.confirm")
+
+                                    Button(
+                                        "Record Price Change",
+                                        systemImage: "tag"
+                                    ) {
+                                        paymentSheet = .recordPriceChange(subscription)
+                                    }
+                                    .accessibilityIdentifier("subscription.price-change")
+
                                     Button(
                                         "Record Cancellation",
                                         systemImage: "xmark.circle"
@@ -129,6 +146,22 @@ struct SubscriptionDetailView: View {
                     }
                 }
             }
+            .sheet(item: $paymentSheet) { sheet in
+                NavigationStack {
+                    switch sheet {
+                    case .confirmCharge(let subscription):
+                        ConfirmChargeView(
+                            workspace: workspace,
+                            subscription: subscription
+                        )
+                    case .recordPriceChange(let subscription):
+                        RecordPriceChangeView(
+                            workspace: workspace,
+                            subscription: subscription
+                        )
+                    }
+                }
+            }
             .confirmationDialog(
                 deletionConfirmationTitle,
                 isPresented: Binding(
@@ -183,7 +216,8 @@ struct SubscriptionDetailView: View {
             SubscriptionDetailForm(
                 subscription: subscription,
                 status: status,
-                nextExpectedCharge: nextExpectedCharge
+                nextExpectedCharge: nextExpectedCharge,
+                history: workspace.paymentHistory
             )
 
         case .loaded:
@@ -257,6 +291,7 @@ private struct SubscriptionDetailForm: View {
     let subscription: Subscription
     let status: SubscriptionStatus
     let nextExpectedCharge: ExpectedCharge?
+    let history: [SubscriptionHistoryEntry]
 
     private var timeZone: TimeZone {
         billingTimeZone(
@@ -315,6 +350,20 @@ private struct SubscriptionDetailForm: View {
                     .accessibilityIdentifier(
                         "subscription.detail.expected-charge.date"
                     )
+                }
+            }
+
+            if !history.isEmpty {
+                Section("Payment History") {
+                    ForEach(Array(history.enumerated()), id: \.offset) {
+                        _, entry in
+                        PaymentHistoryRow(
+                            entry: entry,
+                            timeZoneIdentifier:
+                                subscription.billingSchedule.timeZoneIdentifier,
+                            locale: locale
+                        )
+                    }
                 }
             }
 
@@ -416,6 +465,32 @@ private struct SubscriptionDetailForm: View {
     }
 }
 
+private struct PaymentHistoryRow: View {
+    let entry: SubscriptionHistoryEntry
+    let timeZoneIdentifier: String
+    let locale: Locale
+
+    var body: some View {
+        switch entry {
+        case .expected(let charge):
+            LabeledContent("Expected Charge") {
+                Text(formattedMoney(charge.amount))
+            }
+            .accessibilityIdentifier("subscription.history.expected")
+        case .confirmed(let charge):
+            LabeledContent("Confirmed Payment") {
+                Text(formattedMoney(charge.amount))
+            }
+            .accessibilityIdentifier("subscription.history.confirmed")
+        case .priceChange(let change):
+            LabeledContent("Price Change") {
+                Text(formattedMoney(change.amount))
+            }
+            .accessibilityIdentifier("subscription.history.price-change")
+        }
+    }
+}
+
 private enum LifecycleSheet: Identifiable {
     case recordCancellation(Subscription)
     case reactivate(Subscription)
@@ -426,6 +501,20 @@ private enum LifecycleSheet: Identifiable {
             "record-cancellation-\(subscription.id)"
         case .reactivate(let subscription):
             "reactivate-\(subscription.id)"
+        }
+    }
+}
+
+private enum PaymentSheet: Identifiable {
+    case confirmCharge(Subscription)
+    case recordPriceChange(Subscription)
+
+    var id: String {
+        switch self {
+        case .confirmCharge(let subscription):
+            "confirm-charge-\(subscription.id)"
+        case .recordPriceChange(let subscription):
+            "record-price-change-\(subscription.id)"
         }
     }
 }
