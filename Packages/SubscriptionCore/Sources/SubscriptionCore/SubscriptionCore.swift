@@ -1,9 +1,10 @@
 import Foundation
 import Observation
 
-public enum Currency: String, CaseIterable, Codable, Sendable {
+public enum Currency: String, CaseIterable, Codable, Hashable, Sendable {
     case cny = "CNY"
     case usd = "USD"
+    case eur = "EUR"
 }
 
 public struct Money: Codable, Equatable, Sendable {
@@ -404,12 +405,15 @@ public final class SubscriptionWorkspace {
     public private(set) var catalogState: CatalogState = .notLoaded
     public private(set) var catalogDiagnostics: CatalogDiagnostics?
     public private(set) var setupState: SetupState = .notLoaded
+    public private(set) var exchangeRateStatus: ExchangeRateStatus = .notLoaded
 
     private let repository: any SubscriptionRepository
     private let preferencesRepository: (any UserPreferencesRepository)?
     private let catalogRepository: (any CatalogRepository)?
     private let catalogUpdateSource: (any CatalogUpdateSource)?
     private let catalogCache: (any CatalogCache)?
+    private let exchangeRateSource: (any ExchangeRateSource)?
+    private let exchangeRateCache: (any ExchangeRateCache)?
     private let identifierGenerator: () -> UUID
     private let now: () -> Date
     private let calendar: Calendar
@@ -425,6 +429,8 @@ public final class SubscriptionWorkspace {
         catalogRepository: (any CatalogRepository)? = nil,
         catalogUpdateSource: (any CatalogUpdateSource)? = nil,
         catalogCache: (any CatalogCache)? = nil,
+        exchangeRateSource: (any ExchangeRateSource)? = nil,
+        exchangeRateCache: (any ExchangeRateCache)? = nil,
         identifierGenerator: @escaping () -> UUID = UUID.init,
         now: @escaping () -> Date = Date.init,
         calendar: Calendar? = nil
@@ -434,6 +440,8 @@ public final class SubscriptionWorkspace {
         self.catalogRepository = catalogRepository
         self.catalogUpdateSource = catalogUpdateSource
         self.catalogCache = catalogCache
+        self.exchangeRateSource = exchangeRateSource
+        self.exchangeRateCache = exchangeRateCache
         self.identifierGenerator = identifierGenerator
         self.now = now
         self.calendar = calendar ?? Self.defaultRenewalCalendar()
@@ -547,6 +555,59 @@ public final class SubscriptionWorkspace {
         calendar.locale = Locale(identifier: "en_US_POSIX")
         calendar.timeZone = .autoupdatingCurrent
         return calendar
+    }
+
+    public func refreshExchangeRates() async {
+        let cachedState = try? exchangeRateCache?.loadState()
+        if let cachedState,
+           calendar.isDate(
+               cachedState.lastAttemptAt
+                   ?? cachedState.snapshot?.fetchedAt
+                   ?? .distantPast,
+               inSameDayAs: now()
+           )
+        {
+            exchangeRateStatus = cachedState.snapshot.map { snapshot in
+                calendar.isDate(snapshot.fetchedAt, inSameDayAs: now())
+                    ? .fresh(snapshot)
+                    : .stale(snapshot)
+            } ?? .unavailable
+            return
+        }
+
+        guard let exchangeRateSource else {
+            exchangeRateStatus = cachedState?.snapshot.map(
+                ExchangeRateStatus.stale
+            ) ?? .unavailable
+            return
+        }
+
+        let subscriptions = (try? repository.listSubscriptions()) ?? []
+        let quotes = Set(subscriptions.map(\.originalAmount.currency))
+            .union([currentPreferences.primaryCurrency])
+            .subtracting([.eur])
+        let attemptedAt = now()
+        do {
+            let snapshot = try await exchangeRateSource.fetchRates(
+                base: .eur,
+                quotes: quotes
+            )
+            let state = ExchangeRateCacheState(
+                snapshot: snapshot,
+                lastAttemptAt: attemptedAt
+            )
+            try? exchangeRateCache?.saveState(state)
+            exchangeRateStatus = .fresh(snapshot)
+        } catch {
+            let state = ExchangeRateCacheState(
+                snapshot: cachedState?.snapshot,
+                lastAttemptAt: attemptedAt
+            )
+            try? exchangeRateCache?.saveState(state)
+            exchangeRateStatus = cachedState?.snapshot.map(
+                ExchangeRateStatus.stale
+            ) ?? .unavailable
+        }
     }
 
     public func createSubscription(

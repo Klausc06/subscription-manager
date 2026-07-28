@@ -4,6 +4,143 @@ import Testing
 
 @Suite("Subscription workspace")
 struct SubscriptionWorkspaceTests {
+    @Test("EUR snapshot converts source money through its base rate")
+    func exchangeRateSnapshotConvertsThroughEUR() throws {
+        let now = Date(timeIntervalSince1970: 1_769_356_800)
+        let snapshot = ExchangeRateSnapshot(
+            base: .eur,
+            providerDate: now,
+            fetchedAt: now,
+            source: "fixture",
+            rates: [
+                .eur: 1,
+                .usd: 1.2,
+                .cny: 8.4,
+            ]
+        )
+
+        let converted = try snapshot.convert(
+            Money(minorUnits: 840, currency: .cny),
+            to: .usd
+        )
+
+        #expect(converted == Money(minorUnits: 120, currency: .usd))
+    }
+
+    @Test("Today's rate cache is reused without requesting the network")
+    @MainActor
+    func rateRefreshReusesTodaysCache() async {
+        let now = Date(timeIntervalSince1970: 1_769_356_800)
+        let snapshot = ExchangeRateSnapshot(
+            base: .eur,
+            providerDate: now,
+            fetchedAt: now,
+            source: "fixture",
+            rates: [.eur: 1, .usd: 1.2]
+        )
+        let source = RecordingExchangeRateSource(snapshot: snapshot)
+        let cache = InMemoryExchangeRateCache(
+            state: ExchangeRateCacheState(
+                snapshot: snapshot,
+                lastAttemptAt: now
+            )
+        )
+        let workspace = SubscriptionWorkspace(
+            repository: InMemorySubscriptionRepository(),
+            exchangeRateSource: source,
+            exchangeRateCache: cache,
+            now: { now }
+        )
+
+        await workspace.refreshExchangeRates()
+
+        #expect(source.requests.isEmpty)
+        #expect(workspace.exchangeRateStatus == .fresh(snapshot))
+    }
+
+    @Test("Stale rates refresh only library and display currencies")
+    @MainActor
+    func rateRefreshRequestsOnlyNeededCurrencies() async {
+        let yesterday = Date(timeIntervalSince1970: 1_769_270_400)
+        let now = Date(timeIntervalSince1970: 1_769_356_800)
+        let refreshed = ExchangeRateSnapshot(
+            base: .eur,
+            providerDate: now,
+            fetchedAt: now,
+            source: "fixture",
+            rates: [.eur: 1, .usd: 1.2]
+        )
+        let source = RecordingExchangeRateSource(snapshot: refreshed)
+        let cache = InMemoryExchangeRateCache(
+            state: ExchangeRateCacheState(
+                snapshot: ExchangeRateSnapshot(
+                    base: .eur,
+                    providerDate: yesterday,
+                    fetchedAt: yesterday,
+                    source: "fixture",
+                    rates: [.eur: 1, .usd: 1.2]
+                ),
+                lastAttemptAt: yesterday
+            )
+        )
+        let workspace = SubscriptionWorkspace(
+            repository: InMemorySubscriptionRepository(subscriptions: [
+                makeSubscription(
+                    id: UUID(uuidString: "11111111-2222-3333-4444-555555555555")!,
+                    originalAmount: Money(minorUnits: 999, currency: .usd)
+                ),
+            ]),
+            exchangeRateSource: source,
+            exchangeRateCache: cache,
+            now: { now }
+        )
+
+        await workspace.refreshExchangeRates()
+
+        #expect(source.requests.count == 1)
+        #expect(source.requests.first?.base == .eur)
+        #expect(source.requests.first?.quotes == [.cny, .usd])
+        #expect(cache.state == ExchangeRateCacheState(
+            snapshot: refreshed,
+            lastAttemptAt: now
+        ))
+        #expect(workspace.exchangeRateStatus == ExchangeRateStatus.fresh(refreshed))
+    }
+
+    @Test("A failed refresh keeps stale rates and is not retried today")
+    @MainActor
+    func failedRateRefreshKeepsStaleSnapshot() async {
+        let yesterday = Date(timeIntervalSince1970: 1_769_270_400)
+        let now = Date(timeIntervalSince1970: 1_769_356_800)
+        let stale = ExchangeRateSnapshot(
+            base: .eur,
+            providerDate: yesterday,
+            fetchedAt: yesterday,
+            source: "fixture",
+            rates: [.eur: 1, .cny: 8.4]
+        )
+        let source = RecordingExchangeRateSource(error: ExchangeRateFixtureError.offline)
+        let cache = InMemoryExchangeRateCache(
+            state: ExchangeRateCacheState(
+                snapshot: stale,
+                lastAttemptAt: yesterday
+            )
+        )
+        let workspace = SubscriptionWorkspace(
+            repository: InMemorySubscriptionRepository(),
+            exchangeRateSource: source,
+            exchangeRateCache: cache,
+            now: { now }
+        )
+
+        await workspace.refreshExchangeRates()
+        await workspace.refreshExchangeRates()
+
+        #expect(source.requests.count == 1)
+        #expect(workspace.exchangeRateStatus == ExchangeRateStatus.stale(stale))
+        #expect(cache.state?.lastAttemptAt == now)
+    }
+
     @Test("Upcoming timeline orders expected and confirmed charges while excluding cancelled subscriptions")
     @MainActor
     func upcomingTimelineOrdersEligibleCharges() {
@@ -1751,6 +1888,49 @@ private final class InMemoryCatalogCache: CatalogCache {
 }
 
 @MainActor
+private final class RecordingExchangeRateSource: ExchangeRateSource {
+    private(set) var requests: [(base: Currency, quotes: Set<Currency>)] = []
+    private let result: Result<ExchangeRateSnapshot, ExchangeRateFixtureError>
+
+    init(snapshot: ExchangeRateSnapshot) {
+        result = .success(snapshot)
+    }
+
+    init(error: ExchangeRateFixtureError) {
+        result = .failure(error)
+    }
+
+    func fetchRates(
+        base: Currency,
+        quotes: Set<Currency>
+    ) async throws -> ExchangeRateSnapshot {
+        requests.append((base: base, quotes: quotes))
+        return try result.get()
+    }
+}
+
+private enum ExchangeRateFixtureError: Error {
+    case offline
+}
+
+@MainActor
+private final class InMemoryExchangeRateCache: ExchangeRateCache {
+    private(set) var state: ExchangeRateCacheState?
+
+    init(state: ExchangeRateCacheState?) {
+        self.state = state
+    }
+
+    func loadState() throws -> ExchangeRateCacheState? {
+        state
+    }
+
+    func saveState(_ state: ExchangeRateCacheState) throws {
+        self.state = state
+    }
+}
+
+@MainActor
 private struct FailingSubscriptionRepository: SubscriptionRepository {
     func createSubscription(_ subscription: Subscription) throws {
         throw RepositoryError.unavailable
@@ -2029,7 +2209,8 @@ private func makeSubscription(
     isArchived: Bool = false,
     billingSchedule: FixedBillingSchedule? = nil,
     confirmedNextRenewal: Date? = nil,
-    confirmedCharges: [ConfirmedCharge] = []
+    confirmedCharges: [ConfirmedCharge] = [],
+    originalAmount: Money = Money(minorUnits: 999, currency: .usd)
 ) -> Subscription {
     let startDate = Date(timeIntervalSince1970: 1_767_225_600)
     let schedule = billingSchedule ?? FixedBillingSchedule(
@@ -2040,14 +2221,13 @@ private func makeSubscription(
     let renewalDate =
         confirmedNextRenewal
         ?? Date(timeIntervalSince1970: 1_769_904_000)
-    let amount = Money(minorUnits: 999, currency: .usd)
     return Subscription(
         id: id,
         serviceIdentity: ServiceIdentity(rawValue: "manual:\(id.uuidString)"),
         serviceName: "Example",
         plan: "Standard",
         category: "Other",
-        originalAmount: amount,
+        originalAmount: originalAmount,
         billingSchedule: schedule,
         startDate: schedule.renewalAnchor,
         confirmedNextRenewal: renewalDate,
