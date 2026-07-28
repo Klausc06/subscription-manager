@@ -170,8 +170,8 @@ final class SubscriptionManagerUITests: XCTestCase {
         XCTAssertTrue(detailStatus.waitForExistence(timeout: 5))
         XCTAssertTrue(detailStatus.label.contains("Trial"))
 
-        app.buttons["subscription.actions"].tap()
-        let archive = app.buttons["subscription.archive"]
+        app.buttons["subscription.lifecycle.actions"].tap()
+        let archive = app.buttons["subscription.lifecycle.archive"]
         XCTAssertTrue(archive.waitForExistence(timeout: 5))
         archive.tap()
 
@@ -195,8 +195,8 @@ final class SubscriptionManagerUITests: XCTestCase {
         XCTAssertTrue(archivedStatus.label.contains("Trial"))
 
         app.buttons["subscription.row"].firstMatch.tap()
-        app.buttons["subscription.actions"].tap()
-        let restore = app.buttons["subscription.restore"]
+        app.buttons["subscription.lifecycle.actions"].tap()
+        let restore = app.buttons["subscription.lifecycle.restore"]
         XCTAssertTrue(restore.waitForExistence(timeout: 5))
         restore.tap()
 
@@ -216,6 +216,98 @@ final class SubscriptionManagerUITests: XCTestCase {
         XCTAssertTrue(restoredStatus.label.contains("Trial"))
     }
 
+    func testPermanentDeleteRequiresConfirmation() {
+        let serviceName = "Example Delete"
+        let app = launch(
+            language: "en",
+            locale: "en_US",
+            storeToken: "permanent-delete-\(UUID().uuidString)"
+        )
+        createTrial(
+            named: serviceName,
+            statusButton: "Trial",
+            in: app
+        )
+
+        app.buttons["subscription.row"].firstMatch.tap()
+        let currentStatus = app.descendants(matching: .any)[
+            "subscription.status"
+        ]
+        XCTAssertTrue(currentStatus.waitForExistence(timeout: 5))
+        XCTAssertTrue(currentStatus.label.contains("Trial"))
+
+        let lifecycleActions = app.buttons[
+            "subscription.lifecycle.actions"
+        ]
+        XCTAssertTrue(lifecycleActions.waitForExistence(timeout: 5))
+        lifecycleActions.tap()
+        XCTAssertTrue(
+            app.buttons["subscription.lifecycle.record-cancellation"]
+                .waitForExistence(timeout: 5)
+        )
+        XCTAssertTrue(
+            app.buttons["subscription.lifecycle.delete"]
+                .waitForExistence(timeout: 5)
+        )
+        let archive = app.buttons["subscription.lifecycle.archive"]
+        XCTAssertTrue(archive.waitForExistence(timeout: 5))
+        archive.tap()
+
+        app.navigationBars.buttons["Subscriptions"].tap()
+        let archivedLibrary = app.buttons["library.archived"]
+        XCTAssertTrue(archivedLibrary.waitForExistence(timeout: 5))
+        archivedLibrary.tap()
+        XCTAssertTrue(app.staticTexts[serviceName].waitForExistence(timeout: 5))
+        app.buttons["subscription.row"].firstMatch.tap()
+
+        let archivedStatus = app.descendants(matching: .any)[
+            "subscription.status"
+        ]
+        XCTAssertTrue(archivedStatus.waitForExistence(timeout: 5))
+        XCTAssertTrue(archivedStatus.label.contains("Trial"))
+        lifecycleActions.tap()
+        XCTAssertTrue(
+            app.buttons["subscription.lifecycle.restore"]
+                .waitForExistence(timeout: 5)
+        )
+        let permanentDelete = app.buttons["subscription.lifecycle.delete"]
+        XCTAssertTrue(permanentDelete.waitForExistence(timeout: 5))
+        permanentDelete.tap()
+
+        let confirmation = app.sheets.firstMatch
+        XCTAssertTrue(confirmation.waitForExistence(timeout: 5))
+        XCTAssertTrue(
+            confirmation.staticTexts
+                .matching(
+                    NSPredicate(format: "label CONTAINS %@", serviceName)
+                )
+                .firstMatch
+                .exists
+        )
+        XCTAssertTrue(
+            confirmation.staticTexts["This action cannot be undone."].exists
+        )
+        app.coordinate(
+            withNormalizedOffset: CGVector(dx: 0.05, dy: 0.1)
+        )
+        .tap()
+
+        XCTAssertTrue(
+            app.descendants(matching: .any)["subscription.detail"]
+                .waitForExistence(timeout: 5)
+        )
+
+        lifecycleActions.tap()
+        permanentDelete.tap()
+        XCTAssertTrue(confirmation.waitForExistence(timeout: 5))
+        confirmation.buttons["Delete Permanently"].tap()
+
+        XCTAssertTrue(
+            app.descendants(matching: .any)["subscription.detail.not-found"]
+                .waitForExistence(timeout: 5)
+        )
+    }
+
     func testRecordsCancellationAndHidesNextExpectedCharge() {
         let app = launch(
             language: "en",
@@ -225,7 +317,7 @@ final class SubscriptionManagerUITests: XCTestCase {
         createSubscription(named: "Example Streaming", in: app)
         app.buttons["subscription.row"].firstMatch.tap()
 
-        app.buttons["subscription.actions"].tap()
+        app.buttons["subscription.lifecycle.actions"].tap()
         let recordCancellation = app.buttons[
             "subscription.lifecycle.record-cancellation"
         ]
@@ -315,7 +407,7 @@ final class SubscriptionManagerUITests: XCTestCase {
             return XCTFail("Renewal Anchor must expose its localized date.")
         }
 
-        app.buttons["subscription.actions"].tap()
+        app.buttons["subscription.lifecycle.actions"].tap()
         app.buttons["subscription.lifecycle.record-cancellation"].tap()
         XCTAssertTrue(
             app.buttons["subscription.cancellation.save"]
@@ -323,7 +415,7 @@ final class SubscriptionManagerUITests: XCTestCase {
         )
         app.buttons["subscription.cancellation.save"].tap()
 
-        app.buttons["subscription.actions"].tap()
+        app.buttons["subscription.lifecycle.actions"].tap()
         let reactivate = app.buttons["subscription.lifecycle.reactivate"]
         XCTAssertTrue(reactivate.waitForExistence(timeout: 5))
         reactivate.tap()
@@ -436,7 +528,7 @@ final class SubscriptionManagerUITests: XCTestCase {
         createSubscription(named: "Example News", in: app)
         app.buttons["subscription.row"].firstMatch.tap()
 
-        app.buttons["subscription.actions"].tap()
+        app.buttons["subscription.lifecycle.actions"].tap()
         let editButton = app.buttons["subscription.edit"]
         XCTAssertTrue(editButton.waitForExistence(timeout: 5))
         editButton.tap()
@@ -471,7 +563,7 @@ final class SubscriptionManagerUITests: XCTestCase {
         let app = launch(language: "en", locale: "en_US")
         createSubscription(named: "Example Fitness", in: app)
         app.buttons["subscription.row"].firstMatch.tap()
-        app.buttons["subscription.actions"].tap()
+        app.buttons["subscription.lifecycle.actions"].tap()
         app.buttons["subscription.edit"].tap()
 
         let billingInterval = app.buttons[

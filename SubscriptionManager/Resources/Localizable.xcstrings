@@ -475,6 +475,12 @@
         "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "永久删除" } }
       }
     },
+    "Permanently Delete “%@”?" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Permanently Delete “%@”?" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "永久删除“%@”？" } }
+      }
+    },
     "Reactivate" : {
       "localizations" : {
         "en" : { "stringUnit" : { "state" : "translated", "value" : "Reactivate" } },

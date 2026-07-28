@@ -6,6 +6,7 @@ struct SubscriptionDetailView: View {
     let subscriptionID: UUID
     @State private var subscriptionToEdit: Subscription?
     @State private var lifecycleSheet: LifecycleSheet?
+    @State private var subscriptionPendingDeletion: Subscription?
 
     var body: some View {
         detailContent
@@ -28,7 +29,7 @@ struct SubscriptionDetailView: View {
                                     workspace.restore(id: subscription.id)
                                 }
                                 .accessibilityIdentifier(
-                                    "subscription.restore"
+                                    "subscription.lifecycle.restore"
                                 )
                             } else {
                                 Button("Edit", systemImage: "pencil") {
@@ -70,11 +71,24 @@ struct SubscriptionDetailView: View {
                                     workspace.archive(id: subscription.id)
                                 }
                                 .accessibilityIdentifier(
-                                    "subscription.archive"
+                                    "subscription.lifecycle.archive"
                                 )
                             }
+
+                            Button(
+                                "Permanently Delete",
+                                systemImage: "trash",
+                                role: .destructive
+                            ) {
+                                subscriptionPendingDeletion = subscription
+                            }
+                            .accessibilityIdentifier(
+                                "subscription.lifecycle.delete"
+                            )
                         }
-                        .accessibilityIdentifier("subscription.actions")
+                        .accessibilityIdentifier(
+                            "subscription.lifecycle.actions"
+                        )
                     }
                 }
             }
@@ -101,6 +115,31 @@ struct SubscriptionDetailView: View {
                         )
                     }
                 }
+            }
+            .confirmationDialog(
+                deletionConfirmationTitle,
+                isPresented: Binding(
+                    get: {
+                        subscriptionPendingDeletion != nil
+                    },
+                    set: { isPresented in
+                        if !isPresented {
+                            subscriptionPendingDeletion = nil
+                        }
+                    }
+                ),
+                titleVisibility: .visible,
+                presenting: subscriptionPendingDeletion
+            ) { subscription in
+                Button("Delete Permanently", role: .destructive) {
+                    subscriptionPendingDeletion = nil
+                    workspace.deletePermanently(id: subscription.id)
+                }
+                Button("Cancel", role: .cancel) {
+                    subscriptionPendingDeletion = nil
+                }
+            } message: { _ in
+                Text("This action cannot be undone.")
             }
             .task(id: subscriptionID) {
                 workspace.loadSubscription(id: subscriptionID)
@@ -147,6 +186,13 @@ struct SubscriptionDetailView: View {
     private var loadingView: some View {
         ProgressView("Loading Subscription")
             .accessibilityIdentifier("subscription.detail.loading")
+    }
+
+    private var deletionConfirmationTitle: LocalizedStringKey {
+        guard let subscriptionPendingDeletion else {
+            return "Permanently Delete"
+        }
+        return "Permanently Delete “\(subscriptionPendingDeletion.serviceName)”?"
     }
 }
 
