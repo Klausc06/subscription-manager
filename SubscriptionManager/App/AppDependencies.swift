@@ -11,7 +11,7 @@ struct AppDependencies {
         arguments: [String] = ProcessInfo.processInfo.arguments,
         storeDirectory: URL? = nil
     ) -> AppStartupState {
-        let schema = Schema([SubscriptionRecord.self])
+        let schema = Schema([SubscriptionRecord.self, UserPreferencesRecord.self])
         #if DEBUG
         let failsLifecycleMutations = arguments.contains("--ui-testing")
             && arguments.contains("--ui-testing-fail-lifecycle-mutations")
@@ -75,6 +75,9 @@ struct AppDependencies {
             let repository = SwiftDataSubscriptionRepository(
                 modelContainer: modelContainer
             )
+            let preferencesRepository = SwiftDataUserPreferencesRepository(
+                modelContainer: modelContainer
+            )
             let workspaceRepository: any SubscriptionRepository
             #if DEBUG
             workspaceRepository = failsLifecycleMutations
@@ -101,6 +104,7 @@ struct AppDependencies {
                     modelContainer: modelContainer,
                     workspace: SubscriptionWorkspace(
                         repository: workspaceRepository,
+                        preferencesRepository: preferencesRepository,
                         catalogRepository: catalogRepository,
                         catalogUpdateSource: GitHubCatalogUpdateSource(),
                         catalogCache: catalogCache

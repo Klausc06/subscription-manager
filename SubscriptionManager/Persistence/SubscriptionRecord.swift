@@ -79,3 +79,21 @@ final class SubscriptionRecord {
         self.isArchived = isArchived
     }
 }
+
+@Model
+final class UserPreferencesRecord {
+    var primaryCurrencyRawValue: String = "CNY"
+    var calendarProjectionHorizonMonths: Int = 12
+    var setupStatusRawValue: String = "notCompleted"
+
+    init(
+        primaryCurrencyRawValue: String = "CNY",
+        calendarProjectionHorizonMonths: Int = 12,
+        setupStatusRawValue: String = "notCompleted"
+    ) {
+        self.primaryCurrencyRawValue = primaryCurrencyRawValue
+        self.calendarProjectionHorizonMonths =
+            calendarProjectionHorizonMonths
+        self.setupStatusRawValue = setupStatusRawValue
+    }
+}

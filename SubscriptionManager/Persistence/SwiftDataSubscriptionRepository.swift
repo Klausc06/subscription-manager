@@ -459,3 +459,67 @@ final class SwiftDataSubscriptionRepository: SubscriptionRepository {
         case cancelled
     }
 }
+
+@MainActor
+final class SwiftDataUserPreferencesRepository: UserPreferencesRepository {
+    private let modelContext: ModelContext
+    private let save: (ModelContext) throws -> Void
+
+    convenience init(modelContainer: ModelContainer) {
+        self.init(
+            modelContainer: modelContainer,
+            save: { try $0.save() }
+        )
+    }
+
+    init(
+        modelContainer: ModelContainer,
+        save: @escaping (ModelContext) throws -> Void
+    ) {
+        modelContext = ModelContext(modelContainer)
+        self.save = save
+    }
+
+    func loadPreferences() throws -> UserPreferences? {
+        do {
+            var descriptor = FetchDescriptor<UserPreferencesRecord>()
+            descriptor.fetchLimit = 1
+            guard let record = try modelContext.fetch(descriptor).first else {
+                return nil
+            }
+            return UserPreferences(
+                primaryCurrency: Currency(
+                    rawValue: record.primaryCurrencyRawValue
+                ) ?? .cny,
+                calendarProjectionHorizon: CalendarProjectionHorizon(
+                    rawValue: record.calendarProjectionHorizonMonths
+                ) ?? .twelveMonths,
+                setupStatus: SetupStatus(rawValue: record.setupStatusRawValue)
+                    ?? .notCompleted
+            )
+        } catch {
+            modelContext.rollback()
+            throw error
+        }
+    }
+
+    func savePreferences(_ preferences: UserPreferences) throws {
+        do {
+            var descriptor = FetchDescriptor<UserPreferencesRecord>()
+            descriptor.fetchLimit = 1
+            let record = try modelContext.fetch(descriptor).first
+                ?? UserPreferencesRecord()
+            if record.modelContext == nil {
+                modelContext.insert(record)
+            }
+            record.primaryCurrencyRawValue = preferences.primaryCurrency.rawValue
+            record.calendarProjectionHorizonMonths =
+                preferences.calendarProjectionHorizon.rawValue
+            record.setupStatusRawValue = preferences.setupStatus.rawValue
+            try save(modelContext)
+        } catch {
+            modelContext.rollback()
+            throw error
+        }
+    }
+}
