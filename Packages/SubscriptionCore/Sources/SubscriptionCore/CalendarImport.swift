@@ -43,9 +43,59 @@ public enum CalendarImportState: Equatable, Sendable {
     }
 }
 
+public enum CalendarReconciliationDecision: Equatable, Sendable {
+    case calendarMissing
+    case eventsMissing(count: Int)
+}
+
+public enum CalendarReconciliationCommand: Equatable, Sendable {
+    case reconcile([CalendarProjectionEvent])
+    case rebuild([CalendarProjectionEvent])
+    case disable
+}
+
+public enum CalendarReconciliationResult: Equatable, Sendable {
+    case notConfigured
+    case disabled
+    case reconciled
+    case needsDecision(CalendarReconciliationDecision)
+    case unavailable
+}
+
+public enum CalendarReconciliationState: Equatable, Sendable {
+    case notConfigured
+    case disabled
+    case reconciling
+    case current
+    case needsDecision(CalendarReconciliationDecision)
+    case unavailable
+
+    init(result: CalendarReconciliationResult) {
+        switch result {
+        case .notConfigured:
+            self = .notConfigured
+        case .disabled:
+            self = .disabled
+        case .reconciled:
+            self = .current
+        case .needsDecision(let decision):
+            self = .needsDecision(decision)
+        case .unavailable:
+            self = .unavailable
+        }
+    }
+}
+
 @MainActor
 public protocol CalendarProjectionImporter: Sendable {
     func importProjection(
         events: [CalendarProjectionEvent]
     ) async -> CalendarProjectionImportResult
+}
+
+@MainActor
+public protocol CalendarProjectionReconciler: Sendable {
+    func perform(
+        _ command: CalendarReconciliationCommand
+    ) async -> CalendarReconciliationResult
 }

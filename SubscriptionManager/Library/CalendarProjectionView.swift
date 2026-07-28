@@ -35,6 +35,11 @@ struct CalendarProjectionView: View {
                 state: workspace.calendarImportState,
                 onRetry: retryImport
             )
+            CalendarReconciliationStatusView(
+                state: workspace.calendarReconciliationState,
+                onRebuild: rebuildCalendar,
+                onDisable: disableCalendar
+            )
         }
         .navigationTitle("Calendar Preview")
         .toolbar {
@@ -106,6 +111,40 @@ struct CalendarProjectionView: View {
     private func importCalendar(_ events: [CalendarProjectionEvent]) {
         Task {
             await workspace.importCalendarProjection(events)
+        }
+    }
+
+    private func rebuildCalendar() {
+        Task { await workspace.rebuildCalendarProjection(locale: locale) }
+    }
+
+    private func disableCalendar() {
+        Task { await workspace.disableCalendarReconciliation() }
+    }
+}
+
+private struct CalendarReconciliationStatusView: View {
+    let state: CalendarReconciliationState
+    let onRebuild: () -> Void
+    let onDisable: () -> Void
+
+    var body: some View {
+        switch state {
+        case .needsDecision:
+            Section("Calendar Import") {
+                Text("Calendar content was deleted outside Subscription Manager.")
+                    .foregroundStyle(.secondary)
+                Button("Rebuild Calendar", action: onRebuild)
+                    .accessibilityIdentifier("calendar.rebuild")
+                Button("Disable Calendar Sync", role: .destructive, action: onDisable)
+                    .accessibilityIdentifier("calendar.disable")
+            }
+        case .reconciling:
+            Section("Calendar Import") {
+                ProgressView("Reconciling Calendar")
+            }
+        case .current, .notConfigured, .disabled, .unavailable:
+            EmptyView()
         }
     }
 }

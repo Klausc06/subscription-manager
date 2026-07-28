@@ -106,6 +106,7 @@ final class CalendarProjectionMappingRecord {
     var projectionUID: String = ""
     var eventIdentifier: String = ""
     var calendarIdentifier: String = ""
+    var calendarSyncDisabled: Bool = false
 
     init(
         projectionUID: String = "",

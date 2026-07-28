@@ -22,6 +22,12 @@ struct CalendarEventWriteResult: Equatable {
 }
 
 @MainActor
+struct CalendarProjectionEventMapping: Equatable {
+    let projectionUID: String
+    let eventIdentifier: String
+}
+
+@MainActor
 enum CalendarEventStoreError: Error {
     case noWritableSource
     case writeFailed
@@ -31,6 +37,8 @@ enum CalendarEventStoreError: Error {
 protocol CalendarEventStore {
     func requestFullEventAccess() async -> CalendarEventAccess
     func calendar(identifier: String) -> CalendarProjectionCalendar?
+    func eventExists(identifier: String) -> Bool
+    func removeEvent(identifier: String) throws
     func createDedicatedCalendar(
         named: String
     ) throws -> CalendarProjectionCalendar
@@ -44,8 +52,12 @@ protocol CalendarEventStore {
 @MainActor
 protocol CalendarProjectionMappingRepository {
     func calendarIdentifier() throws -> String?
+    func isCalendarSyncDisabled() throws -> Bool
+    func setCalendarSyncDisabled(_ disabled: Bool) throws
     func saveCalendarIdentifier(_ identifier: String) throws
     func eventIdentifier(for projectionUID: String) throws -> String?
+    func eventMappings() throws -> [CalendarProjectionEventMapping]
+    func removeEventMapping(for projectionUID: String) throws
     func saveEventIdentifier(
         _ identifier: String,
         for projectionUID: String,
@@ -54,7 +66,9 @@ protocol CalendarProjectionMappingRepository {
 }
 
 @MainActor
-final class EventKitCalendarProjectionImporter: CalendarProjectionImporter {
+final class EventKitCalendarProjectionImporter:
+    CalendarProjectionImporter, CalendarProjectionReconciler
+{
     private static let calendarTitle = "Subscription Manager"
 
     private let eventStore: any CalendarEventStore
@@ -143,6 +157,100 @@ final class EventKitCalendarProjectionImporter: CalendarProjectionImporter {
             ? .imported(summary)
             : .partialFailure(summary, failedCount: failedCount)
     }
+
+    func perform(
+        _ command: CalendarReconciliationCommand
+    ) async -> CalendarReconciliationResult {
+        switch command {
+        case .reconcile(let events):
+            return reconcile(events: events)
+        case .rebuild(let events):
+            return await rebuild(events: events)
+        case .disable:
+            do {
+                try mappingRepository.setCalendarSyncDisabled(true)
+                return .disabled
+            } catch {
+                return .unavailable
+            }
+        }
+    }
+
+    private func rebuild(
+        events: [CalendarProjectionEvent]
+    ) async -> CalendarReconciliationResult {
+        do { try mappingRepository.setCalendarSyncDisabled(false) } catch {
+            return .unavailable
+        }
+        switch await importProjection(events: events) {
+        case .imported, .partialFailure:
+            return .reconciled
+        case .accessDenied, .unavailable:
+            return .unavailable
+        }
+    }
+
+    private func reconcile(
+        events: [CalendarProjectionEvent]
+    ) -> CalendarReconciliationResult {
+        let calendar: CalendarProjectionCalendar
+        do {
+            guard try !mappingRepository.isCalendarSyncDisabled() else {
+                return .disabled
+            }
+            guard let identifier = try mappingRepository.calendarIdentifier()
+            else {
+                return .notConfigured
+            }
+            guard let existing = eventStore.calendar(identifier: identifier)
+            else {
+                return .needsDecision(.calendarMissing)
+            }
+            calendar = existing
+
+            let desiredUIDs = Set(events.map(\.uid))
+            for mapping in try mappingRepository.eventMappings()
+            where !desiredUIDs.contains(mapping.projectionUID) {
+                try eventStore.removeEvent(identifier: mapping.eventIdentifier)
+                try mappingRepository.removeEventMapping(
+                    for: mapping.projectionUID
+                )
+            }
+
+            let missingCount = try events.reduce(into: 0) { count, event in
+                guard let identifier = try mappingRepository.eventIdentifier(
+                    for: event.uid
+                ) else {
+                    return
+                }
+                if !eventStore.eventExists(identifier: identifier) {
+                    count += 1
+                }
+            }
+            guard missingCount == 0 else {
+                return .needsDecision(.eventsMissing(count: missingCount))
+            }
+
+            for event in events {
+                let existingIdentifier = try mappingRepository.eventIdentifier(
+                    for: event.uid
+                )
+                let write = try eventStore.saveProjectedEvent(
+                    event,
+                    in: calendar,
+                    replacingEventWithIdentifier: existingIdentifier
+                )
+                try mappingRepository.saveEventIdentifier(
+                    write.eventIdentifier,
+                    for: event.uid,
+                    calendarIdentifier: calendar.identifier
+                )
+            }
+            return .reconciled
+        } catch {
+            return .unavailable
+        }
+    }
 }
 
 @MainActor
@@ -179,6 +287,17 @@ private final class EventKitCalendarEventStore: CalendarEventStore {
             return nil
         }
         return CalendarProjectionCalendar(identifier: calendar.calendarIdentifier)
+    }
+
+    func eventExists(identifier: String) -> Bool {
+        eventStore.event(withIdentifier: identifier) != nil
+    }
+
+    func removeEvent(identifier: String) throws {
+        guard let event = eventStore.event(withIdentifier: identifier) else {
+            return
+        }
+        try eventStore.remove(event, span: .thisEvent, commit: true)
     }
 
     func createDedicatedCalendar(
@@ -249,6 +368,21 @@ final class SwiftDataCalendarProjectionMappingRepository:
         try calendarMetadataRecord()?.calendarIdentifier
     }
 
+    func isCalendarSyncDisabled() throws -> Bool {
+        try calendarMetadataRecord()?.calendarSyncDisabled ?? false
+    }
+
+    func setCalendarSyncDisabled(_ disabled: Bool) throws {
+        if let record = try calendarMetadataRecord() {
+            record.calendarSyncDisabled = disabled
+        } else {
+            let record = CalendarProjectionMappingRecord(calendarIdentifier: "")
+            record.calendarSyncDisabled = disabled
+            modelContext.insert(record)
+        }
+        try modelContext.save()
+    }
+
     func saveCalendarIdentifier(_ identifier: String) throws {
         if let record = try calendarMetadataRecord() {
             record.calendarIdentifier = identifier
@@ -263,6 +397,27 @@ final class SwiftDataCalendarProjectionMappingRepository:
     func eventIdentifier(for projectionUID: String) throws -> String? {
         try records().first { $0.projectionUID == projectionUID }?
             .eventIdentifier
+    }
+
+    func eventMappings() throws -> [CalendarProjectionEventMapping] {
+        try records()
+            .filter { !$0.projectionUID.isEmpty }
+            .map {
+                CalendarProjectionEventMapping(
+                    projectionUID: $0.projectionUID,
+                    eventIdentifier: $0.eventIdentifier
+                )
+            }
+    }
+
+    func removeEventMapping(for projectionUID: String) throws {
+        guard let record = try records().first(where: {
+            $0.projectionUID == projectionUID
+        }) else {
+            return
+        }
+        modelContext.delete(record)
+        try modelContext.save()
     }
 
     func saveEventIdentifier(

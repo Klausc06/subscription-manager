@@ -1,3 +1,4 @@
+import EventKit
 import SwiftData
 import SubscriptionCore
 import SwiftUI
@@ -5,6 +6,7 @@ import SwiftUI
 @main
 @MainActor
 struct SubscriptionManagerApp: App {
+    @Environment(\.scenePhase) private var scenePhase
     private let startupState: AppStartupState
 
     init() {
@@ -13,6 +15,7 @@ struct SubscriptionManagerApp: App {
 
     var body: some Scene {
         WindowGroup {
+            Group {
             switch startupState {
             case .ready(let dependencies):
                 #if os(macOS)
@@ -27,6 +30,29 @@ struct SubscriptionManagerApp: App {
                     "library.error.title",
                     systemImage: "externaldrive.badge.exclamationmark",
                     description: Text("library.error.description")
+                )
+            }
+            }
+            .onReceive(NotificationCenter.default.publisher(
+                for: .EKEventStoreChanged
+            )) { _ in
+                guard case .ready(let dependencies) = startupState else {
+                    return
+                }
+                Task {
+                    await dependencies.workspace.reconcileCalendarProjection(
+                        locale: .current
+                    )
+                }
+            }
+        }
+        .onChange(of: scenePhase) { _, phase in
+            guard phase == .active,
+                  case .ready(let dependencies) = startupState
+            else { return }
+            Task {
+                await dependencies.workspace.reconcileCalendarProjection(
+                    locale: .current
                 )
             }
         }
