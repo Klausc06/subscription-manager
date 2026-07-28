@@ -495,6 +495,8 @@ public final class SubscriptionWorkspace {
     public private(set) var calendarProjection: [CalendarProjectionEvent] = []
     public private(set) var calendarImportState: CalendarImportState =
         .notRequested
+    public private(set) var calendarReconciliationState:
+        CalendarReconciliationState = .notConfigured
     public private(set) var lifecycleActionError:
         SubscriptionLifecycleActionError?
     public private(set) var paymentHistoryActionError:
@@ -516,6 +518,8 @@ public final class SubscriptionWorkspace {
     private let exchangeRateCache: (any ExchangeRateCache)?
     private let syncMonitor: (any LibrarySyncMonitor)?
     private let calendarProjectionImporter: (any CalendarProjectionImporter)?
+    private let calendarProjectionReconciler:
+        (any CalendarProjectionReconciler)?
     private let identifierGenerator: () -> UUID
     private let now: () -> Date
     private let calendar: Calendar
@@ -536,6 +540,8 @@ public final class SubscriptionWorkspace {
         exchangeRateCache: (any ExchangeRateCache)? = nil,
         syncMonitor: (any LibrarySyncMonitor)? = nil,
         calendarProjectionImporter: (any CalendarProjectionImporter)? = nil,
+        calendarProjectionReconciler:
+            (any CalendarProjectionReconciler)? = nil,
         identifierGenerator: @escaping () -> UUID = UUID.init,
         now: @escaping () -> Date = Date.init,
         calendar: Calendar? = nil
@@ -549,6 +555,7 @@ public final class SubscriptionWorkspace {
         self.exchangeRateCache = exchangeRateCache
         self.syncMonitor = syncMonitor
         self.calendarProjectionImporter = calendarProjectionImporter
+        self.calendarProjectionReconciler = calendarProjectionReconciler
         self.identifierGenerator = identifierGenerator
         self.now = now
         self.calendar = calendar ?? Self.defaultRenewalCalendar()
@@ -1604,6 +1611,20 @@ public final class SubscriptionWorkspace {
             events: events
         )
         calendarImportState = CalendarImportState(result: result)
+    }
+
+    public func reconcileCalendarProjection(locale: Locale) async {
+        guard calendarReconciliationState != .reconciling else { return }
+        guard let calendarProjectionReconciler else {
+            calendarReconciliationState = .notConfigured
+            return
+        }
+        loadCalendarProjection(locale: locale)
+        calendarReconciliationState = .reconciling
+        let result = await calendarProjectionReconciler.perform(
+            .reconcile(calendarProjection)
+        )
+        calendarReconciliationState = CalendarReconciliationState(result: result)
     }
 
     private func validate(

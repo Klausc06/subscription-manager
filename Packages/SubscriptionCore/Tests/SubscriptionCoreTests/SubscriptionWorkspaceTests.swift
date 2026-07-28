@@ -112,6 +112,55 @@ struct SubscriptionWorkspaceTests {
         #expect(workspace.calendarImportState == .accessDenied)
     }
 
+    @Test("Calendar reconciliation surfaces an external calendar deletion without recreating it")
+    @MainActor
+    func calendarReconciliationRequiresDecisionForMissingCalendar() async throws {
+        let calendar = utcCalendar()
+        let now = try actionDate(
+            year: 2026,
+            month: 1,
+            day: 15,
+            hour: 12,
+            calendar: calendar
+        )
+        let reconciler = CalendarReconcilerFixture(
+            result: .needsDecision(.calendarMissing)
+        )
+        let workspace = SubscriptionWorkspace(
+            repository: InMemorySubscriptionRepository(
+                subscriptions: [
+                    makeSubscription(
+                        id: UUID(
+                            uuidString: "99999999-2222-3333-4444-555555555555"
+                        )!
+                    )
+                ]
+            ),
+            preferencesRepository: CalendarPreferencesFixture(
+                preferences: UserPreferences(
+                    primaryCurrency: .usd,
+                    calendarProjectionHorizon: .sixMonths,
+                    setupStatus: .completed
+                )
+            ),
+            calendarProjectionReconciler: reconciler,
+            now: { now },
+            calendar: calendar
+        )
+
+        await workspace.reconcileCalendarProjection(
+            locale: Locale(identifier: "en_US")
+        )
+
+        #expect(
+            reconciler.commands == [.reconcile(workspace.calendarProjection)]
+        )
+        #expect(
+            workspace.calendarReconciliationState
+                == .needsDecision(.calendarMissing)
+        )
+    }
+
     @Test("Sync status remains local-first when iCloud is signed out")
     @MainActor
     func signedOutSyncStatusDoesNotBlockCreation() async throws {
@@ -2226,6 +2275,23 @@ private final class CalendarImporterFixture: CalendarProjectionImporter {
     }
 
     func importedEvents() -> [CalendarProjectionEvent]? { events }
+}
+
+@MainActor
+private final class CalendarReconcilerFixture: CalendarProjectionReconciler {
+    let result: CalendarReconciliationResult
+    private(set) var commands: [CalendarReconciliationCommand] = []
+
+    init(result: CalendarReconciliationResult) {
+        self.result = result
+    }
+
+    func perform(
+        _ command: CalendarReconciliationCommand
+    ) async -> CalendarReconciliationResult {
+        commands.append(command)
+        return result
+    }
 }
 
 private struct SyncMonitorFixture: LibrarySyncMonitor {
