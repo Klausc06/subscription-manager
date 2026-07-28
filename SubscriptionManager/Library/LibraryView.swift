@@ -1,5 +1,6 @@
 import SubscriptionCore
 import SwiftUI
+import Charts
 
 struct LibraryView: View {
     private enum RootDestination: Hashable {
@@ -64,11 +65,7 @@ struct LibraryView: View {
                     Label("Upcoming", systemImage: "calendar")
                 }
 
-            ContentUnavailableView(
-                "Insights",
-                systemImage: "chart.bar",
-                description: Text("Insights will be available after currency conversion is added.")
-            )
+            InsightsView(workspace: workspace)
             .tag(RootDestination.insights)
             .tabItem {
                 Label("Insights", systemImage: "chart.bar")
@@ -112,13 +109,7 @@ struct LibraryView: View {
         case .upcoming:
             UpcomingView(workspace: workspace)
         case .insights:
-            ContentUnavailableView(
-                "Insights",
-                systemImage: "chart.bar",
-                description: Text(
-                    "Insights will be available after currency conversion is added."
-                )
-            )
+            InsightsView(workspace: workspace)
         }
     }
 
@@ -197,6 +188,103 @@ struct LibraryView: View {
            !isUITesting || allowsUITestOnboarding
         {
             isSetupPresented = true
+        }
+    }
+}
+
+private struct InsightsView: View {
+    let workspace: SubscriptionWorkspace
+    @State private var mode: SpendingReportMode = .expected
+
+    var body: some View {
+        NavigationStack {
+            List {
+                Section {
+                    Picker("Total Mode", selection: $mode) {
+                        Text("Expected").tag(SpendingReportMode.expected)
+                        Text("Confirmed").tag(SpendingReportMode.confirmed)
+                    }
+                    .pickerStyle(.segmented)
+                    .accessibilityIdentifier("insights.mode")
+                }
+
+                switch workspace.insightsState {
+                case .notLoaded:
+                    ProgressView("Loading Insights")
+                case .unavailable:
+                    ContentUnavailableView(
+                        "Insights Unavailable",
+                        systemImage: "chart.bar.xaxis",
+                        description: Text(
+                            "Exchange rates are unavailable. Original subscription values are unchanged."
+                        )
+                    )
+                    .accessibilityIdentifier("insights.unavailable")
+                case .available(let insights):
+                    rateStatus
+                    Section("Selected Range") {
+                        LabeledContent(
+                            "Total",
+                            value: formattedMoney(insights.selectedRangeTotal)
+                        )
+                        LabeledContent(
+                            "Annualized",
+                            value: formattedMoney(insights.annualizedTotal)
+                        )
+                    }
+                    if !insights.categoryTotals.isEmpty {
+                        Section("Spending by Category") {
+                            Chart(insights.categoryTotals) { total in
+                                BarMark(
+                                    x: .value("Amount", total.amount.minorUnits),
+                                    y: .value("Category", total.category)
+                                )
+                                .accessibilityLabel(
+                                    "\(total.category): \(formattedMoney(total.amount))"
+                                )
+                            }
+                            .frame(minHeight: 180)
+                            .accessibilityIdentifier("insights.category-chart")
+                        }
+                        Section("Category Totals") {
+                            ForEach(insights.categoryTotals) { total in
+                                LabeledContent(
+                                    total.category,
+                                    value: formattedMoney(total.amount)
+                                )
+                            }
+                        }
+                        .accessibilityIdentifier("insights.text-summary")
+                    }
+                }
+            }
+            .navigationTitle("Insights")
+        }
+        .task(id: mode) {
+            await workspace.refreshExchangeRates()
+            workspace.loadInsights(
+                mode: mode,
+                from: Calendar.current.startOfDay(for: Date()),
+                through: Calendar.current.date(
+                    byAdding: .day,
+                    value: 30,
+                    to: Calendar.current.startOfDay(for: Date())
+                ) ?? Date()
+            )
+        }
+    }
+
+    @ViewBuilder
+    private var rateStatus: some View {
+        switch workspace.exchangeRateStatus {
+        case .fresh(let snapshot):
+            Text("Rates updated \(snapshot.providerDate, format: .dateTime.year().month().day())")
+                .accessibilityIdentifier("insights.rate-status")
+        case .stale(let snapshot):
+            Text("Using cached rates from \(snapshot.providerDate, format: .dateTime.year().month().day())")
+                .accessibilityIdentifier("insights.rate-status")
+        case .notLoaded, .unavailable:
+            EmptyView()
         }
     }
 }
@@ -732,6 +820,13 @@ private struct UserPreferencesView: View {
                         identifier: "preferences.currency.usd"
                     ) {
                         primaryCurrency = .usd
+                    }
+                    preferenceButton(
+                        title: "EUR",
+                        isSelected: primaryCurrency == .eur,
+                        identifier: "preferences.currency.eur"
+                    ) {
+                        primaryCurrency = .eur
                     }
                 }
 
