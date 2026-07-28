@@ -2,33 +2,21 @@ import SubscriptionCore
 import SwiftUI
 
 struct LibraryView: View {
+    private enum RootDestination: Hashable {
+        case subscriptions
+        case upcoming
+        case insights
+    }
+
+    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     let workspace: SubscriptionWorkspace
     @State private var presentedSheet: LibrarySheet?
     @State private var isSetupPresented = false
     @State private var isPreferencesPresented = false
+    @State private var selectedDestination: RootDestination = .subscriptions
 
     var body: some View {
-        TabView {
-            subscriptionsTab
-                .tabItem {
-                    Label("Subscriptions", systemImage: "rectangle.stack")
-                }
-
-            UpcomingView(workspace: workspace)
-                .tabItem {
-                    Label("Upcoming", systemImage: "calendar")
-                }
-
-            ContentUnavailableView(
-                "Insights",
-                systemImage: "chart.bar",
-                description: Text("Insights will be available after currency conversion is added.")
-            )
-            .tabItem {
-                Label("Insights", systemImage: "chart.bar")
-            }
-        }
-        .accessibilityIdentifier("app.tabs")
+        rootContent
         .sheet(item: $presentedSheet) { sheet in
             switch sheet {
             case .addSubscription:
@@ -49,24 +37,112 @@ struct LibraryView: View {
             }
         }
         .task {
-            workspace.loadLibrary(scope: .current)
-            let libraryIsEmpty: Bool
-            if case .empty(.current) = workspace.libraryState {
-                libraryIsEmpty = true
-            } else {
-                libraryIsEmpty = false
-            }
-            workspace.loadSetup(libraryIsEmpty: libraryIsEmpty)
-            let arguments = ProcessInfo.processInfo.arguments
-            let allowsUITestOnboarding = arguments.contains(
-                "--ui-testing-onboarding"
+            loadInitialState()
+        }
+    }
+
+    @ViewBuilder
+    private var rootContent: some View {
+        if horizontalSizeClass == .regular {
+            wideRoot
+        } else {
+            compactRoot
+        }
+    }
+
+    private var compactRoot: some View {
+        TabView(selection: $selectedDestination) {
+            subscriptionsTab
+                .tag(RootDestination.subscriptions)
+                .tabItem {
+                    Label("Subscriptions", systemImage: "rectangle.stack")
+                }
+
+            UpcomingView(workspace: workspace)
+                .tag(RootDestination.upcoming)
+                .tabItem {
+                    Label("Upcoming", systemImage: "calendar")
+                }
+
+            ContentUnavailableView(
+                "Insights",
+                systemImage: "chart.bar",
+                description: Text("Insights will be available after currency conversion is added.")
             )
-            let isUITesting = arguments.contains("--ui-testing")
-            if case .needsSetup = workspace.setupState,
-               !isUITesting || allowsUITestOnboarding
-            {
-                isSetupPresented = true
+            .tag(RootDestination.insights)
+            .tabItem {
+                Label("Insights", systemImage: "chart.bar")
             }
+        }
+        .accessibilityIdentifier("app.tabs")
+    }
+
+    private var wideRoot: some View {
+        NavigationSplitView {
+            List {
+                sidebarButton(
+                    "Subscriptions",
+                    systemImage: "rectangle.stack",
+                    destination: .subscriptions
+                )
+                sidebarButton(
+                    "Upcoming",
+                    systemImage: "calendar",
+                    destination: .upcoming
+                )
+                sidebarButton(
+                    "Insights",
+                    systemImage: "chart.bar",
+                    destination: .insights
+                )
+            }
+            .navigationTitle("Subscription Manager")
+            .accessibilityIdentifier("root.sidebar")
+        } detail: {
+            selectedDestinationContent
+        }
+        .navigationSplitViewStyle(.balanced)
+    }
+
+    @ViewBuilder
+    private var selectedDestinationContent: some View {
+        switch selectedDestination {
+        case .subscriptions:
+            subscriptionsTab
+        case .upcoming:
+            UpcomingView(workspace: workspace)
+        case .insights:
+            ContentUnavailableView(
+                "Insights",
+                systemImage: "chart.bar",
+                description: Text(
+                    "Insights will be available after currency conversion is added."
+                )
+            )
+        }
+    }
+
+    private func sidebarButton(
+        _ title: LocalizedStringKey,
+        systemImage: String,
+        destination: RootDestination
+    ) -> some View {
+        Button {
+            selectedDestination = destination
+        } label: {
+            Label(title, systemImage: systemImage)
+        }
+        .accessibilityIdentifier(sidebarIdentifier(for: destination))
+        .accessibilityAddTraits(
+            selectedDestination == destination ? .isSelected : []
+        )
+    }
+
+    private func sidebarIdentifier(for destination: RootDestination) -> String {
+        switch destination {
+        case .subscriptions: "root.sidebar.subscriptions"
+        case .upcoming: "root.sidebar.upcoming"
+        case .insights: "root.sidebar.insights"
         }
     }
 
@@ -103,6 +179,25 @@ struct LibraryView: View {
 
     private func presentPreferences() {
         isPreferencesPresented = true
+    }
+
+    private func loadInitialState() {
+        workspace.loadLibrary(scope: .current)
+        let libraryIsEmpty: Bool
+        if case .empty(.current) = workspace.libraryState {
+            libraryIsEmpty = true
+        } else {
+            libraryIsEmpty = false
+        }
+        workspace.loadSetup(libraryIsEmpty: libraryIsEmpty)
+        let arguments = ProcessInfo.processInfo.arguments
+        let allowsUITestOnboarding = arguments.contains("--ui-testing-onboarding")
+        let isUITesting = arguments.contains("--ui-testing")
+        if case .needsSetup = workspace.setupState,
+           !isUITesting || allowsUITestOnboarding
+        {
+            isSetupPresented = true
+        }
     }
 }
 

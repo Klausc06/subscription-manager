@@ -1,7 +1,25 @@
 import XCTest
+import UIKit
 
 @MainActor
 final class SubscriptionManagerUITests: XCTestCase {
+    func testWideIPadUsesSidebarToSwitchDestinations() throws {
+        try XCTSkipIf(
+            UIDevice.current.userInterfaceIdiom != .pad,
+            "This adaptive-layout contract runs only on iPad."
+        )
+        let app = launch(language: "en", locale: "en_US")
+
+        XCTAssertTrue(
+            app.descendants(matching: .any)["root.sidebar"]
+                .waitForExistence(timeout: 5)
+        )
+        let upcoming = app.descendants(matching: .any)["root.sidebar.upcoming"]
+        XCTAssertTrue(upcoming.waitForExistence(timeout: 5))
+        upcoming.tap()
+        XCTAssertTrue(app.navigationBars["Upcoming"].waitForExistence(timeout: 5))
+    }
+
     func testTopLevelNavigationProvidesSubscriptionsUpcomingAndInsights() {
         let app = launch(language: "en", locale: "en_US")
 
