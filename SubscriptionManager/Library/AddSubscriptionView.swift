@@ -18,6 +18,7 @@ struct AddSubscriptionView: View {
     @State private var managementURLText = ""
     @State private var notes = ""
     @State private var amountInputIsInvalid = false
+    @State private var managementURLIsInvalid = false
     @State private var saveFailed = false
 
     var body: some View {
@@ -131,6 +132,13 @@ struct AddSubscriptionView: View {
                 .subscriptionURLKeyboard()
                 .accessibilityIdentifier("subscription.form.management-url")
 
+            if managementURLIsInvalid {
+                ValidationMessage(
+                    "Enter a complete HTTP or HTTPS URL.",
+                    identifier: "subscription.validation.management-url"
+                )
+            }
+
             TextField("Notes", text: $notes, axis: .vertical)
                 .lineLimit(3 ... 8)
                 .accessibilityIdentifier("subscription.form.notes")
@@ -156,7 +164,13 @@ struct AddSubscriptionView: View {
             locale: .current
         )
         amountInputIsInvalid = amount == nil
+        let managementURLResult = ManagementURLParser.parse(managementURLText)
+        managementURLIsInvalid = managementURLResult == .invalid
         saveFailed = false
+
+        guard !managementURLIsInvalid else {
+            return
+        }
 
         workspace.createMonthlySubscription(
             MonthlySubscriptionCreationInput(
@@ -166,7 +180,7 @@ struct AddSubscriptionView: View {
                 originalAmount: amount,
                 startDate: startDate,
                 confirmedNextRenewal: confirmedNextRenewal,
-                managementURL: parsedManagementURL,
+                managementURL: managementURL(from: managementURLResult),
                 notes: notes
             )
         )
@@ -182,10 +196,12 @@ struct AddSubscriptionView: View {
         }
     }
 
-    private var parsedManagementURL: URL? {
-        let value = managementURLText.trimmingCharacters(
-            in: .whitespacesAndNewlines
-        )
-        return value.isEmpty ? nil : URL(string: value)
+    private func managementURL(
+        from result: ManagementURLParseResult
+    ) -> URL? {
+        guard case .valid(let url) = result else {
+            return nil
+        }
+        return url
     }
 }

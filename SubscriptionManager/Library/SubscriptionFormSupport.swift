@@ -1,6 +1,33 @@
 import SubscriptionCore
 import SwiftUI
 
+enum ManagementURLParseResult: Equatable {
+    case empty
+    case valid(URL)
+    case invalid
+}
+
+enum ManagementURLParser {
+    static func parse(_ text: String) -> ManagementURLParseResult {
+        let value = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !value.isEmpty else {
+            return .empty
+        }
+        guard
+            let components = URLComponents(string: value),
+            let scheme = components.scheme?.lowercased(),
+            scheme == "http" || scheme == "https",
+            let host = components.host,
+            !host.isEmpty,
+            let url = components.url
+        else {
+            return .invalid
+        }
+
+        return .valid(url)
+    }
+}
+
 struct ValidationMessage: View {
     let text: LocalizedStringKey
     let identifier: String
