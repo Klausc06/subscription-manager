@@ -36,6 +36,37 @@ final class BundledCatalogRepository: CatalogRepository {
     }
 }
 
+@MainActor
+final class CachedCatalogRepository: CatalogRepository {
+    private let bundled: BundledCatalogRepository
+    private let cache: FileCatalogCache
+
+    private(set) var catalogSource: CatalogSource = .bundled
+
+    init(bundled: BundledCatalogRepository, cache: FileCatalogCache) {
+        self.bundled = bundled
+        self.cache = cache
+    }
+
+    func loadSnapshot() throws -> CatalogSnapshot {
+        do {
+            if let data = try cache.loadCatalogData() {
+                let snapshot = try JSONDecoder().decode(
+                    CatalogSnapshot.self,
+                    from: data
+                )
+                catalogSource = .cached
+                return snapshot
+            }
+        } catch {
+            // A corrupt cache is never allowed to prevent offline browsing.
+        }
+
+        catalogSource = .bundled
+        return try bundled.loadSnapshot()
+    }
+}
+
 private enum BundledCatalogRepositoryError: Error {
     case resourceNotFound
 }

@@ -4,6 +4,44 @@ import Testing
 @testable import SubscriptionManager
 
 struct BundledCatalogRepositoryTests {
+    @Test("Catalog cache atomically replaces data after it is validated")
+    @MainActor
+    func catalogCacheStoresReplacementData() throws {
+        let directory = FileManager.default.temporaryDirectory.appending(
+            path: UUID().uuidString,
+            directoryHint: .isDirectory
+        )
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let cache = FileCatalogCache(directory: directory)
+        let data = Data("{\"catalogVersion\":2}".utf8)
+
+        try cache.storeCatalogData(data)
+
+        #expect(try cache.loadCatalogData() == data)
+    }
+
+    @Test("Invalid cached catalog falls back to the bundled catalog")
+    @MainActor
+    func invalidCachedCatalogFallsBackToBundledCatalog() throws {
+        let directory = FileManager.default.temporaryDirectory.appending(
+            path: UUID().uuidString,
+            directoryHint: .isDirectory
+        )
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let cache = FileCatalogCache(directory: directory)
+        try cache.storeCatalogData(Data("invalid".utf8))
+        let bundled = BundledCatalogRepository(data: validCatalogData())
+        let repository = CachedCatalogRepository(
+            bundled: bundled,
+            cache: cache
+        )
+
+        let snapshot = try repository.loadSnapshot()
+
+        #expect(snapshot.catalogVersion == 1)
+        #expect(repository.catalogSource == .bundled)
+    }
+
     @Test("The bundled catalog decodes and exposes localized presets")
     @MainActor
     func bundledCatalogIsValid() throws {
@@ -68,4 +106,24 @@ struct BundledCatalogRepositoryTests {
             try repository.loadSnapshot()
         }
     }
+}
+
+private func validCatalogData() -> Data {
+    Data("""
+    {
+      "schemaVersion": 1,
+      "catalogVersion": 1,
+      "presets": [
+        {
+          "id": "music.example",
+          "serviceName": { "en": "Music", "zhHans": "音乐" },
+          "category": { "en": "Music", "zhHans": "音乐" },
+          "suggestedInterval": "monthly",
+          "managementURL": null,
+          "icon": "music",
+          "assetProvenance": { "kind": "originalSymbol", "license": "CC0-1.0", "source": "music.example" }
+        }
+      ]
+    }
+    """.utf8)
 }

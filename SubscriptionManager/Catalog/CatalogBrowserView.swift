@@ -9,6 +9,7 @@ struct CatalogBrowserView: View {
 
     @State private var searchQuery = ""
     @State private var selectedCategoryID: String?
+    @State private var isRefreshing = false
 
     var body: some View {
         catalogContent
@@ -82,8 +83,41 @@ struct CatalogBrowserView: View {
                         }
                     }
                 }
+
+                catalogDiagnostics
             }
             .accessibilityIdentifier("catalog.list")
+        }
+    }
+
+    @ViewBuilder
+    private var catalogDiagnostics: some View {
+        if let diagnostics = workspace.catalogDiagnostics {
+            Section {
+                Text(
+                    "Catalog version \(diagnostics.version) · "
+                        + diagnostics.source.localizedTitle
+                )
+                .font(.footnote)
+                .foregroundStyle(.secondary)
+                .accessibilityIdentifier("catalog.diagnostics")
+
+                Button("Check for Catalog Updates") {
+                    Task {
+                        isRefreshing = true
+                        await workspace.refreshCatalog()
+                        isRefreshing = false
+                    }
+                }
+                .disabled(isRefreshing)
+                .accessibilityIdentifier("catalog.refresh")
+
+                if diagnostics.refreshStatus == .failed {
+                    Text("Couldn’t update the catalog. Your offline catalog is still available.")
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                }
+            }
         }
     }
 
@@ -96,6 +130,17 @@ struct CatalogBrowserView: View {
             return String(localized: "All Categories")
         }
         return category.title.value(for: locale)
+    }
+}
+
+private extension CatalogSource {
+    var localizedTitle: String {
+        switch self {
+        case .bundled:
+            String(localized: "Bundled")
+        case .cached:
+            String(localized: "Updated")
+        }
     }
 }
 

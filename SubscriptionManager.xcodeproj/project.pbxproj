@@ -39,6 +39,8 @@
 		1B0600010000000000000005 /* BundledCatalogRepository.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1B0600010000000000000006 /* BundledCatalogRepository.swift */; };
 		1B0600010000000000000008 /* CatalogBrowserView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1B0600010000000000000009 /* CatalogBrowserView.swift */; };
 		1B0600010000000000000010 /* CatalogPresetDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1B0600010000000000000011 /* CatalogPresetDetailView.swift */; };
+		1B0700010000000000000001 /* FileCatalogCache.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1B0700010000000000000002 /* FileCatalogCache.swift */; };
+		1B0700010000000000000003 /* GitHubCatalogUpdateSource.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1B0700010000000000000004 /* GitHubCatalogUpdateSource.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -94,6 +96,8 @@
 		1B0600010000000000000006 /* BundledCatalogRepository.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BundledCatalogRepository.swift; sourceTree = "<group>"; };
 		1B0600010000000000000009 /* CatalogBrowserView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CatalogBrowserView.swift; sourceTree = "<group>"; };
 		1B0600010000000000000011 /* CatalogPresetDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CatalogPresetDetailView.swift; sourceTree = "<group>"; };
+		1B0700010000000000000002 /* FileCatalogCache.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FileCatalogCache.swift; sourceTree = "<group>"; };
+		1B0700010000000000000004 /* GitHubCatalogUpdateSource.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GitHubCatalogUpdateSource.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -183,6 +187,8 @@
 				1B0600010000000000000009 /* CatalogBrowserView.swift */,
 				1B0600010000000000000011 /* CatalogPresetDetailView.swift */,
 				1B0600010000000000000006 /* BundledCatalogRepository.swift */,
+				1B0700010000000000000002 /* FileCatalogCache.swift */,
+				1B0700010000000000000004 /* GitHubCatalogUpdateSource.swift */,
 			);
 			path = Catalog;
 			sourceTree = "<group>";
@@ -358,6 +364,8 @@
 				1B0600010000000000000008 /* CatalogBrowserView.swift in Sources */,
 				1B0600010000000000000010 /* CatalogPresetDetailView.swift in Sources */,
 				1B0600010000000000000005 /* BundledCatalogRepository.swift in Sources */,
+				1B0700010000000000000001 /* FileCatalogCache.swift in Sources */,
+				1B0700010000000000000003 /* GitHubCatalogUpdateSource.swift in Sources */,
 				95DD1A1B26E3AC5313818053 /* AddSubscriptionView.swift in Sources */,
 				1B0500010000000000000001 /* ConfirmChargeView.swift in Sources */,
 				8BDFDA89FC3799D7A394A305 /* AppDependencies.swift in Sources */,
