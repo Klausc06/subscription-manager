@@ -10,6 +10,39 @@ final class SubscriptionManagerUITests: XCTestCase {
         XCTAssertTrue(app.tabBars.buttons["Insights"].exists)
     }
 
+    func testUpcomingExpectedChargeOpensItsSubscriptionDetail() {
+        let app = launch(language: "en", locale: "en_US")
+
+        app.buttons["subscription.add"].tap()
+        let serviceName = app.textFields["subscription.form.service-name"]
+        XCTAssertTrue(serviceName.waitForExistence(timeout: 5))
+        serviceName.tap()
+        serviceName.typeText("Upcoming Example")
+        app.textFields["subscription.form.plan"].tap()
+        app.textFields["subscription.form.plan"].typeText("Monthly")
+        app.textFields["subscription.form.category"].tap()
+        app.textFields["subscription.form.category"].typeText("Other")
+        app.textFields["subscription.form.amount"].tap()
+        app.textFields["subscription.form.amount"].typeText("9.99")
+        app.buttons["subscription.form.save"].tap()
+
+        app.tabBars.buttons["Upcoming"].tap()
+        let ninetyDays = app.buttons["Next 90 Days"]
+        XCTAssertTrue(ninetyDays.waitForExistence(timeout: 5))
+        ninetyDays.tap()
+        let expectedCharge = app.buttons["upcoming.row.expected"].firstMatch
+        XCTAssertTrue(expectedCharge.waitForExistence(timeout: 5))
+        expectedCharge.tap()
+        XCTAssertTrue(
+            app.staticTexts["Subscription Details"].waitForExistence(timeout: 5)
+        )
+        XCTAssertTrue(
+            app.descendants(matching: .any)["subscription.detail"]
+                .waitForExistence(timeout: 5)
+        )
+        XCTAssertTrue(app.staticTexts["Expected Charge"].exists)
+    }
+
     func testFirstRunShowsPreferenceDefaultsWithoutCalendarPrompt() {
         let app = launch(
             language: "en",
