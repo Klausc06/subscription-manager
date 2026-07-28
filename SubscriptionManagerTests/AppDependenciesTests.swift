@@ -92,6 +92,35 @@ struct AppDependenciesTests {
         #expect(reloaded == expected)
     }
 
+    @Test("Calendar projection mappings survive a SwiftData repository reload")
+    @MainActor
+    func calendarProjectionMappingsRoundTripThroughSwiftData() throws {
+        let container = try ModelContainer(
+            for: SubscriptionRecord.self,
+            UserPreferencesRecord.self,
+            CalendarProjectionMappingRecord.self,
+            configurations: ModelConfiguration(isStoredInMemoryOnly: true)
+        )
+        let repository = SwiftDataCalendarProjectionMappingRepository(
+            modelContainer: container
+        )
+
+        try repository.saveCalendarIdentifier("calendar-1")
+        try repository.saveEventIdentifier(
+            "event-1",
+            for: "renewal-1",
+            calendarIdentifier: "calendar-1"
+        )
+        try repository.saveCalendarIdentifier("calendar-2")
+
+        let reloaded = SwiftDataCalendarProjectionMappingRepository(
+            modelContainer: container
+        )
+
+        #expect(try reloaded.calendarIdentifier() == "calendar-2")
+        #expect(try reloaded.eventIdentifier(for: "renewal-1") == "event-1")
+    }
+
     @Test("Exchange-rate cache preserves snapshots and refresh attempts")
     @MainActor
     func exchangeRateCacheRoundTripsState() throws {

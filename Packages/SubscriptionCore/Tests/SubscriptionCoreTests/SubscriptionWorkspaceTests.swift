@@ -103,12 +103,12 @@ struct SubscriptionWorkspaceTests {
         workspace.loadCalendarProjection(locale: Locale(identifier: "en_US"))
         let preview = workspace.calendarProjection
 
-        #expect(await importer.importedEvents() == nil)
+        #expect(importer.importedEvents() == nil)
         #expect(workspace.calendarImportState == .notRequested)
 
         await workspace.importCalendarProjection(preview)
 
-        #expect(await importer.importedEvents() == preview)
+        #expect(importer.importedEvents() == preview)
         #expect(workspace.calendarImportState == .accessDenied)
     }
 
@@ -2209,7 +2209,8 @@ private final class CalendarPreferencesFixture: UserPreferencesRepository {
     }
 }
 
-private actor CalendarImporterFixture: CalendarProjectionImporter {
+@MainActor
+private final class CalendarImporterFixture: CalendarProjectionImporter {
     private let result: CalendarProjectionImportResult
     private var events: [CalendarProjectionEvent]?
 

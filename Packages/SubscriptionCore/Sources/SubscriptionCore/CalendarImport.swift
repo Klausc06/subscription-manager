@@ -43,6 +43,7 @@ public enum CalendarImportState: Equatable, Sendable {
     }
 }
 
+@MainActor
 public protocol CalendarProjectionImporter: Sendable {
     func importProjection(
         events: [CalendarProjectionEvent]
