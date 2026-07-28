@@ -5,16 +5,25 @@ import SwiftUI
 @main
 @MainActor
 struct SubscriptionManagerApp: App {
-    private let dependencies: AppDependencies
+    private let startupState: AppStartupState
 
     init() {
-        dependencies = AppDependencies.live()
+        startupState = AppDependencies.live()
     }
 
     var body: some Scene {
         WindowGroup {
-            LibraryView(workspace: dependencies.workspace)
+            switch startupState {
+            case .ready(let dependencies):
+                LibraryView(workspace: dependencies.workspace)
+                    .modelContainer(dependencies.modelContainer)
+            case .failed:
+                ContentUnavailableView(
+                    "library.error.title",
+                    systemImage: "externaldrive.badge.exclamationmark",
+                    description: Text("library.error.description")
+                )
+            }
         }
-        .modelContainer(dependencies.modelContainer)
     }
 }

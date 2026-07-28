@@ -1,3 +1,4 @@
+import Foundation
 import SwiftData
 import SubscriptionCore
 
@@ -6,27 +7,49 @@ struct AppDependencies {
     let modelContainer: ModelContainer
     let workspace: SubscriptionWorkspace
 
-    static func live() -> AppDependencies {
+    static func live(
+        arguments: [String] = ProcessInfo.processInfo.arguments
+    ) -> AppStartupState {
         let schema = Schema([SubscriptionRecord.self])
-        let configuration = ModelConfiguration(
-            schema: schema,
-            isStoredInMemoryOnly: false
-        )
+        let usesIsolatedStore = arguments.contains("--ui-testing")
 
-        do {
-            let modelContainer = try ModelContainer(
+        return make {
+            let configuration = ModelConfiguration(
+                schema: schema,
+                isStoredInMemoryOnly: usesIsolatedStore
+            )
+            return try ModelContainer(
                 for: schema,
                 configurations: [configuration]
             )
+        }
+    }
+
+    static func make(
+        modelContainer: () throws -> ModelContainer
+    ) -> AppStartupState {
+        do {
+            let modelContainer = try modelContainer()
             let repository = SwiftDataSubscriptionRepository(
                 modelContainer: modelContainer
             )
-            return AppDependencies(
-                modelContainer: modelContainer,
-                workspace: SubscriptionWorkspace(repository: repository)
+            return .ready(
+                AppDependencies(
+                    modelContainer: modelContainer,
+                    workspace: SubscriptionWorkspace(repository: repository)
+                )
             )
         } catch {
-            fatalError("Unable to create the local subscription store: \(error)")
+            return .failed(AppStartupFailure(underlyingError: error))
         }
     }
+}
+
+struct AppStartupFailure {
+    let underlyingError: any Error
+}
+
+enum AppStartupState {
+    case ready(AppDependencies)
+    case failed(AppStartupFailure)
 }

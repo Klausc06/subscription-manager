@@ -25,6 +25,7 @@ final class SubscriptionManagerUITests: XCTestCase {
     private func launch(language: String, locale: String) -> XCUIApplication {
         let app = XCUIApplication()
         app.launchArguments = [
+            "--ui-testing",
             "-AppleLanguages", "(\(language))",
             "-AppleLocale", locale,
         ]
