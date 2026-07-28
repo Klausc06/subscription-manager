@@ -43,6 +43,8 @@
 		1B0700010000000000000003 /* GitHubCatalogUpdateSource.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1B0700010000000000000004 /* GitHubCatalogUpdateSource.swift */; };
 		1B1600010000000000000001 /* CloudKitLibrarySyncMonitor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1B1600010000000000000002 /* CloudKitLibrarySyncMonitor.swift */; };
 		1B1700010000000000000001 /* CalendarProjectionView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1B1700010000000000000002 /* CalendarProjectionView.swift */; };
+		1B1800010000000000000001 /* EventKitCalendarProjectionImporterTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1B1800010000000000000002 /* EventKitCalendarProjectionImporterTests.swift */; };
+		1B1800010000000000000003 /* EventKitCalendarProjectionImporter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1B1800010000000000000004 /* EventKitCalendarProjectionImporter.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -102,6 +104,8 @@
 		1B0700010000000000000004 /* GitHubCatalogUpdateSource.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GitHubCatalogUpdateSource.swift; sourceTree = "<group>"; };
 		1B1600010000000000000002 /* CloudKitLibrarySyncMonitor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CloudKitLibrarySyncMonitor.swift; sourceTree = "<group>"; };
 		1B1700010000000000000002 /* CalendarProjectionView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CalendarProjectionView.swift; sourceTree = "<group>"; };
+		1B1800010000000000000002 /* EventKitCalendarProjectionImporterTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EventKitCalendarProjectionImporterTests.swift; sourceTree = "<group>"; };
+		1B1800010000000000000004 /* EventKitCalendarProjectionImporter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EventKitCalendarProjectionImporter.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -150,6 +154,7 @@
 				438293401ACA5626F66CBFAC /* Library */,
 				EF3A0C116AD330A62C107F93 /* Persistence */,
 				1B1600010000000000000003 /* Sync */,
+				1B1800010000000000000005 /* Calendar */,
 				8AC3B566569D42543C5D51CB /* Resources */,
 			);
 			path = SubscriptionManager;
@@ -207,6 +212,14 @@
 			path = Sync;
 			sourceTree = "<group>";
 		};
+		1B1800010000000000000005 /* Calendar */ = {
+			isa = PBXGroup;
+			children = (
+				1B1800010000000000000004 /* EventKitCalendarProjectionImporter.swift */,
+			);
+			path = Calendar;
+			sourceTree = "<group>";
+		};
 		5354945DBF005C0FA67FB4EC /* SubscriptionManagerUITests */ = {
 			isa = PBXGroup;
 			children = (
@@ -228,6 +241,7 @@
 		8DE509BE733D1FCB078CC966 /* SubscriptionManagerTests */ = {
 			isa = PBXGroup;
 			children = (
+				1B1800010000000000000002 /* EventKitCalendarProjectionImporterTests.swift */,
 				178B2F8071F3AA4EEB4EF445 /* AppDependenciesTests.swift */,
 				1B0600010000000000000002 /* BundledCatalogRepositoryTests.swift */,
 				A40A43B15F2DC8026034E7B6 /* ManagementURLValidationTests.swift */,
@@ -375,6 +389,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				1B1800010000000000000003 /* EventKitCalendarProjectionImporter.swift in Sources */,
 				1B1700010000000000000001 /* CalendarProjectionView.swift in Sources */,
 				1B0600010000000000000008 /* CatalogBrowserView.swift in Sources */,
 				1B0600010000000000000010 /* CatalogPresetDetailView.swift in Sources */,
@@ -414,6 +429,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				1B1800010000000000000001 /* EventKitCalendarProjectionImporterTests.swift in Sources */,
 				FE9D2A03AAAF24FCBDC2CEA0 /* AppDependenciesTests.swift in Sources */,
 				1B0600010000000000000001 /* BundledCatalogRepositoryTests.swift in Sources */,
 				F67C63EB88D910146E613A1A /* ManagementURLValidationTests.swift in Sources */,

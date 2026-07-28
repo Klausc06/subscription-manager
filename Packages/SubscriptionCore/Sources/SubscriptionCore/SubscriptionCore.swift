@@ -493,6 +493,8 @@ public final class SubscriptionWorkspace {
     public private(set) var expectedCharges: [ExpectedCharge]?
     public private(set) var upcomingTimeline: [UpcomingTimelineItem] = []
     public private(set) var calendarProjection: [CalendarProjectionEvent] = []
+    public private(set) var calendarImportState: CalendarImportState =
+        .notRequested
     public private(set) var lifecycleActionError:
         SubscriptionLifecycleActionError?
     public private(set) var paymentHistoryActionError:
@@ -513,6 +515,7 @@ public final class SubscriptionWorkspace {
     private let exchangeRateSource: (any ExchangeRateSource)?
     private let exchangeRateCache: (any ExchangeRateCache)?
     private let syncMonitor: (any LibrarySyncMonitor)?
+    private let calendarProjectionImporter: (any CalendarProjectionImporter)?
     private let identifierGenerator: () -> UUID
     private let now: () -> Date
     private let calendar: Calendar
@@ -532,6 +535,7 @@ public final class SubscriptionWorkspace {
         exchangeRateSource: (any ExchangeRateSource)? = nil,
         exchangeRateCache: (any ExchangeRateCache)? = nil,
         syncMonitor: (any LibrarySyncMonitor)? = nil,
+        calendarProjectionImporter: (any CalendarProjectionImporter)? = nil,
         identifierGenerator: @escaping () -> UUID = UUID.init,
         now: @escaping () -> Date = Date.init,
         calendar: Calendar? = nil
@@ -544,6 +548,7 @@ public final class SubscriptionWorkspace {
         self.exchangeRateSource = exchangeRateSource
         self.exchangeRateCache = exchangeRateCache
         self.syncMonitor = syncMonitor
+        self.calendarProjectionImporter = calendarProjectionImporter
         self.identifierGenerator = identifierGenerator
         self.now = now
         self.calendar = calendar ?? Self.defaultRenewalCalendar()
@@ -1576,6 +1581,29 @@ public final class SubscriptionWorkspace {
         } catch {
             calendarProjection = []
         }
+    }
+
+    public func importCalendarProjection(
+        _ events: [CalendarProjectionEvent]
+    ) async {
+        guard !events.isEmpty else {
+            calendarImportState = .imported(
+                CalendarProjectionImportSummary(
+                    createdCount: 0,
+                    updatedCount: 0
+                )
+            )
+            return
+        }
+        guard let calendarProjectionImporter else {
+            calendarImportState = .unavailable
+            return
+        }
+        calendarImportState = .importing
+        let result = await calendarProjectionImporter.importProjection(
+            events: events
+        )
+        calendarImportState = CalendarImportState(result: result)
     }
 
     private func validate(

@@ -40,7 +40,11 @@ struct AppDependencies {
         arguments: [String] = ProcessInfo.processInfo.arguments,
         storeDirectory: URL? = nil
     ) -> AppStartupState {
-        let schema = Schema([SubscriptionRecord.self, UserPreferencesRecord.self])
+        let schema = Schema([
+            SubscriptionRecord.self,
+            UserPreferencesRecord.self,
+            CalendarProjectionMappingRecord.self
+        ])
         let selection: AppStoreSelection
         do {
             selection = try storeSelection(arguments: arguments)
@@ -57,6 +61,7 @@ struct AppDependencies {
         return make(
             failsLifecycleMutations: failsLifecycleMutations,
             allowsExchangeRateNetworking: !arguments.contains("--ui-testing"),
+            allowsCalendarImport: selection == .production,
             syncMonitor: selection == .production
                 ? CloudKitLibrarySyncMonitor()
                 : nil
@@ -114,6 +119,7 @@ struct AppDependencies {
     static func make(
         failsLifecycleMutations: Bool = false,
         allowsExchangeRateNetworking: Bool = true,
+        allowsCalendarImport: Bool = false,
         syncMonitor: (any LibrarySyncMonitor)? = nil,
         modelContainer: () throws -> ModelContainer
     ) -> AppStartupState {
@@ -125,6 +131,12 @@ struct AppDependencies {
             let preferencesRepository = SwiftDataUserPreferencesRepository(
                 modelContainer: modelContainer
             )
+            let calendarProjectionImporter:
+                any CalendarProjectionImporter = allowsCalendarImport
+                ? EventKitCalendarProjectionImporter(
+                    modelContainer: modelContainer
+                )
+                : UnavailableCalendarProjectionImporter()
             let workspaceRepository: any SubscriptionRepository
             #if DEBUG
             workspaceRepository = failsLifecycleMutations
@@ -172,7 +184,8 @@ struct AppDependencies {
                         exchangeRateCache: allowsExchangeRateNetworking
                             ? exchangeRateCache
                             : nil,
-                        syncMonitor: syncMonitor
+                        syncMonitor: syncMonitor,
+                        calendarProjectionImporter: calendarProjectionImporter
                     )
                 )
             )

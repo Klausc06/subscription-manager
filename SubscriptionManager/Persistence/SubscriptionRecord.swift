@@ -100,3 +100,20 @@ final class UserPreferencesRecord {
         self.setupStatusRawValue = setupStatusRawValue
     }
 }
+
+@Model
+final class CalendarProjectionMappingRecord {
+    var projectionUID: String = ""
+    var eventIdentifier: String = ""
+    var calendarIdentifier: String = ""
+
+    init(
+        projectionUID: String = "",
+        eventIdentifier: String = "",
+        calendarIdentifier: String
+    ) {
+        self.projectionUID = projectionUID
+        self.eventIdentifier = eventIdentifier
+        self.calendarIdentifier = calendarIdentifier
+    }
+}

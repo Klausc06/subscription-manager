@@ -14,6 +14,8 @@
 	<array>
 		<string>remote-notification</string>
 	</array>
+	<key>NSCalendarsFullAccessUsageDescription</key>
+	<string>Subscription Manager uses full Calendar access only after you choose Import to Calendar, so it can keep your dedicated renewal calendar free of duplicate events.</string>
 	<key>CFBundleInfoDictionaryVersion</key>
 	<string>6.0</string>
 	<key>CFBundleName</key>
