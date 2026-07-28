@@ -15,7 +15,8 @@ struct AppDependencies {
 
         return make {
             let configuration: ModelConfiguration
-            if let token = try namedUITestingStoreToken(in: arguments) {
+            switch try storeSelection(arguments: arguments) {
+            case .namedUITesting(let token):
                 let rootDirectory: URL
                 if let storeDirectory {
                     rootDirectory = storeDirectory
@@ -42,11 +43,13 @@ struct AppDependencies {
                     allowsSave: true,
                     cloudKitDatabase: .none
                 )
-            } else {
+            case .ephemeralUITesting:
                 configuration = ModelConfiguration(
                     schema: schema,
-                    isStoredInMemoryOnly: arguments.contains("--ui-testing")
+                    isStoredInMemoryOnly: true
                 )
+            case .production:
+                configuration = ModelConfiguration(schema: schema)
             }
             return try ModelContainer(
                 for: schema,
@@ -74,6 +77,18 @@ struct AppDependencies {
         }
     }
 
+    static func storeSelection(
+        arguments: [String]
+    ) throws -> AppStoreSelection {
+        guard arguments.contains("--ui-testing") else {
+            return .production
+        }
+        if let token = try namedUITestingStoreToken(in: arguments) {
+            return .namedUITesting(token: token)
+        }
+        return .ephemeralUITesting
+    }
+
     private static func namedUITestingStoreToken(
         in arguments: [String]
     ) throws -> String? {
@@ -97,6 +112,12 @@ struct AppDependencies {
         }
         return token
     }
+}
+
+enum AppStoreSelection: Equatable {
+    case production
+    case ephemeralUITesting
+    case namedUITesting(token: String)
 }
 
 private enum UITestingStoreError: Error {
