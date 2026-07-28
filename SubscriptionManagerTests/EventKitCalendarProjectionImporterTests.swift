@@ -116,6 +116,46 @@ struct EventKitCalendarProjectionImporterTests {
         )
         #expect(store.savedEventIdentifiers.count == 2)
     }
+
+    @Test("Reconciliation does not recreate an externally deleted mapped event")
+    func missingMappedEventRequiresDecision() async {
+        let store = CalendarEventStoreFixture(access: .granted)
+        let mappings = CalendarMappingFixture()
+        let importer = EventKitCalendarProjectionImporter(
+            eventStore: store,
+            mappingRepository: mappings
+        )
+        let events = [calendarEvent(uid: "renewal-1")]
+
+        _ = await importer.importProjection(events: events)
+        store.deleteEvent(uid: "renewal-1")
+
+        let result = await importer.perform(.reconcile(events))
+
+        #expect(result == .needsDecision(.eventsMissing(count: 1)))
+        #expect(store.accessRequestCount == 1)
+        #expect(store.calendarCreationCount == 1)
+        #expect(store.savedEventIdentifiers.isEmpty)
+    }
+
+    @Test("Reconciliation removes mapped events outside the rolling projection")
+    func reconciliationRemovesStaleMappedEvents() async throws {
+        let store = CalendarEventStoreFixture(access: .granted)
+        let mappings = CalendarMappingFixture()
+        let importer = EventKitCalendarProjectionImporter(
+            eventStore: store,
+            mappingRepository: mappings
+        )
+        let current = calendarEvent(uid: "renewal-1")
+        let stale = calendarEvent(uid: "renewal-2")
+
+        _ = await importer.importProjection(events: [current, stale])
+        let result = await importer.perform(.reconcile([current]))
+
+        #expect(result == .reconciled)
+        #expect(store.savedEventIdentifiers.count == 1)
+        #expect(try mappings.eventIdentifier(for: stale.uid) == nil)
+    }
 }
 
 @MainActor
@@ -143,6 +183,10 @@ private final class CalendarEventStoreFixture: CalendarEventStore {
         Set(eventIdentifiersByUID.values)
     }
 
+    func deleteEvent(uid: String) {
+        eventIdentifiersByUID.removeValue(forKey: uid)
+    }
+
     func requestFullEventAccess() async -> CalendarEventAccess {
         accessRequestCount += 1
         return access
@@ -152,6 +196,19 @@ private final class CalendarEventStoreFixture: CalendarEventStore {
         identifier: String
     ) -> CalendarProjectionCalendar? {
         calendar?.identifier == identifier ? calendar : nil
+    }
+
+    func eventExists(identifier: String) -> Bool {
+        eventIdentifiersByUID.values.contains(identifier)
+    }
+
+    func removeEvent(identifier: String) throws {
+        guard let uid = eventIdentifiersByUID.first(where: {
+            $0.value == identifier
+        })?.key else {
+            return
+        }
+        eventIdentifiersByUID.removeValue(forKey: uid)
     }
 
     func createDedicatedCalendar(
@@ -205,6 +262,19 @@ private final class CalendarMappingFixture: CalendarProjectionMappingRepository 
 
     func eventIdentifier(for projectionUID: String) throws -> String? {
         eventIDs[projectionUID]
+    }
+
+    func eventMappings() throws -> [CalendarProjectionEventMapping] {
+        eventIDs.map {
+            CalendarProjectionEventMapping(
+                projectionUID: $0.key,
+                eventIdentifier: $0.value
+            )
+        }
+    }
+
+    func removeEventMapping(for projectionUID: String) throws {
+        eventIDs.removeValue(forKey: projectionUID)
     }
 
     func saveEventIdentifier(

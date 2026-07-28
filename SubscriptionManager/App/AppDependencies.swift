@@ -38,29 +38,36 @@ struct AppDependencies {
 
     static func live(
         arguments: [String] = ProcessInfo.processInfo.arguments,
-        storeDirectory: URL? = nil
+        storeDirectory: URL? = nil,
+        isRunningTests: Bool = ProcessInfo.processInfo.environment[
+            "XCTestConfigurationFilePath"
+        ] != nil
     ) -> AppStartupState {
         let schema = Schema([
             SubscriptionRecord.self,
             UserPreferencesRecord.self,
             CalendarProjectionMappingRecord.self
         ])
+        let effectiveArguments = (isRunningTests
+            && !arguments.contains("--ui-testing"))
+            ? arguments + ["--ui-testing"]
+            : arguments
         let selection: AppStoreSelection
         do {
-            selection = try storeSelection(arguments: arguments)
+            selection = try storeSelection(arguments: effectiveArguments)
         } catch {
             return .failed(AppStartupFailure(underlyingError: error))
         }
         #if DEBUG
-        let failsLifecycleMutations = arguments.contains("--ui-testing")
-            && arguments.contains("--ui-testing-fail-lifecycle-mutations")
+        let failsLifecycleMutations = effectiveArguments.contains("--ui-testing")
+            && effectiveArguments.contains("--ui-testing-fail-lifecycle-mutations")
         #else
         let failsLifecycleMutations = false
         #endif
 
         return make(
             failsLifecycleMutations: failsLifecycleMutations,
-            allowsExchangeRateNetworking: !arguments.contains("--ui-testing"),
+            allowsExchangeRateNetworking: !effectiveArguments.contains("--ui-testing"),
             allowsCalendarImport: selection == .production,
             syncMonitor: selection == .production
                 ? CloudKitLibrarySyncMonitor()
@@ -131,12 +138,19 @@ struct AppDependencies {
             let preferencesRepository = SwiftDataUserPreferencesRepository(
                 modelContainer: modelContainer
             )
-            let calendarProjectionImporter:
-                any CalendarProjectionImporter = allowsCalendarImport
-                ? EventKitCalendarProjectionImporter(
+            let calendarProjectionImporter: any CalendarProjectionImporter
+            let calendarProjectionReconciler:
+                (any CalendarProjectionReconciler)?
+            if allowsCalendarImport {
+                let adapter = EventKitCalendarProjectionImporter(
                     modelContainer: modelContainer
                 )
-                : UnavailableCalendarProjectionImporter()
+                calendarProjectionImporter = adapter
+                calendarProjectionReconciler = adapter
+            } else {
+                calendarProjectionImporter = UnavailableCalendarProjectionImporter()
+                calendarProjectionReconciler = nil
+            }
             let workspaceRepository: any SubscriptionRepository
             #if DEBUG
             workspaceRepository = failsLifecycleMutations
@@ -185,7 +199,9 @@ struct AppDependencies {
                             ? exchangeRateCache
                             : nil,
                         syncMonitor: syncMonitor,
-                        calendarProjectionImporter: calendarProjectionImporter
+                        calendarProjectionImporter: calendarProjectionImporter,
+                        calendarProjectionReconciler:
+                            calendarProjectionReconciler
                     )
                 )
             )
