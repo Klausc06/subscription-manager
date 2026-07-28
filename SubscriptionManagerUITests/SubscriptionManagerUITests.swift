@@ -5,9 +5,9 @@ final class SubscriptionManagerUITests: XCTestCase {
     func testTopLevelNavigationProvidesSubscriptionsUpcomingAndInsights() {
         let app = launch(language: "en", locale: "en_US")
 
-        XCTAssertTrue(app.tabBars.buttons["Subscriptions"].waitForExistence(timeout: 5))
-        XCTAssertTrue(app.tabBars.buttons["Upcoming"].exists)
-        XCTAssertTrue(app.tabBars.buttons["Insights"].exists)
+        XCTAssertTrue(topLevelTab("Subscriptions", in: app).waitForExistence(timeout: 5))
+        XCTAssertTrue(topLevelTab("Upcoming", in: app).exists)
+        XCTAssertTrue(topLevelTab("Insights", in: app).exists)
     }
 
     func testUpcomingExpectedChargeOpensItsSubscriptionDetail() {
@@ -26,7 +26,7 @@ final class SubscriptionManagerUITests: XCTestCase {
         app.textFields["subscription.form.amount"].typeText("9.99")
         app.buttons["subscription.form.save"].tap()
 
-        app.tabBars.buttons["Upcoming"].tap()
+        topLevelTab("Upcoming", in: app).tap()
         let ninetyDays = app.buttons["Next 90 Days"]
         XCTAssertTrue(ninetyDays.waitForExistence(timeout: 5))
         ninetyDays.tap()
@@ -41,6 +41,25 @@ final class SubscriptionManagerUITests: XCTestCase {
                 .waitForExistence(timeout: 5)
         )
         XCTAssertTrue(app.staticTexts["Expected Charge"].exists)
+    }
+
+    func testUpcomingDistinguishesConfirmedPaymentsWithoutColorOnly() {
+        let app = launch(language: "en", locale: "en_US")
+        createSubscription(named: "Confirmed Upcoming", in: app)
+        app.buttons["subscription.row"].firstMatch.tap()
+        app.buttons["subscription.lifecycle.actions"].tap()
+        XCTAssertTrue(app.buttons["subscription.confirm"].waitForExistence(timeout: 5))
+        app.buttons["subscription.confirm"].tap()
+        XCTAssertTrue(
+            app.buttons["subscription.confirm.save"].waitForExistence(timeout: 5)
+        )
+        app.buttons["subscription.confirm.save"].tap()
+
+        topLevelTab("Upcoming", in: app).tap()
+        app.buttons["Next 90 Days"].tap()
+        let confirmed = app.buttons["upcoming.row.confirmed"].firstMatch
+        XCTAssertTrue(confirmed.waitForExistence(timeout: 5))
+        XCTAssertTrue(confirmed.label.contains("Confirmed Payment"))
     }
 
     func testFirstRunShowsPreferenceDefaultsWithoutCalendarPrompt() {
@@ -960,6 +979,23 @@ final class SubscriptionManagerUITests: XCTestCase {
             app.buttons["subscription.row"].firstMatch
                 .waitForExistence(timeout: 5)
         )
+    }
+
+    private func topLevelTab(
+        _ title: String,
+        in app: XCUIApplication
+    ) -> XCUIElement {
+        let phoneTab = app.tabBars.buttons[title]
+        if phoneTab.exists {
+            return phoneTab
+        }
+        let iPadFloatingTab = app.cells[title]
+        if iPadFloatingTab.exists {
+            return iPadFloatingTab
+        }
+        return app.descendants(matching: .any)
+            .matching(NSPredicate(format: "label == %@", title))
+            .firstMatch
     }
 
     private func launch(
