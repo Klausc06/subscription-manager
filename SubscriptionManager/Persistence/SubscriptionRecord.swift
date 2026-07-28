@@ -84,16 +84,19 @@ final class SubscriptionRecord {
 final class UserPreferencesRecord {
     var primaryCurrencyRawValue: String = "CNY"
     var calendarProjectionHorizonMonths: Int = 12
+    var hideAmountsInCalendar: Bool = false
     var setupStatusRawValue: String = "notCompleted"
 
     init(
         primaryCurrencyRawValue: String = "CNY",
         calendarProjectionHorizonMonths: Int = 12,
+        hideAmountsInCalendar: Bool = false,
         setupStatusRawValue: String = "notCompleted"
     ) {
         self.primaryCurrencyRawValue = primaryCurrencyRawValue
         self.calendarProjectionHorizonMonths =
             calendarProjectionHorizonMonths
+        self.hideAmountsInCalendar = hideAmountsInCalendar
         self.setupStatusRawValue = setupStatusRawValue
     }
 }

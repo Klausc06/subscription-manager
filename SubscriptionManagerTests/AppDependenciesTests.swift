@@ -78,6 +78,7 @@ struct AppDependenciesTests {
         let expected = UserPreferences(
             primaryCurrency: .usd,
             calendarProjectionHorizon: .sixMonths,
+            hideAmountsInCalendar: true,
             setupStatus: .completed
         )
 
