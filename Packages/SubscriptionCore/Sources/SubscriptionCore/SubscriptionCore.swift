@@ -25,19 +25,39 @@ public struct ServiceIdentity: Codable, Equatable, Hashable, Sendable {
 }
 
 public struct ExpectedCharge: Codable, Equatable, Sendable {
+    public let id: ScheduledChargeID
     public let subscriptionID: UUID
     public let scheduledDate: Date
     public let amount: Money
 
     public init(
+        id: ScheduledChargeID,
         subscriptionID: UUID,
         scheduledDate: Date,
         amount: Money
     ) {
+        self.id = id
         self.subscriptionID = subscriptionID
         self.scheduledDate = scheduledDate
         self.amount = amount
     }
+}
+
+public enum SubscriptionHistoryEntry: Equatable, Sendable {
+    case expected(ExpectedCharge)
+    case confirmed(ConfirmedCharge)
+    case priceChange(PriceChange)
+}
+
+public enum PaymentHistoryActionError: Equatable, Sendable {
+    case archivedSubscription
+    case invalidScheduledOccurrence
+    case scheduledDateInFuture
+    case chargedDateInFuture
+    case effectiveDateBeforeStart
+    case duplicatePriceChangeDay
+    case mustBePositive
+    case persistenceFailed
 }
 
 public struct Subscription: Codable, Equatable, Identifiable, Sendable {
@@ -218,7 +238,6 @@ public struct SubscriptionEditInput: Equatable, Sendable {
     public let serviceName: String
     public let plan: String
     public let category: String
-    public let originalAmount: Money?
     public let billingSchedule: FixedBillingSchedule
     public let startDate: Date
     public let confirmedNextRenewal: Date
@@ -229,7 +248,6 @@ public struct SubscriptionEditInput: Equatable, Sendable {
         serviceName: String,
         plan: String,
         category: String,
-        originalAmount: Money?,
         billingSchedule: FixedBillingSchedule,
         startDate: Date,
         confirmedNextRenewal: Date? = nil,
@@ -239,13 +257,36 @@ public struct SubscriptionEditInput: Equatable, Sendable {
         self.serviceName = serviceName
         self.plan = plan
         self.category = category
-        self.originalAmount = originalAmount
         self.billingSchedule = billingSchedule
         self.startDate = startDate
         self.confirmedNextRenewal =
             confirmedNextRenewal ?? billingSchedule.renewalAnchor
         self.managementURL = managementURL
         self.notes = notes
+    }
+
+    @available(*, deprecated, message: "Use recordPriceChange to change money")
+    public init(
+        serviceName: String,
+        plan: String,
+        category: String,
+        originalAmount _: Money?,
+        billingSchedule: FixedBillingSchedule,
+        startDate: Date,
+        confirmedNextRenewal: Date? = nil,
+        managementURL: URL?,
+        notes: String
+    ) {
+        self.init(
+            serviceName: serviceName,
+            plan: plan,
+            category: category,
+            billingSchedule: billingSchedule,
+            startDate: startDate,
+            confirmedNextRenewal: confirmedNextRenewal,
+            managementURL: managementURL,
+            notes: notes
+        )
     }
 
     public init(
@@ -256,7 +297,6 @@ public struct SubscriptionEditInput: Equatable, Sendable {
             serviceName: subscription.serviceName,
             plan: subscription.plan,
             category: subscription.category,
-            originalAmount: subscription.originalAmount,
             billingSchedule: billingSchedule,
             startDate: subscription.startDate,
             confirmedNextRenewal: subscription.confirmedNextRenewal,
@@ -327,6 +367,9 @@ public final class SubscriptionWorkspace {
     public private(set) var expectedCharges: [ExpectedCharge]?
     public private(set) var lifecycleActionError:
         SubscriptionLifecycleActionError?
+    public private(set) var paymentHistoryActionError:
+        PaymentHistoryActionError?
+    public private(set) var paymentHistory: [SubscriptionHistoryEntry] = []
 
     private let repository: any SubscriptionRepository
     private let identifierGenerator: () -> UUID
@@ -413,9 +456,7 @@ public final class SubscriptionWorkspace {
         forecastThrough: Date? = nil
     ) {
         editingValidationErrors = validate(input)
-        guard editingValidationErrors.isEmpty,
-              let originalAmount = input.originalAmount
-        else {
+        guard editingValidationErrors.isEmpty else {
             return
         }
 
@@ -433,13 +474,14 @@ public final class SubscriptionWorkspace {
                 ),
                 plan: input.plan.trimmingCharacters(in: whitespace),
                 category: input.category.trimmingCharacters(in: whitespace),
-                originalAmount: originalAmount,
+                originalAmount: existing.originalAmount,
                 billingSchedule: input.billingSchedule,
                 startDate: input.startDate,
                 confirmedNextRenewal: input.confirmedNextRenewal,
                 managementURL: input.managementURL,
                 notes: input.notes,
                 confirmedCharges: existing.confirmedCharges,
+                priceChanges: existing.priceChanges,
                 lifecycle: existing.lifecycle,
                 isArchived: existing.isArchived
             )
@@ -527,6 +569,166 @@ public final class SubscriptionWorkspace {
             finishLifecycleUpdate(updated)
         } catch {
             lifecycleActionError = .persistenceFailed
+        }
+    }
+
+    public func confirmCharge(
+        id: UUID,
+        scheduledDate: Date,
+        chargedDate: Date,
+        amount: Money
+    ) {
+        paymentHistoryActionError = nil
+        do {
+            guard let existing = try repository.subscription(id: id) else {
+                detailState = .notFound
+                return
+            }
+            guard !existing.isArchived else {
+                paymentHistoryActionError = .archivedSubscription
+                return
+            }
+            switch existing.lifecycle {
+            case .trial, .active:
+                break
+            case .cancelled:
+                paymentHistoryActionError = .invalidScheduledOccurrence
+                return
+            }
+
+            let timeZone = billingTimeZone(for: existing)
+            let localCalendar = billingLocalCalendar(timeZone: timeZone)
+            let today = localCalendar.startOfDay(for: now())
+            guard amount.minorUnits > 0 else {
+                paymentHistoryActionError = .mustBePositive
+                return
+            }
+            guard let normalizedScheduledDate = normalizedBillingLocalNoon(
+                      scheduledDate,
+                      timeZone: timeZone
+                  ),
+                  let normalizedChargedDate = normalizedBillingLocalNoon(
+                      chargedDate,
+                      timeZone: timeZone
+                  ),
+                  normalizedScheduledDate <= today
+            else {
+                paymentHistoryActionError = .scheduledDateInFuture
+                return
+            }
+            guard normalizedChargedDate <= today else {
+                paymentHistoryActionError = .chargedDateInFuture
+                return
+            }
+            guard isScheduledOccurrence(
+                normalizedScheduledDate,
+                for: existing,
+                calendar: localCalendar
+            ) else {
+                paymentHistoryActionError = .invalidScheduledOccurrence
+                return
+            }
+
+            let components = localCalendar.dateComponents(
+                [.year, .month, .day],
+                from: normalizedScheduledDate
+            )
+            guard let year = components.year,
+                  let month = components.month,
+                  let day = components.day
+            else {
+                return
+            }
+            let sourceScheduledChargeID = ScheduledChargeID(
+                subscriptionID: existing.id,
+                year: year,
+                month: month,
+                day: day
+            )
+            guard !existing.confirmedCharges.contains(where: {
+                $0.sourceScheduledChargeID == sourceScheduledChargeID
+            }) else {
+                detailState = makeDetail(existing)
+                return
+            }
+
+            let updated = existing.replacingPaymentHistory(
+                confirmedCharges: existing.confirmedCharges + [
+                    ConfirmedCharge(
+                        id: identifierGenerator(),
+                        chargedDate: normalizedChargedDate,
+                        amount: amount,
+                        sourceScheduledChargeID: sourceScheduledChargeID
+                    )
+                ]
+            )
+            try repository.updateSubscription(updated)
+            detailState = makeDetail(updated)
+            loadLibrary()
+        } catch {
+            paymentHistoryActionError = .persistenceFailed
+            detailState = .failed
+        }
+    }
+
+    public func recordPriceChange(
+        id: UUID,
+        effectiveDate: Date,
+        amount: Money
+    ) {
+        paymentHistoryActionError = nil
+        do {
+            guard let existing = try repository.subscription(id: id) else {
+                detailState = .notFound
+                return
+            }
+            guard !existing.isArchived else {
+                paymentHistoryActionError = .archivedSubscription
+                return
+            }
+            guard amount.minorUnits > 0 else {
+                paymentHistoryActionError = .mustBePositive
+                return
+            }
+            let timeZone = billingTimeZone(for: existing)
+            let localCalendar = billingLocalCalendar(timeZone: timeZone)
+            guard let normalizedEffectiveDate = normalizedBillingLocalNoon(
+                effectiveDate,
+                timeZone: timeZone
+            ) else {
+                paymentHistoryActionError = .persistenceFailed
+                return
+            }
+            guard normalizedEffectiveDate >= localCalendar.startOfDay(
+                for: existing.startDate
+            ) else {
+                paymentHistoryActionError = .effectiveDateBeforeStart
+                return
+            }
+            guard !existing.priceChanges.contains(where: {
+                localCalendar.isDate(
+                    $0.effectiveDate,
+                    inSameDayAs: normalizedEffectiveDate
+                )
+            }) else {
+                paymentHistoryActionError = .duplicatePriceChangeDay
+                return
+            }
+            let updated = existing.replacingPaymentHistory(
+                priceChanges: existing.priceChanges + [
+                    PriceChange(
+                        id: identifierGenerator(),
+                        effectiveDate: normalizedEffectiveDate,
+                        amount: amount
+                    )
+                ]
+            )
+            try repository.updateSubscription(updated)
+            detailState = makeDetail(updated)
+            loadLibrary()
+        } catch {
+            paymentHistoryActionError = .persistenceFailed
+            detailState = .failed
         }
     }
 
@@ -757,13 +959,6 @@ public final class SubscriptionWorkspace {
         if input.category.trimmingCharacters(in: whitespace).isEmpty {
             errors[.category] = .required
         }
-        if let originalAmount = input.originalAmount {
-            if originalAmount.minorUnits <= 0 {
-                errors[.originalAmount] = .mustBePositive
-            }
-        } else {
-            errors[.originalAmount] = .required
-        }
         if input.billingSchedule.renewalAnchor < input.startDate {
             errors[.renewalAnchor] = .beforeStartDate
         }
@@ -874,18 +1069,80 @@ public final class SubscriptionWorkspace {
                 break
             }
             if scheduledDate >= firstForecastDate {
-                charges.append(
-                    ExpectedCharge(
-                        subscriptionID: subscription.id,
-                        scheduledDate: scheduledDate,
-                        amount: subscription.originalAmount
-                    )
+                let charge = expectedCharge(
+                    for: subscription,
+                    scheduledDate: scheduledDate,
+                    calendar: renewalCalendar
                 )
+                if !subscription.confirmedCharges.contains(where: {
+                    $0.sourceScheduledChargeID == charge.id
+                }) {
+                    charges.append(charge)
+                }
             }
             occurrenceIndex += 1
         }
 
         return charges
+    }
+
+    private func expectedCharge(
+        for subscription: Subscription,
+        scheduledDate: Date,
+        calendar: Calendar
+    ) -> ExpectedCharge {
+        let components = calendar.dateComponents(
+            [.year, .month, .day],
+            from: scheduledDate
+        )
+        let id = ScheduledChargeID(
+            subscriptionID: subscription.id,
+            year: components.year ?? 0,
+            month: components.month ?? 0,
+            day: components.day ?? 0
+        )
+        let amount = subscription.priceChanges
+            .filter { $0.effectiveDate <= scheduledDate }
+            .max { $0.effectiveDate < $1.effectiveDate }?
+            .amount ?? subscription.originalAmount
+        return ExpectedCharge(
+            id: id,
+            subscriptionID: subscription.id,
+            scheduledDate: scheduledDate,
+            amount: amount
+        )
+    }
+
+    private func isScheduledOccurrence(
+        _ date: Date,
+        for subscription: Subscription,
+        calendar: Calendar
+    ) -> Bool {
+        guard date >= subscription.startDate else {
+            return false
+        }
+        let firstCandidateIndex = estimatedOccurrenceIndex(
+            for: subscription.billingSchedule,
+            onOrAfter: date,
+            calendar: calendar
+        )
+        // The estimate is deliberately conservative so forecasting can find
+        // the first occurrence on or after a boundary. Check that candidate
+        // and the immediately following one when validating a user-selected
+        // past occurrence.
+        for occurrenceIndex in firstCandidateIndex...(firstCandidateIndex + 1) {
+            guard let occurrence = scheduledDate(
+                for: subscription.billingSchedule,
+                occurrenceIndex: occurrenceIndex,
+                calendar: calendar
+            ) else {
+                continue
+            }
+            if calendar.isDate(occurrence, inSameDayAs: date) {
+                return true
+            }
+        }
+        return false
     }
 
     private func makeSummary(
@@ -903,11 +1160,112 @@ public final class SubscriptionWorkspace {
         _ subscription: Subscription
     ) -> SubscriptionDetailState {
         let presentation = makePresentation(for: subscription)
+        paymentHistory = makeHistory(for: subscription)
         return .loaded(
             subscription: subscription,
             status: presentation.status,
             nextExpectedCharge: presentation.nextExpectedCharge
         )
+    }
+
+    private func makeHistory(
+        for subscription: Subscription
+    ) -> [SubscriptionHistoryEntry] {
+        let timeZone = billingTimeZone(for: subscription)
+        let localCalendar = billingLocalCalendar(timeZone: timeZone)
+        var entries: [SubscriptionHistoryEntry] =
+            subscription.confirmedCharges.map(SubscriptionHistoryEntry.confirmed)
+            + subscription.priceChanges.map(SubscriptionHistoryEntry.priceChange)
+
+        if !subscription.isArchived,
+           isEligibleForExpectedCharges(subscription)
+        {
+            let today = localCalendar.startOfDay(for: now())
+            let candidateIndex = estimatedOccurrenceIndex(
+                for: subscription.billingSchedule,
+                onOrAfter: today,
+                calendar: localCalendar
+            )
+            let missed = (candidateIndex...(candidateIndex + 1)).compactMap {
+                scheduledDate(
+                    for: subscription.billingSchedule,
+                    occurrenceIndex: $0,
+                    calendar: localCalendar
+                )
+            }
+            .filter { $0 >= subscription.startDate && $0 <= today }
+            .map {
+                expectedCharge(
+                    for: subscription,
+                    scheduledDate: $0,
+                    calendar: localCalendar
+                )
+            }
+            .filter { charge in
+                !subscription.confirmedCharges.contains {
+                    $0.sourceScheduledChargeID == charge.id
+                }
+            }
+            .max { $0.scheduledDate < $1.scheduledDate }
+            if let missed {
+                entries.append(.expected(missed))
+            }
+
+            let tomorrow = localCalendar.date(
+                byAdding: .day,
+                value: 1,
+                to: today
+            ) ?? today
+            let nextIndex = estimatedOccurrenceIndex(
+                for: subscription.billingSchedule,
+                onOrAfter: tomorrow,
+                calendar: localCalendar
+            )
+            let next = (nextIndex...(nextIndex + 2)).compactMap {
+                scheduledDate(
+                    for: subscription.billingSchedule,
+                    occurrenceIndex: $0,
+                    calendar: localCalendar
+                )
+            }
+            .filter { $0 >= tomorrow }
+            .map {
+                expectedCharge(
+                    for: subscription,
+                    scheduledDate: $0,
+                    calendar: localCalendar
+                )
+            }
+            .first { charge in
+                !subscription.confirmedCharges.contains {
+                    $0.sourceScheduledChargeID == charge.id
+                }
+            }
+            if let next {
+                entries.append(.expected(next))
+            }
+        }
+
+        return entries.sorted { lhs, rhs in
+            let left = historySortKey(lhs)
+            let right = historySortKey(rhs)
+            return left.date == right.date
+                ? left.kindOrder < right.kindOrder
+                : left.date < right.date
+        }
+    }
+
+    private func historySortKey(
+        _ entry: SubscriptionHistoryEntry
+    ) -> (date: Date, kindOrder: Int) {
+        switch entry {
+        case .priceChange(let change):
+            (change.effectiveDate, 0)
+        case .expected(let charge):
+            (charge.scheduledDate, 1)
+        case .confirmed(let charge):
+            (charge.chargedDate, 2)
+        }
     }
 
     private func makePresentation(

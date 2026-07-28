@@ -1499,6 +1499,106 @@ private struct FailingSubscriptionRepository: SubscriptionRepository {
     private enum RepositoryError: Error {
         case unavailable
     }
+    @Test("Confirming a passed scheduled charge is idempotent")
+    @MainActor
+    func confirmingPassedScheduledChargeIsIdempotent() throws {
+        let calendar = actionCalendar()
+        let now = try actionDate(
+            year: 2026,
+            month: 7,
+            day: 29,
+            hour: 12,
+            calendar: calendar
+        )
+        let subscription = try makeActionSubscription(
+            fixture: .active,
+            calendar: calendar
+        )
+        let repository = InMemorySubscriptionRepository(
+            subscriptions: [subscription]
+        )
+        let workspace = SubscriptionWorkspace(
+            repository: repository,
+            now: { now },
+            calendar: calendar
+        )
+        let scheduledDate = try actionDate(
+            year: 2026,
+            month: 7,
+            day: 28,
+            hour: 12,
+            calendar: calendar
+        )
+        let actualAmount = Money(minorUnits: 1_299, currency: .usd)
+
+        workspace.confirmCharge(
+            id: subscription.id,
+            scheduledDate: scheduledDate,
+            chargedDate: scheduledDate,
+            amount: actualAmount
+        )
+        workspace.confirmCharge(
+            id: subscription.id,
+            scheduledDate: scheduledDate,
+            chargedDate: scheduledDate,
+            amount: actualAmount
+        )
+
+        let stored = try #require(
+            repository.storedSubscription(id: subscription.id)
+        )
+        #expect(stored.confirmedCharges.count == 2)
+        #expect(stored.confirmedCharges.last?.amount == actualAmount)
+    }
+
+    @Test("Price changes apply on their effective billing day without rewriting facts")
+    @MainActor
+    func priceChangesResolveFutureForecastWithoutRewritingFacts() throws {
+        let calendar = actionCalendar()
+        let now = try actionDate(
+            year: 2026, month: 7, day: 29, hour: 12, calendar: calendar
+        )
+        let subscription = try makeActionSubscription(
+            fixture: .active, calendar: calendar
+        )
+        let repository = InMemorySubscriptionRepository(
+            subscriptions: [subscription]
+        )
+        let workspace = SubscriptionWorkspace(
+            repository: repository, now: { now }, calendar: calendar
+        )
+        let effectiveDate = try actionDate(
+            year: 2026, month: 7, day: 28, hour: 12, calendar: calendar
+        )
+        let changedAmount = Money(minorUnits: 1_499, currency: .usd)
+        let forecastHorizon = try actionDate(
+            year: 2026, month: 8, day: 29, hour: 12, calendar: calendar
+        )
+
+        workspace.recordPriceChange(
+            id: subscription.id,
+            effectiveDate: effectiveDate,
+            amount: changedAmount
+        )
+        workspace.loadExpectedCharges(
+            subscriptionID: subscription.id,
+            through: forecastHorizon,
+            maximumCount: 3
+        )
+
+        let stored = try #require(
+            repository.storedSubscription(id: subscription.id)
+        )
+        #expect(stored.originalAmount == Money(minorUnits: 999, currency: .usd))
+        #expect(stored.confirmedCharges.first?.amount == Money(
+            minorUnits: 999, currency: .usd
+        ))
+        #expect(stored.priceChanges.map(\.amount) == [changedAmount])
+        #expect(workspace.expectedCharges?.first?.amount == changedAmount)
+        #expect(workspace.paymentHistory.contains(.priceChange(
+            try #require(stored.priceChanges.first)
+        )))
+    }
 }
 
 @MainActor
