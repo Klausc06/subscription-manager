@@ -2,7 +2,7 @@
 
 - Date: 2026-07-28
 - Issue: [#5 — Manage lifecycle, archive, and deletion safely](https://github.com/Klausc06/subscription-manager/issues/5)
-- Status: Approved
+- Status: Approved after architecture review
 
 ## Outcome
 
@@ -59,9 +59,10 @@ Rejected alternatives:
 - `active`
 - `cancelled(cancelledAt: Date, accessUntil: Date)`
 
-`Subscription` also stores `archivedAt: Date?`. Archive is orthogonal to the
-lifecycle. Restoring an archived subscription clears only `archivedAt` and
-preserves the lifecycle facts.
+`Subscription` also stores `isArchived: Bool`. Archive is orthogonal to the
+lifecycle. Restoring an archived subscription changes only `isArchived` and
+preserves the lifecycle facts. TB-04 does not display, sort, or audit archive
+dates, so it does not persist an unused timestamp.
 
 When the add form creates a Trial subscription, the person enters Next Renewal
 once. Core snapshots that value as `firstPaidChargeAt`; it is not a second
@@ -70,33 +71,43 @@ become Trial again.
 
 ### Effective status
 
-`SubscriptionStatus` is derived at a supplied instant:
+`SubscriptionStatus` is derived at a supplied instant by comparing calendar
+days in the subscription billing time zone:
 
-| Persisted lifecycle | Boundary rule | Effective status |
+| Persisted lifecycle | Billing-local day rule | Effective status |
 | --- | --- | --- |
-| Trial | `asOf < firstPaidChargeAt` | Trial |
-| Trial | `asOf >= firstPaidChargeAt` | Active |
+| Trial | `asOfDay < firstPaidChargeDay` | Trial |
+| Trial | `asOfDay >= firstPaidChargeDay` | Active |
 | Active | Always | Active |
-| Cancelled | `asOf < accessUntil` | Cancelled with Access |
-| Cancelled | `asOf >= accessUntil` | Expired |
+| Cancelled | `asOfDay < accessUntilDay` | Cancelled with Access |
+| Cancelled | `asOfDay >= accessUntilDay` | Expired |
 
-The boundary instant belongs to the new status. No background task is needed.
-Workspace queries and commands resolve status with the injected clock.
+The whole boundary day belongs to the new status. Persisted date-only values
+remain normalized to local noon for DST safety, but lifecycle status never
+changes halfway through a local day. No background task is needed. Workspace
+queries and commands resolve status with the injected clock.
 
 ### Allowed transitions
 
-| Starting state | Action | Result |
-| --- | --- | --- |
-| Trial or Active | Record Cancellation | Cancelled lifecycle facts |
-| Cancelled with Access or Expired | Reactivate | Active lifecycle facts |
-| Any non-deleted lifecycle | Archive | Same lifecycle, `archivedAt` set |
-| Any archived lifecycle | Restore | Same lifecycle, `archivedAt` cleared |
-| Any record | Confirm Permanent Delete | Selected record removed |
+| Starting state | Required archive state | Action | Result |
+| --- | --- | --- | --- |
+| Trial or Active | Current | Record Cancellation | Cancelled lifecycle facts |
+| Cancelled with Access or Expired | Current | Reactivate | Active lifecycle facts |
+| Any lifecycle | Current | Archive | Same lifecycle, archived |
+| Any lifecycle | Archived | Restore | Same lifecycle, current |
+| Any lifecycle | Current or Archived | Permanently Delete | Selected record removed |
 
 There is no manual Active-to-Expired transition. Expired is derived from
 cancelled lifecycle facts. Reactivation requires a newly confirmed Next
 Renewal and clears cancellation and access-until facts by replacing the
-lifecycle with Active.
+lifecycle with Active. It preserves the existing Fixed Billing Schedule and
+uses the new Confirmed Next Renewal as its forecast gate; changing the schedule
+remains the existing edit flow.
+
+Every other action/state combination fails with one
+`invalidLifecycleTransition` action error and performs no repository mutation.
+Ordinary subscription editing must copy lifecycle facts, archive state, and
+Confirmed Charge history unchanged.
 
 ## Forecast Rules
 
@@ -115,6 +126,15 @@ Archiving also removes the subscription from forecasts immediately.
 Confirmed Charge history remains unchanged by every lifecycle and archive
 operation.
 
+The current non-optional `Subscription.firstExpectedCharge` and
+`SubscriptionSummary.firstExpectedCharge` are removed.
+`SubscriptionSummary` instead contains the Workspace-resolved status and an
+optional `nextExpectedCharge`. `SubscriptionDetailState.loaded` carries the
+full Subscription, resolved status, and the same optional next Expected Charge
+as associated values. Cancelled, Expired, and Archived presentations always
+carry `nil`, so SwiftUI never invents or hides a charge by reimplementing
+lifecycle rules.
+
 ## Workspace API and Observable State
 
 All behavior remains behind `SubscriptionWorkspace`:
@@ -124,13 +144,12 @@ All behavior remains behind `SubscriptionWorkspace`:
 - `archive(id:)`
 - `restore(id:)`
 - `loadLibrary(scope:)`, where scope is `.current` or `.archived`
-- `requestPermanentDeletion(id:)`
-- `confirmPermanentDeletion(id:)`
-- `cancelPermanentDeletion()`
+- `deletePermanently(id:)`
 
-Permanent deletion is a two-stage Workspace flow. Requesting deletion exposes
-the selected record as pending but does not mutate persistence. Only explicit
-confirmation invokes the repository deletion command.
+The native SwiftUI view owns only the temporary identity used to present its
+confirmation dialog. Cancelling the dialog calls no Workspace command.
+Confirming it calls `deletePermanently(id:)`; all actual mutation remains
+behind the Workspace.
 
 The Workspace exposes lifecycle-action validation and persistence failures
 separately from library/detail loading failures. A failed action keeps the
@@ -142,6 +161,16 @@ The Workspace owns clock-based status resolution, current/archived filtering,
 and construction of `SubscriptionSummary` values. This keeps presentation
 queries and lifecycle rules out of persistence.
 
+`SubscriptionLibraryState` carries its `SubscriptionLibraryScope` in loading,
+empty, loaded, and failed states. The Workspace maintains one current scope,
+not separate caches. A Current or Archived page loads its target scope whenever
+the observable state belongs to a different scope, preventing one page from
+displaying the other page's records after navigation.
+
+The loaded detail presentation contains the full Subscription, its effective
+status, and optional next Expected Charge. SwiftUI renders those values without
+calculating lifecycle or forecast eligibility.
+
 ## Repository and SwiftData
 
 `SubscriptionRepository` gains:
@@ -149,17 +178,27 @@ queries and lifecycle rules out of persistence.
 - Listing complete `Subscription` aggregates.
 - Deleting one subscription by stable UUID.
 
-SwiftData adds optional, CloudKit-compatible fields:
+SwiftData adds optional fields so records written before TB-04 remain readable:
 
 - Lifecycle discriminator.
 - Trial first-paid-charge date.
 - Cancellation date.
 - Access-until date.
-- Archive date.
+- Archive flag.
 
 Existing records with no lifecycle fields decode as Active and unarchived.
-Invalid new-field combinations fail explicitly rather than silently inventing
-lifecycle facts.
+The valid storage combinations are:
+
+| Discriminator | Trial date | Cancellation date | Access-until date |
+| --- | --- | --- | --- |
+| Legacy `nil` | `nil` | `nil` | `nil` |
+| Trial | Required | `nil` | `nil` |
+| Active | `nil` | `nil` | `nil` |
+| Cancelled | `nil` | Required | Required |
+
+Non-applicable fields must be `nil`. Unknown discriminators, partial required
+fields, and lifecycle dates attached to a legacy/Active record fail explicitly
+rather than silently inventing facts. A missing archive flag means unarchived.
 
 Permanent deletion fetches by stable UUID, deletes only the matching
 `SubscriptionRecord`, and saves atomically. A failed save rolls back the model
@@ -169,13 +208,16 @@ context.
 
 Lifecycle actions use the subscription billing time zone. Date-only input is
 normalized to local noon, consistent with existing billing-date behavior.
+Validation and effective-status boundaries compare billing-local calendar
+days, not absolute instants.
 
 Rules:
 
 - Cancellation date defaults to today and may be in the past.
 - Cancellation date cannot be later than today.
 - Access-until cannot be earlier than cancellation.
-- Reactivation requires Next Renewal on or after today.
+- Reactivation requires Next Renewal on or after today, preserves the Fixed
+  Billing Schedule, and replaces only the Confirmed Next Renewal gate.
 - Lifecycle actions are unavailable while a record is archived; restore comes
   first.
 - Permanent deletion is available for current and archived records.
@@ -219,7 +261,7 @@ provider.
 Permanent deletion uses a native destructive confirmation dialog that names
 the selected subscription and says the action cannot be undone. Typing the
 subscription name is not required. Cancelling the dialog clears pending
-deletion without changing data.
+view state without calling the Workspace.
 
 All new controls, status labels, validation messages, alerts, and destructive
 copy ship in English and Simplified Chinese with stable accessibility
@@ -229,9 +271,11 @@ identifiers.
 
 - A missing target produces the existing not-found behavior.
 - Validation errors leave the loaded aggregate and forecasts unchanged.
+- Invalid action/state combinations expose
+  `invalidLifecycleTransition` and perform no mutation.
 - Repository failures keep current content visible and expose a retryable
   lifecycle-action error.
-- A successful action reloads the active library scope and detail.
+- A successful action reloads the currently selected library scope and detail.
 - Deleting the open record changes detail state to not found and reloads the
   current scope.
 
@@ -241,7 +285,8 @@ Implementation follows strict red-green-refactor TDD.
 
 ### SubscriptionCore
 
-- Table-driven effective-status tests before, at, and after every boundary.
+- Table-driven effective-status tests on the billing-local day before, on, and
+  after every boundary.
 - Allowed and rejected lifecycle transition tests through public Workspace
   commands.
 - Cancellation and archive tests proving future forecasts disappear
@@ -249,15 +294,18 @@ Implementation follows strict red-green-refactor TDD.
 - Restoration tests proving the prior lifecycle is preserved.
 - Reactivation tests proving a new renewal is required and cancellation facts
   are cleared.
-- Two-stage deletion tests proving request/cancel do not mutate data and
-  confirmation deletes only the selected UUID.
+- Permanent-deletion tests proving only the selected UUID is deleted.
+- Ordinary-edit tests proving lifecycle, archive state, and Confirmed Charge
+  history survive unchanged.
+- Current/Archived scope tests proving navigation never displays records from
+  the other scope.
 - Repository failure tests proving the loaded detail remains visible.
 
 ### SwiftData adapter
 
 - Old records load as Active and unarchived.
-- Every lifecycle representation round-trips.
-- Archive/restore and reactivation persist across repository relaunch.
+- Every valid lifecycle representation round-trips.
+- Every invalid storage combination fails explicitly.
 - Permanent deletion removes one selected record and keeps unrelated records.
 - Delete-save failure rolls back.
 
@@ -265,6 +313,8 @@ Implementation follows strict red-green-refactor TDD.
 
 - Critical UI automation covers recording cancellation, archive/restore,
   deletion confirmation, and English/Simplified Chinese status copy.
+- Deletion UI automation proves cancelling confirmation preserves the selected
+  record and confirming it removes that record.
 - Tests assert user-visible behavior through stable accessibility identifiers,
   not private view structure.
 
@@ -277,4 +327,3 @@ Implementation follows strict red-green-refactor TDD.
 - Localization JSON validation and `git diff --check`.
 - Independent verification and real PR review; valid findings receive
   regression tests before merge.
-
