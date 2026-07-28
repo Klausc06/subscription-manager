@@ -40,7 +40,8 @@ struct SubscriptionDomainTests {
             startDate: Date(timeIntervalSince1970: 1_767_225_600),
             confirmedNextRenewal: renewalDate,
             managementURL: nil,
-            notes: ""
+            notes: "",
+            lifecycle: .trial(firstPaidChargeAt: renewalDate)
         )
 
         #expect(
@@ -50,5 +51,10 @@ struct SubscriptionDomainTests {
                 amount: amount
             )
         )
+        #expect(
+            subscription.lifecycle
+                == .trial(firstPaidChargeAt: subscription.confirmedNextRenewal)
+        )
+        #expect(subscription.isArchived == false)
     }
 }

@@ -53,6 +53,8 @@ public struct Subscription: Codable, Equatable, Identifiable, Sendable {
     public let managementURL: URL?
     public let notes: String
     public let confirmedCharges: [ConfirmedCharge]
+    public let lifecycle: SubscriptionLifecycle
+    public let isArchived: Bool
 
     public var billingCycle: BillingInterval {
         billingSchedule.interval
@@ -78,7 +80,9 @@ public struct Subscription: Codable, Equatable, Identifiable, Sendable {
         confirmedNextRenewal: Date? = nil,
         managementURL: URL?,
         notes: String,
-        confirmedCharges: [ConfirmedCharge] = []
+        confirmedCharges: [ConfirmedCharge] = [],
+        lifecycle: SubscriptionLifecycle = .active,
+        isArchived: Bool = false
     ) {
         self.id = id
         self.serviceIdentity = serviceIdentity
@@ -93,6 +97,8 @@ public struct Subscription: Codable, Equatable, Identifiable, Sendable {
         self.managementURL = managementURL
         self.notes = notes
         self.confirmedCharges = confirmedCharges
+        self.lifecycle = lifecycle
+        self.isArchived = isArchived
     }
 
     public init(
@@ -108,7 +114,9 @@ public struct Subscription: Codable, Equatable, Identifiable, Sendable {
         billingTimeZoneIdentifier: String = TimeZone.autoupdatingCurrent.identifier,
         managementURL: URL?,
         notes: String,
-        confirmedCharges: [ConfirmedCharge] = []
+        confirmedCharges: [ConfirmedCharge] = [],
+        lifecycle: SubscriptionLifecycle = .active,
+        isArchived: Bool = false
     ) {
         self.init(
             id: id,
@@ -126,7 +134,9 @@ public struct Subscription: Codable, Equatable, Identifiable, Sendable {
             confirmedNextRenewal: confirmedNextRenewal,
             managementURL: managementURL,
             notes: notes,
-            confirmedCharges: confirmedCharges
+            confirmedCharges: confirmedCharges,
+            lifecycle: lifecycle,
+            isArchived: isArchived
         )
     }
 }
@@ -167,6 +177,7 @@ public struct SubscriptionCreationInput: Equatable, Sendable {
     public let billingTimeZoneIdentifier: String
     public let managementURL: URL?
     public let notes: String
+    public let initialStatus: SubscriptionInitialStatus
 
     public init(
         serviceName: String,
@@ -179,7 +190,8 @@ public struct SubscriptionCreationInput: Equatable, Sendable {
         confirmedNextRenewal: Date,
         billingTimeZoneIdentifier: String = TimeZone.autoupdatingCurrent.identifier,
         managementURL: URL?,
-        notes: String
+        notes: String,
+        initialStatus: SubscriptionInitialStatus = .active
     ) {
         self.serviceName = serviceName
         self.plan = plan
@@ -192,6 +204,7 @@ public struct SubscriptionCreationInput: Equatable, Sendable {
         self.billingTimeZoneIdentifier = billingTimeZoneIdentifier
         self.managementURL = managementURL
         self.notes = notes
+        self.initialStatus = initialStatus
     }
 }
 
