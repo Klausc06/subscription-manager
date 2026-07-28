@@ -572,6 +572,9 @@ public final class SubscriptionWorkspace {
         case .notLoaded, .localOnly, .signedOut, .requiresAttention:
             break
         }
+        Task { [weak self] in
+            await self?.reconcileCalendarProjection(locale: .current)
+        }
     }
 
     public func loadSetup(libraryIsEmpty: Bool) {

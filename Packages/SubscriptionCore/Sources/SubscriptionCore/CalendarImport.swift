@@ -53,6 +53,7 @@ public enum CalendarReconciliationCommand: Equatable, Sendable {
 }
 
 public enum CalendarReconciliationResult: Equatable, Sendable {
+    case notConfigured
     case reconciled
     case needsDecision(CalendarReconciliationDecision)
     case unavailable
@@ -67,6 +68,8 @@ public enum CalendarReconciliationState: Equatable, Sendable {
 
     init(result: CalendarReconciliationResult) {
         switch result {
+        case .notConfigured:
+            self = .notConfigured
         case .reconciled:
             self = .current
         case .needsDecision(let decision):

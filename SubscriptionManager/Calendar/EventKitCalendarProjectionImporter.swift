@@ -170,8 +170,11 @@ final class EventKitCalendarProjectionImporter:
     ) -> CalendarReconciliationResult {
         let calendar: CalendarProjectionCalendar
         do {
-            guard let identifier = try mappingRepository.calendarIdentifier(),
-                  let existing = eventStore.calendar(identifier: identifier)
+            guard let identifier = try mappingRepository.calendarIdentifier()
+            else {
+                return .notConfigured
+            }
+            guard let existing = eventStore.calendar(identifier: identifier)
             else {
                 return .needsDecision(.calendarMissing)
             }
