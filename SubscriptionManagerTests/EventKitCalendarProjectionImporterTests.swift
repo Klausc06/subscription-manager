@@ -175,6 +175,30 @@ struct EventKitCalendarProjectionImporterTests {
         #expect(store.accessRequestCount == 1)
         #expect(store.savedProjectionEvents.count == 1)
     }
+
+    @Test("Reconciliation restores every managed field from the projection")
+    func reconciliationRewritesTheMappedProjectionEvent() async {
+        let store = CalendarEventStoreFixture(access: .granted)
+        let importer = EventKitCalendarProjectionImporter(
+            eventStore: store,
+            mappingRepository: CalendarMappingFixture()
+        )
+        let original = calendarEvent(uid: "renewal-1")
+        let revised = CalendarProjectionEvent(
+            uid: original.uid,
+            startDate: original.startDate,
+            endDate: original.endDate,
+            title: "Atlas — US$14.99",
+            notes: "Revised",
+            managementURL: original.managementURL,
+            alarmOffsets: [-3, -1],
+            timeZoneIdentifier: original.timeZoneIdentifier
+        )
+
+        _ = await importer.importProjection(events: [original])
+        #expect(await importer.perform(.reconcile([revised])) == .reconciled)
+        #expect(store.savedProjectionEvents.last == revised)
+    }
 }
 
 @MainActor
