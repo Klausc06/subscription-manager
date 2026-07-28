@@ -243,7 +243,7 @@ public struct SubscriptionEditInput: Equatable, Sendable {
             originalAmount: subscription.originalAmount,
             billingSchedule: billingSchedule,
             startDate: subscription.startDate,
-            confirmedNextRenewal: billingSchedule.renewalAnchor,
+            confirmedNextRenewal: subscription.confirmedNextRenewal,
             managementURL: subscription.managementURL,
             notes: subscription.notes
         )

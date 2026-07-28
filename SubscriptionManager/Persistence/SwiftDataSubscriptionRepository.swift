@@ -143,7 +143,8 @@ final class SwiftDataSubscriptionRepository: SubscriptionRepository {
         record.category = subscription.category
         record.originalMinorUnits = subscription.originalAmount.minorUnits
         record.currencyRawValue = subscription.originalAmount.currency.rawValue
-        record.billingCycleRawValue = subscription.billingSchedule.interval.rawValue
+        record.billingCycleRawValue =
+            subscription.billingSchedule.interval.storageIdentifier
         record.billingIntervalValue =
             subscription.billingSchedule.interval.customValue
         record.billingIntervalUnitRawValue =
@@ -290,9 +291,34 @@ final class SwiftDataSubscriptionRepository: SubscriptionRepository {
             [.year, .month, .day],
             from: record.confirmedNextRenewal
         )
-        return projectedDay == renewalDay
-            ? record.startDate
-            : record.confirmedNextRenewal
+        guard projectedDay == renewalDay else {
+            return record.confirmedNextRenewal
+        }
+        return anchor(
+            record.startDate,
+            alignedToTimeOfDayIn: record.confirmedNextRenewal,
+            calendar: calendar
+        ) ?? record.startDate
+    }
+
+    private func anchor(
+        _ anchor: Date,
+        alignedToTimeOfDayIn reference: Date,
+        calendar: Calendar
+    ) -> Date? {
+        var components = calendar.dateComponents(
+            [.era, .year, .month, .day],
+            from: anchor
+        )
+        let time = calendar.dateComponents(
+            [.hour, .minute, .second, .nanosecond],
+            from: reference
+        )
+        components.hour = time.hour
+        components.minute = time.minute
+        components.second = time.second
+        components.nanosecond = time.nanosecond
+        return calendar.date(from: components)
     }
 
     private func clampedMonthDate(

@@ -478,6 +478,90 @@ struct SwiftDataSubscriptionRepositoryTests {
         )
     }
 
+    @Test("Migration aligns an inferred anchor with the confirmed renewal time")
+    @MainActor
+    func migrationKeepsFirstRenewalWhenLegacyTimestampsDiffer() throws {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.locale = Locale(identifier: "en_US_POSIX")
+        calendar.timeZone = TimeZone(identifier: "UTC")!
+        let startDate = try #require(
+            calendar.date(
+                from: DateComponents(
+                    year: 2025,
+                    month: 1,
+                    day: 31,
+                    hour: 12,
+                    nanosecond: 100_000_000
+                )
+            )
+        )
+        let nextRenewal = try #require(
+            calendar.date(
+                from: DateComponents(
+                    year: 2025,
+                    month: 2,
+                    day: 28,
+                    hour: 12,
+                    nanosecond: 900_000_000
+                )
+            )
+        )
+        let horizon = try #require(
+            calendar.date(
+                from: DateComponents(
+                    year: 2025,
+                    month: 2,
+                    day: 28,
+                    hour: 23
+                )
+            )
+        )
+        let subscriptionID = UUID(
+            uuidString: "C9F06BF2-BE52-4806-A65E-D50205EA16C6"
+        )!
+        let configuration = ModelConfiguration(isStoredInMemoryOnly: true)
+        let container = try ModelContainer(
+            for: SubscriptionRecord.self,
+            configurations: configuration
+        )
+        container.mainContext.insert(
+            SubscriptionRecord(
+                id: subscriptionID,
+                startDate: startDate,
+                confirmedNextRenewal: nextRenewal
+            )
+        )
+        try container.mainContext.save()
+        let repository = SwiftDataSubscriptionRepository(
+            modelContainer: container,
+            defaultBillingTimeZone: {
+                TimeZone(identifier: "UTC")!
+            }
+        )
+        let workspace = SubscriptionWorkspace(
+            repository: repository,
+            now: {
+                calendar.date(
+                    from: DateComponents(
+                        year: 2025,
+                        month: 2,
+                        day: 1,
+                        hour: 12
+                    )
+                )!
+            },
+            calendar: calendar
+        )
+
+        workspace.loadExpectedCharges(
+            subscriptionID: subscriptionID,
+            through: horizon
+        )
+
+        let charges = try #require(workspace.expectedCharges)
+        #expect(charges.first?.scheduledDate == nextRenewal)
+    }
+
     @Test("UI testing launches use separate in-memory libraries")
     @MainActor
     func uiTestingLaunchesUseSeparateInMemoryLibraries() {

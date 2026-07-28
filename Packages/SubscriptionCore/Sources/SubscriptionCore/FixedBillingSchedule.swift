@@ -28,7 +28,20 @@ public enum BillingInterval: Codable, Equatable, RawRepresentable, Sendable {
         case "yearly":
             self = .yearly
         default:
-            return nil
+            let components = rawValue.split(
+                separator: ":",
+                omittingEmptySubsequences: false
+            )
+            guard components.count == 3,
+                  components[0] == "custom",
+                  let value = Int(components[1]),
+                  let unit = BillingIntervalUnit(
+                      rawValue: String(components[2])
+                  )
+            else {
+                return nil
+            }
+            self = .custom(value: value, unit: unit)
         }
     }
 
@@ -44,8 +57,17 @@ public enum BillingInterval: Codable, Equatable, RawRepresentable, Sendable {
             "halfYearly"
         case .yearly:
             "yearly"
+        case .custom(let value, let unit):
+            "custom:\(value):\(unit.rawValue)"
+        }
+    }
+
+    public var storageIdentifier: String {
+        switch self {
         case .custom:
             "custom"
+        default:
+            rawValue
         }
     }
 
@@ -108,7 +130,7 @@ public enum BillingInterval: Codable, Equatable, RawRepresentable, Sendable {
 
     public func encode(to encoder: any Encoder) throws {
         var container = encoder.container(keyedBy: CodingKeys.self)
-        try container.encode(rawValue, forKey: .rawValue)
+        try container.encode(storageIdentifier, forKey: .rawValue)
         if case .custom(let value, let unit) = self {
             try container.encode(value, forKey: .customValue)
             try container.encode(unit, forKey: .customUnit)

@@ -178,7 +178,7 @@ struct AddSubscriptionView: View {
             ValidationMessage(
                 field == .billingSchedule
                     ? billingScheduleValidationText(for: error)
-                    : validationText(for: error),
+                    : validationText(for: error, field: field),
                 identifier: "subscription.validation.\(field.identifier)"
             )
         }

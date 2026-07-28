@@ -240,7 +240,7 @@ struct EditSubscriptionView: View {
     ) -> some View {
         if let error = workspace.editingValidationErrors[field] {
             ValidationMessage(
-                validationText(for: error),
+                validationText(for: error, field: field),
                 identifier: "subscription.validation.\(field.identifier)"
             )
         }

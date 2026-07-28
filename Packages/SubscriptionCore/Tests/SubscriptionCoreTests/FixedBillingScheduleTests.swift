@@ -15,6 +15,52 @@ struct FixedBillingScheduleTests {
         )
 
         #expect(decoded == interval)
+        #expect(BillingInterval(rawValue: interval.rawValue) == interval)
+    }
+
+    @Test("A schedule copy edit preserves the confirmed next renewal")
+    func scheduleCopyEditPreservesConfirmedNextRenewal() throws {
+        let calendar = pinnedCalendar(timeZoneIdentifier: "UTC")
+        let originalAnchor = try date(
+            year: 2025,
+            month: 1,
+            day: 31,
+            hour: 12,
+            calendar: calendar
+        )
+        let confirmedNextRenewal = try date(
+            year: 2025,
+            month: 2,
+            day: 28,
+            hour: 12,
+            calendar: calendar
+        )
+        let replacementAnchor = try date(
+            year: 2025,
+            month: 3,
+            day: 15,
+            hour: 12,
+            calendar: calendar
+        )
+        let subscription = makeSubscription(
+            schedule: FixedBillingSchedule(
+                interval: .monthly,
+                renewalAnchor: originalAnchor,
+                timeZoneIdentifier: "UTC"
+            ),
+            confirmedNextRenewal: confirmedNextRenewal
+        )
+
+        let input = SubscriptionEditInput(
+            subscription: subscription,
+            billingSchedule: FixedBillingSchedule(
+                interval: .monthly,
+                renewalAnchor: replacementAnchor,
+                timeZoneIdentifier: "UTC"
+            )
+        )
+
+        #expect(input.confirmedNextRenewal == confirmedNextRenewal)
     }
 
     @Test("The production renewal calendar is Gregorian and locale-stable")
@@ -601,6 +647,7 @@ private final class ScheduleRepository: SubscriptionRepository {
 
 private func makeSubscription(
     schedule: FixedBillingSchedule,
+    confirmedNextRenewal: Date? = nil,
     confirmedCharges: [ConfirmedCharge] = []
 ) -> Subscription {
     let id = UUID(uuidString: "11111111-2222-3333-4444-555555555555")!
@@ -613,6 +660,7 @@ private func makeSubscription(
         originalAmount: Money(minorUnits: 999, currency: .usd),
         billingSchedule: schedule,
         startDate: schedule.renewalAnchor,
+        confirmedNextRenewal: confirmedNextRenewal,
         managementURL: nil,
         notes: "",
         confirmedCharges: confirmedCharges

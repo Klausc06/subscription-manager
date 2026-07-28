@@ -367,6 +367,12 @@
         "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "下次续费日期不能早于开始日期。" } }
       }
     },
+    "The renewal anchor cannot be before the start date." : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "The renewal anchor cannot be before the start date." } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "续费锚点不能早于开始日期。" } }
+      }
+    },
     "This field is required." : {
       "localizations" : {
         "en" : { "stringUnit" : { "state" : "translated", "value" : "This field is required." } },
