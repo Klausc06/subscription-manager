@@ -372,6 +372,8 @@ private struct EmptySubscriptionRepository: SubscriptionRepository {
 
     func updateSubscription(_ subscription: Subscription) throws {}
 
+    func deleteSubscription(id: UUID) throws {}
+
     func listSubscriptions() throws -> [Subscription] {
         []
     }
@@ -388,6 +390,10 @@ private struct FailingSubscriptionRepository: SubscriptionRepository {
     }
 
     func updateSubscription(_ subscription: Subscription) throws {
+        throw RepositoryError.unavailable
+    }
+
+    func deleteSubscription(id: UUID) throws {
         throw RepositoryError.unavailable
     }
 
@@ -412,6 +418,8 @@ private struct PopulatedSubscriptionRepository: SubscriptionRepository {
 
     func updateSubscription(_ subscription: Subscription) throws {}
 
+    func deleteSubscription(id: UUID) throws {}
+
     func listSubscriptions() throws -> [Subscription] {
         subscriptions
     }
@@ -433,6 +441,10 @@ private final class InMemorySubscriptionRepository: SubscriptionRepository {
         subscriptions[subscription.id] = subscription
     }
 
+    func deleteSubscription(id: UUID) throws {
+        subscriptions[id] = nil
+    }
+
     func listSubscriptions() throws -> [Subscription] {
         subscriptions.values
             .sorted { $0.id.uuidString < $1.id.uuidString }
@@ -450,6 +462,8 @@ private struct LifecycleRepository: SubscriptionRepository {
     func createSubscription(_ subscription: Subscription) throws {}
 
     func updateSubscription(_ subscription: Subscription) throws {}
+
+    func deleteSubscription(id: UUID) throws {}
 
     func listSubscriptions() throws -> [Subscription] {
         subscriptions

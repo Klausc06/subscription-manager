@@ -304,6 +304,7 @@ public enum SubscriptionDetailState: Equatable, Sendable {
 public protocol SubscriptionRepository {
     func createSubscription(_ subscription: Subscription) throws
     func updateSubscription(_ subscription: Subscription) throws
+    func deleteSubscription(id: UUID) throws
     func listSubscriptions() throws -> [Subscription]
     func subscription(id: UUID) throws -> Subscription?
 }

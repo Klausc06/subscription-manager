@@ -107,6 +107,8 @@ private struct PreviewSubscriptionRepository: SubscriptionRepository {
 
     func updateSubscription(_ subscription: Subscription) throws {}
 
+    func deleteSubscription(id: UUID) throws {}
+
     func listSubscriptions() throws -> [Subscription] {
         []
     }

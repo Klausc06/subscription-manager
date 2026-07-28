@@ -364,6 +364,169 @@ struct SwiftDataSubscriptionRepositoryTests {
         #expect(subscription?.notes == "")
     }
 
+    @Test("Legacy rows load as active and unarchived")
+    @MainActor
+    func legacyRowsLoadAsActiveAndUnarchived() throws {
+        let subscriptionID = UUID(
+            uuidString: "6A25C407-3C96-45A9-83EC-7EE52D62F16F"
+        )!
+        let configuration = ModelConfiguration(isStoredInMemoryOnly: true)
+        let container = try ModelContainer(
+            for: SubscriptionRecord.self,
+            configurations: configuration
+        )
+        container.mainContext.insert(SubscriptionRecord(id: subscriptionID))
+        try container.mainContext.save()
+
+        let subscription = try SwiftDataSubscriptionRepository(
+            modelContainer: container
+        ).subscription(id: subscriptionID)
+
+        #expect(subscription?.lifecycle == .active)
+        #expect(subscription?.isArchived == false)
+    }
+
+    @Test("Trial active and cancelled lifecycle representations round trip")
+    @MainActor
+    func lifecycleRepresentationsRoundTrip() throws {
+        let trialDate = Date(timeIntervalSince1970: 1_768_003_200)
+        let cancelledAt = Date(timeIntervalSince1970: 1_768_089_600)
+        let accessUntil = Date(timeIntervalSince1970: 1_770_768_000)
+        let active = makeSubscription(
+            id: UUID(uuidString: "30000000-0000-0000-0000-000000000003")!,
+            lifecycle: .active,
+            isArchived: true
+        )
+        let trial = makeSubscription(
+            id: UUID(uuidString: "40000000-0000-0000-0000-000000000004")!,
+            lifecycle: .trial(firstPaidChargeAt: trialDate),
+            isArchived: false
+        )
+        let cancelled = makeSubscription(
+            id: UUID(uuidString: "50000000-0000-0000-0000-000000000005")!,
+            lifecycle: .cancelled(
+                cancelledAt: cancelledAt,
+                accessUntil: accessUntil
+            ),
+            isArchived: true
+        )
+        let configuration = ModelConfiguration(isStoredInMemoryOnly: true)
+        let container = try ModelContainer(
+            for: SubscriptionRecord.self,
+            configurations: configuration
+        )
+        let repository = SwiftDataSubscriptionRepository(
+            modelContainer: container
+        )
+        try repository.createSubscription(active)
+        try repository.createSubscription(trial)
+        try repository.createSubscription(cancelled)
+
+        let reloaded = SwiftDataSubscriptionRepository(
+            modelContainer: container
+        )
+        let reloadedActive = try reloaded.subscription(id: active.id)
+        let reloadedTrial = try reloaded.subscription(id: trial.id)
+        let reloadedCancelled = try reloaded.subscription(id: cancelled.id)
+
+        #expect(reloadedActive?.lifecycle == .active)
+        #expect(reloadedActive?.isArchived == true)
+        #expect(
+            reloadedTrial?.lifecycle
+                == .trial(firstPaidChargeAt: trialDate)
+        )
+        #expect(reloadedTrial?.isArchived == false)
+        #expect(
+            reloadedCancelled?.lifecycle
+                == .cancelled(
+                    cancelledAt: cancelledAt,
+                    accessUntil: accessUntil
+                )
+        )
+        #expect(reloadedCancelled?.isArchived == true)
+    }
+
+    @Test("Partial lifecycle storage fails explicitly")
+    @MainActor
+    func partialLifecycleStorageFailsExplicitly() throws {
+        let trialDate = Date(timeIntervalSince1970: 1_768_003_200)
+        let cancelledAt = Date(timeIntervalSince1970: 1_768_089_600)
+        let accessUntil = Date(timeIntervalSince1970: 1_770_768_000)
+        let invalidRepresentations: [
+            (
+                lifecycleRawValue: String?,
+                trialFirstPaidChargeAt: Date?,
+                cancelledAt: Date?,
+                accessUntil: Date?
+            )
+        ] = [
+            (nil, trialDate, nil, nil),
+            ("active", trialDate, nil, nil),
+            ("trial", nil, nil, nil),
+            ("trial", trialDate, cancelledAt, accessUntil),
+            ("cancelled", nil, cancelledAt, nil),
+            ("cancelled", nil, nil, accessUntil),
+            ("cancelled", nil, cancelledAt, cancelledAt.addingTimeInterval(-1)),
+            ("paused", nil, nil, nil),
+        ]
+
+        for (index, representation) in invalidRepresentations.enumerated() {
+            let configuration = ModelConfiguration(isStoredInMemoryOnly: true)
+            let container = try ModelContainer(
+                for: SubscriptionRecord.self,
+                configurations: configuration
+            )
+            let subscriptionID = UUID()
+            container.mainContext.insert(
+                SubscriptionRecord(
+                    id: subscriptionID,
+                    lifecycleRawValue: representation.lifecycleRawValue,
+                    trialFirstPaidChargeAt:
+                        representation.trialFirstPaidChargeAt,
+                    cancelledAt: representation.cancelledAt,
+                    accessUntil: representation.accessUntil
+                )
+            )
+            try container.mainContext.save()
+            let repository = SwiftDataSubscriptionRepository(
+                modelContainer: container
+            )
+
+            #expect(throws: (any Error).self, "Case \(index)") {
+                try repository.subscription(id: subscriptionID)
+            }
+        }
+    }
+
+    @Test("A failed delete save rolls back the selected record")
+    @MainActor
+    func failedDeleteSaveRollsBackSelectedRecord() throws {
+        let subscription = makeSubscription(
+            id: UUID(uuidString: "60000000-0000-0000-0000-000000000006")!
+        )
+        let configuration = ModelConfiguration(isStoredInMemoryOnly: true)
+        let container = try ModelContainer(
+            for: SubscriptionRecord.self,
+            configurations: configuration
+        )
+        try SwiftDataSubscriptionRepository(
+            modelContainer: container
+        ).createSubscription(subscription)
+        let repository = SwiftDataSubscriptionRepository(
+            modelContainer: container,
+            save: { _ in throw SaveFailure.unavailable }
+        )
+
+        #expect(throws: SaveFailure.self) {
+            try repository.deleteSubscription(id: subscription.id)
+        }
+
+        let reloaded = try SwiftDataSubscriptionRepository(
+            modelContainer: container
+        ).subscription(id: subscription.id)
+        #expect(reloaded == subscription)
+    }
+
     @Test("A migrated monthly record backfills its billing time zone once")
     @MainActor
     func migratedRecordBackfillsBillingTimeZoneOnce() throws {
@@ -639,5 +802,31 @@ struct SwiftDataSubscriptionRepositoryTests {
             return
         }
         #expect(subscriptions.map(\.serviceName) == ["Example"])
+    }
+
+    private func makeSubscription(
+        id: UUID,
+        lifecycle: SubscriptionLifecycle = .active,
+        isArchived: Bool = false
+    ) -> Subscription {
+        Subscription(
+            id: id,
+            serviceIdentity: ServiceIdentity(
+                rawValue: "manual:\(id.uuidString)"
+            ),
+            serviceName: "Example",
+            plan: "Monthly",
+            category: "Other",
+            originalAmount: Money(minorUnits: 999, currency: .usd),
+            billingCycle: .monthly,
+            startDate: Date(timeIntervalSince1970: 1_767_225_600),
+            confirmedNextRenewal: Date(
+                timeIntervalSince1970: 1_769_904_000
+            ),
+            managementURL: nil,
+            notes: "",
+            lifecycle: lifecycle,
+            isArchived: isArchived
+        )
     }
 }

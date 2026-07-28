@@ -700,6 +700,12 @@ private final class ScheduleRepository: SubscriptionRepository {
         storedSubscription = subscription
     }
 
+    func deleteSubscription(id: UUID) throws {
+        if storedSubscription?.id == id {
+            storedSubscription = nil
+        }
+    }
+
     func listSubscriptions() throws -> [Subscription] {
         storedSubscription.map { [$0] } ?? []
     }
