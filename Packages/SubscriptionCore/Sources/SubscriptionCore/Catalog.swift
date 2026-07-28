@@ -39,6 +39,22 @@ public enum CatalogIcon: String, Codable, CaseIterable, Sendable {
     case video
 }
 
+public struct CatalogCategory: Equatable, Identifiable, Sendable {
+    public let id: String
+    public let title: CatalogLocalizedText
+
+    public init(id: String, title: CatalogLocalizedText) {
+        self.id = id
+        self.title = title
+    }
+}
+
+public enum CatalogState: Equatable, Sendable {
+    case notLoaded
+    case loaded(categories: [CatalogCategory], presets: [CatalogPreset])
+    case failed
+}
+
 public struct CatalogPreset: Codable, Equatable, Identifiable, Sendable {
     public let id: String
     public let serviceName: CatalogLocalizedText
@@ -126,6 +142,32 @@ public struct CatalogSnapshot: Codable, Equatable, Sendable {
             return comparison == .orderedSame
                 ? left.id < right.id
                 : comparison == .orderedAscending
+        }
+    }
+
+    public func categories(locale: Locale) -> [CatalogCategory] {
+        let categories = Dictionary(
+            presets.map {
+                (
+                    $0.category.en.folding(
+                        options: [.caseInsensitive, .diacriticInsensitive],
+                        locale: Locale(identifier: "en")
+                    ),
+                    CatalogCategory(
+                        id: $0.category.en.folding(
+                            options: [.caseInsensitive, .diacriticInsensitive],
+                            locale: Locale(identifier: "en")
+                        ),
+                        title: $0.category
+                    )
+                )
+            },
+            uniquingKeysWith: { first, _ in first }
+        )
+        return categories.values.sorted {
+            $0.title.value(for: locale).localizedCompare(
+                $1.title.value(for: locale)
+            ) == .orderedAscending
         }
     }
 }

@@ -39,6 +39,60 @@ struct SubscriptionWorkspaceTests {
         #expect(stored.isArchived == false)
     }
 
+    @Test("Catalog search and creation preserve the preset identity")
+    @MainActor
+    func catalogSearchAndCreationPreservePresetIdentity() throws {
+        let preset = CatalogPreset(
+            id: "music.example",
+            serviceName: CatalogLocalizedText(
+                en: "Example Music",
+                zhHans: "示例音乐"
+            ),
+            category: CatalogLocalizedText(en: "Music", zhHans: "音乐"),
+            suggestedInterval: .monthly,
+            managementURL: URL(string: "https://example.com/manage"),
+            icon: .music
+        )
+        let repository = InMemorySubscriptionRepository()
+        let subscriptionID = UUID(
+            uuidString: "ACACACAC-BBBB-CCCC-DDDD-EEEEEEEEEEEE"
+        )!
+        let start = Date(timeIntervalSince1970: 1_767_225_600)
+        let workspace = SubscriptionWorkspace(
+            repository: repository,
+            catalogRepository: StaticCatalogRepository(presets: [preset]),
+            identifierGenerator: { subscriptionID }
+        )
+
+        workspace.loadCatalog(locale: Locale(identifier: "zh-Hans"))
+        workspace.setCatalogSearchQuery("音乐")
+        workspace.createCatalogSubscription(
+            presetID: preset.id,
+            input: SubscriptionCreationInput(
+                serviceName: "Example Music",
+                plan: "Family",
+                category: "Music",
+                originalAmount: Money(minorUnits: 1_299, currency: .usd),
+                billingInterval: .monthly,
+                startDate: start,
+                confirmedNextRenewal: start.addingTimeInterval(86_400),
+                managementURL: preset.managementURL,
+                notes: ""
+            )
+        )
+
+        guard case .loaded(let categories, let presets) = workspace.catalogState else {
+            Issue.record("Expected loaded catalog state")
+            return
+        }
+        #expect(categories.count == 1)
+        #expect(presets == [preset])
+        #expect(
+            repository.storedSubscription(id: subscriptionID)?.serviceIdentity
+                == ServiceIdentity(rawValue: "catalog:music.example")
+        )
+    }
+
     @Test("Trial creation snapshots next renewal as first paid charge")
     @MainActor
     func trialCreationSnapshotsNextRenewalAsFirstPaidCharge() throws {
@@ -1471,6 +1525,18 @@ private struct EmptySubscriptionRepository: SubscriptionRepository {
 
     func subscription(id: UUID) throws -> Subscription? {
         nil
+    }
+}
+
+@MainActor
+private struct StaticCatalogRepository: CatalogRepository {
+    let presets: [CatalogPreset]
+
+    func loadSnapshot() throws -> CatalogSnapshot {
+        try CatalogSnapshot(
+            schemaVersion: CatalogSnapshot.currentSchemaVersion,
+            presets: presets
+        )
     }
 }
 

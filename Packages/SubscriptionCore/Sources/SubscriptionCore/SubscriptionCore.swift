@@ -370,20 +370,28 @@ public final class SubscriptionWorkspace {
     public private(set) var paymentHistoryActionError:
         PaymentHistoryActionError?
     public private(set) var paymentHistory: [SubscriptionHistoryEntry] = []
+    public private(set) var catalogState: CatalogState = .notLoaded
 
     private let repository: any SubscriptionRepository
+    private let catalogRepository: (any CatalogRepository)?
     private let identifierGenerator: () -> UUID
     private let now: () -> Date
     private let calendar: Calendar
     private var expectedChargesRequest: ExpectedChargesRequest?
+    private var catalogSnapshot: CatalogSnapshot?
+    private var catalogLocale = Locale.current
+    private var catalogSearchQuery = ""
+    private var catalogCategoryID: String?
 
     public init(
         repository: any SubscriptionRepository,
+        catalogRepository: (any CatalogRepository)? = nil,
         identifierGenerator: @escaping () -> UUID = UUID.init,
         now: @escaping () -> Date = Date.init,
         calendar: Calendar? = nil
     ) {
         self.repository = repository
+        self.catalogRepository = catalogRepository
         self.identifierGenerator = identifierGenerator
         self.now = now
         self.calendar = calendar ?? Self.defaultRenewalCalendar()
@@ -398,6 +406,54 @@ public final class SubscriptionWorkspace {
 
     public func createSubscription(
         _ input: SubscriptionCreationInput
+    ) {
+        createSubscription(input) { id in
+            ServiceIdentity(rawValue: "manual:\(id.uuidString)")
+        }
+    }
+
+    public func loadCatalog(locale: Locale) {
+        guard let catalogRepository else {
+            catalogState = .failed
+            return
+        }
+        do {
+            catalogSnapshot = try catalogRepository.loadSnapshot()
+            catalogLocale = locale
+            refreshCatalogState()
+        } catch {
+            catalogSnapshot = nil
+            catalogState = .failed
+        }
+    }
+
+    public func setCatalogSearchQuery(_ query: String) {
+        catalogSearchQuery = query
+        refreshCatalogState()
+    }
+
+    public func setCatalogCategory(_ categoryID: String?) {
+        catalogCategoryID = categoryID
+        refreshCatalogState()
+    }
+
+    public func createCatalogSubscription(
+        presetID: String,
+        input: SubscriptionCreationInput
+    ) {
+        guard catalogSnapshot?.presets.contains(where: {
+            $0.id == presetID
+        }) == true else {
+            return
+        }
+        createSubscription(input) { _ in
+            ServiceIdentity(rawValue: "catalog:\(presetID)")
+        }
+    }
+
+    private func createSubscription(
+        _ input: SubscriptionCreationInput,
+        serviceIdentity: (UUID) -> ServiceIdentity
     ) {
         creationValidationErrors = validate(input)
         guard creationValidationErrors.isEmpty,
@@ -414,9 +470,7 @@ public final class SubscriptionWorkspace {
                 : .active
         let subscription = Subscription(
             id: id,
-            serviceIdentity: ServiceIdentity(
-                rawValue: "manual:\(id.uuidString)"
-            ),
+            serviceIdentity: serviceIdentity(id),
             serviceName: input.serviceName.trimmingCharacters(in: whitespace),
             plan: input.plan.trimmingCharacters(in: whitespace),
             category: input.category.trimmingCharacters(in: whitespace),
@@ -1029,6 +1083,27 @@ public final class SubscriptionWorkspace {
              .failed(let scope):
             scope
         }
+    }
+
+    private func refreshCatalogState() {
+        guard let catalogSnapshot else {
+            return
+        }
+        let presets = catalogSnapshot.search(
+            query: catalogSearchQuery,
+            locale: catalogLocale
+        )
+        .filter { preset in
+            guard let catalogCategoryID else { return true }
+            return preset.category.en.folding(
+                options: [.caseInsensitive, .diacriticInsensitive],
+                locale: Locale(identifier: "en")
+            ) == catalogCategoryID
+        }
+        catalogState = .loaded(
+            categories: catalogSnapshot.categories(locale: catalogLocale),
+            presets: presets
+        )
     }
 
     private func makeExpectedCharges(
