@@ -385,6 +385,150 @@
         "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "此订阅已不在你的订阅库中。" } }
       }
     },
+    "Access Until" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Access Until" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "可使用至" } }
+      }
+    },
+    "Access Until cannot be before the cancellation date." : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Access Until cannot be before the cancellation date." } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "可使用至日期不能早于取消日期。" } }
+      }
+    },
+    "Active" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Active" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "使用中" } }
+      }
+    },
+    "Archive" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Archive" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "归档" } }
+      }
+    },
+    "Archived" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Archived" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "已归档" } }
+      }
+    },
+    "Cancellation Date" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Cancellation Date" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "取消日期" } }
+      }
+    },
+    "Cancelled with Access" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Cancelled with Access" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "已取消（仍可使用）" } }
+      }
+    },
+    "Couldn’t save lifecycle changes. Try again." : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Couldn’t save lifecycle changes. Try again." } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "无法保存订阅状态更改，请重试。" } }
+      }
+    },
+    "Delete Permanently" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Delete Permanently" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "永久删除" } }
+      }
+    },
+    "Expired" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Expired" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "已过期" } }
+      }
+    },
+    "Initial Status" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Initial Status" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "初始状态" } }
+      }
+    },
+    "Lifecycle" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Lifecycle" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "订阅状态" } }
+      }
+    },
+    "Next Renewal is the first paid charge date." : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Next Renewal is the first paid charge date." } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "下次续费日期即首次付费日期。" } }
+      }
+    },
+    "Permanently Delete" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Permanently Delete" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "永久删除" } }
+      }
+    },
+    "Reactivate" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Reactivate" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "重新启用" } }
+      }
+    },
+    "Reactivate Subscription" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Reactivate Subscription" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "重新启用订阅" } }
+      }
+    },
+    "Record Cancellation" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Record Cancellation" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "记录取消" } }
+      }
+    },
+    "Restore" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Restore" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "恢复" } }
+      }
+    },
+    "Save Cancellation" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Save Cancellation" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "保存取消记录" } }
+      }
+    },
+    "The cancellation date cannot be in the future." : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "The cancellation date cannot be in the future." } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "取消日期不能晚于今天。" } }
+      }
+    },
+    "The next renewal cannot be in the past." : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "The next renewal cannot be in the past." } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "下次续费日期不能早于今天。" } }
+      }
+    },
+    "This action cannot be undone." : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "This action cannot be undone." } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "此操作无法撤销。" } }
+      }
+    },
+    "This action isn’t available for the subscription’s current status." : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "This action isn’t available for the subscription’s current status." } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "当前订阅状态不支持此操作。" } }
+      }
+    },
+    "Trial" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Trial" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "试用中" } }
+      }
+    },
     "Unit" : {
       "localizations" : {
         "en" : { "stringUnit" : { "state" : "translated", "value" : "Unit" } },

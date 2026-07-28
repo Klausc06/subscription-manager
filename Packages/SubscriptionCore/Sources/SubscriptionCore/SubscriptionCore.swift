@@ -360,6 +360,10 @@ public final class SubscriptionWorkspace {
 
         let whitespace = CharacterSet.whitespacesAndNewlines
         let id = identifierGenerator()
+        let lifecycle: SubscriptionLifecycle =
+            input.initialStatus == .trial
+                ? .trial(firstPaidChargeAt: input.confirmedNextRenewal)
+                : .active
         let subscription = Subscription(
             id: id,
             serviceIdentity: ServiceIdentity(
@@ -377,7 +381,9 @@ public final class SubscriptionWorkspace {
             startDate: input.startDate,
             confirmedNextRenewal: input.confirmedNextRenewal,
             managementURL: input.managementURL,
-            notes: input.notes
+            notes: input.notes,
+            lifecycle: lifecycle,
+            isArchived: false
         )
 
         do {

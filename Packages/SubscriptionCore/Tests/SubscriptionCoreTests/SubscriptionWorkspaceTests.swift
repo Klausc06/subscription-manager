@@ -4,6 +4,81 @@ import Testing
 
 @Suite("Subscription workspace")
 struct SubscriptionWorkspaceTests {
+    @Test("Active creation stores an active lifecycle")
+    @MainActor
+    func activeCreationStoresActiveLifecycle() throws {
+        let repository = InMemorySubscriptionRepository()
+        let subscriptionID = UUID(
+            uuidString: "AAAAAAAA-BBBB-CCCC-DDDD-EEEEEEEEEEEE"
+        )!
+        let start = Date(timeIntervalSince1970: 1_767_225_600)
+        let money = Money(minorUnits: 999, currency: .usd)
+        let workspace = SubscriptionWorkspace(
+            repository: repository,
+            identifierGenerator: { subscriptionID }
+        )
+
+        workspace.createSubscription(
+            SubscriptionCreationInput(
+                serviceName: "Example",
+                plan: "Standard",
+                category: "Other",
+                originalAmount: money,
+                startDate: start,
+                confirmedNextRenewal: start.addingTimeInterval(86_400),
+                managementURL: nil,
+                notes: "",
+                initialStatus: .active
+            )
+        )
+
+        let stored = try #require(
+            repository.storedSubscription(id: subscriptionID)
+        )
+        #expect(stored.lifecycle == .active)
+        #expect(stored.isArchived == false)
+    }
+
+    @Test("Trial creation snapshots next renewal as first paid charge")
+    @MainActor
+    func trialCreationSnapshotsNextRenewalAsFirstPaidCharge() throws {
+        let repository = InMemorySubscriptionRepository()
+        let subscriptionID = UUID(
+            uuidString: "11111111-AAAA-BBBB-CCCC-222222222222"
+        )!
+        let start = Date(timeIntervalSince1970: 1_767_225_600)
+        let firstPaidCharge = start.addingTimeInterval(86_400)
+        let money = Money(minorUnits: 999, currency: .usd)
+        let workspace = SubscriptionWorkspace(
+            repository: repository,
+            identifierGenerator: { subscriptionID }
+        )
+
+        workspace.createSubscription(
+            SubscriptionCreationInput(
+                serviceName: "Example",
+                plan: "Trial",
+                category: "Other",
+                originalAmount: money,
+                startDate: start,
+                confirmedNextRenewal: firstPaidCharge,
+                managementURL: nil,
+                notes: "",
+                initialStatus: .trial
+            )
+        )
+
+        let stored = try #require(
+            repository.storedSubscription(id: subscriptionID)
+        )
+        #expect(
+            stored.lifecycle == .trial(
+                firstPaidChargeAt: firstPaidCharge
+            )
+        )
+        #expect(stored.isArchived == false)
+    }
+
     @Test("A non-positive amount is rejected as an invalid fixed charge")
     @MainActor
     func nonPositiveAmountIsRejected() {

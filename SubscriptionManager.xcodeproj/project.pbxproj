@@ -20,6 +20,7 @@
 		95DD1A1B26E3AC5313818053 /* AddSubscriptionView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3E375325DBD112A5F485EF3F /* AddSubscriptionView.swift */; };
 		9C86757EC90F9573E7228788 /* Localizable.xcstrings in Resources */ = {isa = PBXBuildFile; fileRef = 0AB60CE097AABC95DB396296 /* Localizable.xcstrings */; };
 		A105480E30F53C6D44A30A8F /* BillingScheduleSupport.swift in Sources */ = {isa = PBXBuildFile; fileRef = 54AE7D1E07F1BF787F9E1BEF /* BillingScheduleSupport.swift */; };
+		AFD2FBBC3C7453EE8B17A22D /* SubscriptionLifecycleSupport.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4C0A8035198E253EFD0921C9 /* SubscriptionLifecycleSupport.swift */; };
 		BFE237030B51A0B5AFBF49CE /* SubscriptionCore in Frameworks */ = {isa = PBXBuildFile; productRef = 68D9CBCB130A9BFEC4CE076E /* SubscriptionCore */; };
 		C90E83DF13A2B2073C083FBF /* SwiftDataSubscriptionRepositoryTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6F44B60853F624BFCF8B2F53 /* SwiftDataSubscriptionRepositoryTests.swift */; };
 		C9F6A31BE02C4B3821562DFC /* LibraryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 15EA34A86C81D0560BC4A8A0 /* LibraryView.swift */; };
@@ -60,6 +61,7 @@
 		3E375325DBD112A5F485EF3F /* AddSubscriptionView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AddSubscriptionView.swift; sourceTree = "<group>"; };
 		3ED395A87C6661BAAA9E98BB /* SubscriptionLookupTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SubscriptionLookupTests.swift; sourceTree = "<group>"; };
 		417B504B82A0927D26DDDB31 /* SubscriptionManagerUITests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = SubscriptionManagerUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		4C0A8035198E253EFD0921C9 /* SubscriptionLifecycleSupport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SubscriptionLifecycleSupport.swift; sourceTree = "<group>"; };
 		4C522F69323C0F092E76973D /* SubscriptionManagerUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SubscriptionManagerUITests.swift; sourceTree = "<group>"; };
 		4D90D49FB3AEDF62EFA48202 /* InfoPlist.xcstrings */ = {isa = PBXFileReference; lastKnownFileType = text.json.xcstrings; path = InfoPlist.xcstrings; sourceTree = "<group>"; };
 		54AE7D1E07F1BF787F9E1BEF /* BillingScheduleSupport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BillingScheduleSupport.swift; sourceTree = "<group>"; };
@@ -146,6 +148,7 @@
 				C3C019FF49A9B77C9987C82B /* MoneyFormatting.swift */,
 				6F7965D45867F28DAFB96A5D /* SubscriptionDetailView.swift */,
 				2CAE4BF38A7217C53E4C047F /* SubscriptionFormSupport.swift */,
+				4C0A8035198E253EFD0921C9 /* SubscriptionLifecycleSupport.swift */,
 				F24364E7E6897202F27AAE1B /* SubscriptionRow.swift */,
 			);
 			path = Library;
@@ -324,6 +327,7 @@
 				6660C4236F0802CD6EA713D1 /* MoneyFormatting.swift in Sources */,
 				4C12D90EEC1CC642D35E22A2 /* SubscriptionDetailView.swift in Sources */,
 				71D3C438264BA1B8C68FE357 /* SubscriptionFormSupport.swift in Sources */,
+				AFD2FBBC3C7453EE8B17A22D /* SubscriptionLifecycleSupport.swift in Sources */,
 				5EFACBCB58F5A772FF61FF4B /* SubscriptionManagerApp.swift in Sources */,
 				866177EEBBB6B76DADA471C2 /* SubscriptionRecord.swift in Sources */,
 				E3EC37D5EF593651F866C788 /* SubscriptionRow.swift in Sources */,

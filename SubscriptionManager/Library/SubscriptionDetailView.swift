@@ -41,10 +41,11 @@ struct SubscriptionDetailView: View {
         case .notLoaded:
             loadingView
 
-        case let .loaded(subscription, _, nextExpectedCharge)
+        case let .loaded(subscription, status, nextExpectedCharge)
             where subscription.id == subscriptionID:
             SubscriptionDetailForm(
                 subscription: subscription,
+                status: status,
                 nextExpectedCharge: nextExpectedCharge
             )
 
@@ -81,6 +82,7 @@ private struct SubscriptionDetailForm: View {
     @Environment(\.locale) private var locale
 
     let subscription: Subscription
+    let status: SubscriptionStatus
     let nextExpectedCharge: ExpectedCharge?
 
     private var timeZone: TimeZone {
@@ -92,6 +94,7 @@ private struct SubscriptionDetailForm: View {
     var body: some View {
         Form {
             Section("Service") {
+                SubscriptionStatusBadge(status: status)
                 LabeledContent("Service Name", value: subscription.serviceName)
                     .accessibilityIdentifier("subscription.detail.service-name")
                 LabeledContent("Plan", value: subscription.plan)

@@ -91,6 +91,44 @@ final class SubscriptionManagerUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["Next Expected Charge"].exists)
     }
 
+    func testCreatesTrialWithVisibleTrialStatus() {
+        let app = launch(
+            language: "en",
+            locale: "en_US",
+            storeToken: "trial-en-\(UUID().uuidString)"
+        )
+
+        createTrial(
+            named: "Example Trial",
+            statusButton: "Trial",
+            in: app
+        )
+        app.staticTexts["Example Trial"].tap()
+
+        let status = app.descendants(matching: .any)["subscription.status"]
+        XCTAssertTrue(status.waitForExistence(timeout: 5))
+        XCTAssertTrue(status.label.contains("Trial"))
+    }
+
+    func testSimplifiedChineseLifecycleStatusIsLocalized() {
+        let app = launch(
+            language: "zh-Hans",
+            locale: "zh_CN",
+            storeToken: "trial-zh-\(UUID().uuidString)"
+        )
+
+        createTrial(
+            named: "示例试用",
+            statusButton: "试用中",
+            in: app
+        )
+        app.staticTexts["示例试用"].tap()
+
+        let status = app.descendants(matching: .any)["subscription.status"]
+        XCTAssertTrue(status.waitForExistence(timeout: 5))
+        XCTAssertTrue(status.label.contains("试用中"))
+    }
+
     func testInvalidAmountIsExplainedInline() {
         let app = launch(language: "en", locale: "en_US")
 
@@ -239,6 +277,46 @@ final class SubscriptionManagerUITests: XCTestCase {
         let category = app.textFields["subscription.form.category"]
         category.tap()
         category.typeText("Other")
+
+        let amount = app.textFields["subscription.form.amount"]
+        amount.tap()
+        amount.typeText("9.99")
+
+        app.buttons["subscription.form.save"].tap()
+        XCTAssertTrue(
+            app.buttons["subscription.row"].firstMatch
+                .waitForExistence(timeout: 5)
+        )
+    }
+
+    private func createTrial(
+        named serviceNameValue: String,
+        statusButton: String,
+        in app: XCUIApplication
+    ) {
+        XCTAssertTrue(
+            app.buttons["subscription.add"].waitForExistence(timeout: 5)
+        )
+        app.buttons["subscription.add"].tap()
+
+        let serviceName = app.textFields["subscription.form.service-name"]
+        XCTAssertTrue(serviceName.waitForExistence(timeout: 5))
+        serviceName.tap()
+        serviceName.typeText(serviceNameValue)
+
+        let plan = app.textFields["subscription.form.plan"]
+        plan.tap()
+        plan.typeText("Trial")
+
+        let category = app.textFields["subscription.form.category"]
+        category.tap()
+        category.typeText("Other")
+
+        let initialStatus = app.segmentedControls[
+            "subscription.form.initial-status"
+        ]
+        XCTAssertTrue(initialStatus.waitForExistence(timeout: 5))
+        initialStatus.buttons[statusButton].tap()
 
         let amount = app.textFields["subscription.form.amount"]
         amount.tap()

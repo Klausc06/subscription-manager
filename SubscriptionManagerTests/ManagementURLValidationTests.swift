@@ -1,9 +1,59 @@
 import Foundation
+import SubscriptionCore
 import Testing
 @testable import SubscriptionManager
 
 @Suite("Management URL validation")
 struct ManagementURLValidationTests {
+    @Test(
+        "Subscription statuses use stable localization keys",
+        arguments: [
+            (SubscriptionStatus.active, "Active"),
+            (.trial, "Trial"),
+            (.cancelledWithAccess, "Cancelled with Access"),
+            (.expired, "Expired"),
+        ]
+    )
+    func subscriptionStatusesUseStableLocalizationKeys(
+        status: SubscriptionStatus,
+        expected: String
+    ) {
+        #expect(subscriptionStatusLocalizationKey(status) == expected)
+    }
+
+    @Test(
+        "Lifecycle action errors use field-specific localization keys",
+        arguments: [
+            (
+                SubscriptionLifecycleActionError
+                    .invalidLifecycleTransition,
+                "This action isn’t available for the subscription’s current status."
+            ),
+            (
+                .cancellationDateInFuture,
+                "The cancellation date cannot be in the future."
+            ),
+            (
+                .accessEndsBeforeCancellation,
+                "Access Until cannot be before the cancellation date."
+            ),
+            (
+                .nextRenewalInPast,
+                "The next renewal cannot be in the past."
+            ),
+            (
+                .persistenceFailed,
+                "Couldn’t save lifecycle changes. Try again."
+            ),
+        ]
+    )
+    func lifecycleActionErrorsUseFieldSpecificLocalizationKeys(
+        error: SubscriptionLifecycleActionError,
+        expected: String
+    ) {
+        #expect(lifecycleActionErrorTextKey(error) == expected)
+    }
+
     @Test("Renewal anchor validation identifies the anchor field")
     func renewalAnchorValidationIdentifiesAnchorField() {
         #expect(
