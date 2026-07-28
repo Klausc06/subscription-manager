@@ -63,6 +63,62 @@ struct SubscriptionWorkspaceTests {
         #expect(repository.updateAttemptCount == 0)
     }
 
+    @Test("Stale and corrupt catalog updates preserve the active catalog")
+    @MainActor
+    func staleAndCorruptCatalogUpdatesPreserveActiveCatalog() async throws {
+        let bundled = CatalogPreset(
+            id: "music.example",
+            serviceName: CatalogLocalizedText(
+                en: "Example Music",
+                zhHans: "示例音乐"
+            ),
+            category: CatalogLocalizedText(en: "Music", zhHans: "音乐"),
+            suggestedInterval: .monthly,
+            managementURL: nil,
+            icon: .music
+        )
+        let stale = try JSONEncoder().encode(
+            CatalogSnapshot(
+                schemaVersion: CatalogSnapshot.currentSchemaVersion,
+                catalogVersion: 1,
+                presets: [bundled]
+            )
+        )
+        let repository = InMemorySubscriptionRepository()
+        let cache = InMemoryCatalogCache()
+        let workspace = SubscriptionWorkspace(
+            repository: repository,
+            catalogRepository: StaticCatalogRepository(presets: [bundled]),
+            catalogUpdateSource: StaticCatalogUpdateSource(data: stale),
+            catalogCache: cache
+        )
+
+        workspace.loadCatalog(locale: Locale(identifier: "en"))
+        await workspace.refreshCatalog()
+
+        #expect(workspace.catalogDiagnostics?.refreshStatus == .alreadyCurrent)
+        #expect(cache.storedData == nil)
+
+        let corruptWorkspace = SubscriptionWorkspace(
+            repository: repository,
+            catalogRepository: StaticCatalogRepository(presets: [bundled]),
+            catalogUpdateSource: StaticCatalogUpdateSource(
+                data: Data("corrupt".utf8)
+            ),
+            catalogCache: cache
+        )
+        corruptWorkspace.loadCatalog(locale: Locale(identifier: "en"))
+        await corruptWorkspace.refreshCatalog()
+
+        #expect(corruptWorkspace.catalogDiagnostics?.refreshStatus == .failed)
+        #expect(corruptWorkspace.catalogState == .loaded(
+            categories: [CatalogCategory(id: "music", title: bundled.category)],
+            presets: [bundled]
+        ))
+        #expect(cache.storedData == nil)
+        #expect(repository.updateAttemptCount == 0)
+    }
+
     @Test("Active creation stores an active lifecycle")
     @MainActor
     func activeCreationStoresActiveLifecycle() throws {
