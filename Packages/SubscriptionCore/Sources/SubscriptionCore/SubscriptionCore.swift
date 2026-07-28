@@ -411,13 +411,16 @@ public final class SubscriptionWorkspace {
     public func loadSetup(libraryIsEmpty: Bool) {
         let fallback = UserPreferences.default
         do {
-            let preferences = try preferencesRepository?.loadPreferences()
-                ?? fallback
+            let storedPreferences = try preferencesRepository?.loadPreferences()
+            guard let preferences = storedPreferences else {
+                setupState = libraryIsEmpty
+                    ? .needsSetup(fallback)
+                    : .completed(fallback)
+                return
+            }
             switch preferences.setupStatus {
             case .notCompleted:
-                setupState = libraryIsEmpty
-                    ? .needsSetup(preferences)
-                    : .completed(preferences)
+                setupState = .needsSetup(preferences)
             case .completed:
                 setupState = .completed(preferences)
             case .skipped:

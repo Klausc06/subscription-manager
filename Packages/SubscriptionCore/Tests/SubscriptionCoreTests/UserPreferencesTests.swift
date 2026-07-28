@@ -39,17 +39,56 @@ struct UserPreferencesTests {
         )
         #expect(try preferences.loadPreferences()?.setupStatus == .skipped)
     }
+
+    @Test("Stored incomplete setup resumes even after a subscription was saved")
+    @MainActor
+    func storedIncompleteSetupResumesWithNonEmptyLibrary() throws {
+        let preferences = InMemoryUserPreferencesRepository()
+        try preferences.savePreferences(.default)
+        let workspace = SubscriptionWorkspace(
+            repository: EmptySubscriptionRepository(),
+            preferencesRepository: preferences
+        )
+
+        workspace.loadSetup(libraryIsEmpty: false)
+
+        #expect(workspace.setupState == .needsSetup(.default))
+    }
+
+    @Test("A failed preference save keeps setup recoverable")
+    @MainActor
+    func failedPreferenceSaveKeepsSetupRecoverable() {
+        let preferences = InMemoryUserPreferencesRepository()
+        let workspace = SubscriptionWorkspace(
+            repository: EmptySubscriptionRepository(),
+            preferencesRepository: preferences
+        )
+        workspace.loadSetup(libraryIsEmpty: true)
+        preferences.shouldFailSaves = true
+
+        workspace.skipSetup()
+
+        #expect(workspace.setupState == .failed(.default))
+    }
 }
 
 @MainActor
 private final class InMemoryUserPreferencesRepository: UserPreferencesRepository {
     private var preferences: UserPreferences?
+    var shouldFailSaves = false
 
     func loadPreferences() throws -> UserPreferences? { preferences }
 
     func savePreferences(_ preferences: UserPreferences) throws {
+        if shouldFailSaves {
+            throw InMemoryPreferencesError.saveFailed
+        }
         self.preferences = preferences
     }
+}
+
+private enum InMemoryPreferencesError: Error {
+    case saveFailed
 }
 
 @MainActor

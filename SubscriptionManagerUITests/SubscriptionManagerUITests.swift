@@ -2,6 +2,146 @@ import XCTest
 
 @MainActor
 final class SubscriptionManagerUITests: XCTestCase {
+    func testFirstRunShowsPreferenceDefaultsWithoutCalendarPrompt() {
+        let app = launch(
+            language: "en",
+            locale: "en_US",
+            onboarding: true
+        )
+
+        XCTAssertTrue(app.staticTexts["Set Up Your Library"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.buttons["setup.continue"].exists)
+        XCTAssertTrue(app.buttons["CNY"].exists)
+        XCTAssertTrue(app.buttons["12 Months"].exists)
+        XCTAssertFalse(app.alerts.firstMatch.exists)
+    }
+
+    func testFirstRunConfirmsEachSelectedPresetBeforeFinishing() {
+        let app = launch(
+            language: "en",
+            locale: "en_US",
+            onboarding: true
+        )
+
+        XCTAssertTrue(app.buttons["setup.continue"].waitForExistence(timeout: 5))
+        app.buttons["setup.continue"].tap()
+        let spotify = app.buttons["setup.preset.spotify"]
+        XCTAssertTrue(spotify.waitForExistence(timeout: 5))
+        spotify.tap()
+        XCTAssertEqual(spotify.value as? String, "Selected")
+        app.buttons["setup.actions"].tap()
+        app.buttons["setup.confirm-selected"].tap()
+        XCTAssertTrue(app.buttons["catalog.use-preset"].waitForExistence(timeout: 5))
+        app.buttons["catalog.use-preset"].tap()
+
+        let plan = app.textFields["subscription.form.plan"]
+        XCTAssertTrue(plan.waitForExistence(timeout: 5))
+        plan.tap()
+        plan.typeText("Individual")
+        let amount = app.textFields["subscription.form.amount"]
+        amount.tap()
+        amount.typeText("9.99")
+        app.buttons["subscription.form.save"].tap()
+
+        XCTAssertTrue(app.buttons["setup.actions"].waitForExistence(timeout: 5))
+        app.buttons["setup.actions"].tap()
+        XCTAssertTrue(app.buttons["setup.finish"].isEnabled)
+        app.buttons["setup.finish"].tap()
+        XCTAssertTrue(app.staticTexts["Spotify"].waitForExistence(timeout: 5))
+    }
+
+    func testInterruptedSetupResumesWithoutDuplicatingConfirmedPreset() {
+        let storeToken = "setup-resume-\(UUID().uuidString)"
+        let app = launch(
+            language: "en",
+            locale: "en_US",
+            storeToken: storeToken,
+            onboarding: true
+        )
+
+        XCTAssertTrue(app.buttons["setup.continue"].waitForExistence(timeout: 5))
+        app.buttons["setup.continue"].tap()
+        app.buttons["setup.preset.spotify"].tap()
+        app.buttons["setup.actions"].tap()
+        app.buttons["setup.confirm-selected"].tap()
+        XCTAssertTrue(app.buttons["catalog.use-preset"].waitForExistence(timeout: 5))
+        app.buttons["catalog.use-preset"].tap()
+
+        let plan = app.textFields["subscription.form.plan"]
+        XCTAssertTrue(plan.waitForExistence(timeout: 5))
+        plan.tap()
+        plan.typeText("Individual")
+        let amount = app.textFields["subscription.form.amount"]
+        amount.tap()
+        amount.typeText("9.99")
+        app.buttons["subscription.form.save"].tap()
+        XCTAssertTrue(app.buttons["setup.actions"].waitForExistence(timeout: 5))
+
+        app.terminate()
+        app.launch()
+        XCTAssertTrue(app.staticTexts["Set Up Your Library"].waitForExistence(timeout: 5))
+        app.buttons["setup.continue"].tap()
+        let spotify = app.buttons["setup.preset.spotify"]
+        XCTAssertTrue(spotify.waitForExistence(timeout: 5))
+        spotify.tap()
+        app.buttons["setup.actions"].tap()
+        XCTAssertTrue(app.buttons["setup.finish"].isEnabled)
+        app.buttons["setup.finish"].tap()
+        let spotifyLabels = app.staticTexts.matching(
+            NSPredicate(format: "label == %@", "Spotify")
+        )
+        XCTAssertEqual(spotifyLabels.count, 1)
+    }
+
+    func testSettingsPersistsSetupDefaultsAfterSkipping() {
+        let storeToken = "setup-settings-\(UUID().uuidString)"
+        let app = launch(
+            language: "en",
+            locale: "en_US",
+            storeToken: storeToken,
+            onboarding: true
+        )
+
+        XCTAssertTrue(app.buttons["setup.skip"].waitForExistence(timeout: 5))
+        app.buttons["setup.skip"].tap()
+        XCTAssertTrue(app.buttons["library.settings"].waitForExistence(timeout: 5))
+        app.buttons["library.settings"].tap()
+        XCTAssertTrue(app.buttons["preferences.currency.usd"].waitForExistence(timeout: 5))
+        app.buttons["preferences.currency.usd"].tap()
+        app.buttons["preferences.horizon.six-months"].tap()
+        app.buttons["preferences.save"].tap()
+
+        app.terminate()
+        app.launch()
+        app.buttons["library.settings"].tap()
+        XCTAssertEqual(
+            app.buttons["preferences.currency.usd"].value as? String,
+            "Selected"
+        )
+        XCTAssertEqual(
+            app.buttons["preferences.horizon.six-months"].value as? String,
+            "Selected"
+        )
+    }
+
+    func testSkippedSetupCanBeResumedFromSettings() {
+        let app = launch(
+            language: "en",
+            locale: "en_US",
+            onboarding: true
+        )
+
+        XCTAssertTrue(app.buttons["setup.skip"].waitForExistence(timeout: 5))
+        app.buttons["setup.skip"].tap()
+        XCTAssertTrue(app.buttons["library.settings"].waitForExistence(timeout: 5))
+        app.buttons["library.settings"].tap()
+        XCTAssertTrue(
+            app.buttons["preferences.resume-setup"].waitForExistence(timeout: 5)
+        )
+        app.buttons["preferences.resume-setup"].tap()
+        XCTAssertTrue(app.staticTexts["Set Up Your Library"].waitForExistence(timeout: 5))
+    }
+
     func testFreshLaunchShowsEnglishEmptyLibrary() {
         let app = launch(language: "en", locale: "en_US")
 
@@ -785,7 +925,8 @@ final class SubscriptionManagerUITests: XCTestCase {
         language: String,
         locale: String,
         storeToken: String? = nil,
-        failsLifecycleMutations: Bool = false
+        failsLifecycleMutations: Bool = false,
+        onboarding: Bool = false
     ) -> XCUIApplication {
         let app = XCUIApplication()
         app.launchArguments = [
@@ -800,6 +941,9 @@ final class SubscriptionManagerUITests: XCTestCase {
             app.launchArguments += [
                 "--ui-testing-fail-lifecycle-mutations"
             ]
+        }
+        if onboarding {
+            app.launchArguments.append("--ui-testing-onboarding")
         }
         app.launch()
         return app
