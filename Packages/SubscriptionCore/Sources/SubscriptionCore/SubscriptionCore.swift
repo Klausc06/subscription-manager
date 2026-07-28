@@ -419,6 +419,7 @@ public final class SubscriptionWorkspace {
     private let now: () -> Date
     private let calendar: Calendar
     private var expectedChargesRequest: ExpectedChargesRequest?
+    private var insightsRequest: InsightsRequest?
     private var catalogSnapshot: CatalogSnapshot?
     private var catalogLocale = Locale.current
     private var catalogSearchQuery = ""
@@ -482,6 +483,7 @@ public final class SubscriptionWorkspace {
                 setupStatus: currentPreferences.setupStatus
             )
         )
+        reloadInsightsIfNeeded()
     }
 
     public func completeSetup() {
@@ -616,6 +618,7 @@ public final class SubscriptionWorkspace {
         from: Date,
         through: Date
     ) {
+        insightsRequest = InsightsRequest(mode: mode, from: from, through: through)
         guard from <= through,
               let snapshot = currentExchangeRateSnapshot
         else {
@@ -671,6 +674,15 @@ public final class SubscriptionWorkspace {
         case .fresh(let snapshot), .stale(let snapshot): snapshot
         case .notLoaded, .unavailable: nil
         }
+    }
+
+    private func reloadInsightsIfNeeded() {
+        guard let insightsRequest else { return }
+        loadInsights(
+            mode: insightsRequest.mode,
+            from: insightsRequest.from,
+            through: insightsRequest.through
+        )
     }
 
     private func makeInsights(
@@ -2197,6 +2209,12 @@ public final class SubscriptionWorkspace {
         let category: String
         let date: Date
         let amount: Money
+    }
+
+    private struct InsightsRequest {
+        let mode: SpendingReportMode
+        let from: Date
+        let through: Date
     }
 
     private struct ExpectedChargesRequest {

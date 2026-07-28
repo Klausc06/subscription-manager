@@ -191,6 +191,14 @@ struct SubscriptionWorkspaceTests {
         #expect(insights.categoryTotals == [
             SpendingCategoryTotal(category: "Video", amount: Money(minorUnits: 840, currency: .cny)),
         ])
+
+        workspace.updatePreferences(
+            primaryCurrency: .usd,
+            calendarProjectionHorizon: .twelveMonths
+        )
+
+        let recomputed = try #require(workspace.insightsState.availableValue)
+        #expect(recomputed.selectedRangeTotal == Money(minorUnits: 120, currency: .usd))
     }
 
     @Test("Upcoming timeline orders expected and confirmed charges while excluding cancelled subscriptions")
