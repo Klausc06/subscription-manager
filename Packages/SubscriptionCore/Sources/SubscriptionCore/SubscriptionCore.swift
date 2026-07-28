@@ -365,6 +365,88 @@ public enum SubscriptionLibraryState: Equatable, Sendable {
     case failed(SubscriptionLibraryScope)
 }
 
+public enum SubscriptionTableSort: String, CaseIterable, Codable, Sendable {
+    case serviceName
+    case plan
+    case category
+    case nextRenewal
+    case amount
+}
+
+public struct SubscriptionTableQuery: Equatable, Sendable {
+    public let searchText: String
+    public let sort: SubscriptionTableSort
+    public let ascending: Bool
+
+    public init(
+        searchText: String = "",
+        sort: SubscriptionTableSort = .serviceName,
+        ascending: Bool = true
+    ) {
+        self.searchText = searchText
+        self.sort = sort
+        self.ascending = ascending
+    }
+
+    public func apply(
+        to summaries: [SubscriptionSummary],
+        locale: Locale = .current
+    ) -> [SubscriptionSummary] {
+        let query = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
+        return summaries
+            .filter { summary in
+                guard !query.isEmpty else { return true }
+                return [summary.serviceName, summary.plan, summary.category]
+                    .contains {
+                        $0.range(
+                            of: query,
+                            options: [.caseInsensitive, .diacriticInsensitive],
+                            range: nil,
+                            locale: locale
+                        ) != nil
+                    }
+            }
+            .sorted { lhs, rhs in
+                let order = comparison(of: lhs, and: rhs, locale: locale)
+                if order == .orderedSame {
+                    return lhs.id.uuidString < rhs.id.uuidString
+                }
+                return ascending
+                    ? order == .orderedAscending
+                    : order == .orderedDescending
+            }
+    }
+
+    private func comparison(
+        of lhs: SubscriptionSummary,
+        and rhs: SubscriptionSummary,
+        locale: Locale
+    ) -> ComparisonResult {
+        switch sort {
+        case .serviceName:
+            return lhs.serviceName.localizedCompare(rhs.serviceName)
+        case .plan:
+            return lhs.plan.localizedCompare(rhs.plan)
+        case .category:
+            return lhs.category.localizedCompare(rhs.category)
+        case .nextRenewal:
+            return lhs.confirmedNextRenewal.compare(rhs.confirmedNextRenewal)
+        case .amount:
+            let currencyOrder = lhs.originalAmount.currency.rawValue
+                .localizedCompare(rhs.originalAmount.currency.rawValue)
+            if currencyOrder != .orderedSame {
+                return currencyOrder
+            } else if lhs.originalAmount.minorUnits == rhs.originalAmount.minorUnits {
+                return .orderedSame
+            } else {
+                return lhs.originalAmount.minorUnits < rhs.originalAmount.minorUnits
+                    ? .orderedAscending
+                    : .orderedDescending
+            }
+        }
+    }
+}
+
 public enum SubscriptionDetailState: Equatable, Sendable {
     case notLoaded
     case loaded(
