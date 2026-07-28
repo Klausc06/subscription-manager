@@ -72,7 +72,25 @@ final class SwiftDataSubscriptionRepository: SubscriptionRepository {
         }
     }
 
-    func listSubscriptions() throws -> [SubscriptionSummary] {
+    func deleteSubscription(id: UUID) throws {
+        let lookupID = id
+        var descriptor = FetchDescriptor<SubscriptionRecord>(
+            predicate: #Predicate { $0.id == lookupID }
+        )
+        descriptor.fetchLimit = 1
+        do {
+            guard let record = try modelContext.fetch(descriptor).first else {
+                return
+            }
+            modelContext.delete(record)
+            try save(modelContext)
+        } catch {
+            modelContext.rollback()
+            throw error
+        }
+    }
+
+    func listSubscriptions() throws -> [Subscription] {
         do {
             let records = try modelContext.fetch(
                 FetchDescriptor<SubscriptionRecord>()
@@ -96,7 +114,6 @@ final class SwiftDataSubscriptionRepository: SubscriptionRepository {
             }
             return subscriptions
                 .sorted { $0.id.uuidString < $1.id.uuidString }
-                .map(SubscriptionSummary.init(subscription:))
         } catch {
             modelContext.rollback()
             throw error
@@ -160,6 +177,24 @@ final class SwiftDataSubscriptionRepository: SubscriptionRepository {
         record.confirmedChargesData = try encoder.encode(
             subscription.confirmedCharges
         )
+        record.isArchived = subscription.isArchived
+        switch subscription.lifecycle {
+        case .active:
+            record.lifecycleRawValue = LifecycleStorageKind.active.rawValue
+            record.trialFirstPaidChargeAt = nil
+            record.cancelledAt = nil
+            record.accessUntil = nil
+        case .trial(let firstPaidChargeAt):
+            record.lifecycleRawValue = LifecycleStorageKind.trial.rawValue
+            record.trialFirstPaidChargeAt = firstPaidChargeAt
+            record.cancelledAt = nil
+            record.accessUntil = nil
+        case .cancelled(let cancelledAt, let accessUntil):
+            record.lifecycleRawValue = LifecycleStorageKind.cancelled.rawValue
+            record.trialFirstPaidChargeAt = nil
+            record.cancelledAt = cancelledAt
+            record.accessUntil = accessUntil
+        }
     }
 
     private func makeSubscription(
@@ -208,6 +243,7 @@ final class SwiftDataSubscriptionRepository: SubscriptionRepository {
         } else {
             confirmedCharges = []
         }
+        let lifecycle = try makeLifecycle(from: record)
 
         let subscription = Subscription(
             id: record.id,
@@ -230,7 +266,9 @@ final class SwiftDataSubscriptionRepository: SubscriptionRepository {
             confirmedNextRenewal: record.confirmedNextRenewal,
             managementURL: managementURL,
             notes: record.notes ?? "",
-            confirmedCharges: confirmedCharges
+            confirmedCharges: confirmedCharges,
+            lifecycle: lifecycle,
+            isArchived: record.isArchived ?? false
         )
         return (
             subscription: subscription,
@@ -241,6 +279,46 @@ final class SwiftDataSubscriptionRepository: SubscriptionRepository {
                 ? renewalAnchor
                 : nil
         )
+    }
+
+    private func makeLifecycle(
+        from record: SubscriptionRecord
+    ) throws -> SubscriptionLifecycle {
+        guard let rawValue = record.lifecycleRawValue else {
+            guard record.trialFirstPaidChargeAt == nil,
+                  record.cancelledAt == nil,
+                  record.accessUntil == nil
+            else {
+                throw RepositoryError.invalidLifecycleStorage
+            }
+            return .active
+        }
+        guard let kind = LifecycleStorageKind(rawValue: rawValue) else {
+            throw RepositoryError.invalidLifecycleStorage
+        }
+        switch (
+            kind,
+            record.trialFirstPaidChargeAt,
+            record.cancelledAt,
+            record.accessUntil
+        ) {
+        case (.active, nil, nil, nil):
+            return .active
+        case (.trial, let firstPaidChargeAt?, nil, nil):
+            return .trial(firstPaidChargeAt: firstPaidChargeAt)
+        case (
+            .cancelled,
+            nil,
+            let cancelledAt?,
+            let accessUntil?
+        ) where accessUntil >= cancelledAt:
+            return .cancelled(
+                cancelledAt: cancelledAt,
+                accessUntil: accessUntil
+            )
+        default:
+            throw RepositoryError.invalidLifecycleStorage
+        }
     }
 
     private func inferredRenewalAnchor(
@@ -362,7 +440,14 @@ final class SwiftDataSubscriptionRepository: SubscriptionRepository {
         return calendar.date(from: components)
     }
 
-    private enum RepositoryError: Error {
+    enum RepositoryError: Error {
+        case invalidLifecycleStorage
         case subscriptionNotFound
+    }
+
+    private enum LifecycleStorageKind: String {
+        case active
+        case trial
+        case cancelled
     }
 }

@@ -20,6 +20,11 @@ final class SubscriptionRecord {
     var managementURLString: String?
     var notes: String?
     var confirmedChargesData: Data?
+    var lifecycleRawValue: String?
+    var trialFirstPaidChargeAt: Date?
+    var cancelledAt: Date?
+    var accessUntil: Date?
+    var isArchived: Bool?
 
     init(
         id: UUID,
@@ -40,7 +45,12 @@ final class SubscriptionRecord {
         ),
         managementURLString: String? = nil,
         notes: String? = nil,
-        confirmedChargesData: Data? = nil
+        confirmedChargesData: Data? = nil,
+        lifecycleRawValue: String? = nil,
+        trialFirstPaidChargeAt: Date? = nil,
+        cancelledAt: Date? = nil,
+        accessUntil: Date? = nil,
+        isArchived: Bool? = nil
     ) {
         self.id = id
         self.serviceIdentityRawValue = serviceIdentityRawValue
@@ -59,5 +69,10 @@ final class SubscriptionRecord {
         self.managementURLString = managementURLString
         self.notes = notes
         self.confirmedChargesData = confirmedChargesData
+        self.lifecycleRawValue = lifecycleRawValue
+        self.trialFirstPaidChargeAt = trialFirstPaidChargeAt
+        self.cancelledAt = cancelledAt
+        self.accessUntil = accessUntil
+        self.isArchived = isArchived
     }
 }

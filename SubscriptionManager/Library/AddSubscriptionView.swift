@@ -10,6 +10,7 @@ struct AddSubscriptionView: View {
     @State private var serviceName = ""
     @State private var plan = ""
     @State private var category = ""
+    @State private var initialStatus: SubscriptionInitialStatus = .active
     @State private var amountText = ""
     @State private var currency: Currency = .usd
     @State private var intervalChoice: BillingIntervalChoice = .monthly
@@ -82,6 +83,19 @@ struct AddSubscriptionView: View {
             TextField("Category", text: $category)
                 .accessibilityIdentifier("subscription.form.category")
             validationMessage(for: .category)
+
+            Picker("Initial Status", selection: $initialStatus) {
+                Text("Active").tag(SubscriptionInitialStatus.active)
+                Text("Trial").tag(SubscriptionInitialStatus.trial)
+            }
+            .pickerStyle(.segmented)
+            .accessibilityIdentifier("subscription.form.initial-status")
+
+            if initialStatus == .trial {
+                Text("Next Renewal is the first paid charge date.")
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+            }
         }
     }
 
@@ -231,7 +245,8 @@ struct AddSubscriptionView: View {
                 confirmedNextRenewal: normalizedNextRenewal,
                 billingTimeZoneIdentifier: timeZoneIdentifier,
                 managementURL: managementURL(from: managementURLResult),
-                notes: notes
+                notes: notes,
+                initialStatus: initialStatus
             )
         )
 

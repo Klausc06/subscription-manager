@@ -1,6 +1,59 @@
 import Foundation
+import SubscriptionCore
 import Testing
 @testable import SubscriptionManager
+
+@Suite("Subscription lifecycle localization")
+struct SubscriptionLifecycleLocalizationTests {
+    @Test(
+        "Subscription statuses use one production localization mapping",
+        arguments: [
+            (SubscriptionStatus.active, "Active"),
+            (.trial, "Trial"),
+            (.cancelledWithAccess, "Cancelled with Access"),
+            (.expired, "Expired"),
+        ]
+    )
+    func subscriptionStatusesUseProductionLocalizationMapping(
+        status: SubscriptionStatus,
+        expected: String
+    ) {
+        #expect(subscriptionStatusLocalizationKey(status) == expected)
+    }
+
+    @Test(
+        "Lifecycle action errors use dedicated localization keys",
+        arguments: [
+            (
+                SubscriptionLifecycleActionError
+                    .invalidLifecycleTransition,
+                "This action isn’t available for the subscription’s current status."
+            ),
+            (
+                .cancellationDateInFuture,
+                "The cancellation date cannot be in the future."
+            ),
+            (
+                .accessEndsBeforeCancellation,
+                "Access Until cannot be before the cancellation date."
+            ),
+            (
+                .nextRenewalInPast,
+                "The next renewal cannot be in the past."
+            ),
+            (
+                .persistenceFailed,
+                "Couldn’t save lifecycle changes. Try again."
+            ),
+        ]
+    )
+    func lifecycleActionErrorsUseDedicatedLocalizationKeys(
+        error: SubscriptionLifecycleActionError,
+        expected: String
+    ) {
+        #expect(lifecycleActionErrorTextKey(error) == expected)
+    }
+}
 
 @Suite("Management URL validation")
 struct ManagementURLValidationTests {

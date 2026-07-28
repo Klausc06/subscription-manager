@@ -17,6 +17,7 @@ struct SubscriptionRow: View {
             HStack(alignment: .firstTextBaseline) {
                 Text(subscription.serviceName)
                     .font(.headline)
+                SubscriptionStatusBadge(status: subscription.status)
                 Spacer()
                 Text(formattedMoney(subscription.originalAmount))
                     .font(.headline)
@@ -25,12 +26,14 @@ struct SubscriptionRow: View {
             HStack(alignment: .firstTextBaseline) {
                 Text(subscription.plan)
                 Spacer()
-                Text(formattedBillingDate(
-                    subscription.confirmedNextRenewal,
-                    timeZoneIdentifier:
-                        subscription.billingSchedule.timeZoneIdentifier,
-                    locale: locale
-                ))
+                if let nextExpectedCharge = subscription.nextExpectedCharge {
+                    Text(formattedBillingDate(
+                        nextExpectedCharge.scheduledDate,
+                        timeZoneIdentifier:
+                            subscription.billingSchedule.timeZoneIdentifier,
+                        locale: locale
+                    ))
+                }
             }
             .font(.subheadline)
             .foregroundStyle(.secondary)

@@ -24,8 +24,8 @@ struct SubscriptionDomainTests {
         #expect(BillingInterval.monthly.rawValue == "monthly")
     }
 
-    @Test("A subscription derives its first expected charge from source fields")
-    func subscriptionDerivesFirstExpectedCharge() {
+    @Test("A subscription preserves its renewal gate and lifecycle facts")
+    func subscriptionPreservesRenewalGateAndLifecycleFacts() {
         let id = UUID(uuidString: "99999999-8888-7777-6666-555555555555")!
         let renewalDate = Date(timeIntervalSince1970: 1_769_904_000)
         let amount = Money(minorUnits: 2_345, currency: .usd)
@@ -40,15 +40,15 @@ struct SubscriptionDomainTests {
             startDate: Date(timeIntervalSince1970: 1_767_225_600),
             confirmedNextRenewal: renewalDate,
             managementURL: nil,
-            notes: ""
+            notes: "",
+            lifecycle: .trial(firstPaidChargeAt: renewalDate)
         )
 
+        #expect(subscription.confirmedNextRenewal == renewalDate)
         #expect(
-            subscription.firstExpectedCharge == ExpectedCharge(
-                subscriptionID: id,
-                scheduledDate: renewalDate,
-                amount: amount
-            )
+            subscription.lifecycle
+                == .trial(firstPaidChargeAt: subscription.confirmedNextRenewal)
         )
+        #expect(subscription.isArchived == false)
     }
 }

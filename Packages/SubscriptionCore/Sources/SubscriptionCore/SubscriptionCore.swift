@@ -53,17 +53,11 @@ public struct Subscription: Codable, Equatable, Identifiable, Sendable {
     public let managementURL: URL?
     public let notes: String
     public let confirmedCharges: [ConfirmedCharge]
+    public let lifecycle: SubscriptionLifecycle
+    public let isArchived: Bool
 
     public var billingCycle: BillingInterval {
         billingSchedule.interval
-    }
-
-    public var firstExpectedCharge: ExpectedCharge {
-        ExpectedCharge(
-            subscriptionID: id,
-            scheduledDate: confirmedNextRenewal,
-            amount: originalAmount
-        )
     }
 
     public init(
@@ -78,7 +72,9 @@ public struct Subscription: Codable, Equatable, Identifiable, Sendable {
         confirmedNextRenewal: Date? = nil,
         managementURL: URL?,
         notes: String,
-        confirmedCharges: [ConfirmedCharge] = []
+        confirmedCharges: [ConfirmedCharge] = [],
+        lifecycle: SubscriptionLifecycle = .active,
+        isArchived: Bool = false
     ) {
         self.id = id
         self.serviceIdentity = serviceIdentity
@@ -93,6 +89,8 @@ public struct Subscription: Codable, Equatable, Identifiable, Sendable {
         self.managementURL = managementURL
         self.notes = notes
         self.confirmedCharges = confirmedCharges
+        self.lifecycle = lifecycle
+        self.isArchived = isArchived
     }
 
     public init(
@@ -108,7 +106,9 @@ public struct Subscription: Codable, Equatable, Identifiable, Sendable {
         billingTimeZoneIdentifier: String = TimeZone.autoupdatingCurrent.identifier,
         managementURL: URL?,
         notes: String,
-        confirmedCharges: [ConfirmedCharge] = []
+        confirmedCharges: [ConfirmedCharge] = [],
+        lifecycle: SubscriptionLifecycle = .active,
+        isArchived: Bool = false
     ) {
         self.init(
             id: id,
@@ -126,7 +126,9 @@ public struct Subscription: Codable, Equatable, Identifiable, Sendable {
             confirmedNextRenewal: confirmedNextRenewal,
             managementURL: managementURL,
             notes: notes,
-            confirmedCharges: confirmedCharges
+            confirmedCharges: confirmedCharges,
+            lifecycle: lifecycle,
+            isArchived: isArchived
         )
     }
 }
@@ -140,9 +142,14 @@ public struct SubscriptionSummary: Codable, Equatable, Identifiable, Sendable {
     public let originalAmount: Money
     public let billingSchedule: FixedBillingSchedule
     public let confirmedNextRenewal: Date
-    public let firstExpectedCharge: ExpectedCharge
+    public let status: SubscriptionStatus
+    public let nextExpectedCharge: ExpectedCharge?
 
-    public init(subscription: Subscription) {
+    public init(
+        subscription: Subscription,
+        status: SubscriptionStatus,
+        nextExpectedCharge: ExpectedCharge?
+    ) {
         id = subscription.id
         serviceIdentity = subscription.serviceIdentity
         serviceName = subscription.serviceName
@@ -151,7 +158,8 @@ public struct SubscriptionSummary: Codable, Equatable, Identifiable, Sendable {
         originalAmount = subscription.originalAmount
         billingSchedule = subscription.billingSchedule
         confirmedNextRenewal = subscription.confirmedNextRenewal
-        firstExpectedCharge = subscription.firstExpectedCharge
+        self.status = status
+        self.nextExpectedCharge = nextExpectedCharge
     }
 }
 
@@ -167,6 +175,7 @@ public struct SubscriptionCreationInput: Equatable, Sendable {
     public let billingTimeZoneIdentifier: String
     public let managementURL: URL?
     public let notes: String
+    public let initialStatus: SubscriptionInitialStatus
 
     public init(
         serviceName: String,
@@ -179,7 +188,8 @@ public struct SubscriptionCreationInput: Equatable, Sendable {
         confirmedNextRenewal: Date,
         billingTimeZoneIdentifier: String = TimeZone.autoupdatingCurrent.identifier,
         managementURL: URL?,
-        notes: String
+        notes: String,
+        initialStatus: SubscriptionInitialStatus = .active
     ) {
         self.serviceName = serviceName
         self.plan = plan
@@ -192,6 +202,7 @@ public struct SubscriptionCreationInput: Equatable, Sendable {
         self.billingTimeZoneIdentifier = billingTimeZoneIdentifier
         self.managementURL = managementURL
         self.notes = notes
+        self.initialStatus = initialStatus
     }
 }
 
@@ -266,16 +277,25 @@ public enum SubscriptionCreationValidationError: Equatable, Sendable {
     case beforeStartDate
 }
 
+public enum SubscriptionLibraryScope: Hashable, Sendable {
+    case current
+    case archived
+}
+
 public enum SubscriptionLibraryState: Equatable, Sendable {
-    case loading
-    case empty
-    case loaded([SubscriptionSummary])
-    case failed
+    case loading(SubscriptionLibraryScope)
+    case empty(SubscriptionLibraryScope)
+    case loaded(SubscriptionLibraryScope, [SubscriptionSummary])
+    case failed(SubscriptionLibraryScope)
 }
 
 public enum SubscriptionDetailState: Equatable, Sendable {
     case notLoaded
-    case loaded(Subscription)
+    case loaded(
+        subscription: Subscription,
+        status: SubscriptionStatus,
+        nextExpectedCharge: ExpectedCharge?
+    )
     case notFound
     case failed
 }
@@ -284,20 +304,24 @@ public enum SubscriptionDetailState: Equatable, Sendable {
 public protocol SubscriptionRepository {
     func createSubscription(_ subscription: Subscription) throws
     func updateSubscription(_ subscription: Subscription) throws
-    func listSubscriptions() throws -> [SubscriptionSummary]
+    func deleteSubscription(id: UUID) throws
+    func listSubscriptions() throws -> [Subscription]
     func subscription(id: UUID) throws -> Subscription?
 }
 
 @MainActor
 @Observable
 public final class SubscriptionWorkspace {
-    public private(set) var libraryState: SubscriptionLibraryState = .loading
+    public private(set) var libraryState: SubscriptionLibraryState =
+        .loading(.current)
     public private(set) var detailState: SubscriptionDetailState = .notLoaded
     public private(set) var creationValidationErrors:
         [SubscriptionCreationField: SubscriptionCreationValidationError] = [:]
     public private(set) var editingValidationErrors:
         [SubscriptionCreationField: SubscriptionCreationValidationError] = [:]
     public private(set) var expectedCharges: [ExpectedCharge]?
+    public private(set) var lifecycleActionError:
+        SubscriptionLifecycleActionError?
 
     private let repository: any SubscriptionRepository
     private let identifierGenerator: () -> UUID
@@ -336,6 +360,10 @@ public final class SubscriptionWorkspace {
 
         let whitespace = CharacterSet.whitespacesAndNewlines
         let id = identifierGenerator()
+        let lifecycle: SubscriptionLifecycle =
+            input.initialStatus == .trial
+                ? .trial(firstPaidChargeAt: input.confirmedNextRenewal)
+                : .active
         let subscription = Subscription(
             id: id,
             serviceIdentity: ServiceIdentity(
@@ -353,12 +381,14 @@ public final class SubscriptionWorkspace {
             startDate: input.startDate,
             confirmedNextRenewal: input.confirmedNextRenewal,
             managementURL: input.managementURL,
-            notes: input.notes
+            notes: input.notes,
+            lifecycle: lifecycle,
+            isArchived: false
         )
 
         do {
             try repository.createSubscription(subscription)
-            detailState = .loaded(subscription)
+            detailState = makeDetail(subscription)
             loadLibrary()
         } catch {
             detailState = .failed
@@ -404,10 +434,12 @@ public final class SubscriptionWorkspace {
                 confirmedNextRenewal: input.confirmedNextRenewal,
                 managementURL: input.managementURL,
                 notes: input.notes,
-                confirmedCharges: existing.confirmedCharges
+                confirmedCharges: existing.confirmedCharges,
+                lifecycle: existing.lifecycle,
+                isArchived: existing.isArchived
             )
             try repository.updateSubscription(edited)
-            detailState = .loaded(edited)
+            detailState = makeDetail(edited)
             loadLibrary()
             let forecastRequest = forecastThrough.map {
                 ExpectedChargesRequest(
@@ -431,17 +463,192 @@ public final class SubscriptionWorkspace {
         }
     }
 
-    public func loadLibrary() {
+    public func recordCancellation(
+        id: UUID,
+        cancelledAt: Date,
+        accessUntil: Date
+    ) {
+        lifecycleActionError = nil
+
         do {
-            let subscriptions = try repository.listSubscriptions()
-            if subscriptions.isEmpty {
-                libraryState = .empty
-            } else {
-                libraryState = .loaded(subscriptions)
+            guard let existing = try repository.subscription(id: id) else {
+                detailState = .notFound
+                return
             }
+            guard !existing.isArchived else {
+                lifecycleActionError = .invalidLifecycleTransition
+                return
+            }
+            switch existing.lifecycle {
+            case .trial, .active:
+                break
+            case .cancelled:
+                lifecycleActionError = .invalidLifecycleTransition
+                return
+            }
+
+            let timeZone = billingTimeZone(for: existing)
+            let localCalendar = billingLocalCalendar(timeZone: timeZone)
+            let cancellationDay = localCalendar.startOfDay(for: cancelledAt)
+            let accessUntilDay = localCalendar.startOfDay(for: accessUntil)
+            let today = localCalendar.startOfDay(for: now())
+            guard cancellationDay <= today else {
+                lifecycleActionError = .cancellationDateInFuture
+                return
+            }
+            guard accessUntilDay >= cancellationDay else {
+                lifecycleActionError = .accessEndsBeforeCancellation
+                return
+            }
+            guard let normalizedCancellation = normalizedBillingLocalNoon(
+                cancelledAt,
+                timeZone: timeZone
+            ),
+            let normalizedAccessUntil = normalizedBillingLocalNoon(
+                accessUntil,
+                timeZone: timeZone
+            ) else {
+                lifecycleActionError = .persistenceFailed
+                return
+            }
+
+            let updated = existing.replacingLifecycleFacts(
+                lifecycle: .cancelled(
+                    cancelledAt: normalizedCancellation,
+                    accessUntil: normalizedAccessUntil
+                )
+            )
+            try repository.updateSubscription(updated)
+            finishLifecycleUpdate(updated)
         } catch {
-            libraryState = .failed
+            lifecycleActionError = .persistenceFailed
         }
+    }
+
+    public func reactivate(id: UUID, nextRenewal: Date) {
+        lifecycleActionError = nil
+
+        do {
+            guard let existing = try repository.subscription(id: id) else {
+                detailState = .notFound
+                return
+            }
+            guard !existing.isArchived,
+                  case .cancelled = existing.lifecycle
+            else {
+                lifecycleActionError = .invalidLifecycleTransition
+                return
+            }
+
+            let timeZone = billingTimeZone(for: existing)
+            let localCalendar = billingLocalCalendar(timeZone: timeZone)
+            let renewalDay = localCalendar.startOfDay(for: nextRenewal)
+            let today = localCalendar.startOfDay(for: now())
+            guard renewalDay >= today else {
+                lifecycleActionError = .nextRenewalInPast
+                return
+            }
+            guard let normalizedRenewal = normalizedBillingLocalNoon(
+                nextRenewal,
+                timeZone: timeZone
+            ) else {
+                lifecycleActionError = .persistenceFailed
+                return
+            }
+
+            let updated = existing.replacingLifecycleFacts(
+                lifecycle: .active,
+                confirmedNextRenewal: normalizedRenewal
+            )
+            try repository.updateSubscription(updated)
+            finishLifecycleUpdate(updated)
+        } catch {
+            lifecycleActionError = .persistenceFailed
+        }
+    }
+
+    public func archive(id: UUID) {
+        lifecycleActionError = nil
+
+        do {
+            guard let existing = try repository.subscription(id: id) else {
+                detailState = .notFound
+                return
+            }
+            guard !existing.isArchived else {
+                lifecycleActionError = .invalidLifecycleTransition
+                return
+            }
+
+            let updated = existing.replacingLifecycleFacts(isArchived: true)
+            try repository.updateSubscription(updated)
+            finishLifecycleUpdate(updated)
+        } catch {
+            lifecycleActionError = .persistenceFailed
+        }
+    }
+
+    public func restore(id: UUID) {
+        lifecycleActionError = nil
+
+        do {
+            guard let existing = try repository.subscription(id: id) else {
+                detailState = .notFound
+                return
+            }
+            guard existing.isArchived else {
+                lifecycleActionError = .invalidLifecycleTransition
+                return
+            }
+
+            let updated = existing.replacingLifecycleFacts(isArchived: false)
+            try repository.updateSubscription(updated)
+            finishLifecycleUpdate(updated)
+        } catch {
+            lifecycleActionError = .persistenceFailed
+        }
+    }
+
+    public func deletePermanently(id: UUID) {
+        lifecycleActionError = nil
+
+        do {
+            guard try repository.subscription(id: id) != nil else {
+                detailState = .notFound
+                return
+            }
+
+            let scope = carriedLibraryScope
+            let clearsExpectedCharges =
+                expectedChargesRequest?.subscriptionID == id
+            let refreshedExpectedCharges: [ExpectedCharge]? =
+                clearsExpectedCharges ? nil : expectedCharges
+            try repository.deleteSubscription(id: id)
+
+            detailState = .notFound
+            expectedCharges = refreshedExpectedCharges
+            if clearsExpectedCharges {
+                expectedChargesRequest = nil
+            }
+            loadLibrary(scope: scope)
+        } catch {
+            lifecycleActionError = .persistenceFailed
+        }
+    }
+
+    public func loadLibrary(
+        scope: SubscriptionLibraryScope = .current
+    ) {
+        libraryState = .loading(scope)
+        do {
+            libraryState = try makeLibraryState(scope: scope)
+        } catch {
+            libraryState = .failed(scope)
+        }
+    }
+
+    public func clearLifecycleActionError() {
+        lifecycleActionError = nil
     }
 
     public func beginEditing() {
@@ -451,7 +658,7 @@ public final class SubscriptionWorkspace {
     public func loadSubscription(id: UUID) {
         do {
             if let subscription = try repository.subscription(id: id) {
-                detailState = .loaded(subscription)
+                detailState = makeDetail(subscription)
             } else {
                 detailState = .notFound
             }
@@ -569,12 +776,65 @@ public final class SubscriptionWorkspace {
         return errors
     }
 
+    private func billingTimeZone(
+        for subscription: Subscription
+    ) -> TimeZone {
+        TimeZone(
+            identifier: subscription.billingSchedule.timeZoneIdentifier
+        ) ?? calendar.timeZone
+    }
+
+    private func finishLifecycleUpdate(
+        _ subscription: Subscription
+    ) {
+        let scope = carriedLibraryScope
+        let refreshedDetailState = makeDetail(subscription)
+        let refreshedExpectedCharges: [ExpectedCharge]? =
+            if let request = expectedChargesRequest,
+               request.subscriptionID == subscription.id
+            {
+                makeExpectedCharges(
+                    for: subscription,
+                    through: request.horizon,
+                    maximumCount: request.maximumCount
+                )
+            } else {
+                expectedCharges
+            }
+
+        detailState = refreshedDetailState
+        expectedCharges = refreshedExpectedCharges
+        loadLibrary(scope: scope)
+    }
+
+    private func makeLibraryState(
+        scope: SubscriptionLibraryScope
+    ) throws -> SubscriptionLibraryState {
+        let subscriptions = try repository.listSubscriptions()
+            .filter { $0.isArchived == (scope == .archived) }
+        let summaries = subscriptions.map(makeSummary)
+        return summaries.isEmpty
+            ? .empty(scope)
+            : .loaded(scope, summaries)
+    }
+
+    private var carriedLibraryScope: SubscriptionLibraryScope {
+        switch libraryState {
+        case .loading(let scope),
+             .empty(let scope),
+             .loaded(let scope, _),
+             .failed(let scope):
+            scope
+        }
+    }
+
     private func makeExpectedCharges(
         for subscription: Subscription,
         through horizon: Date,
         maximumCount: Int
     ) -> [ExpectedCharge] {
         guard maximumCount > 0,
+              isEligibleForExpectedCharges(subscription),
               subscription.billingSchedule.interval.isValid,
               let timeZone = TimeZone(
                   identifier: subscription.billingSchedule.timeZoneIdentifier
@@ -621,6 +881,61 @@ public final class SubscriptionWorkspace {
         }
 
         return charges
+    }
+
+    private func makeSummary(
+        _ subscription: Subscription
+    ) -> SubscriptionSummary {
+        let presentation = makePresentation(for: subscription)
+        return SubscriptionSummary(
+            subscription: subscription,
+            status: presentation.status,
+            nextExpectedCharge: presentation.nextExpectedCharge
+        )
+    }
+
+    private func makeDetail(
+        _ subscription: Subscription
+    ) -> SubscriptionDetailState {
+        let presentation = makePresentation(for: subscription)
+        return .loaded(
+            subscription: subscription,
+            status: presentation.status,
+            nextExpectedCharge: presentation.nextExpectedCharge
+        )
+    }
+
+    private func makePresentation(
+        for subscription: Subscription
+    ) -> (
+        status: SubscriptionStatus,
+        nextExpectedCharge: ExpectedCharge?
+    ) {
+        let timeZone = TimeZone(
+            identifier: subscription.billingSchedule.timeZoneIdentifier
+        ) ?? calendar.timeZone
+        let status = subscription.lifecycle.status(
+            asOf: now(),
+            timeZone: timeZone
+        )
+        let nextExpectedCharge = makeExpectedCharges(
+            for: subscription,
+            through: .distantFuture,
+            maximumCount: 1
+        ).first
+        return (status, nextExpectedCharge)
+    }
+
+    private func isEligibleForExpectedCharges(
+        _ subscription: Subscription
+    ) -> Bool {
+        guard !subscription.isArchived else {
+            return false
+        }
+        if case .cancelled = subscription.lifecycle {
+            return false
+        }
+        return true
     }
 
     private func estimatedOccurrenceIndex(

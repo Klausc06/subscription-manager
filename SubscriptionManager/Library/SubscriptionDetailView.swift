@@ -5,20 +5,103 @@ struct SubscriptionDetailView: View {
     let workspace: SubscriptionWorkspace
     let subscriptionID: UUID
     @State private var subscriptionToEdit: Subscription?
+    @State private var lifecycleSheet: LifecycleSheet?
+    @State private var subscriptionPendingDeletion: Subscription?
+    @State private var directActionError:
+        SubscriptionLifecycleActionError?
 
     var body: some View {
         detailContent
             .navigationTitle("Subscription Details")
             .toolbar {
-                if case .loaded(let subscription) = workspace.detailState,
-                   subscription.id == subscriptionID
+                if case .loaded(
+                    let subscription,
+                    let status,
+                    _
+                ) = workspace.detailState,
+                    subscription.id == subscriptionID
                 {
                     ToolbarItem(placement: .primaryAction) {
-                        Button("Edit", systemImage: "pencil") {
-                            workspace.beginEditing()
-                            subscriptionToEdit = subscription
+                        Menu("Actions", systemImage: "ellipsis.circle") {
+                            if subscription.isArchived {
+                                Button(
+                                    "Restore",
+                                    systemImage: "arrow.uturn.backward"
+                                ) {
+                                    performDirectAction {
+                                        workspace.restore(
+                                            id: subscription.id
+                                        )
+                                    }
+                                }
+                                .accessibilityIdentifier(
+                                    "subscription.lifecycle.restore"
+                                )
+                            } else {
+                                Button("Edit", systemImage: "pencil") {
+                                    workspace.beginEditing()
+                                    subscriptionToEdit = subscription
+                                }
+                                .accessibilityIdentifier("subscription.edit")
+
+                                switch status {
+                                case .trial, .active:
+                                    Button(
+                                        "Record Cancellation",
+                                        systemImage: "xmark.circle"
+                                    ) {
+                                        beginDirectAction()
+                                        lifecycleSheet = .recordCancellation(
+                                            subscription
+                                        )
+                                    }
+                                    .accessibilityIdentifier(
+                                        "subscription.lifecycle.record-cancellation"
+                                    )
+
+                                case .cancelledWithAccess, .expired:
+                                    Button(
+                                        "Reactivate",
+                                        systemImage: "arrow.clockwise"
+                                    ) {
+                                        beginDirectAction()
+                                        lifecycleSheet = .reactivate(subscription)
+                                    }
+                                    .accessibilityIdentifier(
+                                        "subscription.lifecycle.reactivate"
+                                    )
+                                }
+
+                                Button(
+                                    "Archive",
+                                    systemImage: "archivebox"
+                                ) {
+                                    performDirectAction {
+                                        workspace.archive(
+                                            id: subscription.id
+                                        )
+                                    }
+                                }
+                                .accessibilityIdentifier(
+                                    "subscription.lifecycle.archive"
+                                )
+                            }
+
+                            Button(
+                                "Permanently Delete",
+                                systemImage: "trash",
+                                role: .destructive
+                            ) {
+                                beginDirectAction()
+                                subscriptionPendingDeletion = subscription
+                            }
+                            .accessibilityIdentifier(
+                                "subscription.lifecycle.delete"
+                            )
                         }
-                        .accessibilityIdentifier("subscription.edit")
+                        .accessibilityIdentifier(
+                            "subscription.lifecycle.actions"
+                        )
                     }
                 }
             }
@@ -29,6 +112,60 @@ struct SubscriptionDetailView: View {
                         subscription: subscription
                     )
                 }
+            }
+            .sheet(item: $lifecycleSheet) { sheet in
+                NavigationStack {
+                    switch sheet {
+                    case .recordCancellation(let subscription):
+                        RecordCancellationView(
+                            workspace: workspace,
+                            subscription: subscription
+                        )
+                    case .reactivate(let subscription):
+                        ReactivateSubscriptionView(
+                            workspace: workspace,
+                            subscription: subscription
+                        )
+                    }
+                }
+            }
+            .confirmationDialog(
+                deletionConfirmationTitle,
+                isPresented: Binding(
+                    get: {
+                        subscriptionPendingDeletion != nil
+                    },
+                    set: { isPresented in
+                        if !isPresented {
+                            subscriptionPendingDeletion = nil
+                        }
+                    }
+                ),
+                titleVisibility: .visible,
+                presenting: subscriptionPendingDeletion
+            ) { subscription in
+                Button("Delete Permanently", role: .destructive) {
+                    subscriptionPendingDeletion = nil
+                    performDirectAction {
+                        workspace.deletePermanently(id: subscription.id)
+                    }
+                }
+                Button("Cancel", role: .cancel) {
+                    subscriptionPendingDeletion = nil
+                }
+            } message: { _ in
+                Text("This action cannot be undone.")
+            }
+            .alert(
+                "Couldn’t Complete Action",
+                isPresented: directActionErrorIsPresented,
+                presenting: directActionError
+            ) { _ in
+                Button("OK") {
+                    dismissDirectActionError()
+                }
+            } message: { error in
+                Text(lifecycleActionErrorText(error))
             }
             .task(id: subscriptionID) {
                 workspace.loadSubscription(id: subscriptionID)
@@ -41,9 +178,13 @@ struct SubscriptionDetailView: View {
         case .notLoaded:
             loadingView
 
-        case let .loaded(subscription)
+        case let .loaded(subscription, status, nextExpectedCharge)
             where subscription.id == subscriptionID:
-            SubscriptionDetailForm(subscription: subscription)
+            SubscriptionDetailForm(
+                subscription: subscription,
+                status: status,
+                nextExpectedCharge: nextExpectedCharge
+            )
 
         case .loaded:
             loadingView
@@ -72,12 +213,50 @@ struct SubscriptionDetailView: View {
         ProgressView("Loading Subscription")
             .accessibilityIdentifier("subscription.detail.loading")
     }
+
+    private var deletionConfirmationTitle: LocalizedStringKey {
+        guard let subscriptionPendingDeletion else {
+            return "Permanently Delete"
+        }
+        return "Permanently Delete “\(subscriptionPendingDeletion.serviceName)”?"
+    }
+
+    private var directActionErrorIsPresented: Binding<Bool> {
+        Binding(
+            get: {
+                directActionError != nil
+            },
+            set: { isPresented in
+                if !isPresented {
+                    dismissDirectActionError()
+                }
+            }
+        )
+    }
+
+    private func beginDirectAction() {
+        directActionError = nil
+        workspace.clearLifecycleActionError()
+    }
+
+    private func performDirectAction(_ action: () -> Void) {
+        beginDirectAction()
+        action()
+        directActionError = workspace.lifecycleActionError
+    }
+
+    private func dismissDirectActionError() {
+        directActionError = nil
+        workspace.clearLifecycleActionError()
+    }
 }
 
 private struct SubscriptionDetailForm: View {
     @Environment(\.locale) private var locale
 
     let subscription: Subscription
+    let status: SubscriptionStatus
+    let nextExpectedCharge: ExpectedCharge?
 
     private var timeZone: TimeZone {
         billingTimeZone(
@@ -88,6 +267,7 @@ private struct SubscriptionDetailForm: View {
     var body: some View {
         Form {
             Section("Service") {
+                SubscriptionStatusBadge(status: status)
                 LabeledContent("Service Name", value: subscription.serviceName)
                     .accessibilityIdentifier("subscription.detail.service-name")
                 LabeledContent("Plan", value: subscription.plan)
@@ -113,25 +293,28 @@ private struct SubscriptionDetailForm: View {
                 )
             }
 
-            Section("Next Expected Charge") {
-                LabeledContent(
-                    "Amount",
-                    value: formattedMoney(
-                        subscription.firstExpectedCharge.amount
+            if let nextExpectedCharge {
+                Section("Next Expected Charge") {
+                    LabeledContent(
+                        "Amount",
+                        value: formattedMoney(nextExpectedCharge.amount)
                     )
-                )
-                .accessibilityIdentifier(
-                    "subscription.detail.expected-charge.amount"
-                )
-                LabeledContent {
-                    Text(formattedBillingDate(
-                        subscription.firstExpectedCharge.scheduledDate,
-                        timeZoneIdentifier:
-                            subscription.billingSchedule.timeZoneIdentifier,
-                        locale: locale
-                    ))
-                } label: {
-                    Text("Date")
+                    .accessibilityIdentifier(
+                        "subscription.detail.expected-charge.amount"
+                    )
+                    LabeledContent {
+                        Text(formattedBillingDate(
+                            nextExpectedCharge.scheduledDate,
+                            timeZoneIdentifier:
+                                subscription.billingSchedule.timeZoneIdentifier,
+                            locale: locale
+                        ))
+                    } label: {
+                        Text("Date")
+                    }
+                    .accessibilityIdentifier(
+                        "subscription.detail.expected-charge.date"
+                    )
                 }
             }
 
@@ -156,6 +339,17 @@ private struct SubscriptionDetailForm: View {
                 } label: {
                     Text("Renewal Anchor")
                 }
+                .accessibilityIdentifier(
+                    "subscription.detail.renewal-anchor"
+                )
+                .accessibilityValue(
+                    formattedBillingDate(
+                        subscription.billingSchedule.renewalAnchor,
+                        timeZoneIdentifier:
+                            subscription.billingSchedule.timeZoneIdentifier,
+                        locale: locale
+                    )
+                )
                 LabeledContent {
                     Text(formattedBillingDate(
                         subscription.confirmedNextRenewal,
@@ -165,6 +359,41 @@ private struct SubscriptionDetailForm: View {
                     ))
                 } label: {
                     Text("Next Renewal")
+                }
+            }
+
+            if case .cancelled(
+                let cancelledAt,
+                let accessUntil
+            ) = subscription.lifecycle {
+                Section("Lifecycle") {
+                    LabeledContent {
+                        Text(formattedBillingDate(
+                            cancelledAt,
+                            timeZoneIdentifier:
+                                subscription.billingSchedule.timeZoneIdentifier,
+                            locale: locale
+                        ))
+                    } label: {
+                        Text("Cancellation Date")
+                    }
+                    .accessibilityIdentifier(
+                        "subscription.detail.cancellation-date"
+                    )
+
+                    LabeledContent {
+                        Text(formattedBillingDate(
+                            accessUntil,
+                            timeZoneIdentifier:
+                                subscription.billingSchedule.timeZoneIdentifier,
+                            locale: locale
+                        ))
+                    } label: {
+                        Text("Access Until")
+                    }
+                    .accessibilityIdentifier(
+                        "subscription.detail.access-until"
+                    )
                 }
             }
 
@@ -184,5 +413,19 @@ private struct SubscriptionDetailForm: View {
         }
         .accessibilityIdentifier("subscription.detail")
         .environment(\.timeZone, timeZone)
+    }
+}
+
+private enum LifecycleSheet: Identifiable {
+    case recordCancellation(Subscription)
+    case reactivate(Subscription)
+
+    var id: String {
+        switch self {
+        case .recordCancellation(let subscription):
+            "record-cancellation-\(subscription.id)"
+        case .reactivate(let subscription):
+            "reactivate-\(subscription.id)"
+        }
     }
 }
