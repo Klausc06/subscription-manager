@@ -20,7 +20,8 @@ struct AppDependencies {
         #endif
 
         return make(
-            failsLifecycleMutations: failsLifecycleMutations
+            failsLifecycleMutations: failsLifecycleMutations,
+            allowsExchangeRateNetworking: !arguments.contains("--ui-testing")
         ) {
             let configuration: ModelConfiguration
             switch try storeSelection(arguments: arguments) {
@@ -68,6 +69,7 @@ struct AppDependencies {
 
     static func make(
         failsLifecycleMutations: Bool = false,
+        allowsExchangeRateNetworking: Bool = true,
         modelContainer: () throws -> ModelContainer
     ) -> AppStartupState {
         do {
@@ -86,14 +88,25 @@ struct AppDependencies {
             #else
             workspaceRepository = repository
             #endif
-            let catalogDirectory = try FileManager.default.url(
+            let applicationSupportDirectory = try FileManager.default.url(
                 for: .applicationSupportDirectory,
                 in: .userDomainMask,
                 appropriateFor: nil,
                 create: true
             )
-            .appending(path: "SubscriptionManager/Catalog", directoryHint: .isDirectory)
+            .appending(path: "SubscriptionManager", directoryHint: .isDirectory)
+            let catalogDirectory = applicationSupportDirectory.appending(
+                path: "Catalog",
+                directoryHint: .isDirectory
+            )
+            let exchangeRateDirectory = applicationSupportDirectory.appending(
+                path: "Insights",
+                directoryHint: .isDirectory
+            )
             let catalogCache = FileCatalogCache(directory: catalogDirectory)
+            let exchangeRateCache = FileExchangeRateCache(
+                directory: exchangeRateDirectory
+            )
             let bundledCatalog = BundledCatalogRepository()
             let catalogRepository = CachedCatalogRepository(
                 bundled: bundledCatalog,
@@ -107,7 +120,13 @@ struct AppDependencies {
                         preferencesRepository: preferencesRepository,
                         catalogRepository: catalogRepository,
                         catalogUpdateSource: GitHubCatalogUpdateSource(),
-                        catalogCache: catalogCache
+                        catalogCache: catalogCache,
+                        exchangeRateSource: allowsExchangeRateNetworking
+                            ? FrankfurterExchangeRateSource()
+                            : nil,
+                        exchangeRateCache: allowsExchangeRateNetworking
+                            ? exchangeRateCache
+                            : nil
                     )
                 )
             )

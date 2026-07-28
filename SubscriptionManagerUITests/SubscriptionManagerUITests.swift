@@ -28,6 +28,31 @@ final class SubscriptionManagerUITests: XCTestCase {
         XCTAssertTrue(topLevelTab("Insights", in: app).exists)
     }
 
+    func testInsightsShowsExplicitUnavailableStateWithoutRates() {
+        let app = launch(language: "en", locale: "en_US")
+
+        topLevelTab("Insights", in: app).tap()
+
+        XCTAssertTrue(
+            app.descendants(matching: .any)["insights.mode"]
+                .waitForExistence(timeout: 5)
+        )
+        XCTAssertTrue(
+            app.descendants(matching: .any)["insights.unavailable"]
+                .waitForExistence(timeout: 5)
+        )
+    }
+
+    func testSettingsOffersEURAsDisplayCurrency() {
+        let app = launch(language: "en", locale: "en_US")
+
+        app.buttons["library.settings"].tap()
+
+        XCTAssertTrue(
+            app.buttons["preferences.currency.eur"].waitForExistence(timeout: 5)
+        )
+    }
+
     func testUpcomingExpectedChargeOpensItsSubscriptionDetail() {
         let app = launch(language: "en", locale: "en_US")
 

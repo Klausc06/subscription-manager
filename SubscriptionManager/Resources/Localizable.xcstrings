@@ -645,6 +645,19 @@
     "This only saves a future planning preference. Calendar access is requested separately when you choose to import renewals." : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "This only saves a future planning preference. Calendar access is requested separately when you choose to import renewals." } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "这只保存未来规划偏好；仅在你选择导入续费时才会单独请求日历权限。" } } } },
     "6 Months" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "6 Months" } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "6 个月" } } } },
     "12 Months" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "12 Months" } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "12 个月" } } } },
+    "Annualized" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Annualized" } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "年化" } } } },
+    "Category Totals" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Category Totals" } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "分类总额" } } } },
+    "Confirmed" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Confirmed" } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "已确认" } } } },
+    "Exchange rates are unavailable. Original subscription values are unchanged." : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Exchange rates are unavailable. Original subscription values are unchanged." } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "汇率暂不可用。原始订阅金额不会改变。" } } } },
+    "Expected" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Expected" } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "预计" } } } },
+    "Insights Unavailable" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Insights Unavailable" } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "洞察暂不可用" } } } },
+    "Loading Insights" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Loading Insights" } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "正在载入洞察" } } } },
+    "Rates updated %@" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Rates updated %@" } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "汇率更新于 %@" } } } },
+    "Selected Range" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Selected Range" } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "所选范围" } } } },
+    "Spending by Category" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Spending by Category" } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "按分类支出" } } } },
+    "Total" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Total" } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "总额" } } } },
+    "Total Mode" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Total Mode" } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "汇总方式" } } } },
+    "Using cached rates from %@" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Using cached rates from %@" } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "正在使用 %@ 的缓存汇率" } } } },
     "Your subscriptions will appear here." : {
       "localizations" : {
         "en" : {

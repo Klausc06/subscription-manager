@@ -1,9 +1,10 @@
 import Foundation
 import Observation
 
-public enum Currency: String, CaseIterable, Codable, Sendable {
+public enum Currency: String, CaseIterable, Codable, Hashable, Sendable {
     case cny = "CNY"
     case usd = "USD"
+    case eur = "EUR"
 }
 
 public struct Money: Codable, Equatable, Sendable {
@@ -404,16 +405,21 @@ public final class SubscriptionWorkspace {
     public private(set) var catalogState: CatalogState = .notLoaded
     public private(set) var catalogDiagnostics: CatalogDiagnostics?
     public private(set) var setupState: SetupState = .notLoaded
+    public private(set) var exchangeRateStatus: ExchangeRateStatus = .notLoaded
+    public private(set) var insightsState: SpendingInsightsState = .notLoaded
 
     private let repository: any SubscriptionRepository
     private let preferencesRepository: (any UserPreferencesRepository)?
     private let catalogRepository: (any CatalogRepository)?
     private let catalogUpdateSource: (any CatalogUpdateSource)?
     private let catalogCache: (any CatalogCache)?
+    private let exchangeRateSource: (any ExchangeRateSource)?
+    private let exchangeRateCache: (any ExchangeRateCache)?
     private let identifierGenerator: () -> UUID
     private let now: () -> Date
     private let calendar: Calendar
     private var expectedChargesRequest: ExpectedChargesRequest?
+    private var insightsRequest: InsightsRequest?
     private var catalogSnapshot: CatalogSnapshot?
     private var catalogLocale = Locale.current
     private var catalogSearchQuery = ""
@@ -425,6 +431,8 @@ public final class SubscriptionWorkspace {
         catalogRepository: (any CatalogRepository)? = nil,
         catalogUpdateSource: (any CatalogUpdateSource)? = nil,
         catalogCache: (any CatalogCache)? = nil,
+        exchangeRateSource: (any ExchangeRateSource)? = nil,
+        exchangeRateCache: (any ExchangeRateCache)? = nil,
         identifierGenerator: @escaping () -> UUID = UUID.init,
         now: @escaping () -> Date = Date.init,
         calendar: Calendar? = nil
@@ -434,6 +442,8 @@ public final class SubscriptionWorkspace {
         self.catalogRepository = catalogRepository
         self.catalogUpdateSource = catalogUpdateSource
         self.catalogCache = catalogCache
+        self.exchangeRateSource = exchangeRateSource
+        self.exchangeRateCache = exchangeRateCache
         self.identifierGenerator = identifierGenerator
         self.now = now
         self.calendar = calendar ?? Self.defaultRenewalCalendar()
@@ -473,6 +483,7 @@ public final class SubscriptionWorkspace {
                 setupStatus: currentPreferences.setupStatus
             )
         )
+        reloadInsightsIfNeeded()
     }
 
     public func completeSetup() {
@@ -547,6 +558,239 @@ public final class SubscriptionWorkspace {
         calendar.locale = Locale(identifier: "en_US_POSIX")
         calendar.timeZone = .autoupdatingCurrent
         return calendar
+    }
+
+    public func refreshExchangeRates() async {
+        let cachedState = try? exchangeRateCache?.loadState()
+        if let cachedState,
+           calendar.isDate(
+               cachedState.lastAttemptAt
+                   ?? cachedState.snapshot?.fetchedAt
+                   ?? .distantPast,
+               inSameDayAs: now()
+           )
+        {
+            exchangeRateStatus = cachedState.snapshot.map { snapshot in
+                calendar.isDate(snapshot.fetchedAt, inSameDayAs: now())
+                    ? .fresh(snapshot)
+                    : .stale(snapshot)
+            } ?? .unavailable
+            return
+        }
+
+        guard let exchangeRateSource else {
+            exchangeRateStatus = cachedState?.snapshot.map(
+                ExchangeRateStatus.stale
+            ) ?? .unavailable
+            return
+        }
+
+        let subscriptions = (try? repository.listSubscriptions()) ?? []
+        let quotes = Set(subscriptions.map(\.originalAmount.currency))
+            .union([currentPreferences.primaryCurrency])
+            .subtracting([.eur])
+        let attemptedAt = now()
+        do {
+            let snapshot = try await exchangeRateSource.fetchRates(
+                base: .eur,
+                quotes: quotes
+            )
+            let state = ExchangeRateCacheState(
+                snapshot: snapshot,
+                lastAttemptAt: attemptedAt
+            )
+            try? exchangeRateCache?.saveState(state)
+            exchangeRateStatus = .fresh(snapshot)
+        } catch {
+            let state = ExchangeRateCacheState(
+                snapshot: cachedState?.snapshot,
+                lastAttemptAt: attemptedAt
+            )
+            try? exchangeRateCache?.saveState(state)
+            exchangeRateStatus = cachedState?.snapshot.map(
+                ExchangeRateStatus.stale
+            ) ?? .unavailable
+        }
+    }
+
+    public func loadInsights(
+        mode: SpendingReportMode,
+        from: Date,
+        through: Date
+    ) {
+        insightsRequest = InsightsRequest(mode: mode, from: from, through: through)
+        guard from <= through,
+              let snapshot = currentExchangeRateSnapshot
+        else {
+            insightsState = .unavailable
+            return
+        }
+
+        let displayCurrency = currentPreferences.primaryCurrency
+        do {
+            let subscriptions = try repository.listSubscriptions()
+            let rawItems = subscriptions.flatMap { subscription in
+                makeSpendingInsightItems(
+                    for: subscription,
+                    mode: mode,
+                    from: from,
+                    through: through
+                )
+            }
+            let items = try rawItems.map { item in
+                SpendingInsightItem(
+                    id: item.id,
+                    subscriptionID: item.subscriptionID,
+                    serviceName: item.serviceName,
+                    category: item.category,
+                    date: item.date,
+                    originalAmount: item.amount,
+                    convertedAmount: try snapshot.convert(
+                        item.amount,
+                        to: displayCurrency
+                    )
+                )
+            }
+            let sortedItems = items.sorted { lhs, rhs in
+                if lhs.date != rhs.date { return lhs.date < rhs.date }
+                return lhs.id < rhs.id
+            }
+            insightsState = .available(
+                makeInsights(
+                    mode: mode,
+                    displayCurrency: displayCurrency,
+                    from: from,
+                    through: through,
+                    items: sortedItems
+                )
+            )
+        } catch {
+            insightsState = .unavailable
+        }
+    }
+
+    private var currentExchangeRateSnapshot: ExchangeRateSnapshot? {
+        switch exchangeRateStatus {
+        case .fresh(let snapshot), .stale(let snapshot): snapshot
+        case .notLoaded, .unavailable: nil
+        }
+    }
+
+    private func reloadInsightsIfNeeded() {
+        guard let insightsRequest else { return }
+        loadInsights(
+            mode: insightsRequest.mode,
+            from: insightsRequest.from,
+            through: insightsRequest.through
+        )
+    }
+
+    private func makeInsights(
+        mode: SpendingReportMode,
+        displayCurrency: Currency,
+        from: Date,
+        through: Date,
+        items: [SpendingInsightItem]
+    ) -> SpendingInsights {
+        let totalMinorUnits = items.reduce(Int64.zero) {
+            $0 + $1.convertedAmount.minorUnits
+        }
+        let total = Money(
+            minorUnits: totalMinorUnits,
+            currency: displayCurrency
+        )
+        let monthTotals = Dictionary(grouping: items) { item in
+            calendar.date(
+                from: calendar.dateComponents([.year, .month], from: item.date)
+            ) ?? item.date
+        }
+        .map { month, items in
+            SpendingMonthlyTotal(
+                month: month,
+                amount: Money(
+                    minorUnits: items.reduce(Int64.zero) {
+                        $0 + $1.convertedAmount.minorUnits
+                    },
+                    currency: displayCurrency
+                )
+            )
+        }
+        .sorted { $0.month < $1.month }
+        let categoryTotals = Dictionary(grouping: items, by: \.category)
+            .map { category, items in
+                SpendingCategoryTotal(
+                    category: category,
+                    amount: Money(
+                        minorUnits: items.reduce(Int64.zero) {
+                            $0 + $1.convertedAmount.minorUnits
+                        },
+                        currency: displayCurrency
+                    )
+                )
+            }
+            .sorted { $0.category.localizedCompare($1.category) == .orderedAscending }
+        let dayCount = max(
+            1,
+            calendar.dateComponents([.day], from: from, to: through).day ?? 0
+        )
+        let annualizedMinorUnits = NSDecimalNumber(
+            decimal: Decimal(totalMinorUnits) / Decimal(dayCount) * 365
+        ).int64Value
+        return SpendingInsights(
+            mode: mode,
+            displayCurrency: displayCurrency,
+            selectedRangeTotal: total,
+            annualizedTotal: Money(
+                minorUnits: annualizedMinorUnits,
+                currency: displayCurrency
+            ),
+            monthlyTotals: monthTotals,
+            categoryTotals: categoryTotals,
+            items: items
+        )
+    }
+
+    private func makeSpendingInsightItems(
+        for subscription: Subscription,
+        mode: SpendingReportMode,
+        from: Date,
+        through: Date
+    ) -> [RawSpendingInsightItem] {
+        guard !subscription.isArchived else { return [] }
+        switch mode {
+        case .expected:
+            guard isEligibleForExpectedCharges(subscription) else { return [] }
+            return makeExpectedCharges(
+                for: subscription,
+                through: through,
+                maximumCount: .max
+            )
+            .filter { $0.scheduledDate >= from }
+            .map { charge in
+                RawSpendingInsightItem(
+                    id: "expected:\(charge.id.subscriptionID.uuidString)-"
+                        + "\(charge.id.year)-\(charge.id.month)-\(charge.id.day)",
+                    subscriptionID: subscription.id,
+                    serviceName: subscription.serviceName,
+                    category: subscription.category,
+                    date: charge.scheduledDate,
+                    amount: charge.amount
+                )
+            }
+        case .confirmed:
+            return subscription.confirmedCharges
+                .filter { $0.chargedDate >= from && $0.chargedDate <= through }
+                .map { charge in
+                    RawSpendingInsightItem(
+                        id: "confirmed:\(charge.id.uuidString)",
+                        subscriptionID: subscription.id,
+                        serviceName: subscription.serviceName,
+                        category: subscription.category,
+                        date: charge.chargedDate,
+                        amount: charge.amount
+                    )
+                }
+        }
     }
 
     public func createSubscription(
@@ -1956,6 +2200,21 @@ public final class SubscriptionWorkspace {
         }
         anchorComponents.day = min(anchorDay, dayRange.count)
         return calendar.date(from: anchorComponents)
+    }
+
+    private struct RawSpendingInsightItem {
+        let id: String
+        let subscriptionID: UUID
+        let serviceName: String
+        let category: String
+        let date: Date
+        let amount: Money
+    }
+
+    private struct InsightsRequest {
+        let mode: SpendingReportMode
+        let from: Date
+        let through: Date
     }
 
     private struct ExpectedChargesRequest {
