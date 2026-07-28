@@ -7,16 +7,21 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		4C12D90EEC1CC642D35E22A2 /* SubscriptionDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6F7965D45867F28DAFB96A5D /* SubscriptionDetailView.swift */; };
 		54723BACD6E59DC50EEFDCED /* SwiftDataSubscriptionRepository.swift in Sources */ = {isa = PBXBuildFile; fileRef = 58208DD28479A9E167C08113 /* SwiftDataSubscriptionRepository.swift */; };
 		5EFACBCB58F5A772FF61FF4B /* SubscriptionManagerApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 03DFA150363397FA01C93872 /* SubscriptionManagerApp.swift */; };
 		665528E003EC11A9189C1B7D /* InfoPlist.xcstrings in Resources */ = {isa = PBXBuildFile; fileRef = 4D90D49FB3AEDF62EFA48202 /* InfoPlist.xcstrings */; };
+		6660C4236F0802CD6EA713D1 /* MoneyFormatting.swift in Sources */ = {isa = PBXBuildFile; fileRef = C3C019FF49A9B77C9987C82B /* MoneyFormatting.swift */; };
+		71D3C438264BA1B8C68FE357 /* SubscriptionFormSupport.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2CAE4BF38A7217C53E4C047F /* SubscriptionFormSupport.swift */; };
 		73C2C4432A240F796882FCD9 /* SubscriptionCore in Frameworks */ = {isa = PBXBuildFile; productRef = 30FD0B5354BE8274C66402A8 /* SubscriptionCore */; };
 		866177EEBBB6B76DADA471C2 /* SubscriptionRecord.swift in Sources */ = {isa = PBXBuildFile; fileRef = 12BBDD4A3C3D5A6F92B3775B /* SubscriptionRecord.swift */; };
 		8BDFDA89FC3799D7A394A305 /* AppDependencies.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9FEF1B3C25246E96015F3FB1 /* AppDependencies.swift */; };
+		95DD1A1B26E3AC5313818053 /* AddSubscriptionView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3E375325DBD112A5F485EF3F /* AddSubscriptionView.swift */; };
 		9C86757EC90F9573E7228788 /* Localizable.xcstrings in Resources */ = {isa = PBXBuildFile; fileRef = 0AB60CE097AABC95DB396296 /* Localizable.xcstrings */; };
 		BFE237030B51A0B5AFBF49CE /* SubscriptionCore in Frameworks */ = {isa = PBXBuildFile; productRef = 68D9CBCB130A9BFEC4CE076E /* SubscriptionCore */; };
 		C90E83DF13A2B2073C083FBF /* SwiftDataSubscriptionRepositoryTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6F44B60853F624BFCF8B2F53 /* SwiftDataSubscriptionRepositoryTests.swift */; };
 		C9F6A31BE02C4B3821562DFC /* LibraryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 15EA34A86C81D0560BC4A8A0 /* LibraryView.swift */; };
+		E3EC37D5EF593651F866C788 /* SubscriptionRow.swift in Sources */ = {isa = PBXBuildFile; fileRef = F24364E7E6897202F27AAE1B /* SubscriptionRow.swift */; };
 		F227D20F28F63E3A1A7D0681 /* SubscriptionManagerUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4C522F69323C0F092E76973D /* SubscriptionManagerUITests.swift */; };
 /* End PBXBuildFile section */
 
@@ -42,16 +47,21 @@
 		0AB60CE097AABC95DB396296 /* Localizable.xcstrings */ = {isa = PBXFileReference; lastKnownFileType = text.json.xcstrings; path = Localizable.xcstrings; sourceTree = "<group>"; };
 		12BBDD4A3C3D5A6F92B3775B /* SubscriptionRecord.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SubscriptionRecord.swift; sourceTree = "<group>"; };
 		15EA34A86C81D0560BC4A8A0 /* LibraryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LibraryView.swift; sourceTree = "<group>"; };
+		2CAE4BF38A7217C53E4C047F /* SubscriptionFormSupport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SubscriptionFormSupport.swift; sourceTree = "<group>"; };
+		3E375325DBD112A5F485EF3F /* AddSubscriptionView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AddSubscriptionView.swift; sourceTree = "<group>"; };
 		417B504B82A0927D26DDDB31 /* SubscriptionManagerUITests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = SubscriptionManagerUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		4C522F69323C0F092E76973D /* SubscriptionManagerUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SubscriptionManagerUITests.swift; sourceTree = "<group>"; };
 		4D90D49FB3AEDF62EFA48202 /* InfoPlist.xcstrings */ = {isa = PBXFileReference; lastKnownFileType = text.json.xcstrings; path = InfoPlist.xcstrings; sourceTree = "<group>"; };
 		58208DD28479A9E167C08113 /* SwiftDataSubscriptionRepository.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SwiftDataSubscriptionRepository.swift; sourceTree = "<group>"; };
 		6F44B60853F624BFCF8B2F53 /* SwiftDataSubscriptionRepositoryTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SwiftDataSubscriptionRepositoryTests.swift; sourceTree = "<group>"; };
+		6F7965D45867F28DAFB96A5D /* SubscriptionDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SubscriptionDetailView.swift; sourceTree = "<group>"; };
 		8D1784DAF6D526C287B9B8CF /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		99D687DDF8D151CB8B4AB595 /* SubscriptionManagerTests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = SubscriptionManagerTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		9FEF1B3C25246E96015F3FB1 /* AppDependencies.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDependencies.swift; sourceTree = "<group>"; };
 		A51067E214337D512DCE7E15 /* SubscriptionManager.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = SubscriptionManager.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		BC563C5D4CFE9FE1F0148C35 /* SubscriptionCore */ = {isa = PBXFileReference; lastKnownFileType = folder; name = SubscriptionCore; path = Packages/SubscriptionCore; sourceTree = SOURCE_ROOT; };
+		C3C019FF49A9B77C9987C82B /* MoneyFormatting.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MoneyFormatting.swift; sourceTree = "<group>"; };
+		F24364E7E6897202F27AAE1B /* SubscriptionRow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SubscriptionRow.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -117,7 +127,12 @@
 		438293401ACA5626F66CBFAC /* Library */ = {
 			isa = PBXGroup;
 			children = (
+				3E375325DBD112A5F485EF3F /* AddSubscriptionView.swift */,
 				15EA34A86C81D0560BC4A8A0 /* LibraryView.swift */,
+				C3C019FF49A9B77C9987C82B /* MoneyFormatting.swift */,
+				6F7965D45867F28DAFB96A5D /* SubscriptionDetailView.swift */,
+				2CAE4BF38A7217C53E4C047F /* SubscriptionFormSupport.swift */,
+				F24364E7E6897202F27AAE1B /* SubscriptionRow.swift */,
 			);
 			path = Library;
 			sourceTree = "<group>";
@@ -283,10 +298,15 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				95DD1A1B26E3AC5313818053 /* AddSubscriptionView.swift in Sources */,
 				8BDFDA89FC3799D7A394A305 /* AppDependencies.swift in Sources */,
 				C9F6A31BE02C4B3821562DFC /* LibraryView.swift in Sources */,
+				6660C4236F0802CD6EA713D1 /* MoneyFormatting.swift in Sources */,
+				4C12D90EEC1CC642D35E22A2 /* SubscriptionDetailView.swift in Sources */,
+				71D3C438264BA1B8C68FE357 /* SubscriptionFormSupport.swift in Sources */,
 				5EFACBCB58F5A772FF61FF4B /* SubscriptionManagerApp.swift in Sources */,
 				866177EEBBB6B76DADA471C2 /* SubscriptionRecord.swift in Sources */,
+				E3EC37D5EF593651F866C788 /* SubscriptionRow.swift in Sources */,
 				54723BACD6E59DC50EEFDCED /* SwiftDataSubscriptionRepository.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
