@@ -8,16 +8,46 @@ struct AppDependencies {
     let workspace: SubscriptionWorkspace
 
     static func live(
-        arguments: [String] = ProcessInfo.processInfo.arguments
+        arguments: [String] = ProcessInfo.processInfo.arguments,
+        storeDirectory: URL? = nil
     ) -> AppStartupState {
         let schema = Schema([SubscriptionRecord.self])
-        let usesIsolatedStore = arguments.contains("--ui-testing")
 
         return make {
-            let configuration = ModelConfiguration(
-                schema: schema,
-                isStoredInMemoryOnly: usesIsolatedStore
-            )
+            let configuration: ModelConfiguration
+            if let token = try namedUITestingStoreToken(in: arguments) {
+                let rootDirectory: URL
+                if let storeDirectory {
+                    rootDirectory = storeDirectory
+                } else {
+                    rootDirectory = try FileManager.default.url(
+                        for: .applicationSupportDirectory,
+                        in: .userDomainMask,
+                        appropriateFor: nil,
+                        create: true
+                    )
+                }
+                let directory = rootDirectory.appending(
+                    path: "SubscriptionManagerUITests",
+                    directoryHint: .isDirectory
+                )
+                try FileManager.default.createDirectory(
+                    at: directory,
+                    withIntermediateDirectories: true
+                )
+                configuration = ModelConfiguration(
+                    "UITesting-\(token)",
+                    schema: schema,
+                    url: directory.appending(path: "\(token).store"),
+                    allowsSave: true,
+                    cloudKitDatabase: .none
+                )
+            } else {
+                configuration = ModelConfiguration(
+                    schema: schema,
+                    isStoredInMemoryOnly: arguments.contains("--ui-testing")
+                )
+            }
             return try ModelContainer(
                 for: schema,
                 configurations: [configuration]
@@ -43,6 +73,35 @@ struct AppDependencies {
             return .failed(AppStartupFailure(underlyingError: error))
         }
     }
+
+    private static func namedUITestingStoreToken(
+        in arguments: [String]
+    ) throws -> String? {
+        guard let argumentIndex = arguments.firstIndex(
+            of: "--ui-testing-store"
+        ) else {
+            return nil
+        }
+        let valueIndex = arguments.index(after: argumentIndex)
+        guard arguments.indices.contains(valueIndex) else {
+            throw UITestingStoreError.missingToken
+        }
+        let token = arguments[valueIndex]
+        let allowedCharacters = CharacterSet.alphanumerics.union(
+            CharacterSet(charactersIn: "-_")
+        )
+        guard !token.isEmpty,
+              token.unicodeScalars.allSatisfy(allowedCharacters.contains)
+        else {
+            throw UITestingStoreError.invalidToken
+        }
+        return token
+    }
+}
+
+private enum UITestingStoreError: Error {
+    case missingToken
+    case invalidToken
 }
 
 struct AppStartupFailure {

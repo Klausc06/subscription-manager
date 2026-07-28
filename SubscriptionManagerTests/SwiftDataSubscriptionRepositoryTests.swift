@@ -226,4 +226,63 @@ struct SwiftDataSubscriptionRepositoryTests {
 
         #expect(secondLaunch.workspace.libraryState == .empty)
     }
+
+    @Test("A named UI testing store survives an application relaunch")
+    @MainActor
+    func namedUITestingStoreSurvivesApplicationRelaunch() throws {
+        let storeDirectory = FileManager.default.temporaryDirectory
+            .appending(
+                path: "SubscriptionManagerTests-\(UUID().uuidString)",
+                directoryHint: .isDirectory
+            )
+        defer {
+            try? FileManager.default.removeItem(at: storeDirectory)
+        }
+        let arguments = [
+            "SubscriptionManager",
+            "--ui-testing",
+            "--ui-testing-store",
+            "relaunch-contract",
+        ]
+        let input = MonthlySubscriptionCreationInput(
+            serviceName: "Example",
+            plan: "Standard",
+            category: "Other",
+            originalAmount: Money(minorUnits: 1_299, currency: .usd),
+            startDate: Date(timeIntervalSince1970: 1_767_225_600),
+            confirmedNextRenewal: Date(
+                timeIntervalSince1970: 1_769_904_000
+            ),
+            managementURL: nil,
+            notes: ""
+        )
+
+        do {
+            guard case .ready(let firstLaunch) = AppDependencies.live(
+                arguments: arguments,
+                storeDirectory: storeDirectory
+            ) else {
+                Issue.record("Expected the first disk-backed launch to be ready")
+                return
+            }
+            firstLaunch.workspace.createMonthlySubscription(input)
+        }
+
+        guard case .ready(let relaunchedApp) = AppDependencies.live(
+            arguments: arguments,
+            storeDirectory: storeDirectory
+        ) else {
+            Issue.record("Expected the relaunched app to reopen its store")
+            return
+        }
+        relaunchedApp.workspace.loadLibrary()
+
+        guard case .loaded(let subscriptions) =
+            relaunchedApp.workspace.libraryState
+        else {
+            Issue.record("Expected the saved subscription after relaunch")
+            return
+        }
+        #expect(subscriptions.map(\.serviceName) == ["Example"])
+    }
 }
