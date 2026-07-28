@@ -3,15 +3,42 @@ import SwiftUI
 
 struct LibraryView: View {
     let workspace: SubscriptionWorkspace
+    @State private var presentedSheet: LibrarySheet?
 
     var body: some View {
         NavigationStack {
             libraryContent
                 .navigationTitle("Subscriptions")
+                .navigationDestination(for: UUID.self) { subscriptionID in
+                    SubscriptionDetailView(
+                        workspace: workspace,
+                        subscriptionID: subscriptionID
+                    )
+                }
+                .toolbar {
+                    ToolbarItem(placement: .primaryAction) {
+                        addButton
+                    }
+                }
+        }
+        .sheet(item: $presentedSheet) { sheet in
+            switch sheet {
+            case .addSubscription:
+                NavigationStack {
+                    AddSubscriptionView(workspace: workspace)
+                }
+            }
         }
         .task {
             workspace.loadLibrary()
         }
+    }
+
+    private var addButton: some View {
+        Button("Add Subscription", systemImage: "plus") {
+            presentedSheet = .addSubscription
+        }
+        .accessibilityIdentifier("subscription.add")
     }
 
     @ViewBuilder
@@ -29,18 +56,21 @@ struct LibraryView: View {
                 )
             } description: {
                 Text("Your subscriptions will appear here.")
+            } actions: {
+                addButton
             }
             .accessibilityIdentifier("library.empty-state")
 
         case let .loaded(subscriptions):
             List(subscriptions) { subscription in
-                Label(
-                    "Saved Subscription",
-                    systemImage: "rectangle.stack"
+                NavigationLink(value: subscription.id) {
+                    SubscriptionRow(subscription: subscription)
+                }
+                .accessibilityLabel(
+                    "\(subscription.serviceName), \(subscription.plan), "
+                        + formattedMoney(subscription.originalAmount)
                 )
-                .accessibilityIdentifier(
-                    "subscription.\(subscription.id.uuidString)"
-                )
+                .accessibilityIdentifier("subscription.row")
             }
 
         case .failed:
@@ -55,6 +85,12 @@ struct LibraryView: View {
             .accessibilityIdentifier("library.failed-state")
         }
     }
+}
+
+private enum LibrarySheet: String, Identifiable {
+    case addSubscription
+
+    var id: String { rawValue }
 }
 
 #Preview("Empty library") {
