@@ -87,7 +87,8 @@ struct AppDependencies {
                 AppDependencies(
                     modelContainer: modelContainer,
                     workspace: SubscriptionWorkspace(
-                        repository: workspaceRepository
+                        repository: workspaceRepository,
+                        catalogRepository: BundledCatalogRepository()
                     )
                 )
             )

@@ -91,6 +91,49 @@ final class SubscriptionManagerUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["Next Expected Charge"].exists)
     }
 
+    func testCreatesEditableSubscriptionFromBundledCatalog() {
+        let app = launch(
+            language: "en",
+            locale: "en_US",
+            storeToken: "catalog-\(UUID().uuidString)"
+        )
+
+        XCTAssertTrue(
+            app.buttons["subscription.add"].waitForExistence(timeout: 5)
+        )
+        app.buttons["subscription.add"].tap()
+
+        let catalog = app.buttons["subscription.add.catalog"]
+        XCTAssertTrue(catalog.waitForExistence(timeout: 5))
+        catalog.tap()
+
+        let spotify = app.buttons["catalog.preset.spotify"]
+        XCTAssertTrue(spotify.waitForExistence(timeout: 5))
+        spotify.tap()
+
+        let usePreset = app.buttons["catalog.use-preset"]
+        XCTAssertTrue(usePreset.waitForExistence(timeout: 5))
+        usePreset.tap()
+
+        let serviceName = app.textFields["subscription.form.service-name"]
+        XCTAssertTrue(serviceName.waitForExistence(timeout: 5))
+        XCTAssertEqual(serviceName.value as? String, "Spotify")
+
+        let plan = app.textFields["subscription.form.plan"]
+        plan.tap()
+        plan.typeText("Premium")
+        let amount = app.textFields["subscription.form.amount"]
+        amount.tap()
+        amount.typeText("11.99")
+        app.buttons["subscription.form.save"].tap()
+
+        XCTAssertTrue(
+            app.buttons["subscription.row"].firstMatch
+                .waitForExistence(timeout: 5)
+        )
+        XCTAssertTrue(app.staticTexts["Spotify"].exists)
+    }
+
     func testCreatesTrialWithVisibleTrialStatus() {
         let app = launch(
             language: "en",

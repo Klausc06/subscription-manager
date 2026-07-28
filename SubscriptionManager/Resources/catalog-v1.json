@@ -1,0 +1,69 @@
+{
+  "schemaVersion": 1,
+  "presets": [
+    {
+      "id": "spotify",
+      "serviceName": { "en": "Spotify", "zhHans": "Spotify" },
+      "category": { "en": "Music", "zhHans": "音乐" },
+      "suggestedInterval": "monthly",
+      "managementURL": "https://www.spotify.com/account/overview/",
+      "icon": "music"
+    },
+    {
+      "id": "netflix",
+      "serviceName": { "en": "Netflix", "zhHans": "Netflix" },
+      "category": { "en": "Video", "zhHans": "视频" },
+      "suggestedInterval": "monthly",
+      "managementURL": "https://www.netflix.com/account",
+      "icon": "video"
+    },
+    {
+      "id": "icloud-plus",
+      "serviceName": { "en": "iCloud+", "zhHans": "iCloud+" },
+      "category": { "en": "Cloud Storage", "zhHans": "云存储" },
+      "suggestedInterval": "monthly",
+      "managementURL": "https://support.apple.com/108047",
+      "icon": "cloud"
+    },
+    {
+      "id": "notion",
+      "serviceName": { "en": "Notion", "zhHans": "Notion" },
+      "category": { "en": "Productivity", "zhHans": "效率" },
+      "suggestedInterval": "monthly",
+      "managementURL": "https://www.notion.so/help/manage-your-plan",
+      "icon": "productivity"
+    },
+    {
+      "id": "kindle-unlimited",
+      "serviceName": { "en": "Kindle Unlimited", "zhHans": "Kindle Unlimited" },
+      "category": { "en": "Reading", "zhHans": "阅读" },
+      "suggestedInterval": "monthly",
+      "managementURL": "https://www.amazon.com/gp/kindle/ku/ku_central",
+      "icon": "reading"
+    },
+    {
+      "id": "the-new-york-times",
+      "serviceName": { "en": "The New York Times", "zhHans": "纽约时报" },
+      "category": { "en": "News", "zhHans": "新闻" },
+      "suggestedInterval": "monthly",
+      "managementURL": "https://www.nytimes.com/subscription",
+      "icon": "news"
+    },
+    {
+      "id": "chatgpt-plus",
+      "serviceName": { "en": "ChatGPT Plus", "zhHans": "ChatGPT Plus" },
+      "category": { "en": "Productivity", "zhHans": "效率" },
+      "suggestedInterval": "monthly",
+      "managementURL": "https://chatgpt.com/",
+      "icon": "productivity"
+    },
+    {
+      "id": "playstation-plus",
+      "serviceName": { "en": "PlayStation Plus", "zhHans": "PlayStation Plus" },
+      "category": { "en": "Gaming", "zhHans": "游戏" },
+      "suggestedInterval": "yearly",
+      "managementURL": "https://www.playstation.com/support/subscriptions/",
+      "icon": "game"
+    }
+  ]
+}
