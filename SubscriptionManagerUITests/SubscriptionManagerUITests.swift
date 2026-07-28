@@ -109,6 +109,9 @@ final class SubscriptionManagerUITests: XCTestCase {
 
         let spotify = app.buttons["catalog.preset.spotify"]
         XCTAssertTrue(spotify.waitForExistence(timeout: 5))
+        let diagnostics = app.staticTexts["catalog.diagnostics"]
+        XCTAssertTrue(diagnostics.waitForExistence(timeout: 5))
+        XCTAssertTrue(diagnostics.label.contains("Catalog version 1"))
         spotify.tap()
 
         let usePreset = app.buttons["catalog.use-preset"]
