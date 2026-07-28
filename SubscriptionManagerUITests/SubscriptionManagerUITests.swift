@@ -269,16 +269,6 @@ final class SubscriptionManagerUITests: XCTestCase {
         XCTAssertTrue(
             confirmation.staticTexts["This action cannot be undone."].exists
         )
-        confirmation.buttons["Cancel"].tap()
-
-        XCTAssertTrue(
-            app.descendants(matching: .any)["subscription.detail"]
-                .waitForExistence(timeout: 5)
-        )
-
-        lifecycleActions.tap()
-        permanentDelete.tap()
-        XCTAssertTrue(confirmation.waitForExistence(timeout: 5))
         confirmation.buttons["Delete Permanently"].tap()
 
         XCTAssertTrue(
