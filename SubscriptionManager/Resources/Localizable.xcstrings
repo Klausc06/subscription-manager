@@ -25,6 +25,18 @@
         "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "计费周期" } }
       }
     },
+    "Billing Interval" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Billing Interval" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "账单周期" } }
+      }
+    },
+    "Billing Schedule" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Billing Schedule" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "账单计划" } }
+      }
+    },
     "Billing Dates" : {
       "localizations" : {
         "en" : { "stringUnit" : { "state" : "translated", "value" : "Billing Dates" } },
@@ -35,6 +47,24 @@
       "localizations" : {
         "en" : { "stringUnit" : { "state" : "translated", "value" : "Cancel" } },
         "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "取消" } }
+      }
+    },
+    "Choose a valid billing schedule." : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Choose a valid billing schedule." } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "请选择有效的账单计划。" } }
+      }
+    },
+    "Couldn’t save changes. Try again." : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Couldn’t save changes. Try again." } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "无法保存更改，请重试。" } }
+      }
+    },
+    "Custom" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Custom" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "自定义" } }
       }
     },
     "Category" : {
@@ -83,6 +113,24 @@
         "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "日期" } }
       }
     },
+    "Days" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Days" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "天" } }
+      }
+    },
+    "Edit" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Edit" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "编辑" } }
+      }
+    },
+    "Edit Subscription" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Edit Subscription" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "编辑订阅" } }
+      }
+    },
     "Enter a valid amount." : {
       "localizations" : {
         "en" : { "stringUnit" : { "state" : "translated", "value" : "Enter a valid amount." } },
@@ -99,6 +147,24 @@
       "localizations" : {
         "en" : { "stringUnit" : { "state" : "translated", "value" : "Enter an amount greater than zero." } },
         "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "请输入大于零的金额。" } }
+      }
+    },
+    "Enter an interval greater than zero." : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Enter an interval greater than zero." } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "请输入大于零的间隔。" } }
+      }
+    },
+    "Half-yearly" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Half-yearly" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "每半年" } }
+      }
+    },
+    "Interval" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Interval" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "间隔" } }
       }
     },
     "Loading Subscriptions" : {
@@ -133,6 +199,12 @@
       "localizations" : {
         "en" : { "stringUnit" : { "state" : "translated", "value" : "Monthly" } },
         "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "每月" } }
+      }
+    },
+    "Months" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Months" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "个月" } }
       }
     },
     "Next Expected Charge" : {
@@ -197,6 +269,12 @@
       "localizations" : {
         "en" : { "stringUnit" : { "state" : "translated", "value" : "Price" } },
         "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "价格" } }
+      }
+    },
+    "Quarterly" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Quarterly" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "每季度" } }
       }
     },
     "Reopen the app to try again." : {
@@ -299,6 +377,36 @@
       "localizations" : {
         "en" : { "stringUnit" : { "state" : "translated", "value" : "This subscription is no longer in your library." } },
         "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "此订阅已不在你的订阅库中。" } }
+      }
+    },
+    "Unit" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Unit" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "单位" } }
+      }
+    },
+    "Weekly" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Weekly" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "每周" } }
+      }
+    },
+    "Weeks" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Weeks" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "周" } }
+      }
+    },
+    "Yearly" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Yearly" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "每年" } }
+      }
+    },
+    "Years" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Years" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "年" } }
       }
     },
     "Your subscriptions will appear here." : {

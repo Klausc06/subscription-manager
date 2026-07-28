@@ -84,4 +84,21 @@ struct MoneyFormattingTests {
 
         #expect(money == nil)
     }
+
+    @Test("Editable money round-trips in a comma-decimal locale")
+    func editableMoneyRoundTripsInCommaDecimalLocale() {
+        let locale = Locale(identifier: "de_DE")
+        let money = Money(minorUnits: 1_234, currency: .usd)
+
+        let text = editableMoneyText(money, locale: locale)
+
+        #expect(text == "12,34")
+        #expect(
+            MoneyTextParser.parse(
+                text,
+                currency: money.currency,
+                locale: locale
+            ) == money
+        )
+    }
 }

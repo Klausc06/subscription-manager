@@ -8,6 +8,22 @@ func formattedMoney(_ money: Money) -> String {
     )
 }
 
+func editableMoneyText(
+    _ money: Money,
+    locale: Locale
+) -> String {
+    let decimalAmount = Decimal(money.minorUnits) / 100
+    let formatter = NumberFormatter()
+    formatter.locale = locale
+    formatter.numberStyle = .decimal
+    formatter.usesGroupingSeparator = false
+    formatter.minimumFractionDigits = 2
+    formatter.maximumFractionDigits = 2
+    return formatter.string(
+        from: NSDecimalNumber(decimal: decimalAmount)
+    ) ?? NSDecimalNumber(decimal: decimalAmount).stringValue
+}
+
 enum MoneyTextParser {
     static func parse(
         _ text: String,

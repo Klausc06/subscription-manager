@@ -129,6 +129,75 @@ final class SubscriptionManagerUITests: XCTestCase {
         )
     }
 
+    func testEditsBillingScheduleAndKeepsItAfterRelaunch() {
+        let storeToken = "edit-\(UUID().uuidString)"
+        let app = launch(
+            language: "en",
+            locale: "en_US",
+            storeToken: storeToken
+        )
+        createSubscription(named: "Example News", in: app)
+        app.buttons["subscription.row"].firstMatch.tap()
+
+        let editButton = app.buttons["subscription.edit"]
+        XCTAssertTrue(editButton.waitForExistence(timeout: 5))
+        editButton.tap()
+
+        let billingInterval = app.buttons[
+            "subscription.form.billing-interval"
+        ]
+        XCTAssertTrue(billingInterval.waitForExistence(timeout: 5))
+        billingInterval.tap()
+        app.buttons["Yearly"].tap()
+        app.buttons["subscription.form.save"].tap()
+
+        let detailInterval = app.descendants(matching: .any)[
+            "subscription.detail.billing-interval"
+        ]
+        XCTAssertTrue(detailInterval.waitForExistence(timeout: 5))
+        XCTAssertTrue(detailInterval.label.contains("Yearly"))
+
+        app.terminate()
+        app.launch()
+        let row = app.buttons["subscription.row"].firstMatch
+        XCTAssertTrue(row.waitForExistence(timeout: 5))
+        row.tap()
+        let relaunchedInterval = app.descendants(matching: .any)[
+            "subscription.detail.billing-interval"
+        ]
+        XCTAssertTrue(relaunchedInterval.waitForExistence(timeout: 5))
+        XCTAssertTrue(relaunchedInterval.label.contains("Yearly"))
+    }
+
+    func testInvalidCustomIntervalIsExplainedInline() {
+        let app = launch(language: "en", locale: "en_US")
+        createSubscription(named: "Example Fitness", in: app)
+        app.buttons["subscription.row"].firstMatch.tap()
+        app.buttons["subscription.edit"].tap()
+
+        let billingInterval = app.buttons[
+            "subscription.form.billing-interval"
+        ]
+        XCTAssertTrue(billingInterval.waitForExistence(timeout: 5))
+        billingInterval.tap()
+        app.buttons["Custom"].tap()
+        let customValue = app.textFields[
+            "subscription.form.custom-interval-value"
+        ]
+        XCTAssertTrue(customValue.waitForExistence(timeout: 5))
+        customValue.tap()
+        customValue.typeText("0")
+        app.buttons["subscription.form.save"].tap()
+
+        XCTAssertTrue(
+            app.staticTexts["subscription.validation.billing-schedule"]
+                .waitForExistence(timeout: 5)
+        )
+        XCTAssertTrue(
+            app.staticTexts["Enter an interval greater than zero."].exists
+        )
+    }
+
     func testSimplifiedChineseAddFlowUsesLocalizedCopy() {
         let app = launch(language: "zh-Hans", locale: "zh_CN")
 
@@ -140,7 +209,46 @@ final class SubscriptionManagerUITests: XCTestCase {
         XCTAssertTrue(app.navigationBars["添加订阅"].waitForExistence(timeout: 5))
         XCTAssertTrue(app.staticTexts["服务"].exists)
         XCTAssertTrue(app.staticTexts["订阅信息"].exists)
+        XCTAssertTrue(app.staticTexts["账单计划"].exists)
+        let billingInterval = app.buttons[
+            "subscription.form.billing-interval"
+        ]
+        XCTAssertTrue(billingInterval.exists)
+        XCTAssertTrue(billingInterval.label.contains("每月"))
         XCTAssertTrue(app.buttons["保存"].exists)
+    }
+
+    private func createSubscription(
+        named serviceNameValue: String,
+        in app: XCUIApplication
+    ) {
+        XCTAssertTrue(
+            app.buttons["subscription.add"].waitForExistence(timeout: 5)
+        )
+        app.buttons["subscription.add"].tap()
+
+        let serviceName = app.textFields["subscription.form.service-name"]
+        XCTAssertTrue(serviceName.waitForExistence(timeout: 5))
+        serviceName.tap()
+        serviceName.typeText(serviceNameValue)
+
+        let plan = app.textFields["subscription.form.plan"]
+        plan.tap()
+        plan.typeText("Standard")
+
+        let category = app.textFields["subscription.form.category"]
+        category.tap()
+        category.typeText("Other")
+
+        let amount = app.textFields["subscription.form.amount"]
+        amount.tap()
+        amount.typeText("9.99")
+
+        app.buttons["subscription.form.save"].tap()
+        XCTAssertTrue(
+            app.buttons["subscription.row"].firstMatch
+                .waitForExistence(timeout: 5)
+        )
     }
 
     private func launch(

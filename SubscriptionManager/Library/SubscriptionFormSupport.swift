@@ -71,6 +71,8 @@ extension SubscriptionCreationField {
             "amount"
         case .confirmedNextRenewal:
             "next-renewal"
+        case .billingSchedule:
+            "billing-schedule"
         }
     }
 }
@@ -91,6 +93,15 @@ extension View {
             keyboardType(.URL)
                 .textInputAutocapitalization(.never)
                 .autocorrectionDisabled()
+        #else
+            self
+        #endif
+    }
+
+    @ViewBuilder
+    func subscriptionNumberKeyboard() -> some View {
+        #if os(iOS)
+            keyboardType(.numberPad)
         #else
             self
         #endif

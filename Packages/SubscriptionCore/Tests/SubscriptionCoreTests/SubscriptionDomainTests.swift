@@ -19,9 +19,9 @@ struct SubscriptionDomainTests {
         #expect(money == Money(minorUnits: 1_001, currency: .usd))
     }
 
-    @Test("The first supported billing cycle is monthly")
-    func firstSupportedBillingCycleIsMonthly() {
-        #expect(BillingCycle.monthly.rawValue == "monthly")
+    @Test("The default supported billing interval is monthly")
+    func defaultSupportedBillingIntervalIsMonthly() {
+        #expect(BillingInterval.monthly.rawValue == "monthly")
     }
 
     @Test("A subscription derives its first expected charge from source fields")

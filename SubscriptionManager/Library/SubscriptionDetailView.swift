@@ -4,10 +4,31 @@ import SwiftUI
 struct SubscriptionDetailView: View {
     let workspace: SubscriptionWorkspace
     let subscriptionID: UUID
+    @State private var subscriptionToEdit: Subscription?
 
     var body: some View {
         detailContent
             .navigationTitle("Subscription Details")
+            .toolbar {
+                if case .loaded(let subscription) = workspace.detailState,
+                   subscription.id == subscriptionID
+                {
+                    ToolbarItem(placement: .primaryAction) {
+                        Button("Edit", systemImage: "pencil") {
+                            subscriptionToEdit = subscription
+                        }
+                        .accessibilityIdentifier("subscription.edit")
+                    }
+                }
+            }
+            .sheet(item: $subscriptionToEdit) { subscription in
+                NavigationStack {
+                    EditSubscriptionView(
+                        workspace: workspace,
+                        subscription: subscription
+                    )
+                }
+            }
             .task(id: subscriptionID) {
                 workspace.loadSubscription(id: subscriptionID)
             }
@@ -73,8 +94,13 @@ private struct SubscriptionDetailForm: View {
                 )
                 .accessibilityIdentifier("subscription.detail.amount")
                 LabeledContent(
-                    "Billing Cycle",
-                    value: String(localized: "Monthly")
+                    "Billing Schedule",
+                    value: localizedBillingInterval(
+                        subscription.billingSchedule.interval
+                    )
+                )
+                .accessibilityIdentifier(
+                    "subscription.detail.billing-interval"
                 )
             }
 

@@ -103,6 +103,118 @@ struct SwiftDataSubscriptionRepositoryTests {
         )
     }
 
+    @Test("A custom schedule and confirmed history survive a repository reload")
+    @MainActor
+    func customScheduleAndConfirmedHistoryRoundTrip() throws {
+        let subscriptionID = UUID(
+            uuidString: "5D25D54C-218D-4BE7-BBB1-64FCE271C9B7"
+        )!
+        let anchor = Date(timeIntervalSince1970: 1_758_837_600)
+        let confirmedCharge = ConfirmedCharge(
+            id: UUID(
+                uuidString: "BA665353-ECDA-4C19-B23A-87B71EB188D8"
+            )!,
+            chargedDate: Date(timeIntervalSince1970: 1_756_159_200),
+            amount: Money(minorUnits: 2_999, currency: .cny)
+        )
+        let expectedSubscription = Subscription(
+            id: subscriptionID,
+            serviceIdentity: ServiceIdentity(
+                rawValue: "manual:\(subscriptionID.uuidString)"
+            ),
+            serviceName: "Example Cloud",
+            plan: "Flexible",
+            category: "Cloud storage",
+            originalAmount: Money(minorUnits: 3_199, currency: .cny),
+            billingSchedule: FixedBillingSchedule(
+                interval: .custom(value: 5, unit: .week),
+                renewalAnchor: anchor,
+                timeZoneIdentifier: "Asia/Shanghai"
+            ),
+            startDate: Date(timeIntervalSince1970: 1_745_715_600),
+            managementURL: nil,
+            notes: "",
+            confirmedCharges: [confirmedCharge]
+        )
+        let configuration = ModelConfiguration(isStoredInMemoryOnly: true)
+        let container = try ModelContainer(
+            for: SubscriptionRecord.self,
+            configurations: configuration
+        )
+        try SwiftDataSubscriptionRepository(
+            modelContainer: container
+        ).createSubscription(expectedSubscription)
+
+        let reloaded = try SwiftDataSubscriptionRepository(
+            modelContainer: container
+        ).subscription(id: subscriptionID)
+
+        #expect(reloaded == expectedSubscription)
+    }
+
+    @Test("Updating a subscription mutates one record and keeps confirmed history")
+    @MainActor
+    func updateMutatesOneRecordAndKeepsConfirmedHistory() throws {
+        let subscriptionID = UUID(
+            uuidString: "0273738B-1AA8-4A45-83F4-E06A0447D7EE"
+        )!
+        let confirmedCharge = ConfirmedCharge(
+            id: UUID(
+                uuidString: "2E7AA6C6-0208-4AE4-9327-CC1927D91468"
+            )!,
+            chargedDate: Date(timeIntervalSince1970: 1_756_159_200),
+            amount: Money(minorUnits: 999, currency: .usd)
+        )
+        let original = Subscription(
+            id: subscriptionID,
+            serviceIdentity: ServiceIdentity(rawValue: "catalog:example"),
+            serviceName: "Example",
+            plan: "Monthly",
+            category: "Other",
+            originalAmount: Money(minorUnits: 999, currency: .usd),
+            billingSchedule: FixedBillingSchedule(
+                interval: .monthly,
+                renewalAnchor: Date(timeIntervalSince1970: 1_758_837_600),
+                timeZoneIdentifier: "America/New_York"
+            ),
+            startDate: Date(timeIntervalSince1970: 1_745_715_600),
+            managementURL: nil,
+            notes: "",
+            confirmedCharges: [confirmedCharge]
+        )
+        let edited = Subscription(
+            id: subscriptionID,
+            serviceIdentity: original.serviceIdentity,
+            serviceName: "Example Plus",
+            plan: "Annual",
+            category: original.category,
+            originalAmount: Money(minorUnits: 9_999, currency: .usd),
+            billingSchedule: FixedBillingSchedule(
+                interval: .yearly,
+                renewalAnchor: Date(timeIntervalSince1970: 1_761_516_000),
+                timeZoneIdentifier: "America/New_York"
+            ),
+            startDate: original.startDate,
+            managementURL: nil,
+            notes: "Updated",
+            confirmedCharges: original.confirmedCharges
+        )
+        let configuration = ModelConfiguration(isStoredInMemoryOnly: true)
+        let container = try ModelContainer(
+            for: SubscriptionRecord.self,
+            configurations: configuration
+        )
+        let repository = SwiftDataSubscriptionRepository(
+            modelContainer: container
+        )
+        try repository.createSubscription(original)
+
+        try repository.updateSubscription(edited)
+
+        #expect(try repository.subscription(id: subscriptionID) == edited)
+        #expect(try repository.listSubscriptions().count == 1)
+    }
+
     @Test("A USD subscription with empty optional text appears in the library")
     @MainActor
     func usdSubscriptionWithEmptyOptionalTextAppearsInLibrary() throws {
@@ -258,8 +370,53 @@ struct SwiftDataSubscriptionRepositoryTests {
             currency: .usd
         ))
         #expect(subscription?.billingCycle == .monthly)
+        #expect(
+            subscription?.billingSchedule.timeZoneIdentifier
+                == TimeZone.autoupdatingCurrent.identifier
+        )
+        #expect(subscription?.confirmedCharges == [])
         #expect(subscription?.managementURL == nil)
         #expect(subscription?.notes == "")
+    }
+
+    @Test("A migrated monthly record backfills its billing time zone once")
+    @MainActor
+    func migratedRecordBackfillsBillingTimeZoneOnce() throws {
+        let subscriptionID = UUID(
+            uuidString: "9A69A77D-C15A-4B3C-B3BD-F4C27C584113"
+        )!
+        let configuration = ModelConfiguration(isStoredInMemoryOnly: true)
+        let container = try ModelContainer(
+            for: SubscriptionRecord.self,
+            configurations: configuration
+        )
+        container.mainContext.insert(SubscriptionRecord(id: subscriptionID))
+        try container.mainContext.save()
+
+        let firstRelaunch = SwiftDataSubscriptionRepository(
+            modelContainer: container,
+            defaultBillingTimeZone: {
+                TimeZone(identifier: "America/Los_Angeles")!
+            }
+        )
+        let migrated = try firstRelaunch.subscription(id: subscriptionID)
+
+        let secondRelaunch = SwiftDataSubscriptionRepository(
+            modelContainer: container,
+            defaultBillingTimeZone: {
+                TimeZone(identifier: "Asia/Shanghai")!
+            }
+        )
+        let reloaded = try secondRelaunch.subscription(id: subscriptionID)
+
+        #expect(
+            migrated?.billingSchedule.timeZoneIdentifier
+                == "America/Los_Angeles"
+        )
+        #expect(
+            reloaded?.billingSchedule.timeZoneIdentifier
+                == "America/Los_Angeles"
+        )
     }
 
     @Test("UI testing launches use separate in-memory libraries")
