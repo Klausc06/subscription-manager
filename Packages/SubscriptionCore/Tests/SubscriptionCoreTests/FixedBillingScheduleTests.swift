@@ -700,10 +700,8 @@ private final class ScheduleRepository: SubscriptionRepository {
         storedSubscription = subscription
     }
 
-    func listSubscriptions() throws -> [SubscriptionSummary] {
-        storedSubscription.map {
-            [SubscriptionSummary(subscription: $0)]
-        } ?? []
+    func listSubscriptions() throws -> [Subscription] {
+        storedSubscription.map { [$0] } ?? []
     }
 
     func subscription(id: UUID) throws -> Subscription? {

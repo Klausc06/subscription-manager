@@ -61,7 +61,7 @@ struct LibraryView: View {
             }
             .accessibilityIdentifier("library.empty-state")
 
-        case let .loaded(subscriptions):
+        case let .loaded(_, subscriptions):
             List(subscriptions) { subscription in
                 NavigationLink(value: subscription.id) {
                     SubscriptionRow(subscription: subscription)
@@ -107,7 +107,7 @@ private struct PreviewSubscriptionRepository: SubscriptionRepository {
 
     func updateSubscription(_ subscription: Subscription) throws {}
 
-    func listSubscriptions() throws -> [SubscriptionSummary] {
+    func listSubscriptions() throws -> [Subscription] {
         []
     }
 

@@ -90,17 +90,7 @@ struct SwiftDataSubscriptionRepositoryTests {
         )
 
         #expect(reloadedSubscription == expectedSubscription)
-        #expect(
-            reloadedSubscription?.firstExpectedCharge
-                == ExpectedCharge(
-                    subscriptionID: subscriptionID,
-                    scheduledDate: renewalDate,
-                    amount: Money(
-                        minorUnits: 9_007_199_254_740_993,
-                        currency: .cny
-                    )
-                )
-        )
+        #expect(reloadedSubscription?.confirmedNextRenewal == renewalDate)
     }
 
     @Test("A custom schedule and confirmed history survive a repository reload")
@@ -249,9 +239,7 @@ struct SwiftDataSubscriptionRepositoryTests {
             modelContainer: container
         ).listSubscriptions()
 
-        #expect(
-            subscriptions == [SubscriptionSummary(subscription: subscription)]
-        )
+        #expect(subscriptions == [subscription])
     }
 
     @Test("Looking up an unknown identifier returns no subscription")
@@ -333,10 +321,7 @@ struct SwiftDataSubscriptionRepositoryTests {
         try repository.createSubscription(retriedSubscription)
 
         let subscriptions = try repository.listSubscriptions()
-        #expect(
-            subscriptions
-                == [SubscriptionSummary(subscription: retriedSubscription)]
-        )
+        #expect(subscriptions == [retriedSubscription])
     }
 
     @Test("A walking-skeleton record remains readable after schema expansion")
@@ -594,7 +579,7 @@ struct SwiftDataSubscriptionRepositoryTests {
         }
         secondLaunch.workspace.loadLibrary()
 
-        #expect(secondLaunch.workspace.libraryState == .empty)
+        #expect(secondLaunch.workspace.libraryState == .empty(.current))
     }
 
     @Test("A named UI testing store survives an application relaunch")
@@ -647,7 +632,7 @@ struct SwiftDataSubscriptionRepositoryTests {
         }
         relaunchedApp.workspace.loadLibrary()
 
-        guard case .loaded(let subscriptions) =
+        guard case .loaded(.current, let subscriptions) =
             relaunchedApp.workspace.libraryState
         else {
             Issue.record("Expected the saved subscription after relaunch")

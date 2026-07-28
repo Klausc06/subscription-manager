@@ -72,7 +72,7 @@ final class SwiftDataSubscriptionRepository: SubscriptionRepository {
         }
     }
 
-    func listSubscriptions() throws -> [SubscriptionSummary] {
+    func listSubscriptions() throws -> [Subscription] {
         do {
             let records = try modelContext.fetch(
                 FetchDescriptor<SubscriptionRecord>()
@@ -96,7 +96,6 @@ final class SwiftDataSubscriptionRepository: SubscriptionRepository {
             }
             return subscriptions
                 .sorted { $0.id.uuidString < $1.id.uuidString }
-                .map(SubscriptionSummary.init(subscription:))
         } catch {
             modelContext.rollback()
             throw error

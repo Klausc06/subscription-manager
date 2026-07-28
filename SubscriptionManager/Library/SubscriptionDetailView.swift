@@ -10,7 +10,7 @@ struct SubscriptionDetailView: View {
         detailContent
             .navigationTitle("Subscription Details")
             .toolbar {
-                if case .loaded(let subscription) = workspace.detailState,
+                if case .loaded(let subscription, _, _) = workspace.detailState,
                    subscription.id == subscriptionID
                 {
                     ToolbarItem(placement: .primaryAction) {
@@ -41,9 +41,12 @@ struct SubscriptionDetailView: View {
         case .notLoaded:
             loadingView
 
-        case let .loaded(subscription)
+        case let .loaded(subscription, _, nextExpectedCharge)
             where subscription.id == subscriptionID:
-            SubscriptionDetailForm(subscription: subscription)
+            SubscriptionDetailForm(
+                subscription: subscription,
+                nextExpectedCharge: nextExpectedCharge
+            )
 
         case .loaded:
             loadingView
@@ -78,6 +81,7 @@ private struct SubscriptionDetailForm: View {
     @Environment(\.locale) private var locale
 
     let subscription: Subscription
+    let nextExpectedCharge: ExpectedCharge?
 
     private var timeZone: TimeZone {
         billingTimeZone(
@@ -113,25 +117,25 @@ private struct SubscriptionDetailForm: View {
                 )
             }
 
-            Section("Next Expected Charge") {
-                LabeledContent(
-                    "Amount",
-                    value: formattedMoney(
-                        subscription.firstExpectedCharge.amount
+            if let nextExpectedCharge {
+                Section("Next Expected Charge") {
+                    LabeledContent(
+                        "Amount",
+                        value: formattedMoney(nextExpectedCharge.amount)
                     )
-                )
-                .accessibilityIdentifier(
-                    "subscription.detail.expected-charge.amount"
-                )
-                LabeledContent {
-                    Text(formattedBillingDate(
-                        subscription.firstExpectedCharge.scheduledDate,
-                        timeZoneIdentifier:
-                            subscription.billingSchedule.timeZoneIdentifier,
-                        locale: locale
-                    ))
-                } label: {
-                    Text("Date")
+                    .accessibilityIdentifier(
+                        "subscription.detail.expected-charge.amount"
+                    )
+                    LabeledContent {
+                        Text(formattedBillingDate(
+                            nextExpectedCharge.scheduledDate,
+                            timeZoneIdentifier:
+                                subscription.billingSchedule.timeZoneIdentifier,
+                            locale: locale
+                        ))
+                    } label: {
+                        Text("Date")
+                    }
                 }
             }
 

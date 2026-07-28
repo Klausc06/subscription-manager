@@ -28,7 +28,7 @@ struct SubscriptionWorkspaceTests {
             workspace.creationValidationErrors[.originalAmount]
                 == .mustBePositive
         )
-        #expect(workspace.libraryState == .empty)
+        #expect(workspace.libraryState == .empty(.current))
     }
 
     @Test("Incomplete monthly input exposes field errors without creating a record")
@@ -60,7 +60,7 @@ struct SubscriptionWorkspaceTests {
                 .confirmedNextRenewal: .beforeStartDate,
             ]
         )
-        #expect(workspace.libraryState == .empty)
+        #expect(workspace.libraryState == .empty(.current))
     }
 
     @Test("A monthly subscription remains inspectable after a workspace reload")
@@ -108,13 +108,22 @@ struct SubscriptionWorkspaceTests {
             managementURL: URL(string: "https://example.com/account"),
             notes: "Work files"
         )
-        #expect(
+        guard case .loaded(.current, let subscriptions) =
             reloadedWorkspace.libraryState
-                == .loaded([SubscriptionSummary(subscription: expectedSubscription)])
-        )
-        #expect(
-            reloadedWorkspace.detailState == .loaded(expectedSubscription)
-        )
+        else {
+            Issue.record("Expected loaded current library")
+            return
+        }
+        #expect(subscriptions.map(\.id) == [subscriptionID])
+        guard case .loaded(let loaded, let status, let nextExpectedCharge) =
+            reloadedWorkspace.detailState
+        else {
+            Issue.record("Expected loaded subscription detail")
+            return
+        }
+        #expect(loaded == expectedSubscription)
+        #expect(status == .active)
+        #expect(nextExpectedCharge != nil)
     }
 
     @Test("Monthly subscription text is normalized before it is saved")
@@ -158,13 +167,18 @@ struct SubscriptionWorkspaceTests {
             managementURL: nil,
             notes: ""
         )
-        #expect(workspace.detailState == .loaded(expectedSubscription))
-        #expect(
+        guard case .loaded(let loaded, _, _) = workspace.detailState else {
+            Issue.record("Expected loaded subscription detail")
+            return
+        }
+        #expect(loaded == expectedSubscription)
+        guard case .loaded(.current, let subscriptions) =
             workspace.libraryState
-                == .loaded([
-                    SubscriptionSummary(subscription: expectedSubscription)
-                ])
-        )
+        else {
+            Issue.record("Expected loaded current library")
+            return
+        }
+        #expect(subscriptions.map(\.id) == [subscriptionID])
     }
 
     @Test("The in-memory repository lists subscriptions in stable identifier order")
@@ -196,7 +210,7 @@ struct SubscriptionWorkspaceTests {
 
         workspace.loadLibrary()
 
-        #expect(workspace.libraryState == .empty)
+        #expect(workspace.libraryState == .empty(.current))
     }
 
     @Test("A repository failure produces a recoverable library state")
@@ -208,18 +222,16 @@ struct SubscriptionWorkspaceTests {
 
         workspace.loadLibrary()
 
-        #expect(workspace.libraryState == .failed)
+        #expect(workspace.libraryState == .failed(.current))
     }
 
     @Test("Existing subscriptions become observable library content")
     @MainActor
     func existingSubscriptionsBecomeLoadedState() {
-        let subscription = SubscriptionSummary(
-            subscription: makeSubscription(
-                id: UUID(
-                    uuidString: "AAAAAAAA-BBBB-CCCC-DDDD-EEEEEEEEEEEE"
-                )!
-            )
+        let subscription = makeSubscription(
+            id: UUID(
+                uuidString: "AAAAAAAA-BBBB-CCCC-DDDD-EEEEEEEEEEEE"
+            )!
         )
         let workspace = SubscriptionWorkspace(
             repository: PopulatedSubscriptionRepository(
@@ -229,7 +241,128 @@ struct SubscriptionWorkspaceTests {
 
         workspace.loadLibrary()
 
-        #expect(workspace.libraryState == .loaded([subscription]))
+        guard case .loaded(.current, let subscriptions) =
+            workspace.libraryState
+        else {
+            Issue.record("Expected loaded current library")
+            return
+        }
+        #expect(subscriptions.map(\.id) == [subscription.id])
+    }
+
+    @Test("Current and archived scopes never mix records")
+    @MainActor
+    func libraryScopesRemainDisjoint() {
+        let currentID = UUID(
+            uuidString: "10000000-0000-0000-0000-000000000001"
+        )!
+        let archivedID = UUID(
+            uuidString: "20000000-0000-0000-0000-000000000002"
+        )!
+        let now = Date(timeIntervalSince1970: 1_800_000_000)
+        let cancelledAt = now.addingTimeInterval(-10 * 86_400)
+        let accessUntil = now.addingTimeInterval(10 * 86_400)
+        let calendar = utcCalendar()
+        let repository = LifecycleRepository(
+            subscriptions: [
+                makeSubscription(id: currentID, lifecycle: .active),
+                makeSubscription(
+                    id: archivedID,
+                    lifecycle: .cancelled(
+                        cancelledAt: cancelledAt,
+                        accessUntil: accessUntil
+                    ),
+                    isArchived: true
+                ),
+            ]
+        )
+        let workspace = SubscriptionWorkspace(
+            repository: repository,
+            now: { now },
+            calendar: calendar
+        )
+
+        workspace.loadLibrary(scope: .current)
+        guard case .loaded(.current, let current) = workspace.libraryState else {
+            Issue.record("Expected current scope")
+            return
+        }
+        #expect(current.map(\.id) == [currentID])
+
+        workspace.loadLibrary(scope: .archived)
+        guard case .loaded(.archived, let archived) = workspace.libraryState else {
+            Issue.record("Expected archived scope")
+            return
+        }
+        #expect(archived.map(\.id) == [archivedID])
+        #expect(archived.first?.nextExpectedCharge == nil)
+    }
+
+    @Test("Cancelled detail has access status without a next expected charge")
+    @MainActor
+    func cancelledDetailOmitsNextExpectedCharge() {
+        let subscriptionID = UUID(
+            uuidString: "30000000-0000-0000-0000-000000000003"
+        )!
+        let now = Date(timeIntervalSince1970: 1_800_000_000)
+        let subscription = makeSubscription(
+            id: subscriptionID,
+            lifecycle: .cancelled(
+                cancelledAt: now.addingTimeInterval(-10 * 86_400),
+                accessUntil: now.addingTimeInterval(10 * 86_400)
+            )
+        )
+        let workspace = SubscriptionWorkspace(
+            repository: LifecycleRepository(subscriptions: [subscription]),
+            now: { now },
+            calendar: utcCalendar()
+        )
+
+        workspace.loadSubscription(id: subscriptionID)
+
+        guard case .loaded(
+            let loaded,
+            let status,
+            let nextExpectedCharge
+        ) = workspace.detailState else {
+            Issue.record("Expected loaded detail")
+            return
+        }
+        #expect(loaded == subscription)
+        #expect(status == .cancelledWithAccess)
+        #expect(nextExpectedCharge == nil)
+    }
+
+    @Test("Active detail includes a next expected charge")
+    @MainActor
+    func activeDetailIncludesNextExpectedCharge() {
+        let subscriptionID = UUID(
+            uuidString: "40000000-0000-0000-0000-000000000004"
+        )!
+        let now = Date(timeIntervalSince1970: 1_760_000_000)
+        let subscription = makeSubscription(
+            id: subscriptionID,
+            lifecycle: .active
+        )
+        let workspace = SubscriptionWorkspace(
+            repository: LifecycleRepository(subscriptions: [subscription]),
+            now: { now },
+            calendar: utcCalendar()
+        )
+
+        workspace.loadSubscription(id: subscriptionID)
+
+        guard case .loaded(
+            let loaded,
+            let status,
+            let nextExpectedCharge
+        ) = workspace.detailState else {
+            Issue.record("Expected loaded detail")
+            return
+        }
+        #expect(loaded == subscription)
+        #expect(status == .active)
+        #expect(nextExpectedCharge != nil)
     }
 }
 
@@ -239,7 +372,7 @@ private struct EmptySubscriptionRepository: SubscriptionRepository {
 
     func updateSubscription(_ subscription: Subscription) throws {}
 
-    func listSubscriptions() throws -> [SubscriptionSummary] {
+    func listSubscriptions() throws -> [Subscription] {
         []
     }
 
@@ -258,7 +391,7 @@ private struct FailingSubscriptionRepository: SubscriptionRepository {
         throw RepositoryError.unavailable
     }
 
-    func listSubscriptions() throws -> [SubscriptionSummary] {
+    func listSubscriptions() throws -> [Subscription] {
         throw RepositoryError.unavailable
     }
 
@@ -273,13 +406,13 @@ private struct FailingSubscriptionRepository: SubscriptionRepository {
 
 @MainActor
 private struct PopulatedSubscriptionRepository: SubscriptionRepository {
-    let subscriptions: [SubscriptionSummary]
+    let subscriptions: [Subscription]
 
     func createSubscription(_ subscription: Subscription) throws {}
 
     func updateSubscription(_ subscription: Subscription) throws {}
 
-    func listSubscriptions() throws -> [SubscriptionSummary] {
+    func listSubscriptions() throws -> [Subscription] {
         subscriptions
     }
 
@@ -300,10 +433,9 @@ private final class InMemorySubscriptionRepository: SubscriptionRepository {
         subscriptions[subscription.id] = subscription
     }
 
-    func listSubscriptions() throws -> [SubscriptionSummary] {
+    func listSubscriptions() throws -> [Subscription] {
         subscriptions.values
             .sorted { $0.id.uuidString < $1.id.uuidString }
-            .map(SubscriptionSummary.init(subscription:))
     }
 
     func subscription(id: UUID) throws -> Subscription? {
@@ -311,7 +443,28 @@ private final class InMemorySubscriptionRepository: SubscriptionRepository {
     }
 }
 
-private func makeSubscription(id: UUID) -> Subscription {
+@MainActor
+private struct LifecycleRepository: SubscriptionRepository {
+    let subscriptions: [Subscription]
+
+    func createSubscription(_ subscription: Subscription) throws {}
+
+    func updateSubscription(_ subscription: Subscription) throws {}
+
+    func listSubscriptions() throws -> [Subscription] {
+        subscriptions
+    }
+
+    func subscription(id: UUID) throws -> Subscription? {
+        subscriptions.first { $0.id == id }
+    }
+}
+
+private func makeSubscription(
+    id: UUID,
+    lifecycle: SubscriptionLifecycle = .active,
+    isArchived: Bool = false
+) -> Subscription {
     let renewalDate = Date(timeIntervalSince1970: 1_769_904_000)
     let amount = Money(minorUnits: 999, currency: .usd)
     return Subscription(
@@ -325,6 +478,15 @@ private func makeSubscription(id: UUID) -> Subscription {
         startDate: Date(timeIntervalSince1970: 1_767_225_600),
         confirmedNextRenewal: renewalDate,
         managementURL: nil,
-        notes: ""
+        notes: "",
+        lifecycle: lifecycle,
+        isArchived: isArchived
     )
+}
+
+private func utcCalendar() -> Calendar {
+    var calendar = Calendar(identifier: .gregorian)
+    calendar.locale = Locale(identifier: "en_US_POSIX")
+    calendar.timeZone = TimeZone(identifier: "UTC")!
+    return calendar
 }
