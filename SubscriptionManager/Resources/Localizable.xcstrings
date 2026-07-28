@@ -1,6 +1,60 @@
 {
   "sourceLanguage" : "en",
   "strings" : {
+    "Add Subscription" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Add Subscription" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "添加订阅" } }
+      }
+    },
+    "Additional Information" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Additional Information" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "其他信息" } }
+      }
+    },
+    "Amount" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Amount" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "金额" } }
+      }
+    },
+    "Billing Cycle" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Billing Cycle" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "计费周期" } }
+      }
+    },
+    "Billing Dates" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Billing Dates" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "计费日期" } }
+      }
+    },
+    "Cancel" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Cancel" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "取消" } }
+      }
+    },
+    "Category" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Category" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "类别" } }
+      }
+    },
+    "Couldn’t Load Subscription" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Couldn’t Load Subscription" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "无法加载订阅" } }
+      }
+    },
+    "Couldn’t save this subscription. Try again." : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Couldn’t save this subscription. Try again." } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "无法保存此订阅，请重试。" } }
+      }
+    },
     "Couldn’t Load Subscriptions" : {
       "localizations" : {
         "en" : {
@@ -15,6 +69,36 @@
             "value" : "无法加载订阅"
           }
         }
+      }
+    },
+    "Currency" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Currency" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "货币" } }
+      }
+    },
+    "Date" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Date" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "日期" } }
+      }
+    },
+    "Enter a valid amount." : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Enter a valid amount." } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "请输入有效金额。" } }
+      }
+    },
+    "Enter a complete HTTP or HTTPS URL." : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Enter a complete HTTP or HTTPS URL." } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "请输入完整的 HTTP 或 HTTPS 网址。" } }
+      }
+    },
+    "Enter an amount greater than zero." : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Enter an amount greater than zero." } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "请输入大于零的金额。" } }
       }
     },
     "Loading Subscriptions" : {
@@ -33,6 +117,36 @@
         }
       }
     },
+    "Loading Subscription" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Loading Subscription" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "正在加载订阅" } }
+      }
+    },
+    "Management URL" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Management URL" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "管理网址" } }
+      }
+    },
+    "Monthly" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Monthly" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "每月" } }
+      }
+    },
+    "Next Expected Charge" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Next Expected Charge" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "下一笔预计扣费" } }
+      }
+    },
+    "Next Renewal" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Next Renewal" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "下次续费" } }
+      }
+    },
     "No Subscriptions Yet" : {
       "localizations" : {
         "en" : {
@@ -47,6 +161,42 @@
             "value" : "还没有订阅"
           }
         }
+      }
+    },
+    "Notes" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Notes" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "备注" } }
+      }
+    },
+    "Open Management Page" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Open Management Page" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "打开管理页面" } }
+      }
+    },
+    "Optional" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Optional" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "选填" } }
+      }
+    },
+    "Original Amount" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Original Amount" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "原始金额" } }
+      }
+    },
+    "Plan" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Plan" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "套餐" } }
+      }
+    },
+    "Price" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Price" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "价格" } }
       }
     },
     "Reopen the app to try again." : {
@@ -65,6 +215,12 @@
         }
       }
     },
+    "Save" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Save" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "保存" } }
+      }
+    },
     "Saved Subscription" : {
       "localizations" : {
         "en" : {
@@ -81,6 +237,36 @@
         }
       }
     },
+    "Service" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Service" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "服务" } }
+      }
+    },
+    "Service Name" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Service Name" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "服务名称" } }
+      }
+    },
+    "Start Date" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Start Date" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "开始日期" } }
+      }
+    },
+    "Subscription Details" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Subscription Details" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "订阅信息" } }
+      }
+    },
+    "Subscription Not Found" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Subscription Not Found" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "找不到订阅" } }
+      }
+    },
     "Subscriptions" : {
       "localizations" : {
         "en" : {
@@ -95,6 +281,24 @@
             "value" : "订阅"
           }
         }
+      }
+    },
+    "The next renewal cannot be before the start date." : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "The next renewal cannot be before the start date." } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "下次续费日期不能早于开始日期。" } }
+      }
+    },
+    "This field is required." : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "This field is required." } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "此字段为必填项。" } }
+      }
+    },
+    "This subscription is no longer in your library." : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "This subscription is no longer in your library." } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "此订阅已不在你的订阅库中。" } }
       }
     },
     "Your subscriptions will appear here." : {
