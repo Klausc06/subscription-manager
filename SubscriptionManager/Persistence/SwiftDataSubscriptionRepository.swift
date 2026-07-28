@@ -494,6 +494,7 @@ final class SwiftDataUserPreferencesRepository: UserPreferencesRepository {
                 calendarProjectionHorizon: CalendarProjectionHorizon(
                     rawValue: record.calendarProjectionHorizonMonths
                 ) ?? .twelveMonths,
+                hideAmountsInCalendar: record.hideAmountsInCalendar,
                 setupStatus: SetupStatus(rawValue: record.setupStatusRawValue)
                     ?? .notCompleted
             )
@@ -515,6 +516,7 @@ final class SwiftDataUserPreferencesRepository: UserPreferencesRepository {
             record.primaryCurrencyRawValue = preferences.primaryCurrency.rawValue
             record.calendarProjectionHorizonMonths =
                 preferences.calendarProjectionHorizon.rawValue
+            record.hideAmountsInCalendar = preferences.hideAmountsInCalendar
             record.setupStatusRawValue = preferences.setupStatus.rawValue
             try save(modelContext)
         } catch {

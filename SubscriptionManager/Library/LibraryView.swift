@@ -816,6 +816,7 @@ struct UserPreferencesView: View {
 
     @State private var primaryCurrency: Currency = .cny
     @State private var horizon: CalendarProjectionHorizon = .twelveMonths
+    @State private var hideAmountsInCalendar = false
     @State private var saveFailed = false
 
     var body: some View {
@@ -860,6 +861,20 @@ struct UserPreferencesView: View {
                     ) {
                         horizon = .twelveMonths
                     }
+                    Toggle(
+                        "Hide Amounts in Calendar",
+                        isOn: $hideAmountsInCalendar
+                    )
+                    .accessibilityIdentifier("preferences.calendar.hide-amounts")
+                    NavigationLink {
+                        CalendarProjectionView(workspace: workspace)
+                    } label: {
+                        Label(
+                            "Preview & Export ICS",
+                            systemImage: "calendar.badge.plus"
+                        )
+                    }
+                    .accessibilityIdentifier("preferences.calendar.preview")
                 }
 
                 Section("iCloud") {
@@ -900,7 +915,8 @@ struct UserPreferencesView: View {
                     Button("Save") {
                         workspace.updatePreferences(
                             primaryCurrency: primaryCurrency,
-                            calendarProjectionHorizon: horizon
+                            calendarProjectionHorizon: horizon,
+                            hideAmountsInCalendar: hideAmountsInCalendar
                         )
                         saveFailed = isSetupSaveFailure
                         if !saveFailed {
@@ -951,6 +967,7 @@ struct UserPreferencesView: View {
              .failed(let preferences):
             primaryCurrency = preferences.primaryCurrency
             horizon = preferences.calendarProjectionHorizon
+            hideAmountsInCalendar = preferences.hideAmountsInCalendar
         case .notLoaded:
             break
         }

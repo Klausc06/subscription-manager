@@ -42,6 +42,7 @@
 		1B0700010000000000000001 /* FileCatalogCache.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1B0700010000000000000002 /* FileCatalogCache.swift */; };
 		1B0700010000000000000003 /* GitHubCatalogUpdateSource.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1B0700010000000000000004 /* GitHubCatalogUpdateSource.swift */; };
 		1B1600010000000000000001 /* CloudKitLibrarySyncMonitor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1B1600010000000000000002 /* CloudKitLibrarySyncMonitor.swift */; };
+		1B1700010000000000000001 /* CalendarProjectionView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1B1700010000000000000002 /* CalendarProjectionView.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -100,6 +101,7 @@
 		1B0700010000000000000002 /* FileCatalogCache.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FileCatalogCache.swift; sourceTree = "<group>"; };
 		1B0700010000000000000004 /* GitHubCatalogUpdateSource.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GitHubCatalogUpdateSource.swift; sourceTree = "<group>"; };
 		1B1600010000000000000002 /* CloudKitLibrarySyncMonitor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CloudKitLibrarySyncMonitor.swift; sourceTree = "<group>"; };
+		1B1700010000000000000002 /* CalendarProjectionView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CalendarProjectionView.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -167,6 +169,7 @@
 		438293401ACA5626F66CBFAC /* Library */ = {
 			isa = PBXGroup;
 			children = (
+				1B1700010000000000000002 /* CalendarProjectionView.swift */,
 				3E375325DBD112A5F485EF3F /* AddSubscriptionView.swift */,
 				1B0500010000000000000002 /* ConfirmChargeView.swift */,
 				54AE7D1E07F1BF787F9E1BEF /* BillingScheduleSupport.swift */,
@@ -372,6 +375,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				1B1700010000000000000001 /* CalendarProjectionView.swift in Sources */,
 				1B0600010000000000000008 /* CatalogBrowserView.swift in Sources */,
 				1B0600010000000000000010 /* CatalogPresetDetailView.swift in Sources */,
 				1B0600010000000000000005 /* BundledCatalogRepository.swift in Sources */,

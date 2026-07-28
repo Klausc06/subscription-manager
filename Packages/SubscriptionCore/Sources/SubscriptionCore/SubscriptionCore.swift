@@ -492,6 +492,7 @@ public final class SubscriptionWorkspace {
         [SubscriptionCreationField: SubscriptionCreationValidationError] = [:]
     public private(set) var expectedCharges: [ExpectedCharge]?
     public private(set) var upcomingTimeline: [UpcomingTimelineItem] = []
+    public private(set) var calendarProjection: [CalendarProjectionEvent] = []
     public private(set) var lifecycleActionError:
         SubscriptionLifecycleActionError?
     public private(set) var paymentHistoryActionError:
@@ -586,12 +587,15 @@ public final class SubscriptionWorkspace {
 
     public func updatePreferences(
         primaryCurrency: Currency,
-        calendarProjectionHorizon: CalendarProjectionHorizon
+        calendarProjectionHorizon: CalendarProjectionHorizon,
+        hideAmountsInCalendar: Bool? = nil
     ) {
         persistPreferences(
             UserPreferences(
                 primaryCurrency: primaryCurrency,
                 calendarProjectionHorizon: calendarProjectionHorizon,
+                hideAmountsInCalendar: hideAmountsInCalendar
+                    ?? currentPreferences.hideAmountsInCalendar,
                 setupStatus: currentPreferences.setupStatus
             )
         )
@@ -603,6 +607,7 @@ public final class SubscriptionWorkspace {
             UserPreferences(
                 primaryCurrency: currentPreferences.primaryCurrency,
                 calendarProjectionHorizon: currentPreferences.calendarProjectionHorizon,
+                hideAmountsInCalendar: currentPreferences.hideAmountsInCalendar,
                 setupStatus: .completed
             )
         )
@@ -613,6 +618,7 @@ public final class SubscriptionWorkspace {
             UserPreferences(
                 primaryCurrency: currentPreferences.primaryCurrency,
                 calendarProjectionHorizon: currentPreferences.calendarProjectionHorizon,
+                hideAmountsInCalendar: currentPreferences.hideAmountsInCalendar,
                 setupStatus: .skipped
             )
         )
@@ -623,6 +629,7 @@ public final class SubscriptionWorkspace {
             UserPreferences(
                 primaryCurrency: currentPreferences.primaryCurrency,
                 calendarProjectionHorizon: currentPreferences.calendarProjectionHorizon,
+                hideAmountsInCalendar: currentPreferences.hideAmountsInCalendar,
                 setupStatus: .notCompleted
             ),
             stateOnSuccess: { .needsSetup($0) }
@@ -1544,6 +1551,33 @@ public final class SubscriptionWorkspace {
         }
     }
 
+    public func loadCalendarProjection(locale: Locale) {
+        let horizon = calendar.date(
+            byAdding: .month,
+            value: currentPreferences.calendarProjectionHorizon.rawValue,
+            to: now()
+        ) ?? now()
+        do {
+            calendarProjection = try repository.listSubscriptions()
+                .flatMap { subscription in
+                    makeCalendarProjectionEvents(
+                        for: subscription,
+                        through: horizon,
+                        locale: locale,
+                        hidesAmounts: currentPreferences.hideAmountsInCalendar
+                    )
+                }
+                .sorted { lhs, rhs in
+                    if lhs.startDate != rhs.startDate {
+                        return lhs.startDate < rhs.startDate
+                    }
+                    return lhs.uid < rhs.uid
+                }
+        } catch {
+            calendarProjection = []
+        }
+    }
+
     private func validate(
         _ input: SubscriptionCreationInput
     ) -> [SubscriptionCreationField: SubscriptionCreationValidationError] {
@@ -1792,6 +1826,87 @@ public final class SubscriptionWorkspace {
                 )
             }
         return expectedItems + confirmedItems
+    }
+
+    private func makeCalendarProjectionEvents(
+        for subscription: Subscription,
+        through horizon: Date,
+        locale: Locale,
+        hidesAmounts: Bool
+    ) -> [CalendarProjectionEvent] {
+        guard let timeZone = TimeZone(
+            identifier: subscription.billingSchedule.timeZoneIdentifier
+        ) else {
+            return []
+        }
+        var localCalendar = calendar
+        localCalendar.timeZone = timeZone
+        return makeExpectedCharges(
+            for: subscription,
+            through: horizon,
+            maximumCount: .max
+        )
+        .compactMap { charge in
+            guard let endDate = localCalendar.date(
+                byAdding: .day,
+                value: 1,
+                to: charge.scheduledDate
+            ) else {
+                return nil
+            }
+            let dateComponents = localCalendar.dateComponents(
+                [.year, .month, .day],
+                from: charge.scheduledDate
+            )
+            guard let year = dateComponents.year,
+                  let month = dateComponents.month,
+                  let day = dateComponents.day
+            else {
+                return nil
+            }
+            let amount = formattedCalendarAmount(charge.amount, locale: locale)
+            let title = hidesAmounts
+                ? subscription.serviceName
+                : "\(subscription.serviceName) — \(amount)"
+            var noteLines = [subscription.plan]
+            if !hidesAmounts {
+                noteLines.append(amount)
+            }
+            let subscriptionNotes = subscription.notes.trimmingCharacters(
+                in: .whitespacesAndNewlines
+            )
+            if !subscriptionNotes.isEmpty {
+                noteLines.append(subscriptionNotes)
+            }
+            let alarmOffsets: [Int]
+            switch subscription.lifecycle {
+            case .trial:
+                alarmOffsets = [-3, -1]
+            case .active, .cancelled:
+                alarmOffsets = [-7, -1]
+            }
+            return CalendarProjectionEvent(
+                uid: "\(subscription.id.uuidString.lowercased())-"
+                    + "\(String(format: "%04d%02d%02d", year, month, day))"
+                    + "@subscription-manager",
+                startDate: charge.scheduledDate,
+                endDate: endDate,
+                title: title,
+                notes: noteLines.joined(separator: "\n"),
+                managementURL: subscription.managementURL,
+                alarmOffsets: alarmOffsets,
+                timeZoneIdentifier: timeZone.identifier
+            )
+        }
+    }
+
+    private func formattedCalendarAmount(
+        _ money: Money,
+        locale: Locale
+    ) -> String {
+        (Decimal(money.minorUnits) / 100).formatted(
+            .currency(code: money.currency.rawValue).locale(locale)
+        )
     }
 
     private func expectedCharge(

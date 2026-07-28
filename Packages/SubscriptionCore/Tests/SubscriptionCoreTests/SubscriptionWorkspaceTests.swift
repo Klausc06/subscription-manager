@@ -4,6 +4,67 @@ import Testing
 
 @Suite("Subscription workspace")
 struct SubscriptionWorkspaceTests {
+    @Test("Calendar projection hides amounts and uses trial alarm offsets")
+    @MainActor
+    func calendarProjectionUsesPreferencesAndTrialAlarms() throws {
+        let calendar = utcCalendar()
+        let now = try actionDate(
+            year: 2026,
+            month: 1,
+            day: 15,
+            hour: 12,
+            calendar: calendar
+        )
+        let renewal = try actionDate(
+            year: 2026,
+            month: 2,
+            day: 1,
+            hour: 12,
+            calendar: calendar
+        )
+        let subscription = makeSubscription(
+            id: UUID(uuidString: "11111111-2222-3333-4444-555555555555")!,
+            lifecycle: .trial(firstPaidChargeAt: renewal),
+            confirmedNextRenewal: renewal,
+            originalAmount: Money(minorUnits: 1_299, currency: .usd),
+            serviceName: "Atlas",
+            plan: "Pro",
+            notes: "Use the team account"
+        )
+        let workspace = SubscriptionWorkspace(
+            repository: InMemorySubscriptionRepository(
+                subscriptions: [subscription]
+            ),
+            preferencesRepository: CalendarPreferencesFixture(
+                preferences: UserPreferences(
+                    primaryCurrency: .usd,
+                    calendarProjectionHorizon: .sixMonths,
+                    hideAmountsInCalendar: true,
+                    setupStatus: .completed
+                )
+            ),
+            now: { now },
+            calendar: calendar
+        )
+
+        workspace.loadSetup(libraryIsEmpty: false)
+        workspace.loadCalendarProjection(locale: Locale(identifier: "en_US"))
+
+        let first = try #require(workspace.calendarProjection.first)
+        let expectedDate = try actionDate(
+            year: 2026,
+            month: 3,
+            day: 1,
+            hour: 12,
+            calendar: calendar
+        )
+        #expect(first.startDate == calendar.startOfDay(for: expectedDate))
+        #expect(first.title == "Atlas")
+        #expect(first.alarmOffsets == [-3, -1])
+        #expect(!first.notes.contains("12.99"))
+        #expect(first.notes.contains("Use the team account"))
+    }
+
     @Test("Sync status remains local-first when iCloud is signed out")
     @MainActor
     func signedOutSyncStatusDoesNotBlockCreation() async throws {
@@ -2084,6 +2145,23 @@ private enum ExchangeRateFixtureError: Error {
     case offline
 }
 
+@MainActor
+private final class CalendarPreferencesFixture: UserPreferencesRepository {
+    private var preferences: UserPreferences
+
+    init(preferences: UserPreferences) {
+        self.preferences = preferences
+    }
+
+    func loadPreferences() throws -> UserPreferences? {
+        preferences
+    }
+
+    func savePreferences(_ preferences: UserPreferences) throws {
+        self.preferences = preferences
+    }
+}
+
 private struct SyncMonitorFixture: LibrarySyncMonitor {
     let result: LibrarySyncStatus
 
@@ -2392,7 +2470,8 @@ private func makeSubscription(
     originalAmount: Money = Money(minorUnits: 999, currency: .usd),
     category: String = "Other",
     serviceName: String = "Example",
-    plan: String = "Standard"
+    plan: String = "Standard",
+    notes: String = ""
 ) -> Subscription {
     let startDate = Date(timeIntervalSince1970: 1_767_225_600)
     let schedule = billingSchedule ?? FixedBillingSchedule(
@@ -2414,7 +2493,7 @@ private func makeSubscription(
         startDate: schedule.renewalAnchor,
         confirmedNextRenewal: renewalDate,
         managementURL: nil,
-        notes: "",
+        notes: notes,
         confirmedCharges: confirmedCharges,
         lifecycle: lifecycle,
         isArchived: isArchived

@@ -10,7 +10,28 @@ struct UserPreferencesTests {
         #expect(
             UserPreferences.default.calendarProjectionHorizon == .twelveMonths
         )
+        #expect(UserPreferences.default.hideAmountsInCalendar == false)
         #expect(UserPreferences.default.setupStatus == .notCompleted)
+    }
+
+    @Test("Legacy preferences decode with calendar amounts visible")
+    func legacyPreferencesDefaultCalendarAmountVisibility() throws {
+        let legacyData = Data(
+            """
+            {
+              "primaryCurrency": "USD",
+              "calendarProjectionHorizon": 6,
+              "setupStatus": "completed"
+            }
+            """.utf8
+        )
+
+        let preferences = try JSONDecoder().decode(
+            UserPreferences.self,
+            from: legacyData
+        )
+
+        #expect(preferences.hideAmountsInCalendar == false)
     }
 
     @Test("An empty library starts setup and skipping persists the choice")
