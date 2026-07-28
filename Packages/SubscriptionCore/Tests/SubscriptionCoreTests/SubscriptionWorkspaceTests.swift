@@ -4,6 +4,76 @@ import Testing
 
 @Suite("Subscription workspace")
 struct SubscriptionWorkspaceTests {
+    @Test("Upcoming timeline orders expected and confirmed charges while excluding cancelled subscriptions")
+    @MainActor
+    func upcomingTimelineOrdersEligibleCharges() {
+        let now = Date(timeIntervalSince1970: 1_767_225_600)
+        let firstID = UUID(uuidString: "11111111-2222-3333-4444-555555555555")!
+        let secondID = UUID(uuidString: "66666666-7777-8888-9999-AAAAAAAAAAAA")!
+        let cancelledID = UUID(uuidString: "BBBBBBBB-CCCC-DDDD-EEEE-FFFFFFFFFFFF")!
+        let firstDate = now.addingTimeInterval(86_400)
+        let confirmedDate = now.addingTimeInterval(172_800)
+        let secondDate = now.addingTimeInterval(259_200)
+        let repository = InMemorySubscriptionRepository(subscriptions: [
+            makeSubscription(
+                id: firstID,
+                billingSchedule: FixedBillingSchedule(
+                    interval: .weekly,
+                    renewalAnchor: firstDate,
+                    timeZoneIdentifier: "UTC"
+                ),
+                confirmedNextRenewal: firstDate,
+                confirmedCharges: [ConfirmedCharge(
+                    id: UUID(uuidString: "12121212-3434-5656-7878-909090909090")!,
+                    chargedDate: confirmedDate,
+                    amount: Money(minorUnits: 1_099, currency: .usd)
+                )]
+            ),
+            makeSubscription(
+                id: secondID,
+                billingSchedule: FixedBillingSchedule(
+                    interval: .weekly,
+                    renewalAnchor: secondDate,
+                    timeZoneIdentifier: "UTC"
+                ),
+                confirmedNextRenewal: secondDate
+            ),
+            makeSubscription(
+                id: cancelledID,
+                lifecycle: .cancelled(
+                    cancelledAt: now,
+                    accessUntil: now.addingTimeInterval(86_400)
+                ),
+                billingSchedule: FixedBillingSchedule(
+                    interval: .weekly,
+                    renewalAnchor: firstDate,
+                    timeZoneIdentifier: "UTC"
+                ),
+                confirmedNextRenewal: firstDate
+            ),
+        ])
+        let workspace = SubscriptionWorkspace(
+            repository: repository,
+            now: { now }
+        )
+
+        workspace.loadUpcomingTimeline(
+            from: now,
+            through: now.addingTimeInterval(604_800)
+        )
+
+        #expect(workspace.upcomingTimeline.map(\.subscriptionID) == [
+            firstID,
+            firstID,
+            secondID,
+        ])
+        #expect(workspace.upcomingTimeline.map(\.kind) == [
+            .expected,
+            .confirmed,
+            .expected,
+        ])
+    }
+
     @Test("A valid newer catalog becomes active without mutating subscriptions")
     @MainActor
     func newerCatalogActivatesWithoutMutatingSubscriptions() async throws {
