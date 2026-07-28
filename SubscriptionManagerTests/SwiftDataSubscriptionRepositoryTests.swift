@@ -386,6 +386,139 @@ struct SwiftDataSubscriptionRepositoryTests {
         #expect(subscription?.isArchived == false)
     }
 
+    @Test(
+        "A pre-TB-04 disk store survives production migration and reopen"
+    )
+    @MainActor
+    func preTB04DiskStoreSurvivesProductionMigrationAndReopen() throws {
+        let storeRoot = FileManager.default.temporaryDirectory.appending(
+            path: "SubscriptionManagerLegacy-\(UUID().uuidString)",
+            directoryHint: .isDirectory
+        )
+        defer {
+            try? FileManager.default.removeItem(at: storeRoot)
+        }
+        let token = "pre-tb04"
+        let storeDirectory = storeRoot.appending(
+            path: "SubscriptionManagerUITests",
+            directoryHint: .isDirectory
+        )
+        try FileManager.default.createDirectory(
+            at: storeDirectory,
+            withIntermediateDirectories: true
+        )
+        let storeURL = storeDirectory.appending(path: "\(token).store")
+        let subscriptionID = UUID(
+            uuidString: "04A11CE0-0000-4000-8000-000000000004"
+        )!
+        let charge = ConfirmedCharge(
+            id: UUID(
+                uuidString: "04C0FFEE-0000-4000-8000-000000000004"
+            )!,
+            chargedDate: Date(timeIntervalSince1970: 1_768_003_200),
+            amount: Money(minorUnits: 12_345, currency: .cny)
+        )
+        let startDate = Date(timeIntervalSince1970: 1_767_225_600)
+        let renewalAnchor = Date(timeIntervalSince1970: 1_767_312_000)
+        let nextRenewal = Date(timeIntervalSince1970: 1_769_904_000)
+        let managementURL = URL(
+            string: "https://example.com/manage/pre-tb04"
+        )!
+
+        do {
+            let legacySchema = Schema([
+                PreTB04Schema.SubscriptionRecord.self
+            ])
+            let legacyConfiguration = ModelConfiguration(
+                "UITesting-\(token)",
+                schema: legacySchema,
+                url: storeURL,
+                allowsSave: true,
+                cloudKitDatabase: .none
+            )
+            let legacyContainer = try ModelContainer(
+                for: legacySchema,
+                configurations: [legacyConfiguration]
+            )
+            legacyContainer.mainContext.insert(
+                PreTB04Schema.SubscriptionRecord(
+                    id: subscriptionID,
+                    serviceIdentityRawValue: "catalog:legacy-service",
+                    serviceName: "Legacy Service",
+                    plan: "Three Week Plan",
+                    category: "Productivity",
+                    originalMinorUnits: 12_345,
+                    currencyRawValue: "CNY",
+                    billingCycleRawValue: "custom",
+                    billingIntervalValue: 3,
+                    billingIntervalUnitRawValue: "week",
+                    billingTimeZoneIdentifier: "Asia/Shanghai",
+                    startDate: startDate,
+                    renewalAnchor: renewalAnchor,
+                    confirmedNextRenewal: nextRenewal,
+                    managementURLString: managementURL.absoluteString,
+                    notes: "Preserve legacy notes",
+                    confirmedChargesData: try JSONEncoder().encode([charge])
+                )
+            )
+            try legacyContainer.mainContext.save()
+        }
+
+        let arguments = [
+            "SubscriptionManager",
+            "--ui-testing",
+            "--ui-testing-store",
+            token,
+        ]
+        for launchNumber in 1 ... 2 {
+            guard case .ready(let dependencies) = AppDependencies.live(
+                arguments: arguments,
+                storeDirectory: storeRoot
+            ) else {
+                Issue.record(
+                    "Expected production container launch \(launchNumber)"
+                )
+                return
+            }
+            dependencies.workspace.loadSubscription(id: subscriptionID)
+            guard case .loaded(let subscription, _, _) =
+                dependencies.workspace.detailState
+            else {
+                Issue.record(
+                    "Expected migrated detail on launch \(launchNumber)"
+                )
+                return
+            }
+            #expect(subscription.id == subscriptionID)
+            #expect(
+                subscription.serviceIdentity
+                    == ServiceIdentity(rawValue: "catalog:legacy-service")
+            )
+            #expect(subscription.serviceName == "Legacy Service")
+            #expect(subscription.plan == "Three Week Plan")
+            #expect(subscription.category == "Productivity")
+            #expect(
+                subscription.originalAmount
+                    == Money(minorUnits: 12_345, currency: .cny)
+            )
+            #expect(
+                subscription.billingSchedule
+                    == FixedBillingSchedule(
+                        interval: .custom(value: 3, unit: .week),
+                        renewalAnchor: renewalAnchor,
+                        timeZoneIdentifier: "Asia/Shanghai"
+                    )
+            )
+            #expect(subscription.startDate == startDate)
+            #expect(subscription.confirmedNextRenewal == nextRenewal)
+            #expect(subscription.managementURL == managementURL)
+            #expect(subscription.notes == "Preserve legacy notes")
+            #expect(subscription.confirmedCharges == [charge])
+            #expect(subscription.lifecycle == .active)
+            #expect(subscription.isArchived == false)
+        }
+    }
+
     @Test("Trial active and cancelled lifecycle representations round trip")
     @MainActor
     func lifecycleRepresentationsRoundTrip() throws {
@@ -828,5 +961,70 @@ struct SwiftDataSubscriptionRepositoryTests {
             lifecycle: lifecycle,
             isArchived: isArchived
         )
+    }
+}
+
+private enum PreTB04Schema {
+    @Model
+    final class SubscriptionRecord {
+        var id: UUID
+        var serviceIdentityRawValue: String = ""
+        var serviceName: String = ""
+        var plan: String = ""
+        var category: String = ""
+        var originalMinorUnits: Int64 = 0
+        var currencyRawValue: String = "USD"
+        var billingCycleRawValue: String = "monthly"
+        var billingIntervalValue: Int?
+        var billingIntervalUnitRawValue: String?
+        var billingTimeZoneIdentifier: String?
+        var startDate: Date = Date(timeIntervalSinceReferenceDate: 0)
+        var renewalAnchor: Date?
+        var confirmedNextRenewal: Date = Date(
+            timeIntervalSinceReferenceDate: 0
+        )
+        var managementURLString: String?
+        var notes: String?
+        var confirmedChargesData: Data?
+
+        init(
+            id: UUID,
+            serviceIdentityRawValue: String = "",
+            serviceName: String = "",
+            plan: String = "",
+            category: String = "",
+            originalMinorUnits: Int64 = 0,
+            currencyRawValue: String = "USD",
+            billingCycleRawValue: String = "monthly",
+            billingIntervalValue: Int? = nil,
+            billingIntervalUnitRawValue: String? = nil,
+            billingTimeZoneIdentifier: String? = nil,
+            startDate: Date = Date(timeIntervalSinceReferenceDate: 0),
+            renewalAnchor: Date? = nil,
+            confirmedNextRenewal: Date = Date(
+                timeIntervalSinceReferenceDate: 0
+            ),
+            managementURLString: String? = nil,
+            notes: String? = nil,
+            confirmedChargesData: Data? = nil
+        ) {
+            self.id = id
+            self.serviceIdentityRawValue = serviceIdentityRawValue
+            self.serviceName = serviceName
+            self.plan = plan
+            self.category = category
+            self.originalMinorUnits = originalMinorUnits
+            self.currencyRawValue = currencyRawValue
+            self.billingCycleRawValue = billingCycleRawValue
+            self.billingIntervalValue = billingIntervalValue
+            self.billingIntervalUnitRawValue = billingIntervalUnitRawValue
+            self.billingTimeZoneIdentifier = billingTimeZoneIdentifier
+            self.startDate = startDate
+            self.renewalAnchor = renewalAnchor
+            self.confirmedNextRenewal = confirmedNextRenewal
+            self.managementURLString = managementURLString
+            self.notes = notes
+            self.confirmedChargesData = confirmedChargesData
+        }
     }
 }

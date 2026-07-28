@@ -7,6 +7,8 @@ struct SubscriptionDetailView: View {
     @State private var subscriptionToEdit: Subscription?
     @State private var lifecycleSheet: LifecycleSheet?
     @State private var subscriptionPendingDeletion: Subscription?
+    @State private var directActionError:
+        SubscriptionLifecycleActionError?
 
     var body: some View {
         detailContent
@@ -26,7 +28,11 @@ struct SubscriptionDetailView: View {
                                     "Restore",
                                     systemImage: "arrow.uturn.backward"
                                 ) {
-                                    workspace.restore(id: subscription.id)
+                                    performDirectAction {
+                                        workspace.restore(
+                                            id: subscription.id
+                                        )
+                                    }
                                 }
                                 .accessibilityIdentifier(
                                     "subscription.lifecycle.restore"
@@ -44,6 +50,7 @@ struct SubscriptionDetailView: View {
                                         "Record Cancellation",
                                         systemImage: "xmark.circle"
                                     ) {
+                                        beginDirectAction()
                                         lifecycleSheet = .recordCancellation(
                                             subscription
                                         )
@@ -57,6 +64,7 @@ struct SubscriptionDetailView: View {
                                         "Reactivate",
                                         systemImage: "arrow.clockwise"
                                     ) {
+                                        beginDirectAction()
                                         lifecycleSheet = .reactivate(subscription)
                                     }
                                     .accessibilityIdentifier(
@@ -68,7 +76,11 @@ struct SubscriptionDetailView: View {
                                     "Archive",
                                     systemImage: "archivebox"
                                 ) {
-                                    workspace.archive(id: subscription.id)
+                                    performDirectAction {
+                                        workspace.archive(
+                                            id: subscription.id
+                                        )
+                                    }
                                 }
                                 .accessibilityIdentifier(
                                     "subscription.lifecycle.archive"
@@ -80,6 +92,7 @@ struct SubscriptionDetailView: View {
                                 systemImage: "trash",
                                 role: .destructive
                             ) {
+                                beginDirectAction()
                                 subscriptionPendingDeletion = subscription
                             }
                             .accessibilityIdentifier(
@@ -133,13 +146,26 @@ struct SubscriptionDetailView: View {
             ) { subscription in
                 Button("Delete Permanently", role: .destructive) {
                     subscriptionPendingDeletion = nil
-                    workspace.deletePermanently(id: subscription.id)
+                    performDirectAction {
+                        workspace.deletePermanently(id: subscription.id)
+                    }
                 }
                 Button("Cancel", role: .cancel) {
                     subscriptionPendingDeletion = nil
                 }
             } message: { _ in
                 Text("This action cannot be undone.")
+            }
+            .alert(
+                "Couldn’t Complete Action",
+                isPresented: directActionErrorIsPresented,
+                presenting: directActionError
+            ) { _ in
+                Button("OK") {
+                    dismissDirectActionError()
+                }
+            } message: { error in
+                Text(lifecycleActionErrorText(error))
             }
             .task(id: subscriptionID) {
                 workspace.loadSubscription(id: subscriptionID)
@@ -193,6 +219,35 @@ struct SubscriptionDetailView: View {
             return "Permanently Delete"
         }
         return "Permanently Delete “\(subscriptionPendingDeletion.serviceName)”?"
+    }
+
+    private var directActionErrorIsPresented: Binding<Bool> {
+        Binding(
+            get: {
+                directActionError != nil
+            },
+            set: { isPresented in
+                if !isPresented {
+                    dismissDirectActionError()
+                }
+            }
+        )
+    }
+
+    private func beginDirectAction() {
+        directActionError = nil
+        workspace.clearLifecycleActionError()
+    }
+
+    private func performDirectAction(_ action: () -> Void) {
+        beginDirectAction()
+        action()
+        directActionError = workspace.lifecycleActionError
+    }
+
+    private func dismissDirectActionError() {
+        directActionError = nil
+        workspace.clearLifecycleActionError()
     }
 }
 

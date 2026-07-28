@@ -519,7 +519,7 @@ public final class SubscriptionWorkspace {
                 )
             )
             try repository.updateSubscription(updated)
-            try finishLifecycleUpdate(updated)
+            finishLifecycleUpdate(updated)
         } catch {
             lifecycleActionError = .persistenceFailed
         }
@@ -561,7 +561,7 @@ public final class SubscriptionWorkspace {
                 confirmedNextRenewal: normalizedRenewal
             )
             try repository.updateSubscription(updated)
-            try finishLifecycleUpdate(updated)
+            finishLifecycleUpdate(updated)
         } catch {
             lifecycleActionError = .persistenceFailed
         }
@@ -582,7 +582,7 @@ public final class SubscriptionWorkspace {
 
             let updated = existing.replacingLifecycleFacts(isArchived: true)
             try repository.updateSubscription(updated)
-            try finishLifecycleUpdate(updated)
+            finishLifecycleUpdate(updated)
         } catch {
             lifecycleActionError = .persistenceFailed
         }
@@ -603,7 +603,7 @@ public final class SubscriptionWorkspace {
 
             let updated = existing.replacingLifecycleFacts(isArchived: false)
             try repository.updateSubscription(updated)
-            try finishLifecycleUpdate(updated)
+            finishLifecycleUpdate(updated)
         } catch {
             lifecycleActionError = .persistenceFailed
         }
@@ -624,14 +624,13 @@ public final class SubscriptionWorkspace {
             let refreshedExpectedCharges: [ExpectedCharge]? =
                 clearsExpectedCharges ? nil : expectedCharges
             try repository.deleteSubscription(id: id)
-            let refreshedLibraryState = try makeLibraryState(scope: scope)
 
             detailState = .notFound
             expectedCharges = refreshedExpectedCharges
             if clearsExpectedCharges {
                 expectedChargesRequest = nil
             }
-            libraryState = refreshedLibraryState
+            loadLibrary(scope: scope)
         } catch {
             lifecycleActionError = .persistenceFailed
         }
@@ -646,6 +645,10 @@ public final class SubscriptionWorkspace {
         } catch {
             libraryState = .failed(scope)
         }
+    }
+
+    public func clearLifecycleActionError() {
+        lifecycleActionError = nil
     }
 
     public func beginEditing() {
@@ -783,7 +786,8 @@ public final class SubscriptionWorkspace {
 
     private func finishLifecycleUpdate(
         _ subscription: Subscription
-    ) throws {
+    ) {
+        let scope = carriedLibraryScope
         let refreshedDetailState = makeDetail(subscription)
         let refreshedExpectedCharges: [ExpectedCharge]? =
             if let request = expectedChargesRequest,
@@ -797,13 +801,10 @@ public final class SubscriptionWorkspace {
             } else {
                 expectedCharges
             }
-        let refreshedLibraryState = try makeLibraryState(
-            scope: carriedLibraryScope
-        )
 
         detailState = refreshedDetailState
         expectedCharges = refreshedExpectedCharges
-        libraryState = refreshedLibraryState
+        loadLibrary(scope: scope)
     }
 
     private func makeLibraryState(

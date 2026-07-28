@@ -433,6 +433,12 @@
         "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "已取消（仍可使用）" } }
       }
     },
+    "Couldn’t Complete Action" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Couldn’t Complete Action" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "无法完成操作" } }
+      }
+    },
     "Couldn’t save lifecycle changes. Try again." : {
       "localizations" : {
         "en" : { "stringUnit" : { "state" : "translated", "value" : "Couldn’t save lifecycle changes. Try again." } },
@@ -467,6 +473,12 @@
       "localizations" : {
         "en" : { "stringUnit" : { "state" : "translated", "value" : "Next Renewal is the first paid charge date." } },
         "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "下次续费日期即首次付费日期。" } }
+      }
+    },
+    "OK" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "OK" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "好" } }
       }
     },
     "Permanently Delete" : {

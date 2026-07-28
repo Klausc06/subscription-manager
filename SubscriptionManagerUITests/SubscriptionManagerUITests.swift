@@ -2,28 +2,6 @@ import XCTest
 
 @MainActor
 final class SubscriptionManagerUITests: XCTestCase {
-    func testMonthlyReactivationUsesAnchorDayAfterClampedMonth() {
-        var calendar = Calendar(identifier: .gregorian)
-        calendar.timeZone = TimeZone(secondsFromGMT: 0)!
-        let anchor = calendar.date(
-            from: DateComponents(year: 2026, month: 1, day: 31)
-        )!
-        let clampedRenewal = calendar.date(
-            from: DateComponents(year: 2026, month: 2, day: 28)
-        )!
-
-        let next = nextMonthlyOccurrence(
-            renewalAnchor: anchor,
-            after: clampedRenewal,
-            calendar: calendar
-        )
-
-        XCTAssertEqual(
-            calendar.dateComponents([.year, .month, .day], from: next),
-            DateComponents(year: 2026, month: 3, day: 31)
-        )
-    }
-
     func testFreshLaunchShowsEnglishEmptyLibrary() {
         let app = launch(language: "en", locale: "en_US")
 
@@ -306,6 +284,87 @@ final class SubscriptionManagerUITests: XCTestCase {
             app.descendants(matching: .any)["subscription.detail.not-found"]
                 .waitForExistence(timeout: 5)
         )
+    }
+
+    func testFailedDirectActionsShowErrorAndKeepDetail() {
+        let storeToken = "direct-action-error-\(UUID().uuidString)"
+        let app = launch(
+            language: "en",
+            locale: "en_US",
+            storeToken: storeToken
+        )
+        createSubscription(named: "Current Failure", in: app)
+        createSubscription(named: "Archived Failure", in: app)
+        app.staticTexts["Archived Failure"].tap()
+        app.buttons["subscription.lifecycle.actions"].tap()
+        app.buttons["subscription.lifecycle.archive"].tap()
+        app.terminate()
+
+        let failingApp = launch(
+            language: "en",
+            locale: "en_US",
+            storeToken: storeToken,
+            failsLifecycleMutations: true
+        )
+        XCTAssertTrue(
+            failingApp.staticTexts["Current Failure"]
+                .waitForExistence(timeout: 5)
+        )
+        failingApp.staticTexts["Current Failure"].tap()
+        let detail = failingApp.descendants(matching: .any)[
+            "subscription.detail"
+        ]
+        XCTAssertTrue(detail.waitForExistence(timeout: 5))
+
+        let lifecycleActions = failingApp.buttons[
+            "subscription.lifecycle.actions"
+        ]
+        lifecycleActions.tap()
+        failingApp.buttons["subscription.lifecycle.archive"].tap()
+
+        let actionError = failingApp.alerts["Couldn’t Complete Action"]
+        XCTAssertTrue(actionError.waitForExistence(timeout: 5))
+        XCTAssertTrue(
+            actionError.staticTexts[
+                "Couldn’t save lifecycle changes. Try again."
+            ].exists
+        )
+        XCTAssertTrue(detail.exists)
+        actionError.buttons["OK"].tap()
+        XCTAssertFalse(actionError.exists)
+        XCTAssertTrue(detail.exists)
+
+        lifecycleActions.tap()
+        failingApp.buttons["subscription.lifecycle.delete"].tap()
+        let confirmation = failingApp.sheets.firstMatch
+        XCTAssertTrue(confirmation.waitForExistence(timeout: 5))
+        XCTAssertFalse(actionError.exists)
+        confirmation.buttons["Delete Permanently"].tap()
+        XCTAssertTrue(actionError.waitForExistence(timeout: 5))
+        XCTAssertTrue(detail.exists)
+        actionError.buttons["OK"].tap()
+
+        failingApp.navigationBars.buttons["Subscriptions"].tap()
+        failingApp.buttons["library.archived"].tap()
+        XCTAssertTrue(
+            failingApp.staticTexts["Archived Failure"]
+                .waitForExistence(timeout: 5)
+        )
+        failingApp.staticTexts["Archived Failure"].tap()
+        XCTAssertTrue(detail.waitForExistence(timeout: 5))
+        lifecycleActions.tap()
+        failingApp.buttons["subscription.lifecycle.restore"].tap()
+
+        XCTAssertTrue(actionError.waitForExistence(timeout: 5))
+        XCTAssertTrue(
+            actionError.staticTexts[
+                "Couldn’t save lifecycle changes. Try again."
+            ].exists
+        )
+        XCTAssertTrue(detail.exists)
+        actionError.buttons["OK"].tap()
+        XCTAssertFalse(actionError.exists)
+        XCTAssertTrue(detail.exists)
     }
 
     func testRecordsCancellationAndHidesNextExpectedCharge() {
@@ -685,7 +744,8 @@ final class SubscriptionManagerUITests: XCTestCase {
     private func launch(
         language: String,
         locale: String,
-        storeToken: String? = nil
+        storeToken: String? = nil,
+        failsLifecycleMutations: Bool = false
     ) -> XCUIApplication {
         let app = XCUIApplication()
         app.launchArguments = [
@@ -695,6 +755,11 @@ final class SubscriptionManagerUITests: XCTestCase {
         ]
         if let storeToken {
             app.launchArguments += ["--ui-testing-store", storeToken]
+        }
+        if failsLifecycleMutations {
+            app.launchArguments += [
+                "--ui-testing-fail-lifecycle-mutations"
+            ]
         }
         app.launch()
         return app
@@ -781,11 +846,11 @@ final class SubscriptionManagerUITests: XCTestCase {
             return originalValue
         }
 
-        let targetFrame: CGRect
+        let target: XCUIElement
         switch direction {
         case .earlier:
             if selectedIndex > 0 {
-                targetFrame = dayButtons[selectedIndex - 1].frame
+                target = dayButtons[selectedIndex - 1]
             } else {
                 let previousMonthDays = moveCalendarMonth(
                     in: picker,
@@ -795,11 +860,11 @@ final class SubscriptionManagerUITests: XCTestCase {
                     XCTFail("Previous month has no selectable day.")
                     return originalValue
                 }
-                targetFrame = lastDay.frame
+                target = lastDay
             }
         case .later:
             if selectedIndex + 1 < dayButtons.count {
-                targetFrame = dayButtons[selectedIndex + 1].frame
+                target = dayButtons[selectedIndex + 1]
             } else {
                 let nextMonthDays = moveCalendarMonth(
                     in: picker,
@@ -809,7 +874,7 @@ final class SubscriptionManagerUITests: XCTestCase {
                     XCTFail("Next month has no selectable day.")
                     return originalValue
                 }
-                targetFrame = firstDay.frame
+                target = firstDay
             }
         case .nextMonth(let day):
             let nextMonthDays = moveCalendarMonth(
@@ -821,10 +886,10 @@ final class SubscriptionManagerUITests: XCTestCase {
                 return originalValue
             }
             let targetIndex = min(max(day - 1, 0), nextMonthDays.count - 1)
-            targetFrame = nextMonthDays[targetIndex].frame
+            target = nextMonthDays[targetIndex]
         }
 
-        tapCalendarDay(frame: targetFrame, in: picker)
+        target.tap()
         let selectedValue = selectedDate(in: picker)
         XCTAssertNotEqual(
             selectedValue,
@@ -881,20 +946,6 @@ final class SubscriptionManagerUITests: XCTestCase {
                 }
                 return $0.frame.minY < $1.frame.minY
             }
-    }
-
-    private func tapCalendarDay(
-        frame: CGRect,
-        in picker: XCUIElement
-    ) {
-        let pickerFrame = picker.frame
-        picker.coordinate(
-            withNormalizedOffset: CGVector(
-                dx: (frame.midX - pickerFrame.minX) / pickerFrame.width,
-                dy: (frame.midY - pickerFrame.minY) / pickerFrame.height
-            )
-        )
-        .tap()
     }
 }
 

@@ -6,7 +6,7 @@ import Testing
 @Suite("Management URL validation")
 struct ManagementURLValidationTests {
     @Test(
-        "Subscription statuses use stable localization keys",
+        "Subscription statuses use one production localization mapping",
         arguments: [
             (SubscriptionStatus.active, "Active"),
             (.trial, "Trial"),
@@ -14,7 +14,7 @@ struct ManagementURLValidationTests {
             (.expired, "Expired"),
         ]
     )
-    func subscriptionStatusesUseStableLocalizationKeys(
+    func subscriptionStatusesUseProductionLocalizationMapping(
         status: SubscriptionStatus,
         expected: String
     ) {

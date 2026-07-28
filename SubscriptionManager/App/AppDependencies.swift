@@ -12,8 +12,15 @@ struct AppDependencies {
         storeDirectory: URL? = nil
     ) -> AppStartupState {
         let schema = Schema([SubscriptionRecord.self])
+        let failsLifecycleMutations =
+            arguments.contains("--ui-testing")
+            && arguments.contains(
+                "--ui-testing-fail-lifecycle-mutations"
+            )
 
-        return make {
+        return make(
+            failsLifecycleMutations: failsLifecycleMutations
+        ) {
             let configuration: ModelConfiguration
             switch try storeSelection(arguments: arguments) {
             case .namedUITesting(let token):
@@ -59,6 +66,7 @@ struct AppDependencies {
     }
 
     static func make(
+        failsLifecycleMutations: Bool = false,
         modelContainer: () throws -> ModelContainer
     ) -> AppStartupState {
         do {
@@ -66,10 +74,16 @@ struct AppDependencies {
             let repository = SwiftDataSubscriptionRepository(
                 modelContainer: modelContainer
             )
+            let workspaceRepository: any SubscriptionRepository =
+                failsLifecycleMutations
+                    ? FailingLifecycleMutationRepository(base: repository)
+                    : repository
             return .ready(
                 AppDependencies(
                     modelContainer: modelContainer,
-                    workspace: SubscriptionWorkspace(repository: repository)
+                    workspace: SubscriptionWorkspace(
+                        repository: workspaceRepository
+                    )
                 )
             )
         } catch {
@@ -132,4 +146,39 @@ struct AppStartupFailure {
 enum AppStartupState {
     case ready(AppDependencies)
     case failed(AppStartupFailure)
+}
+
+@MainActor
+private final class FailingLifecycleMutationRepository:
+    SubscriptionRepository
+{
+    private let base: any SubscriptionRepository
+
+    init(base: any SubscriptionRepository) {
+        self.base = base
+    }
+
+    func createSubscription(_ subscription: Subscription) throws {
+        try base.createSubscription(subscription)
+    }
+
+    func updateSubscription(_ subscription: Subscription) throws {
+        throw Failure.injected
+    }
+
+    func deleteSubscription(id: UUID) throws {
+        throw Failure.injected
+    }
+
+    func listSubscriptions() throws -> [Subscription] {
+        try base.listSubscriptions()
+    }
+
+    func subscription(id: UUID) throws -> Subscription? {
+        try base.subscription(id: id)
+    }
+
+    private enum Failure: Error {
+        case injected
+    }
 }

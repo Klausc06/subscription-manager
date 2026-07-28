@@ -34,6 +34,9 @@ XcodeGen, iOS/iPadOS/macOS 27.
   accessibility identifiers.
 - Keep the implementation additive and YAGNI: no event log, service layer,
   retry state machine, archive timestamp, or duplicate library cache.
+- After a repository mutation succeeds, publish persisted detail, forecast, or
+  not-found truth before refreshing the carried library scope. A later list
+  failure fails only that scope and never becomes `.persistenceFailed`.
 
 ---
 
@@ -521,11 +524,18 @@ Add tests for:
 
 ```swift
 @Test("Legacy rows load as active and unarchived")
+@Test("A pre-TB-04 disk store survives production migration and reopen")
 @Test("Trial active and cancelled lifecycle representations round trip")
 @Test("Partial lifecycle storage fails explicitly")
 @Test("Deleting one identifier preserves unrelated subscriptions")
 @Test("A failed delete save rolls back the selected record")
 ```
+
+The disk-store gate uses the exact pre-TB-04 SwiftData model, writes populated
+identity, service, amount, schedule, date, URL/notes, and Confirmed Charge
+fields, then opens and reopens that store through the production current
+container/repository path. It asserts lifecycle defaults to Active and archive
+defaults to false.
 
 The round-trip test must assert all lifecycle associated dates and
 `isArchived`. The invalid combinations table must include:
@@ -674,8 +684,8 @@ git commit -m "feat(persistence): store subscription lifecycle"
   `restore`,
   and `deletePermanently`.
 - Consumes Task 3's explicit repository deletion contract.
-- Commands mutate one repository aggregate, then reload the selected scope and
-  current detail.
+- Commands mutate one repository aggregate, publish the resulting detail,
+  forecast, or not-found truth, then refresh the carried library scope.
 
 - [ ] **Step 1: Write the failing transition matrix tests**
 
@@ -693,8 +703,14 @@ Add public-Workspace tests for:
 9. Ordinary edit preserves lifecycle, archive flag, and Confirmed Charges.
 10. Permanent delete succeeds for current and archived records across every
     lifecycle and removes only the requested UUID.
-11. Repository failure preserves the loaded detail and existing forecasts,
-    and exposes `.persistenceFailed`.
+11. Repository lookup/update/delete failure preserves the loaded detail and
+    existing forecasts, and exposes `.persistenceFailed`.
+12. If update succeeds and the following list refresh fails, updated
+    detail/forecast truth remains visible, the carried library scope becomes
+    failed, and the action error stays clear.
+13. If delete succeeds and the following list refresh fails, detail becomes
+    not found, the deleted target's forecast request clears, the carried scope
+    becomes failed, and the action error stays clear.
 
 Use assertions shaped like:
 
@@ -808,10 +824,10 @@ Each method:
 3. Checks the transition matrix and billing-local validation.
 4. Normalizes date-only inputs to local noon.
 5. Updates or deletes one UUID.
-6. Rebuilds loaded detail/presentation and reloads the currently selected
-   library scope.
-7. Maps repository failure to `.persistenceFailed` without replacing loaded
-   detail.
+6. After mutation success, publishes rebuilt detail/forecast or not-found
+   presentation before refreshing the carried library scope.
+7. Maps lookup/update/delete failure to `.persistenceFailed` without replacing
+   loaded detail. A later list failure changes only the scoped library state.
 
 `reactivate` preserves `FixedBillingSchedule` and Renewal Anchor, replaces the
 Confirmed Next Renewal gate, and changes lifecycle to `.active`.

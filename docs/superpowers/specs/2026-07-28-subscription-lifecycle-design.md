@@ -151,10 +151,14 @@ confirmation dialog. Cancelling the dialog calls no Workspace command.
 Confirming it calls `deletePermanently(id:)`; all actual mutation remains
 behind the Workspace.
 
-The Workspace exposes lifecycle-action validation and persistence failures
-separately from library/detail loading failures. A failed action keeps the
-currently loaded subscription visible and unchanged so the UI can explain the
-failure and allow retry.
+The Workspace exposes lifecycle-action validation and mutation failures
+separately from library/detail loading failures. If the repository mutation
+itself fails, the currently loaded subscription stays visible and unchanged so
+the UI can explain the failure and allow retry. Once a mutation succeeds, the
+Workspace immediately publishes the persisted detail, forecast, or not-found
+truth before refreshing the carried library scope. A later list failure changes
+only that scoped library state to failed and does not produce an action error
+or restore stale detail.
 
 The repository returns complete `Subscription` aggregates for list queries.
 The Workspace owns clock-based status resolution, current/archived filtering,
@@ -273,11 +277,15 @@ identifiers.
 - Validation errors leave the loaded aggregate and forecasts unchanged.
 - Invalid action/state combinations expose
   `invalidLifecycleTransition` and perform no mutation.
-- Repository failures keep current content visible and expose a retryable
-  lifecycle-action error.
-- A successful action reloads the currently selected library scope and detail.
-- Deleting the open record changes detail state to not found and reloads the
-  current scope.
+- Repository lookup or mutation failures keep current content visible and
+  expose a retryable lifecycle-action error.
+- A successful update publishes its recalculated detail and forecast, then
+  refreshes the carried library scope.
+- A successful deletion changes detail state to not found, clears the deleted
+  target's forecast request, then refreshes the carried library scope.
+- A post-commit list failure changes only the carried library state to failed;
+  persisted detail/forecast/not-found truth remains visible and the action
+  error remains clear.
 
 ## Test Strategy
 
@@ -299,11 +307,15 @@ Implementation follows strict red-green-refactor TDD.
   history survive unchanged.
 - Current/Archived scope tests proving navigation never displays records from
   the other scope.
-- Repository failure tests proving the loaded detail remains visible.
+- Mutation-failure tests proving the loaded detail remains visible.
+- Post-commit refresh-failure tests proving persisted update/deletion truth
+  remains visible while only the carried library scope fails.
 
 ### SwiftData adapter
 
-- Old records load as Active and unarchived.
+- A disk-backed pre-TB-04 store opens and reopens through the production
+  container/repository path with all prior fields and Confirmed Charges intact;
+  lifecycle defaults to Active and archive defaults to false.
 - Every valid lifecycle representation round-trips.
 - Every invalid storage combination fails explicitly.
 - Permanent deletion removes one selected record and keeps unrelated records.

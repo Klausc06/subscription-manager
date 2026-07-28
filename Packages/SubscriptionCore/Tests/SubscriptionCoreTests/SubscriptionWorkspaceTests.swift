@@ -1162,7 +1162,6 @@ struct SubscriptionWorkspaceTests {
             RepositoryFailure.lookup,
             RepositoryFailure.update,
             RepositoryFailure.delete,
-            RepositoryFailure.list,
         ]
     )
     @MainActor
@@ -1209,25 +1208,20 @@ struct SubscriptionWorkspaceTests {
         }
 
         #expect(workspace.lifecycleActionError == .persistenceFailed)
-        if failure == .list {
-            #expect(
-                repository.storedSubscription(id: subscription.id)?
-                    .isArchived == true
-            )
-        } else {
-            #expect(
-                repository.storedSubscription(id: subscription.id)
-                    == subscription
-            )
-        }
+        #expect(
+            repository.storedSubscription(id: subscription.id)
+                == subscription
+        )
         #expect(workspace.detailState == detailBefore)
         #expect(workspace.expectedCharges == forecastBefore)
         #expect(workspace.libraryState == libraryBefore)
     }
 
-    @Test("A failed post-delete library refresh preserves presentation")
+    @Test(
+        "A successful update publishes persisted truth before a failed refresh"
+    )
     @MainActor
-    func failedPostDeleteRefreshPreservesPresentation() throws {
+    func successfulUpdatePublishesTruthBeforeFailedRefresh() throws {
         let calendar = actionCalendar()
         let now = try actionDate(
             year: 2026,
@@ -1255,16 +1249,115 @@ struct SubscriptionWorkspaceTests {
             scope: .current,
             calendar: calendar
         )
-        let detailBefore = workspace.detailState
-        let forecastBefore = workspace.expectedCharges
-        let libraryBefore = workspace.libraryState
-        #expect(forecastBefore?.isEmpty == false)
+        #expect(workspace.expectedCharges?.isEmpty == false)
+        repository.failure = .list
+
+        workspace.archive(id: subscription.id)
+
+        #expect(
+            repository.storedSubscription(id: subscription.id)?
+                .isArchived == true
+        )
+        guard case .loaded(
+            let updated,
+            let status,
+            let nextExpectedCharge
+        ) = workspace.detailState else {
+            Issue.record("Expected the persisted archived detail")
+            return
+        }
+        #expect(updated.id == subscription.id)
+        #expect(updated.isArchived == true)
+        #expect(status == .active)
+        #expect(nextExpectedCharge == nil)
+        #expect(workspace.expectedCharges == [])
+        #expect(workspace.libraryState == .failed(.current))
+        #expect(workspace.lifecycleActionError == nil)
+    }
+
+    @Test(
+        "A successful delete publishes not found before a failed refresh"
+    )
+    @MainActor
+    func successfulDeletePublishesNotFoundBeforeFailedRefresh() throws {
+        let calendar = actionCalendar()
+        let now = try actionDate(
+            year: 2026,
+            month: 7,
+            day: 28,
+            hour: 18,
+            calendar: calendar
+        )
+        let subscription = try makeActionSubscription(
+            fixture: .active,
+            calendar: calendar
+        )
+        let repository = InMemorySubscriptionRepository(
+            subscriptions: [subscription]
+        )
+        let workspace = SubscriptionWorkspace(
+            repository: repository,
+            now: { now },
+            calendar: calendar
+        )
+
+        loadActionPresentation(
+            workspace,
+            subscription: subscription,
+            scope: .current,
+            calendar: calendar
+        )
+        #expect(workspace.expectedCharges?.isEmpty == false)
         repository.failure = .list
 
         workspace.deletePermanently(id: subscription.id)
 
         #expect(repository.storedSubscription(id: subscription.id) == nil)
+        #expect(workspace.detailState == .notFound)
+        #expect(workspace.expectedCharges == nil)
+        #expect(workspace.libraryState == .failed(.current))
+        #expect(workspace.lifecycleActionError == nil)
+    }
+
+    @Test("Dismissing an action error clears it without changing content")
+    @MainActor
+    func dismissingActionErrorClearsItWithoutChangingContent() throws {
+        let calendar = actionCalendar()
+        let now = try actionDate(
+            year: 2026,
+            month: 7,
+            day: 28,
+            hour: 18,
+            calendar: calendar
+        )
+        let subscription = try makeActionSubscription(
+            fixture: .active,
+            calendar: calendar
+        )
+        let repository = InMemorySubscriptionRepository(
+            subscriptions: [subscription]
+        )
+        let workspace = SubscriptionWorkspace(
+            repository: repository,
+            now: { now },
+            calendar: calendar
+        )
+        loadActionPresentation(
+            workspace,
+            subscription: subscription,
+            scope: .current,
+            calendar: calendar
+        )
+        let detailBefore = workspace.detailState
+        let forecastBefore = workspace.expectedCharges
+        let libraryBefore = workspace.libraryState
+        repository.failure = .update
+        workspace.archive(id: subscription.id)
         #expect(workspace.lifecycleActionError == .persistenceFailed)
+
+        workspace.clearLifecycleActionError()
+
+        #expect(workspace.lifecycleActionError == nil)
         #expect(workspace.detailState == detailBefore)
         #expect(workspace.expectedCharges == forecastBefore)
         #expect(workspace.libraryState == libraryBefore)

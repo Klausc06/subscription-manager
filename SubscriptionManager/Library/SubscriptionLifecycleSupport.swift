@@ -19,16 +19,11 @@ func subscriptionStatusLocalizationKey(
 func localizedSubscriptionStatus(
     _ status: SubscriptionStatus
 ) -> String {
-    switch status {
-    case .active:
-        String(localized: "Active")
-    case .trial:
-        String(localized: "Trial")
-    case .cancelledWithAccess:
-        String(localized: "Cancelled with Access")
-    case .expired:
-        String(localized: "Expired")
-    }
+    String(
+        localized: String.LocalizationValue(
+            subscriptionStatusLocalizationKey(status)
+        )
+    )
 }
 
 func lifecycleActionErrorText(
