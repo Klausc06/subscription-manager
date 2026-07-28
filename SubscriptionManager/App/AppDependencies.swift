@@ -12,11 +12,12 @@ struct AppDependencies {
         storeDirectory: URL? = nil
     ) -> AppStartupState {
         let schema = Schema([SubscriptionRecord.self])
-        let failsLifecycleMutations =
-            arguments.contains("--ui-testing")
-            && arguments.contains(
-                "--ui-testing-fail-lifecycle-mutations"
-            )
+        #if DEBUG
+        let failsLifecycleMutations = arguments.contains("--ui-testing")
+            && arguments.contains("--ui-testing-fail-lifecycle-mutations")
+        #else
+        let failsLifecycleMutations = false
+        #endif
 
         return make(
             failsLifecycleMutations: failsLifecycleMutations
@@ -74,10 +75,14 @@ struct AppDependencies {
             let repository = SwiftDataSubscriptionRepository(
                 modelContainer: modelContainer
             )
-            let workspaceRepository: any SubscriptionRepository =
-                failsLifecycleMutations
-                    ? FailingLifecycleMutationRepository(base: repository)
-                    : repository
+            let workspaceRepository: any SubscriptionRepository
+            #if DEBUG
+            workspaceRepository = failsLifecycleMutations
+                ? FailingLifecycleMutationRepository(base: repository)
+                : repository
+            #else
+            workspaceRepository = repository
+            #endif
             return .ready(
                 AppDependencies(
                     modelContainer: modelContainer,
@@ -148,6 +153,7 @@ enum AppStartupState {
     case failed(AppStartupFailure)
 }
 
+#if DEBUG
 @MainActor
 private final class FailingLifecycleMutationRepository:
     SubscriptionRepository
@@ -182,3 +188,4 @@ private final class FailingLifecycleMutationRepository:
         case injected
     }
 }
+#endif

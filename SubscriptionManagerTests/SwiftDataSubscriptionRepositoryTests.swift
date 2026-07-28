@@ -625,7 +625,11 @@ struct SwiftDataSubscriptionRepositoryTests {
                 modelContainer: container
             )
 
-            #expect(throws: (any Error).self, "Case \(index)") {
+            #expect(
+                throws: SwiftDataSubscriptionRepository.RepositoryError
+                    .invalidLifecycleStorage,
+                "Case \(index)"
+            ) {
                 try repository.subscription(id: subscriptionID)
             }
         }

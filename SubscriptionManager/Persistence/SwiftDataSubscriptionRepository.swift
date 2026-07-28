@@ -180,17 +180,17 @@ final class SwiftDataSubscriptionRepository: SubscriptionRepository {
         record.isArchived = subscription.isArchived
         switch subscription.lifecycle {
         case .active:
-            record.lifecycleRawValue = "active"
+            record.lifecycleRawValue = LifecycleStorageKind.active.rawValue
             record.trialFirstPaidChargeAt = nil
             record.cancelledAt = nil
             record.accessUntil = nil
         case .trial(let firstPaidChargeAt):
-            record.lifecycleRawValue = "trial"
+            record.lifecycleRawValue = LifecycleStorageKind.trial.rawValue
             record.trialFirstPaidChargeAt = firstPaidChargeAt
             record.cancelledAt = nil
             record.accessUntil = nil
         case .cancelled(let cancelledAt, let accessUntil):
-            record.lifecycleRawValue = "cancelled"
+            record.lifecycleRawValue = LifecycleStorageKind.cancelled.rawValue
             record.trialFirstPaidChargeAt = nil
             record.cancelledAt = cancelledAt
             record.accessUntil = accessUntil
@@ -284,18 +284,30 @@ final class SwiftDataSubscriptionRepository: SubscriptionRepository {
     private func makeLifecycle(
         from record: SubscriptionRecord
     ) throws -> SubscriptionLifecycle {
+        guard let rawValue = record.lifecycleRawValue else {
+            guard record.trialFirstPaidChargeAt == nil,
+                  record.cancelledAt == nil,
+                  record.accessUntil == nil
+            else {
+                throw RepositoryError.invalidLifecycleStorage
+            }
+            return .active
+        }
+        guard let kind = LifecycleStorageKind(rawValue: rawValue) else {
+            throw RepositoryError.invalidLifecycleStorage
+        }
         switch (
-            record.lifecycleRawValue,
+            kind,
             record.trialFirstPaidChargeAt,
             record.cancelledAt,
             record.accessUntil
         ) {
-        case (nil, nil, nil, nil), ("active", nil, nil, nil):
+        case (.active, nil, nil, nil):
             return .active
-        case ("trial", let firstPaidChargeAt?, nil, nil):
+        case (.trial, let firstPaidChargeAt?, nil, nil):
             return .trial(firstPaidChargeAt: firstPaidChargeAt)
         case (
-            "cancelled",
+            .cancelled,
             nil,
             let cancelledAt?,
             let accessUntil?
@@ -428,8 +440,14 @@ final class SwiftDataSubscriptionRepository: SubscriptionRepository {
         return calendar.date(from: components)
     }
 
-    private enum RepositoryError: Error {
+    enum RepositoryError: Error {
         case invalidLifecycleStorage
         case subscriptionNotFound
+    }
+
+    private enum LifecycleStorageKind: String {
+        case active
+        case trial
+        case cancelled
     }
 }

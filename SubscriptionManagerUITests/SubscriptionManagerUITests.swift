@@ -98,8 +98,9 @@ final class SubscriptionManagerUITests: XCTestCase {
             storeToken: "trial-en-\(UUID().uuidString)"
         )
 
-        createTrial(
+        createSubscription(
             named: "Example Trial",
+            plan: "Trial",
             statusButton: "Trial",
             in: app
         )
@@ -117,8 +118,9 @@ final class SubscriptionManagerUITests: XCTestCase {
             storeToken: "trial-zh-\(UUID().uuidString)"
         )
 
-        createTrial(
+        createSubscription(
             named: "示例试用",
+            plan: "Trial",
             statusButton: "试用中",
             in: app
         )
@@ -135,8 +137,9 @@ final class SubscriptionManagerUITests: XCTestCase {
             locale: "en_US",
             storeToken: "archive-restore-\(UUID().uuidString)"
         )
-        createTrial(
+        createSubscription(
             named: "Example Archive",
+            plan: "Trial",
             statusButton: "Trial",
             in: app
         )
@@ -201,8 +204,9 @@ final class SubscriptionManagerUITests: XCTestCase {
             locale: "en_US",
             storeToken: "permanent-delete-\(UUID().uuidString)"
         )
-        createTrial(
+        createSubscription(
             named: serviceName,
+            plan: "Trial",
             statusButton: "Trial",
             in: app
         )
@@ -265,10 +269,7 @@ final class SubscriptionManagerUITests: XCTestCase {
         XCTAssertTrue(
             confirmation.staticTexts["This action cannot be undone."].exists
         )
-        app.coordinate(
-            withNormalizedOffset: CGVector(dx: 0.05, dy: 0.1)
-        )
-        .tap()
+        confirmation.buttons["Cancel"].tap()
 
         XCTAssertTrue(
             app.descendants(matching: .any)["subscription.detail"]
@@ -670,6 +671,8 @@ final class SubscriptionManagerUITests: XCTestCase {
 
     private func createSubscription(
         named serviceNameValue: String,
+        plan planValue: String = "Standard",
+        statusButton: String? = nil,
         in app: XCUIApplication
     ) {
         XCTAssertTrue(
@@ -684,51 +687,19 @@ final class SubscriptionManagerUITests: XCTestCase {
 
         let plan = app.textFields["subscription.form.plan"]
         plan.tap()
-        plan.typeText("Standard")
+        plan.typeText(planValue)
 
         let category = app.textFields["subscription.form.category"]
         category.tap()
         category.typeText("Other")
 
-        let amount = app.textFields["subscription.form.amount"]
-        amount.tap()
-        amount.typeText("9.99")
-
-        app.buttons["subscription.form.save"].tap()
-        XCTAssertTrue(
-            app.buttons["subscription.row"].firstMatch
-                .waitForExistence(timeout: 5)
-        )
-    }
-
-    private func createTrial(
-        named serviceNameValue: String,
-        statusButton: String,
-        in app: XCUIApplication
-    ) {
-        XCTAssertTrue(
-            app.buttons["subscription.add"].waitForExistence(timeout: 5)
-        )
-        app.buttons["subscription.add"].tap()
-
-        let serviceName = app.textFields["subscription.form.service-name"]
-        XCTAssertTrue(serviceName.waitForExistence(timeout: 5))
-        serviceName.tap()
-        serviceName.typeText(serviceNameValue)
-
-        let plan = app.textFields["subscription.form.plan"]
-        plan.tap()
-        plan.typeText("Trial")
-
-        let category = app.textFields["subscription.form.category"]
-        category.tap()
-        category.typeText("Other")
-
-        let initialStatus = app.segmentedControls[
-            "subscription.form.initial-status"
-        ]
-        XCTAssertTrue(initialStatus.waitForExistence(timeout: 5))
-        initialStatus.buttons[statusButton].tap()
+        if let statusButton {
+            let initialStatus = app.segmentedControls[
+                "subscription.form.initial-status"
+            ]
+            XCTAssertTrue(initialStatus.waitForExistence(timeout: 5))
+            initialStatus.buttons[statusButton].tap()
+        }
 
         let amount = app.textFields["subscription.form.amount"]
         amount.tap()

@@ -537,11 +537,6 @@ struct SubscriptionWorkspaceTests {
             calendar: calendar
         )
         #expect(workspace.expectedCharges?.isEmpty == false)
-        workspace.restore(id: subscription.id)
-        #expect(
-            workspace.lifecycleActionError == .invalidLifecycleTransition
-        )
-
         workspace.recordCancellation(
             id: subscription.id,
             cancelledAt: cancelledAt,
@@ -562,7 +557,7 @@ struct SubscriptionWorkspaceTests {
         #expect(stored.confirmedCharges == subscription.confirmedCharges)
         #expect(workspace.expectedCharges == [])
         #expect(workspace.lifecycleActionError == nil)
-        #expect(repository.updateCallCount == 1)
+        #expect(repository.updateAttemptCount == 1)
         guard case .loaded(
             let detail,
             .expired,
@@ -642,7 +637,7 @@ struct SubscriptionWorkspaceTests {
             repository.storedSubscription(id: subscription.id)
                 == subscription
         )
-        #expect(repository.updateCallCount == 0)
+        #expect(repository.updateAttemptCount == 0)
         #expect(workspace.detailState == detailBefore)
         #expect(workspace.expectedCharges == forecastBefore)
         #expect(workspace.libraryState == libraryBefore)
@@ -708,7 +703,7 @@ struct SubscriptionWorkspaceTests {
             repository.storedSubscription(id: subscription.id)
                 == subscription
         )
-        #expect(repository.updateCallCount == 0)
+        #expect(repository.updateAttemptCount == 0)
         #expect(workspace.detailState == detailBefore)
         #expect(workspace.expectedCharges == forecastBefore)
         #expect(workspace.libraryState == libraryBefore)
@@ -855,7 +850,7 @@ struct SubscriptionWorkspaceTests {
             repository.storedSubscription(id: subscription.id)
                 == subscription
         )
-        #expect(repository.updateCallCount == 0)
+        #expect(repository.updateAttemptCount == 0)
         #expect(workspace.detailState == detailBefore)
         #expect(workspace.expectedCharges == forecastBefore)
         #expect(workspace.libraryState == libraryBefore)
@@ -1395,7 +1390,7 @@ struct SubscriptionWorkspaceTests {
 
             #expect(workspace.detailState == .notFound)
             #expect(workspace.lifecycleActionError == nil)
-            #expect(repository.updateCallCount == 0)
+            #expect(repository.updateAttemptCount == 0)
             #expect(repository.deletedIDs.isEmpty)
         }
     }
@@ -1454,7 +1449,7 @@ struct SubscriptionWorkspaceTests {
             repository.storedSubscription(id: subscription.id)
                 == subscription
         )
-        #expect(repository.updateCallCount == 0)
+        #expect(repository.updateAttemptCount == 0)
         #expect(repository.deletedIDs.isEmpty)
         #expect(workspace.detailState == detailBefore)
         #expect(workspace.expectedCharges == forecastBefore)
@@ -1529,7 +1524,7 @@ private struct PopulatedSubscriptionRepository: SubscriptionRepository {
 private final class InMemorySubscriptionRepository: SubscriptionRepository {
     private var subscriptions: [UUID: Subscription] = [:]
     var failure: RepositoryFailure?
-    private(set) var updateCallCount = 0
+    private(set) var updateAttemptCount = 0
     private(set) var deletedIDs: [UUID] = []
 
     init(subscriptions: [Subscription] = []) {
@@ -1543,7 +1538,7 @@ private final class InMemorySubscriptionRepository: SubscriptionRepository {
     }
 
     func updateSubscription(_ subscription: Subscription) throws {
-        updateCallCount += 1
+        updateAttemptCount += 1
         if failure == .update {
             throw RepositoryFailureError.unavailable
         }

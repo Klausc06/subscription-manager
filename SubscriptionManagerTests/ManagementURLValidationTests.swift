@@ -3,8 +3,8 @@ import SubscriptionCore
 import Testing
 @testable import SubscriptionManager
 
-@Suite("Management URL validation")
-struct ManagementURLValidationTests {
+@Suite("Subscription lifecycle localization")
+struct SubscriptionLifecycleLocalizationTests {
     @Test(
         "Subscription statuses use one production localization mapping",
         arguments: [
@@ -22,7 +22,7 @@ struct ManagementURLValidationTests {
     }
 
     @Test(
-        "Lifecycle action errors use field-specific localization keys",
+        "Lifecycle action errors use dedicated localization keys",
         arguments: [
             (
                 SubscriptionLifecycleActionError
@@ -47,13 +47,16 @@ struct ManagementURLValidationTests {
             ),
         ]
     )
-    func lifecycleActionErrorsUseFieldSpecificLocalizationKeys(
+    func lifecycleActionErrorsUseDedicatedLocalizationKeys(
         error: SubscriptionLifecycleActionError,
         expected: String
     ) {
         #expect(lifecycleActionErrorTextKey(error) == expected)
     }
+}
 
+@Suite("Management URL validation")
+struct ManagementURLValidationTests {
     @Test("Renewal anchor validation identifies the anchor field")
     func renewalAnchorValidationIdentifiesAnchorField() {
         #expect(
