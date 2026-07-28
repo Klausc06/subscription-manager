@@ -7,18 +7,25 @@ struct LibraryView: View {
 
     var body: some View {
         NavigationStack {
-            libraryContent
-                .navigationTitle("Subscriptions")
+            ScopedLibraryView(
+                workspace: workspace,
+                scope: .current,
+                onAddSubscription: presentAddSubscription
+            )
                 .navigationDestination(for: UUID.self) { subscriptionID in
                     SubscriptionDetailView(
                         workspace: workspace,
                         subscriptionID: subscriptionID
                     )
                 }
-                .toolbar {
-                    ToolbarItem(placement: .primaryAction) {
-                        addButton
-                    }
+                .navigationDestination(
+                    for: SubscriptionLibraryScope.self
+                ) { scope in
+                    ScopedLibraryView(
+                        workspace: workspace,
+                        scope: scope,
+                        onAddSubscription: presentAddSubscription
+                    )
                 }
         }
         .sheet(item: $presentedSheet) { sheet in
@@ -29,14 +36,52 @@ struct LibraryView: View {
                 }
             }
         }
-        .task {
-            workspace.loadLibrary()
+    }
+
+    private func presentAddSubscription() {
+        presentedSheet = .addSubscription
+    }
+}
+
+private struct ScopedLibraryView: View {
+    let workspace: SubscriptionWorkspace
+    let scope: SubscriptionLibraryScope
+    let onAddSubscription: () -> Void
+
+    var body: some View {
+        libraryContent
+            .navigationTitle(navigationTitle)
+            .toolbar {
+                if scope == .current {
+                    ToolbarItemGroup(placement: .primaryAction) {
+                        NavigationLink(
+                            value: SubscriptionLibraryScope.archived
+                        ) {
+                            Label("Archived", systemImage: "archivebox")
+                        }
+                        .accessibilityIdentifier("library.archived")
+
+                        addButton
+                    }
+                }
+            }
+            .task(id: scope) {
+                workspace.loadLibrary(scope: scope)
+            }
+    }
+
+    private var navigationTitle: LocalizedStringKey {
+        switch scope {
+        case .current:
+            "Subscriptions"
+        case .archived:
+            "Archived"
         }
     }
 
     private var addButton: some View {
         Button("Add Subscription", systemImage: "plus") {
-            presentedSheet = .addSubscription
+            onAddSubscription()
         }
         .accessibilityIdentifier("subscription.add")
     }
@@ -44,11 +89,11 @@ struct LibraryView: View {
     @ViewBuilder
     private var libraryContent: some View {
         switch workspace.libraryState {
-        case .loading:
+        case .loading(let stateScope) where stateScope == scope:
             ProgressView("Loading Subscriptions")
                 .accessibilityIdentifier("library.loading")
 
-        case .empty:
+        case .empty(let stateScope) where stateScope == scope:
             ContentUnavailableView {
                 Label(
                     "No Subscriptions Yet",
@@ -57,23 +102,26 @@ struct LibraryView: View {
             } description: {
                 Text("Your subscriptions will appear here.")
             } actions: {
-                addButton
+                if scope == .current {
+                    addButton
+                }
             }
             .accessibilityIdentifier("library.empty-state")
 
-        case let .loaded(_, subscriptions):
+        case let .loaded(stateScope, subscriptions) where stateScope == scope:
             List(subscriptions) { subscription in
                 NavigationLink(value: subscription.id) {
                     SubscriptionRow(subscription: subscription)
                 }
                 .accessibilityLabel(
                     "\(subscription.serviceName), \(subscription.plan), "
-                        + formattedMoney(subscription.originalAmount)
+                        + "\(formattedMoney(subscription.originalAmount)), "
+                        + localizedSubscriptionStatus(subscription.status)
                 )
                 .accessibilityIdentifier("subscription.row")
             }
 
-        case .failed:
+        case .failed(let stateScope) where stateScope == scope:
             ContentUnavailableView {
                 Label(
                     "Couldn’t Load Subscriptions",
@@ -83,6 +131,10 @@ struct LibraryView: View {
                 Text("Reopen the app to try again.")
             }
             .accessibilityIdentifier("library.failed-state")
+
+        default:
+            ProgressView("Loading Subscriptions")
+                .accessibilityIdentifier("library.loading")
         }
     }
 }

@@ -16,40 +16,61 @@ struct SubscriptionDetailView: View {
                     let status,
                     _
                 ) = workspace.detailState,
-                    subscription.id == subscriptionID,
-                    !subscription.isArchived
+                    subscription.id == subscriptionID
                 {
                     ToolbarItem(placement: .primaryAction) {
                         Menu("Actions", systemImage: "ellipsis.circle") {
-                            Button("Edit", systemImage: "pencil") {
-                                workspace.beginEditing()
-                                subscriptionToEdit = subscription
-                            }
-                            .accessibilityIdentifier("subscription.edit")
-
-                            switch status {
-                            case .trial, .active:
+                            if subscription.isArchived {
                                 Button(
-                                    "Record Cancellation",
-                                    systemImage: "xmark.circle"
+                                    "Restore",
+                                    systemImage: "arrow.uturn.backward"
                                 ) {
-                                    lifecycleSheet = .recordCancellation(
-                                        subscription
+                                    workspace.restore(id: subscription.id)
+                                }
+                                .accessibilityIdentifier(
+                                    "subscription.restore"
+                                )
+                            } else {
+                                Button("Edit", systemImage: "pencil") {
+                                    workspace.beginEditing()
+                                    subscriptionToEdit = subscription
+                                }
+                                .accessibilityIdentifier("subscription.edit")
+
+                                switch status {
+                                case .trial, .active:
+                                    Button(
+                                        "Record Cancellation",
+                                        systemImage: "xmark.circle"
+                                    ) {
+                                        lifecycleSheet = .recordCancellation(
+                                            subscription
+                                        )
+                                    }
+                                    .accessibilityIdentifier(
+                                        "subscription.lifecycle.record-cancellation"
+                                    )
+
+                                case .cancelledWithAccess, .expired:
+                                    Button(
+                                        "Reactivate",
+                                        systemImage: "arrow.clockwise"
+                                    ) {
+                                        lifecycleSheet = .reactivate(subscription)
+                                    }
+                                    .accessibilityIdentifier(
+                                        "subscription.lifecycle.reactivate"
                                     )
                                 }
-                                .accessibilityIdentifier(
-                                    "subscription.lifecycle.record-cancellation"
-                                )
 
-                            case .cancelledWithAccess, .expired:
                                 Button(
-                                    "Reactivate",
-                                    systemImage: "arrow.clockwise"
+                                    "Archive",
+                                    systemImage: "archivebox"
                                 ) {
-                                    lifecycleSheet = .reactivate(subscription)
+                                    workspace.archive(id: subscription.id)
                                 }
                                 .accessibilityIdentifier(
-                                    "subscription.lifecycle.reactivate"
+                                    "subscription.archive"
                                 )
                             }
                         }

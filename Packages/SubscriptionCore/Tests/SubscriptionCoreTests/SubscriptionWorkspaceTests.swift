@@ -373,6 +373,43 @@ struct SubscriptionWorkspaceTests {
         #expect(archived.first?.nextExpectedCharge == nil)
     }
 
+    @Test("Archiving refreshes the currently selected library scope")
+    @MainActor
+    func archivingRefreshesCurrentScopeAfterScopeChanges() throws {
+        let currentID = UUID(
+            uuidString: "30000000-0000-0000-0000-000000000003"
+        )!
+        let archivedID = UUID(
+            uuidString: "40000000-0000-0000-0000-000000000004"
+        )!
+        let repository = InMemorySubscriptionRepository(
+            subscriptions: [
+                makeSubscription(id: currentID),
+                makeSubscription(id: archivedID, isArchived: true),
+            ]
+        )
+        let workspace = SubscriptionWorkspace(repository: repository)
+
+        workspace.loadLibrary(scope: .archived)
+        workspace.loadLibrary(scope: .current)
+
+        guard case .loaded(.current, let current) = workspace.libraryState else {
+            Issue.record("Expected current scope after switching scopes")
+            return
+        }
+        #expect(current.map(\.id) == [currentID])
+        #expect(!current.map(\.id).contains(archivedID))
+
+        workspace.loadSubscription(id: currentID)
+        workspace.archive(id: currentID)
+
+        #expect(workspace.libraryState == .empty(.current))
+        #expect(
+            try #require(repository.storedSubscription(id: currentID))
+                .isArchived
+        )
+    }
+
     @Test("Cancelled detail has access status without a next expected charge")
     @MainActor
     func cancelledDetailOmitsNextExpectedCharge() {

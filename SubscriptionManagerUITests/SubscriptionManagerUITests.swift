@@ -151,6 +151,71 @@ final class SubscriptionManagerUITests: XCTestCase {
         XCTAssertTrue(status.label.contains("试用中"))
     }
 
+    func testArchivesAndRestoresSubscription() {
+        let app = launch(
+            language: "en",
+            locale: "en_US",
+            storeToken: "archive-restore-\(UUID().uuidString)"
+        )
+        createTrial(
+            named: "Example Archive",
+            statusButton: "Trial",
+            in: app
+        )
+
+        app.buttons["subscription.row"].firstMatch.tap()
+        let detailStatus = app.descendants(matching: .any)[
+            "subscription.status"
+        ]
+        XCTAssertTrue(detailStatus.waitForExistence(timeout: 5))
+        XCTAssertTrue(detailStatus.label.contains("Trial"))
+
+        app.buttons["subscription.actions"].tap()
+        let archive = app.buttons["subscription.archive"]
+        XCTAssertTrue(archive.waitForExistence(timeout: 5))
+        archive.tap()
+
+        app.navigationBars.buttons["Subscriptions"].tap()
+        XCTAssertTrue(
+            app.descendants(matching: .any)["library.empty-state"]
+                .waitForExistence(timeout: 5)
+        )
+        XCTAssertFalse(app.staticTexts["Example Archive"].exists)
+
+        let archivedLibrary = app.buttons["library.archived"]
+        XCTAssertTrue(archivedLibrary.waitForExistence(timeout: 5))
+        archivedLibrary.tap()
+
+        XCTAssertTrue(app.navigationBars["Archived"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts["Example Archive"].waitForExistence(timeout: 5))
+        let archivedStatus = app.descendants(matching: .any)[
+            "subscription.status"
+        ]
+        XCTAssertTrue(archivedStatus.exists)
+        XCTAssertTrue(archivedStatus.label.contains("Trial"))
+
+        app.buttons["subscription.row"].firstMatch.tap()
+        app.buttons["subscription.actions"].tap()
+        let restore = app.buttons["subscription.restore"]
+        XCTAssertTrue(restore.waitForExistence(timeout: 5))
+        restore.tap()
+
+        app.navigationBars.buttons["Archived"].tap()
+        XCTAssertTrue(
+            app.descendants(matching: .any)["library.empty-state"]
+                .waitForExistence(timeout: 5)
+        )
+        XCTAssertFalse(app.staticTexts["Example Archive"].exists)
+        app.navigationBars.buttons["Subscriptions"].tap()
+
+        XCTAssertTrue(app.staticTexts["Example Archive"].waitForExistence(timeout: 5))
+        let restoredStatus = app.descendants(matching: .any)[
+            "subscription.status"
+        ]
+        XCTAssertTrue(restoredStatus.exists)
+        XCTAssertTrue(restoredStatus.label.contains("Trial"))
+    }
+
     func testRecordsCancellationAndHidesNextExpectedCharge() {
         let app = launch(
             language: "en",
