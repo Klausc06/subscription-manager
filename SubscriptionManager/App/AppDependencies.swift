@@ -20,7 +20,8 @@ struct AppDependencies {
         #endif
 
         return make(
-            failsLifecycleMutations: failsLifecycleMutations
+            failsLifecycleMutations: failsLifecycleMutations,
+            allowsExchangeRateNetworking: !arguments.contains("--ui-testing")
         ) {
             let configuration: ModelConfiguration
             switch try storeSelection(arguments: arguments) {
@@ -68,6 +69,7 @@ struct AppDependencies {
 
     static func make(
         failsLifecycleMutations: Bool = false,
+        allowsExchangeRateNetworking: Bool = true,
         modelContainer: () throws -> ModelContainer
     ) -> AppStartupState {
         do {
@@ -119,8 +121,12 @@ struct AppDependencies {
                         catalogRepository: catalogRepository,
                         catalogUpdateSource: GitHubCatalogUpdateSource(),
                         catalogCache: catalogCache,
-                        exchangeRateSource: FrankfurterExchangeRateSource(),
-                        exchangeRateCache: exchangeRateCache
+                        exchangeRateSource: allowsExchangeRateNetworking
+                            ? FrankfurterExchangeRateSource()
+                            : nil,
+                        exchangeRateCache: allowsExchangeRateNetworking
+                            ? exchangeRateCache
+                            : nil
                     )
                 )
             )
