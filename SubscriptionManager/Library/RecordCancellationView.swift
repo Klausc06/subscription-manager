@@ -3,6 +3,7 @@ import SwiftUI
 
 struct RecordCancellationView: View {
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.locale) private var locale
 
     let workspace: SubscriptionWorkspace
     let subscription: Subscription
@@ -34,6 +35,14 @@ struct RecordCancellationView: View {
                 )
                 .datePickerStyle(.graphical)
                 .accessibilityIdentifier("subscription.cancellation.date")
+                .accessibilityValue(
+                    formattedBillingDate(
+                        selectedCancellationDate,
+                        timeZoneIdentifier:
+                            subscription.billingSchedule.timeZoneIdentifier,
+                        locale: locale
+                    )
+                )
 
                 DatePicker(
                     "Access Until",
@@ -43,6 +52,14 @@ struct RecordCancellationView: View {
                 .datePickerStyle(.graphical)
                 .accessibilityIdentifier(
                     "subscription.cancellation.access-until"
+                )
+                .accessibilityValue(
+                    formattedBillingDate(
+                        selectedAccessUntil,
+                        timeZoneIdentifier:
+                            subscription.billingSchedule.timeZoneIdentifier,
+                        locale: locale
+                    )
                 )
             }
 

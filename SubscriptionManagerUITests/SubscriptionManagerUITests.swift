@@ -149,11 +149,36 @@ final class SubscriptionManagerUITests: XCTestCase {
             app.descendants(matching: .any)["subscription.cancellation.form"]
                 .waitForExistence(timeout: 5)
         )
-        XCTAssertTrue(
-            app.datePickers["subscription.cancellation.date"].exists
+        let cancellationPicker = app.datePickers[
+            "subscription.cancellation.date"
+        ]
+        let accessUntilPicker = app.datePickers[
+            "subscription.cancellation.access-until"
+        ]
+        XCTAssertTrue(cancellationPicker.exists)
+        XCTAssertTrue(accessUntilPicker.exists)
+
+        let initialCancellationDate = selectedDate(in: cancellationPicker)
+        let selectedCancellationDate = selectDistinctGraphicalDate(
+            in: cancellationPicker,
+            direction: .earlier
         )
-        XCTAssertTrue(
-            app.datePickers["subscription.cancellation.access-until"].exists
+        XCTAssertNotEqual(
+            selectedCancellationDate,
+            initialCancellationDate,
+            "Cancellation Date must change from its default."
+        )
+
+        app.swipeUp()
+        let initialAccessUntil = selectedDate(in: accessUntilPicker)
+        let selectedAccessUntil = selectDistinctGraphicalDate(
+            in: accessUntilPicker,
+            direction: .later
+        )
+        XCTAssertNotEqual(
+            selectedAccessUntil,
+            initialAccessUntil,
+            "Access Until must change from its default."
         )
         app.buttons["subscription.cancellation.save"].tap()
 
@@ -168,10 +193,18 @@ final class SubscriptionManagerUITests: XCTestCase {
             app.swipeUp()
         }
         XCTAssertTrue(accessUntil.waitForExistence(timeout: 5))
+        let cancellationDate = app.descendants(matching: .any)[
+            "subscription.detail.cancellation-date"
+        ]
+        XCTAssertTrue(cancellationDate.exists)
         XCTAssertTrue(
-            app.descendants(matching: .any)[
-                "subscription.detail.cancellation-date"
-            ].exists
+            cancellationDate.label.contains(selectedCancellationDate),
+            "Expected \(cancellationDate.label) to contain "
+                + selectedCancellationDate
+        )
+        XCTAssertTrue(
+            accessUntil.label.contains(selectedAccessUntil),
+            "Expected \(accessUntil.label) to contain \(selectedAccessUntil)"
         )
     }
 
@@ -201,11 +234,16 @@ final class SubscriptionManagerUITests: XCTestCase {
             "subscription.reactivation.next-renewal"
         ]
         XCTAssertTrue(nextRenewal.waitForExistence(timeout: 5))
-        guard let confirmedDate = nextRenewal.value as? String,
-              !confirmedDate.isEmpty
-        else {
-            return XCTFail("Next Renewal must expose its selected date.")
-        }
+        let previousRenewal = selectedDate(in: nextRenewal)
+        let confirmedDate = selectDistinctGraphicalDate(
+            in: nextRenewal,
+            direction: .nextMonthSameDay
+        )
+        XCTAssertNotEqual(
+            confirmedDate,
+            previousRenewal,
+            "Next Renewal must change from its pre-cancellation value."
+        )
         app.buttons["subscription.reactivation.save"].tap()
 
         let status = app.descendants(matching: .any)["subscription.status"]
@@ -444,4 +482,152 @@ final class SubscriptionManagerUITests: XCTestCase {
         app.launch()
         return app
     }
+
+    private func selectedDate(in picker: XCUIElement) -> String {
+        guard let value = picker.value as? String, !value.isEmpty else {
+            XCTFail("Graphical DatePicker must expose its selected date.")
+            return ""
+        }
+        return value
+    }
+
+    private func selectDistinctGraphicalDate(
+        in picker: XCUIElement,
+        direction: GraphicalDateDirection
+    ) -> String {
+        let originalValue = selectedDate(in: picker)
+        let dayButtons = graphicalDayButtons(in: picker)
+        guard dayButtons.contains(where: {
+            $0.isSelected && $0.isHittable
+        }) else {
+            XCTFail("Couldn’t find the selected graphical calendar day.")
+            return originalValue
+        }
+
+        guard let selectedIndex = dayButtons.firstIndex(where: {
+            $0.isSelected
+        }) else {
+            XCTFail("Couldn’t locate the selected day in the calendar grid.")
+            return originalValue
+        }
+
+        let preferredCandidates: [XCUIElement]
+        let fallbackCandidates: [XCUIElement]
+        switch direction {
+        case .earlier:
+            preferredCandidates = Array(
+                dayButtons[..<selectedIndex].reversed()
+            )
+            fallbackCandidates = Array(
+                dayButtons[(selectedIndex + 1)...]
+            )
+        case .later:
+            preferredCandidates = Array(
+                dayButtons[(selectedIndex + 1)...]
+            )
+            fallbackCandidates = Array(
+                dayButtons[..<selectedIndex].reversed()
+            )
+        case .nextMonthSameDay:
+            let month = picker.buttons["DatePicker.Show"]
+            let nextMonth = picker.buttons["DatePicker.NextMonth"]
+            guard month.exists,
+                  nextMonth.exists,
+                  let originalMonth = month.value as? String
+            else {
+                XCTFail("Couldn’t find native calendar month controls.")
+                return originalValue
+            }
+
+            nextMonth.tap()
+            let monthChanged = NSPredicate(format: "value != %@", originalMonth)
+            let monthExpectation = XCTNSPredicateExpectation(
+                predicate: monthChanged,
+                object: month
+            )
+            XCTAssertEqual(
+                XCTWaiter.wait(
+                    for: [monthExpectation],
+                    timeout: 3
+                ),
+                .completed
+            )
+
+            let refreshedDayButtons = graphicalDayButtons(in: picker)
+            guard !refreshedDayButtons.isEmpty else {
+                XCTFail("Next month doesn’t contain selectable days.")
+                return originalValue
+            }
+            let targetIndex = min(
+                selectedIndex,
+                refreshedDayButtons.count - 1
+            )
+            tapCalendarDay(
+                frame: refreshedDayButtons[targetIndex].frame,
+                in: picker
+            )
+            let selectedValue = selectedDate(in: picker)
+            XCTAssertNotEqual(
+                selectedValue,
+                originalValue,
+                "Next-month selection must update the picker."
+            )
+            return selectedValue
+        }
+
+        guard let target = (preferredCandidates + fallbackCandidates)
+            .first(where: { !$0.isSelected })
+        else {
+            XCTFail("Couldn’t find a distinct graphical calendar day.")
+            return originalValue
+        }
+
+        target.tap()
+        let selectedValue = selectedDate(in: picker)
+        XCTAssertNotEqual(
+            selectedValue,
+            originalValue,
+            "Tapping a distinct calendar day must update the picker."
+        )
+        return selectedValue
+    }
+
+    private func graphicalDayButtons(
+        in picker: XCUIElement
+    ) -> [XCUIElement] {
+        let month = picker.buttons["DatePicker.Show"]
+        let gridStartY = month.exists ? month.frame.maxY : picker.frame.minY
+        return picker.buttons.allElementsBoundByIndex
+            .filter {
+                $0.isEnabled
+                    && $0.isHittable
+                    && $0.frame.minY > gridStartY
+            }
+            .sorted {
+                if abs($0.frame.minY - $1.frame.minY) < 2 {
+                    return $0.frame.minX < $1.frame.minX
+                }
+                return $0.frame.minY < $1.frame.minY
+            }
+    }
+
+    private func tapCalendarDay(
+        frame: CGRect,
+        in picker: XCUIElement
+    ) {
+        let pickerFrame = picker.frame
+        picker.coordinate(
+            withNormalizedOffset: CGVector(
+                dx: (frame.midX - pickerFrame.minX) / pickerFrame.width,
+                dy: (frame.midY - pickerFrame.minY) / pickerFrame.height
+            )
+        )
+        .tap()
+    }
+}
+
+private enum GraphicalDateDirection {
+    case earlier
+    case later
+    case nextMonthSameDay
 }
