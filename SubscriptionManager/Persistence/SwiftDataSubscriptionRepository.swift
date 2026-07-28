@@ -55,9 +55,15 @@ final class SwiftDataSubscriptionRepository: SubscriptionRepository {
     }
 
     func subscription(id: UUID) throws -> Subscription? {
-        try modelContext
-            .fetch(FetchDescriptor<SubscriptionRecord>())
-            .first { $0.id == id }
+        let lookupID = id
+        var descriptor = FetchDescriptor<SubscriptionRecord>(
+            predicate: #Predicate { $0.id == lookupID }
+        )
+        descriptor.fetchLimit = 1
+
+        return try modelContext
+            .fetch(descriptor)
+            .first
             .map(makeSubscription(from:))
     }
 
