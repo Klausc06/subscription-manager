@@ -67,7 +67,13 @@ struct LibraryView: View {
 
 @MainActor
 private struct PreviewSubscriptionRepository: SubscriptionRepository {
+    func createSubscription(_ subscription: Subscription) throws {}
+
     func listSubscriptions() throws -> [SubscriptionSummary] {
         []
+    }
+
+    func subscription(id: UUID) throws -> Subscription? {
+        nil
     }
 }
