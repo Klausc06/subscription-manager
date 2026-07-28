@@ -2,6 +2,28 @@ import XCTest
 
 @MainActor
 final class SubscriptionManagerUITests: XCTestCase {
+    func testMonthlyReactivationUsesAnchorDayAfterClampedMonth() {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(secondsFromGMT: 0)!
+        let anchor = calendar.date(
+            from: DateComponents(year: 2026, month: 1, day: 31)
+        )!
+        let clampedRenewal = calendar.date(
+            from: DateComponents(year: 2026, month: 2, day: 28)
+        )!
+
+        let next = nextMonthlyOccurrence(
+            renewalAnchor: anchor,
+            after: clampedRenewal,
+            calendar: calendar
+        )
+
+        XCTAssertEqual(
+            calendar.dateComponents([.year, .month, .day], from: next),
+            DateComponents(year: 2026, month: 3, day: 31)
+        )
+    }
+
     func testFreshLaunchShowsEnglishEmptyLibrary() {
         let app = launch(language: "en", locale: "en_US")
 
@@ -217,6 +239,17 @@ final class SubscriptionManagerUITests: XCTestCase {
         createSubscription(named: "Example Cloud", in: app)
         app.buttons["subscription.row"].firstMatch.tap()
 
+        let renewalAnchor = app.descendants(matching: .any)[
+            "subscription.detail.renewal-anchor"
+        ]
+        if !renewalAnchor.exists {
+            app.swipeUp()
+        }
+        XCTAssertTrue(renewalAnchor.waitForExistence(timeout: 5))
+        guard let renewalAnchorValue = renewalAnchor.value as? String else {
+            return XCTFail("Renewal Anchor must expose its localized date.")
+        }
+
         app.buttons["subscription.actions"].tap()
         app.buttons["subscription.lifecycle.record-cancellation"].tap()
         XCTAssertTrue(
@@ -235,9 +268,36 @@ final class SubscriptionManagerUITests: XCTestCase {
         ]
         XCTAssertTrue(nextRenewal.waitForExistence(timeout: 5))
         let previousRenewal = selectedDate(in: nextRenewal)
+        let locale = Locale(identifier: "en_US")
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.locale = locale
+        let anchorDate = date(
+            fromLocalizedValue: renewalAnchorValue,
+            locale: locale,
+            calendar: calendar
+        )
+        let previousRenewalDate = date(
+            fromLocalizedValue: previousRenewal,
+            locale: locale,
+            calendar: calendar
+        )
+        let nextOccurrence = nextMonthlyOccurrence(
+            renewalAnchor: anchorDate,
+            after: previousRenewalDate,
+            calendar: calendar
+        )
+        let targetDay = calendar.component(.day, from: nextOccurrence)
         let confirmedDate = selectDistinctGraphicalDate(
             in: nextRenewal,
-            direction: .nextMonthSameDay
+            direction: .nextMonth(day: targetDay)
+        )
+        XCTAssertEqual(
+            confirmedDate,
+            localizedDateValue(
+                nextOccurrence,
+                locale: locale,
+                calendar: calendar
+            )
         )
         XCTAssertNotEqual(
             confirmedDate,
@@ -491,6 +551,59 @@ final class SubscriptionManagerUITests: XCTestCase {
         return value
     }
 
+    private func nextMonthlyOccurrence(
+        renewalAnchor: Date,
+        after confirmedRenewal: Date,
+        calendar: Calendar
+    ) -> Date {
+        for monthOffset in 1 ... 2_400 {
+            guard let candidate = calendar.date(
+                byAdding: .month,
+                value: monthOffset,
+                to: renewalAnchor
+            ) else {
+                continue
+            }
+            if calendar.startOfDay(for: candidate)
+                > calendar.startOfDay(for: confirmedRenewal)
+            {
+                return candidate
+            }
+        }
+        XCTFail("Couldn’t derive the next monthly schedule occurrence.")
+        return confirmedRenewal
+    }
+
+    private func date(
+        fromLocalizedValue value: String,
+        locale: Locale,
+        calendar: Calendar
+    ) -> Date {
+        let formatter = DateFormatter()
+        formatter.locale = locale
+        formatter.calendar = calendar
+        formatter.dateStyle = .medium
+        formatter.timeStyle = .none
+        guard let date = formatter.date(from: value) else {
+            XCTFail("Couldn’t parse localized date: \(value)")
+            return .distantPast
+        }
+        return date
+    }
+
+    private func localizedDateValue(
+        _ date: Date,
+        locale: Locale,
+        calendar: Calendar
+    ) -> String {
+        let formatter = DateFormatter()
+        formatter.locale = locale
+        formatter.calendar = calendar
+        formatter.dateStyle = .medium
+        formatter.timeStyle = .none
+        return formatter.string(from: date)
+    }
+
     private func selectDistinctGraphicalDate(
         in picker: XCUIElement,
         direction: GraphicalDateDirection
@@ -511,78 +624,50 @@ final class SubscriptionManagerUITests: XCTestCase {
             return originalValue
         }
 
-        let preferredCandidates: [XCUIElement]
-        let fallbackCandidates: [XCUIElement]
+        let targetFrame: CGRect
         switch direction {
         case .earlier:
-            preferredCandidates = Array(
-                dayButtons[..<selectedIndex].reversed()
-            )
-            fallbackCandidates = Array(
-                dayButtons[(selectedIndex + 1)...]
-            )
-        case .later:
-            preferredCandidates = Array(
-                dayButtons[(selectedIndex + 1)...]
-            )
-            fallbackCandidates = Array(
-                dayButtons[..<selectedIndex].reversed()
-            )
-        case .nextMonthSameDay:
-            let month = picker.buttons["DatePicker.Show"]
-            let nextMonth = picker.buttons["DatePicker.NextMonth"]
-            guard month.exists,
-                  nextMonth.exists,
-                  let originalMonth = month.value as? String
-            else {
-                XCTFail("Couldn’t find native calendar month controls.")
-                return originalValue
+            if selectedIndex > 0 {
+                targetFrame = dayButtons[selectedIndex - 1].frame
+            } else {
+                let previousMonthDays = moveCalendarMonth(
+                    in: picker,
+                    controlIdentifier: "DatePicker.PreviousMonth"
+                )
+                guard let lastDay = previousMonthDays.last else {
+                    XCTFail("Previous month has no selectable day.")
+                    return originalValue
+                }
+                targetFrame = lastDay.frame
             }
-
-            nextMonth.tap()
-            let monthChanged = NSPredicate(format: "value != %@", originalMonth)
-            let monthExpectation = XCTNSPredicateExpectation(
-                predicate: monthChanged,
-                object: month
+        case .later:
+            if selectedIndex + 1 < dayButtons.count {
+                targetFrame = dayButtons[selectedIndex + 1].frame
+            } else {
+                let nextMonthDays = moveCalendarMonth(
+                    in: picker,
+                    controlIdentifier: "DatePicker.NextMonth"
+                )
+                guard let firstDay = nextMonthDays.first else {
+                    XCTFail("Next month has no selectable day.")
+                    return originalValue
+                }
+                targetFrame = firstDay.frame
+            }
+        case .nextMonth(let day):
+            let nextMonthDays = moveCalendarMonth(
+                in: picker,
+                controlIdentifier: "DatePicker.NextMonth"
             )
-            XCTAssertEqual(
-                XCTWaiter.wait(
-                    for: [monthExpectation],
-                    timeout: 3
-                ),
-                .completed
-            )
-
-            let refreshedDayButtons = graphicalDayButtons(in: picker)
-            guard !refreshedDayButtons.isEmpty else {
+            guard !nextMonthDays.isEmpty else {
                 XCTFail("Next month doesn’t contain selectable days.")
                 return originalValue
             }
-            let targetIndex = min(
-                selectedIndex,
-                refreshedDayButtons.count - 1
-            )
-            tapCalendarDay(
-                frame: refreshedDayButtons[targetIndex].frame,
-                in: picker
-            )
-            let selectedValue = selectedDate(in: picker)
-            XCTAssertNotEqual(
-                selectedValue,
-                originalValue,
-                "Next-month selection must update the picker."
-            )
-            return selectedValue
+            let targetIndex = min(max(day - 1, 0), nextMonthDays.count - 1)
+            targetFrame = nextMonthDays[targetIndex].frame
         }
 
-        guard let target = (preferredCandidates + fallbackCandidates)
-            .first(where: { !$0.isSelected })
-        else {
-            XCTFail("Couldn’t find a distinct graphical calendar day.")
-            return originalValue
-        }
-
-        target.tap()
+        tapCalendarDay(frame: targetFrame, in: picker)
         let selectedValue = selectedDate(in: picker)
         XCTAssertNotEqual(
             selectedValue,
@@ -590,6 +675,36 @@ final class SubscriptionManagerUITests: XCTestCase {
             "Tapping a distinct calendar day must update the picker."
         )
         return selectedValue
+    }
+
+    private func moveCalendarMonth(
+        in picker: XCUIElement,
+        controlIdentifier: String
+    ) -> [XCUIElement] {
+        let month = picker.buttons["DatePicker.Show"]
+        let monthControl = picker.buttons[controlIdentifier]
+        guard month.exists,
+              monthControl.exists,
+              let originalMonth = month.value as? String
+        else {
+            XCTFail("Couldn’t find native calendar month controls.")
+            return []
+        }
+
+        monthControl.tap()
+        let monthChanged = NSPredicate(format: "value != %@", originalMonth)
+        let monthExpectation = XCTNSPredicateExpectation(
+            predicate: monthChanged,
+            object: month
+        )
+        XCTAssertEqual(
+            XCTWaiter.wait(
+                for: [monthExpectation],
+                timeout: 3
+            ),
+            .completed
+        )
+        return graphicalDayButtons(in: picker)
     }
 
     private func graphicalDayButtons(
@@ -629,5 +744,5 @@ final class SubscriptionManagerUITests: XCTestCase {
 private enum GraphicalDateDirection {
     case earlier
     case later
-    case nextMonthSameDay
+    case nextMonth(day: Int)
 }

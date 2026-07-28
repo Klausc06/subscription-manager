@@ -217,6 +217,17 @@ private struct SubscriptionDetailForm: View {
                 } label: {
                     Text("Renewal Anchor")
                 }
+                .accessibilityIdentifier(
+                    "subscription.detail.renewal-anchor"
+                )
+                .accessibilityValue(
+                    formattedBillingDate(
+                        subscription.billingSchedule.renewalAnchor,
+                        timeZoneIdentifier:
+                            subscription.billingSchedule.timeZoneIdentifier,
+                        locale: locale
+                    )
+                )
                 LabeledContent {
                     Text(formattedBillingDate(
                         subscription.confirmedNextRenewal,
