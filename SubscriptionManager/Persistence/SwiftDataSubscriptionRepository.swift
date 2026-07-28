@@ -177,6 +177,7 @@ final class SwiftDataSubscriptionRepository: SubscriptionRepository {
         record.confirmedChargesData = try encoder.encode(
             subscription.confirmedCharges
         )
+        record.priceChangesData = try encoder.encode(subscription.priceChanges)
         record.isArchived = subscription.isArchived
         switch subscription.lifecycle {
         case .active:
@@ -243,6 +244,12 @@ final class SwiftDataSubscriptionRepository: SubscriptionRepository {
         } else {
             confirmedCharges = []
         }
+        let priceChanges: [PriceChange]
+        if let data = record.priceChangesData {
+            priceChanges = try decoder.decode([PriceChange].self, from: data)
+        } else {
+            priceChanges = []
+        }
         let lifecycle = try makeLifecycle(from: record)
 
         let subscription = Subscription(
@@ -267,6 +274,7 @@ final class SwiftDataSubscriptionRepository: SubscriptionRepository {
             managementURL: managementURL,
             notes: record.notes ?? "",
             confirmedCharges: confirmedCharges,
+            priceChanges: priceChanges,
             lifecycle: lifecycle,
             isArchived: record.isArchived ?? false
         )
