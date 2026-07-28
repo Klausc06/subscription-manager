@@ -8,30 +8,27 @@ struct LibraryView: View {
     @State private var isPreferencesPresented = false
 
     var body: some View {
-        NavigationStack {
-            ScopedLibraryView(
-                workspace: workspace,
-                scope: .current,
-                onAddSubscription: presentAddSubscription,
-                onPreferences: presentPreferences
+        TabView {
+            subscriptionsTab
+                .tabItem {
+                    Label("Subscriptions", systemImage: "rectangle.stack")
+                }
+
+            UpcomingView(workspace: workspace)
+                .tabItem {
+                    Label("Upcoming", systemImage: "calendar")
+                }
+
+            ContentUnavailableView(
+                "Insights",
+                systemImage: "chart.bar",
+                description: Text("Insights will be available after currency conversion is added.")
             )
-                .navigationDestination(for: UUID.self) { subscriptionID in
-                    SubscriptionDetailView(
-                        workspace: workspace,
-                        subscriptionID: subscriptionID
-                    )
-                }
-                .navigationDestination(
-                    for: SubscriptionLibraryScope.self
-                ) { scope in
-                    ScopedLibraryView(
-                        workspace: workspace,
-                        scope: scope,
-                        onAddSubscription: presentAddSubscription,
-                        onPreferences: presentPreferences
-                    )
-                }
+            .tabItem {
+                Label("Insights", systemImage: "chart.bar")
+            }
         }
+        .accessibilityIdentifier("app.tabs")
         .sheet(item: $presentedSheet) { sheet in
             switch sheet {
             case .addSubscription:
@@ -73,12 +70,178 @@ struct LibraryView: View {
         }
     }
 
+    private var subscriptionsTab: some View {
+        NavigationStack {
+            ScopedLibraryView(
+                workspace: workspace,
+                scope: .current,
+                onAddSubscription: presentAddSubscription,
+                onPreferences: presentPreferences
+            )
+                .navigationDestination(for: UUID.self) { subscriptionID in
+                    SubscriptionDetailView(
+                        workspace: workspace,
+                        subscriptionID: subscriptionID
+                    )
+                }
+                .navigationDestination(
+                    for: SubscriptionLibraryScope.self
+                ) { scope in
+                    ScopedLibraryView(
+                        workspace: workspace,
+                        scope: scope,
+                        onAddSubscription: presentAddSubscription,
+                        onPreferences: presentPreferences
+                    )
+                }
+        }
+    }
+
     private func presentAddSubscription() {
         presentedSheet = .addSubscription
     }
 
     private func presentPreferences() {
         isPreferencesPresented = true
+    }
+}
+
+private struct UpcomingView: View {
+    private enum DateRange: String, CaseIterable, Identifiable {
+        case today
+        case next30Days
+        case next90Days
+
+        var id: String { rawValue }
+
+        var title: LocalizedStringKey {
+            switch self {
+            case .today: "Today"
+            case .next30Days: "Next 30 Days"
+            case .next90Days: "Next 90 Days"
+            }
+        }
+
+        var dayCount: Int {
+            switch self {
+            case .today: 0
+            case .next30Days: 30
+            case .next90Days: 90
+            }
+        }
+    }
+
+    let workspace: SubscriptionWorkspace
+    @State private var dateRange: DateRange = .next30Days
+
+    var body: some View {
+        NavigationStack {
+            List {
+                Section {
+                    Picker("Date Range", selection: $dateRange) {
+                        ForEach(DateRange.allCases) { range in
+                            Text(range.title).tag(range)
+                        }
+                    }
+                    .pickerStyle(.segmented)
+                    .accessibilityIdentifier("upcoming.range")
+                }
+
+                if workspace.upcomingTimeline.isEmpty {
+                    ContentUnavailableView(
+                        "No Upcoming Charges",
+                        systemImage: "calendar.badge.exclamationmark",
+                        description: Text(
+                            "Choose a longer date range or add a subscription."
+                        )
+                    )
+                    .accessibilityIdentifier("upcoming.empty-state")
+                } else {
+                    ForEach(workspace.upcomingTimeline) { item in
+                        NavigationLink(value: item.subscriptionID) {
+                            UpcomingTimelineRow(item: item)
+                        }
+                        .accessibilityIdentifier(
+                            item.kind == .expected
+                                ? "upcoming.row.expected"
+                                : "upcoming.row.confirmed"
+                        )
+                    }
+                }
+            }
+            .navigationTitle("Upcoming")
+            .navigationDestination(for: UUID.self) { subscriptionID in
+                SubscriptionDetailView(
+                    workspace: workspace,
+                    subscriptionID: subscriptionID
+                )
+            }
+        }
+        .onAppear {
+            loadTimeline()
+        }
+        .task(id: dateRange) {
+            loadTimeline()
+        }
+    }
+
+    private var rangeStart: Date {
+        Calendar.current.startOfDay(for: Date())
+    }
+
+    private var rangeEnd: Date {
+        Calendar.current.date(
+            byAdding: .day,
+            value: dateRange.dayCount,
+            to: rangeStart
+        ) ?? rangeStart
+    }
+
+    private func loadTimeline() {
+        workspace.loadUpcomingTimeline(from: rangeStart, through: rangeEnd)
+    }
+}
+
+private struct UpcomingTimelineRow: View {
+    let item: UpcomingTimelineItem
+
+    var body: some View {
+        HStack {
+            Image(
+                systemName: item.kind == .expected
+                    ? "calendar"
+                    : "checkmark.circle"
+            )
+            .accessibilityHidden(true)
+            VStack(alignment: .leading) {
+                Text(item.serviceName)
+                Text(statusTitle)
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+            }
+            Spacer()
+            VStack(alignment: .trailing) {
+                Text(formattedMoney(item.amount))
+                Text(item.date, format: .dateTime.month().day().year())
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel(
+            "\(item.serviceName), \(statusAccessibilityText), "
+                + "\(formattedMoney(item.amount))"
+        )
+    }
+
+    private var statusTitle: LocalizedStringKey {
+        item.kind == .expected ? "Expected Charge" : "Confirmed Payment"
+    }
+
+    private var statusAccessibilityText: String {
+        item.kind == .expected
+            ? String(localized: "Expected Charge")
+            : String(localized: "Confirmed Payment")
     }
 }
 

@@ -2,6 +2,14 @@ import XCTest
 
 @MainActor
 final class SubscriptionManagerUITests: XCTestCase {
+    func testTopLevelNavigationProvidesSubscriptionsUpcomingAndInsights() {
+        let app = launch(language: "en", locale: "en_US")
+
+        XCTAssertTrue(app.tabBars.buttons["Subscriptions"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.tabBars.buttons["Upcoming"].exists)
+        XCTAssertTrue(app.tabBars.buttons["Insights"].exists)
+    }
+
     func testFirstRunShowsPreferenceDefaultsWithoutCalendarPrompt() {
         let app = launch(
             language: "en",
