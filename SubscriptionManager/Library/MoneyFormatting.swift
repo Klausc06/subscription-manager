@@ -15,8 +15,11 @@ enum MoneyTextParser {
         locale: Locale
     ) -> Money? {
         let value = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        let scanner = Scanner(string: value)
+        scanner.locale = locale
         guard !value.isEmpty,
-              let decimal = Decimal(string: value, locale: locale),
+              let decimal = scanner.scanDecimal(),
+              scanner.isAtEnd,
               decimal > 0
         else {
             return nil
