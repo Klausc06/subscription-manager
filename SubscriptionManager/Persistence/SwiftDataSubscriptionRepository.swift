@@ -5,9 +5,21 @@ import SubscriptionCore
 @MainActor
 final class SwiftDataSubscriptionRepository: SubscriptionRepository {
     private let modelContext: ModelContext
+    private let save: (ModelContext) throws -> Void
 
-    init(modelContainer: ModelContainer) {
+    convenience init(modelContainer: ModelContainer) {
+        self.init(
+            modelContainer: modelContainer,
+            save: { try $0.save() }
+        )
+    }
+
+    init(
+        modelContainer: ModelContainer,
+        save: @escaping (ModelContext) throws -> Void
+    ) {
         modelContext = ModelContext(modelContainer)
+        self.save = save
     }
 
     func createSubscription(_ subscription: Subscription) throws {
@@ -27,7 +39,12 @@ final class SwiftDataSubscriptionRepository: SubscriptionRepository {
                 notes: subscription.notes
             )
         )
-        try modelContext.save()
+        do {
+            try save(modelContext)
+        } catch {
+            modelContext.rollback()
+            throw error
+        }
     }
 
     func listSubscriptions() throws -> [SubscriptionSummary] {

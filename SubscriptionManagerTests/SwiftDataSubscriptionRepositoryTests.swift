@@ -10,6 +10,10 @@ struct SwiftDataSubscriptionRepositoryTests {
         case unavailable
     }
 
+    private enum SaveFailure: Error {
+        case unavailable
+    }
+
     @Test("A store initialization failure remains renderable")
     @MainActor
     func storeInitializationFailureIsRecoverable() {
@@ -155,6 +159,72 @@ struct SwiftDataSubscriptionRepositoryTests {
         )
 
         #expect(subscription == nil)
+    }
+
+    @Test("A failed save does not leak its subscription into a later retry")
+    @MainActor
+    func failedSaveDoesNotLeakIntoLaterRetry() throws {
+        let configuration = ModelConfiguration(isStoredInMemoryOnly: true)
+        let container = try ModelContainer(
+            for: SubscriptionRecord.self,
+            configurations: configuration
+        )
+        var saveAttempt = 0
+        let repository = SwiftDataSubscriptionRepository(
+            modelContainer: container,
+            save: { modelContext in
+                saveAttempt += 1
+                if saveAttempt == 1 {
+                    throw SaveFailure.unavailable
+                }
+                try modelContext.save()
+            }
+        )
+        let failedSubscription = Subscription(
+            id: UUID(
+                uuidString: "10000000-0000-0000-0000-000000000001"
+            )!,
+            serviceIdentity: ServiceIdentity(rawValue: "manual:failed"),
+            serviceName: "Failed attempt",
+            plan: "Monthly",
+            category: "Other",
+            originalAmount: Money(minorUnits: 499, currency: .usd),
+            billingCycle: .monthly,
+            startDate: Date(timeIntervalSince1970: 1_767_225_600),
+            confirmedNextRenewal: Date(
+                timeIntervalSince1970: 1_769_904_000
+            ),
+            managementURL: nil,
+            notes: ""
+        )
+        let retriedSubscription = Subscription(
+            id: UUID(
+                uuidString: "20000000-0000-0000-0000-000000000002"
+            )!,
+            serviceIdentity: ServiceIdentity(rawValue: "manual:retry"),
+            serviceName: "Successful retry",
+            plan: "Monthly",
+            category: "Other",
+            originalAmount: Money(minorUnits: 799, currency: .usd),
+            billingCycle: .monthly,
+            startDate: Date(timeIntervalSince1970: 1_767_225_600),
+            confirmedNextRenewal: Date(
+                timeIntervalSince1970: 1_769_904_000
+            ),
+            managementURL: nil,
+            notes: ""
+        )
+
+        #expect(throws: SaveFailure.self) {
+            try repository.createSubscription(failedSubscription)
+        }
+        try repository.createSubscription(retriedSubscription)
+
+        let subscriptions = try repository.listSubscriptions()
+        #expect(
+            subscriptions
+                == [SubscriptionSummary(subscription: retriedSubscription)]
+        )
     }
 
     @Test("A walking-skeleton record remains readable after schema expansion")
