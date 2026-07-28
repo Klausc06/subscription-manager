@@ -316,9 +316,8 @@ struct AddSubscriptionView: View {
         if case .loaded = workspace.detailState {
             if let onSuccessfulSave {
                 onSuccessfulSave()
-            } else {
-                dismiss()
             }
+            dismiss()
         } else {
             saveFailed = true
         }

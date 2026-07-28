@@ -1,4 +1,6 @@
 import Foundation
+import SwiftData
+import SubscriptionCore
 import Testing
 @testable import SubscriptionManager
 
@@ -30,5 +32,29 @@ struct AppDependenciesTests {
         )
 
         #expect(selection == .namedUITesting(token: "relaunch-contract"))
+    }
+
+    @Test("Preferences survive a SwiftData repository reload")
+    @MainActor
+    func preferencesRoundTripThroughSwiftData() throws {
+        let container = try ModelContainer(
+            for: SubscriptionRecord.self,
+            UserPreferencesRecord.self,
+            configurations: ModelConfiguration(isStoredInMemoryOnly: true)
+        )
+        let expected = UserPreferences(
+            primaryCurrency: .usd,
+            calendarProjectionHorizon: .sixMonths,
+            setupStatus: .completed
+        )
+
+        try SwiftDataUserPreferencesRepository(modelContainer: container)
+            .savePreferences(expected)
+
+        let reloaded = try SwiftDataUserPreferencesRepository(
+            modelContainer: container
+        ).loadPreferences()
+
+        #expect(reloaded == expected)
     }
 }

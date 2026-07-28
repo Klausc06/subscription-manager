@@ -372,8 +372,10 @@ public final class SubscriptionWorkspace {
     public private(set) var paymentHistory: [SubscriptionHistoryEntry] = []
     public private(set) var catalogState: CatalogState = .notLoaded
     public private(set) var catalogDiagnostics: CatalogDiagnostics?
+    public private(set) var setupState: SetupState = .notLoaded
 
     private let repository: any SubscriptionRepository
+    private let preferencesRepository: (any UserPreferencesRepository)?
     private let catalogRepository: (any CatalogRepository)?
     private let catalogUpdateSource: (any CatalogUpdateSource)?
     private let catalogCache: (any CatalogCache)?
@@ -388,6 +390,7 @@ public final class SubscriptionWorkspace {
 
     public init(
         repository: any SubscriptionRepository,
+        preferencesRepository: (any UserPreferencesRepository)? = nil,
         catalogRepository: (any CatalogRepository)? = nil,
         catalogUpdateSource: (any CatalogUpdateSource)? = nil,
         catalogCache: (any CatalogCache)? = nil,
@@ -396,12 +399,116 @@ public final class SubscriptionWorkspace {
         calendar: Calendar? = nil
     ) {
         self.repository = repository
+        self.preferencesRepository = preferencesRepository
         self.catalogRepository = catalogRepository
         self.catalogUpdateSource = catalogUpdateSource
         self.catalogCache = catalogCache
         self.identifierGenerator = identifierGenerator
         self.now = now
         self.calendar = calendar ?? Self.defaultRenewalCalendar()
+    }
+
+    public func loadSetup(libraryIsEmpty: Bool) {
+        let fallback = UserPreferences.default
+        do {
+            let storedPreferences = try preferencesRepository?.loadPreferences()
+            guard let preferences = storedPreferences else {
+                setupState = libraryIsEmpty
+                    ? .needsSetup(fallback)
+                    : .completed(fallback)
+                return
+            }
+            switch preferences.setupStatus {
+            case .notCompleted:
+                setupState = .needsSetup(preferences)
+            case .completed:
+                setupState = .completed(preferences)
+            case .skipped:
+                setupState = .skipped(preferences)
+            }
+        } catch {
+            setupState = .failed(fallback)
+        }
+    }
+
+    public func updatePreferences(
+        primaryCurrency: Currency,
+        calendarProjectionHorizon: CalendarProjectionHorizon
+    ) {
+        persistPreferences(
+            UserPreferences(
+                primaryCurrency: primaryCurrency,
+                calendarProjectionHorizon: calendarProjectionHorizon,
+                setupStatus: currentPreferences.setupStatus
+            )
+        )
+    }
+
+    public func completeSetup() {
+        persistPreferences(
+            UserPreferences(
+                primaryCurrency: currentPreferences.primaryCurrency,
+                calendarProjectionHorizon: currentPreferences.calendarProjectionHorizon,
+                setupStatus: .completed
+            )
+        )
+    }
+
+    public func skipSetup() {
+        persistPreferences(
+            UserPreferences(
+                primaryCurrency: currentPreferences.primaryCurrency,
+                calendarProjectionHorizon: currentPreferences.calendarProjectionHorizon,
+                setupStatus: .skipped
+            )
+        )
+    }
+
+    public func resumeSetup() {
+        persistPreferences(
+            UserPreferences(
+                primaryCurrency: currentPreferences.primaryCurrency,
+                calendarProjectionHorizon: currentPreferences.calendarProjectionHorizon,
+                setupStatus: .notCompleted
+            ),
+            stateOnSuccess: { .needsSetup($0) }
+        )
+    }
+
+    private var currentPreferences: UserPreferences {
+        switch setupState {
+        case .notLoaded:
+            .default
+        case .needsSetup(let preferences),
+             .completed(let preferences),
+             .skipped(let preferences),
+             .failed(let preferences):
+            preferences
+        }
+    }
+
+    private func persistPreferences(
+        _ preferences: UserPreferences,
+        stateOnSuccess: ((UserPreferences) -> SetupState)? = nil
+    ) {
+        do {
+            try preferencesRepository?.savePreferences(preferences)
+            setupState = stateOnSuccess?(preferences)
+                ?? setupState(for: preferences)
+        } catch {
+            setupState = .failed(currentPreferences)
+        }
+    }
+
+    private func setupState(for preferences: UserPreferences) -> SetupState {
+        switch preferences.setupStatus {
+        case .notCompleted:
+            .needsSetup(preferences)
+        case .completed:
+            .completed(preferences)
+        case .skipped:
+            .skipped(preferences)
+        }
     }
 
     nonisolated static func defaultRenewalCalendar() -> Calendar {
