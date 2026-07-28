@@ -4,6 +4,61 @@ import Testing
 
 @Suite("Subscription workspace")
 struct SubscriptionWorkspaceTests {
+    @Test("Table query searches visible fields and keeps sorting stable")
+    func tableQueryFiltersAndSortsSummaries() {
+        let firstID = UUID(uuidString: "11111111-2222-3333-4444-555555555555")!
+        let secondID = UUID(uuidString: "66666666-7777-8888-9999-AAAAAAAAAAAA")!
+        let thirdID = UUID(uuidString: "BBBBBBBB-CCCC-DDDD-EEEE-FFFFFFFFFFFF")!
+        let renewal = Date(timeIntervalSince1970: 1_769_356_800)
+        let summaries = [
+            SubscriptionSummary(
+                subscription: makeSubscription(
+                    id: firstID,
+                    confirmedNextRenewal: renewal,
+                    originalAmount: Money(minorUnits: 1_200, currency: .usd),
+                    category: "Cloud",
+                    serviceName: "Atlas Cloud",
+                    plan: "Pro"
+                ),
+                status: .active,
+                nextExpectedCharge: nil
+            ),
+            SubscriptionSummary(
+                subscription: makeSubscription(
+                    id: secondID,
+                    confirmedNextRenewal: renewal,
+                    originalAmount: Money(minorUnits: 900, currency: .usd),
+                    category: "Music",
+                    serviceName: "Beacon Music",
+                    plan: "Family"
+                ),
+                status: .active,
+                nextExpectedCharge: nil
+            ),
+            SubscriptionSummary(
+                subscription: makeSubscription(
+                    id: thirdID,
+                    confirmedNextRenewal: renewal,
+                    originalAmount: Money(minorUnits: 500, currency: .usd),
+                    category: "Productivity",
+                    serviceName: "Atlas Notes",
+                    plan: "Free"
+                ),
+                status: .active,
+                nextExpectedCharge: nil
+            ),
+        ]
+
+        let result = SubscriptionTableQuery(
+            searchText: "atlas",
+            sort: .amount,
+            ascending: false
+        )
+        .apply(to: summaries)
+
+        #expect(result.map(\.id) == [firstID, thirdID])
+    }
+
     @Test("EUR snapshot converts source money through its base rate")
     func exchangeRateSnapshotConvertsThroughEUR() throws {
         let now = Date(timeIntervalSince1970: 1_769_356_800)
@@ -2271,7 +2326,9 @@ private func makeSubscription(
     confirmedNextRenewal: Date? = nil,
     confirmedCharges: [ConfirmedCharge] = [],
     originalAmount: Money = Money(minorUnits: 999, currency: .usd),
-    category: String = "Other"
+    category: String = "Other",
+    serviceName: String = "Example",
+    plan: String = "Standard"
 ) -> Subscription {
     let startDate = Date(timeIntervalSince1970: 1_767_225_600)
     let schedule = billingSchedule ?? FixedBillingSchedule(
@@ -2285,8 +2342,8 @@ private func makeSubscription(
     return Subscription(
         id: id,
         serviceIdentity: ServiceIdentity(rawValue: "manual:\(id.uuidString)"),
-        serviceName: "Example",
-        plan: "Standard",
+        serviceName: serviceName,
+        plan: plan,
         category: category,
         originalAmount: originalAmount,
         billingSchedule: schedule,
