@@ -27,6 +27,18 @@
 - **Confirmed Charge**: An immutable record that a past expected charge
   occurred. Editing a Fixed Billing Schedule never rewrites it.
   _Avoid_: Expected charge, transaction.
+- **Subscription Lifecycle**: The persisted facts that describe whether a
+  subscription began as a trial, is active, or was cancelled, including the
+  first paid charge, cancellation, and access-until dates when applicable.
+- **Effective Subscription Status**: The user-visible Trial, Active,
+  Cancelled with Access, or Expired status derived from Subscription Lifecycle
+  facts at a specific instant. It is not a background-maintained field.
+- **Recorded Cancellation**: A local fact that the person has already
+  cancelled a service. Recording it never contacts, automates, or simulates an
+  action with the subscription provider.
+- **Archived Subscription**: A Subscription hidden from current-library
+  queries, forecasts, and insights while retaining its lifecycle and history.
+  Restoring it changes visibility only.
 
 ## Current invariant
 
