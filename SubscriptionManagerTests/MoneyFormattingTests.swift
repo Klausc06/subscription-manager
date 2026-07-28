@@ -84,4 +84,91 @@ struct MoneyFormattingTests {
 
         #expect(money == nil)
     }
+
+    @Test("Editable money round-trips in a comma-decimal locale")
+    func editableMoneyRoundTripsInCommaDecimalLocale() {
+        let locale = Locale(identifier: "de_DE")
+        let money = Money(minorUnits: 1_234, currency: .usd)
+
+        let text = editableMoneyText(money, locale: locale)
+
+        #expect(text == "12,34")
+        #expect(
+            MoneyTextParser.parse(
+                text,
+                currency: money.currency,
+                locale: locale
+            ) == money
+        )
+    }
+
+    @Test("Date-only billing input is normalized to local noon")
+    func billingDateIsNormalizedToLocalNoon() throws {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(identifier: "America/Los_Angeles")!
+        let input = try #require(
+            calendar.date(
+                from: DateComponents(
+                    year: 2025,
+                    month: 3,
+                    day: 9,
+                    hour: 1,
+                    minute: 37
+                )
+            )
+        )
+
+        let normalized = try #require(
+            normalizedBillingDate(
+                input,
+                timeZoneIdentifier: "America/Los_Angeles"
+            )
+        )
+
+        #expect(
+            calendar.dateComponents(
+                [.year, .month, .day, .hour, .minute],
+                from: normalized
+            ) == DateComponents(
+                year: 2025,
+                month: 3,
+                day: 9,
+                hour: 12,
+                minute: 0
+            )
+        )
+    }
+
+    @Test("Billing dates render in the stored schedule time zone")
+    func billingDateFormattingUsesStoredTimeZone() throws {
+        var utc = Calendar(identifier: .gregorian)
+        utc.timeZone = TimeZone(identifier: "UTC")!
+        let date = try #require(
+            utc.date(
+                from: DateComponents(
+                    year: 2025,
+                    month: 2,
+                    day: 28,
+                    hour: 16,
+                    minute: 30
+                )
+            )
+        )
+        let locale = Locale(identifier: "en_US")
+
+        #expect(
+            formattedBillingDate(
+                date,
+                timeZoneIdentifier: "Asia/Shanghai",
+                locale: locale
+            ) == "Mar 1, 2025"
+        )
+        #expect(
+            formattedBillingDate(
+                date,
+                timeZoneIdentifier: "America/Los_Angeles",
+                locale: locale
+            ) == "Feb 28, 2025"
+        )
+    }
 }

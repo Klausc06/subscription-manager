@@ -4,6 +4,22 @@ import Testing
 
 @Suite("Management URL validation")
 struct ManagementURLValidationTests {
+    @Test("Renewal anchor validation identifies the anchor field")
+    func renewalAnchorValidationIdentifiesAnchorField() {
+        #expect(
+            validationTextKey(
+                for: .beforeStartDate,
+                field: .renewalAnchor
+            ) == "The renewal anchor cannot be before the start date."
+        )
+        #expect(
+            validationTextKey(
+                for: .beforeStartDate,
+                field: .confirmedNextRenewal
+            ) == "The next renewal cannot be before the start date."
+        )
+    }
+
     @Test(
         "Only absolute HTTP and HTTPS management URLs with a host are accepted",
         arguments: [

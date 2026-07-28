@@ -4,10 +4,32 @@ import SwiftUI
 struct SubscriptionDetailView: View {
     let workspace: SubscriptionWorkspace
     let subscriptionID: UUID
+    @State private var subscriptionToEdit: Subscription?
 
     var body: some View {
         detailContent
             .navigationTitle("Subscription Details")
+            .toolbar {
+                if case .loaded(let subscription) = workspace.detailState,
+                   subscription.id == subscriptionID
+                {
+                    ToolbarItem(placement: .primaryAction) {
+                        Button("Edit", systemImage: "pencil") {
+                            workspace.beginEditing()
+                            subscriptionToEdit = subscription
+                        }
+                        .accessibilityIdentifier("subscription.edit")
+                    }
+                }
+            }
+            .sheet(item: $subscriptionToEdit) { subscription in
+                NavigationStack {
+                    EditSubscriptionView(
+                        workspace: workspace,
+                        subscription: subscription
+                    )
+                }
+            }
             .task(id: subscriptionID) {
                 workspace.loadSubscription(id: subscriptionID)
             }
@@ -53,7 +75,15 @@ struct SubscriptionDetailView: View {
 }
 
 private struct SubscriptionDetailForm: View {
+    @Environment(\.locale) private var locale
+
     let subscription: Subscription
+
+    private var timeZone: TimeZone {
+        billingTimeZone(
+            identifier: subscription.billingSchedule.timeZoneIdentifier
+        )
+    }
 
     var body: some View {
         Form {
@@ -73,8 +103,13 @@ private struct SubscriptionDetailForm: View {
                 )
                 .accessibilityIdentifier("subscription.detail.amount")
                 LabeledContent(
-                    "Billing Cycle",
-                    value: String(localized: "Monthly")
+                    "Billing Schedule",
+                    value: localizedBillingInterval(
+                        subscription.billingSchedule.interval
+                    )
+                )
+                .accessibilityIdentifier(
+                    "subscription.detail.billing-interval"
                 )
             }
 
@@ -89,10 +124,12 @@ private struct SubscriptionDetailForm: View {
                     "subscription.detail.expected-charge.amount"
                 )
                 LabeledContent {
-                    Text(
+                    Text(formattedBillingDate(
                         subscription.firstExpectedCharge.scheduledDate,
-                        format: .dateTime.year().month().day()
-                    )
+                        timeZoneIdentifier:
+                            subscription.billingSchedule.timeZoneIdentifier,
+                        locale: locale
+                    ))
                 } label: {
                     Text("Date")
                 }
@@ -100,18 +137,32 @@ private struct SubscriptionDetailForm: View {
 
             Section("Billing Dates") {
                 LabeledContent {
-                    Text(
+                    Text(formattedBillingDate(
                         subscription.startDate,
-                        format: .dateTime.year().month().day()
-                    )
+                        timeZoneIdentifier:
+                            subscription.billingSchedule.timeZoneIdentifier,
+                        locale: locale
+                    ))
                 } label: {
                     Text("Start Date")
                 }
                 LabeledContent {
-                    Text(
+                    Text(formattedBillingDate(
+                        subscription.billingSchedule.renewalAnchor,
+                        timeZoneIdentifier:
+                            subscription.billingSchedule.timeZoneIdentifier,
+                        locale: locale
+                    ))
+                } label: {
+                    Text("Renewal Anchor")
+                }
+                LabeledContent {
+                    Text(formattedBillingDate(
                         subscription.confirmedNextRenewal,
-                        format: .dateTime.year().month().day()
-                    )
+                        timeZoneIdentifier:
+                            subscription.billingSchedule.timeZoneIdentifier,
+                        locale: locale
+                    ))
                 } label: {
                     Text("Next Renewal")
                 }
@@ -132,5 +183,6 @@ private struct SubscriptionDetailForm: View {
             }
         }
         .accessibilityIdentifier("subscription.detail")
+        .environment(\.timeZone, timeZone)
     }
 }

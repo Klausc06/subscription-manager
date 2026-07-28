@@ -2,28 +2,83 @@ import Foundation
 import SubscriptionCore
 import SwiftUI
 
-struct AddSubscriptionView: View {
+struct EditSubscriptionView: View {
     @Environment(\.dismiss) private var dismiss
 
     let workspace: SubscriptionWorkspace
+    let subscription: Subscription
 
-    @State private var serviceName = ""
-    @State private var plan = ""
-    @State private var category = ""
-    @State private var amountText = ""
-    @State private var currency: Currency = .usd
-    @State private var intervalChoice: BillingIntervalChoice = .monthly
-    @State private var customValueText = ""
-    @State private var customUnit: BillingIntervalUnit = .day
-    @State private var startDate = Date()
-    @State private var renewalAnchor = Date()
-    @State private var confirmedNextRenewal =
-        Calendar.current.date(byAdding: .month, value: 1, to: Date()) ?? Date()
-    @State private var managementURLText = ""
-    @State private var notes = ""
+    @State private var serviceName: String
+    @State private var plan: String
+    @State private var category: String
+    @State private var amountText: String
+    @State private var currency: Currency
+    @State private var intervalChoice: BillingIntervalChoice
+    @State private var customValueText: String
+    @State private var customUnit: BillingIntervalUnit
+    @State private var startDate: Date
+    @State private var renewalAnchor: Date
+    @State private var confirmedNextRenewal: Date
+    @State private var managementURLText: String
+    @State private var notes: String
     @State private var amountInputIsInvalid = false
     @State private var managementURLIsInvalid = false
     @State private var saveFailed = false
+
+    init(
+        workspace: SubscriptionWorkspace,
+        subscription: Subscription
+    ) {
+        self.workspace = workspace
+        self.subscription = subscription
+        _serviceName = State(initialValue: subscription.serviceName)
+        _plan = State(initialValue: subscription.plan)
+        _category = State(initialValue: subscription.category)
+        _amountText = State(
+            initialValue: editableMoneyText(
+                subscription.originalAmount,
+                locale: .current
+            )
+        )
+        _currency = State(initialValue: subscription.originalAmount.currency)
+        _intervalChoice = State(
+            initialValue: BillingIntervalChoice(
+                interval: subscription.billingSchedule.interval
+            )
+        )
+        _customValueText = State(
+            initialValue: subscription.billingSchedule.interval.customValue
+                .map(String.init) ?? ""
+        )
+        _customUnit = State(
+            initialValue:
+                subscription.billingSchedule.interval.customUnit ?? .day
+        )
+        let timeZoneIdentifier =
+            subscription.billingSchedule.timeZoneIdentifier
+        _startDate = State(
+            initialValue: normalizedBillingDate(
+                subscription.startDate,
+                timeZoneIdentifier: timeZoneIdentifier
+            ) ?? subscription.startDate
+        )
+        _renewalAnchor = State(
+            initialValue: normalizedBillingDate(
+                subscription.billingSchedule.renewalAnchor,
+                timeZoneIdentifier: timeZoneIdentifier
+            ) ?? subscription.billingSchedule.renewalAnchor
+        )
+        _confirmedNextRenewal = State(
+            initialValue: normalizedBillingDate(
+                subscription.confirmedNextRenewal,
+                timeZoneIdentifier: timeZoneIdentifier
+            ) ?? subscription.confirmedNextRenewal
+        )
+        _managementURLText = State(
+            initialValue: subscription.managementURL?.absoluteString ?? ""
+        )
+        _notes = State(initialValue: subscription.notes)
+    }
 
     var body: some View {
         Form {
@@ -37,14 +92,17 @@ struct AddSubscriptionView: View {
             if saveFailed {
                 Section {
                     ValidationMessage(
-                        "Couldn’t save this subscription. Try again.",
+                        "Couldn’t save changes. Try again.",
                         identifier: "subscription.validation.save"
                     )
                 }
             }
         }
         .accessibilityIdentifier("subscription.form")
-        .navigationTitle("Add Subscription")
+        .onAppear {
+            workspace.beginEditing()
+        }
+        .navigationTitle("Edit Subscription")
         #if os(iOS)
             .navigationBarTitleDisplayMode(.inline)
         #endif
@@ -117,7 +175,7 @@ struct AddSubscriptionView: View {
                 customValueText: $customValueText,
                 customUnit: $customUnit,
                 validationError:
-                    workspace.creationValidationErrors[.billingSchedule]
+                    workspace.editingValidationErrors[.billingSchedule]
             )
         }
     }
@@ -145,9 +203,15 @@ struct AddSubscriptionView: View {
             )
             .accessibilityIdentifier("subscription.form.next-renewal")
 
-            validationMessage(for: .confirmedNextRenewal)
             validationMessage(for: .renewalAnchor)
+            validationMessage(for: .confirmedNextRenewal)
         }
+        .environment(
+            \.timeZone,
+            TimeZone(
+                identifier: subscription.billingSchedule.timeZoneIdentifier
+            ) ?? .autoupdatingCurrent
+        )
     }
 
     private var optionalSection: some View {
@@ -174,11 +238,9 @@ struct AddSubscriptionView: View {
     private func validationMessage(
         for field: SubscriptionCreationField
     ) -> some View {
-        if let error = workspace.creationValidationErrors[field] {
+        if let error = workspace.editingValidationErrors[field] {
             ValidationMessage(
-                field == .billingSchedule
-                    ? billingScheduleValidationText(for: error)
-                    : validationText(for: error, field: field),
+                validationText(for: error, field: field),
                 identifier: "subscription.validation.\(field.identifier)"
             )
         }
@@ -198,7 +260,8 @@ struct AddSubscriptionView: View {
         guard !managementURLIsInvalid else {
             return
         }
-        let timeZoneIdentifier = TimeZone.autoupdatingCurrent.identifier
+        let timeZoneIdentifier =
+            subscription.billingSchedule.timeZoneIdentifier
         guard let normalizedStartDate = normalizedBillingDate(
                   startDate,
                   timeZoneIdentifier: timeZoneIdentifier
@@ -216,26 +279,30 @@ struct AddSubscriptionView: View {
             return
         }
 
-        workspace.createSubscription(
-            SubscriptionCreationInput(
+        let interval = intervalChoice.interval(
+            customValueText: customValueText,
+            customUnit: customUnit
+        )
+        workspace.editSubscription(
+            id: subscription.id,
+            input: SubscriptionEditInput(
                 serviceName: serviceName,
                 plan: plan,
                 category: category,
                 originalAmount: amount,
-                billingInterval: intervalChoice.interval(
-                    customValueText: customValueText,
-                    customUnit: customUnit
+                billingSchedule: FixedBillingSchedule(
+                    interval: interval,
+                    renewalAnchor: normalizedRenewalAnchor,
+                    timeZoneIdentifier: timeZoneIdentifier
                 ),
                 startDate: normalizedStartDate,
-                renewalAnchor: normalizedRenewalAnchor,
                 confirmedNextRenewal: normalizedNextRenewal,
-                billingTimeZoneIdentifier: timeZoneIdentifier,
                 managementURL: managementURL(from: managementURLResult),
                 notes: notes
             )
         )
 
-        guard workspace.creationValidationErrors.isEmpty else {
+        guard workspace.editingValidationErrors.isEmpty else {
             return
         }
 

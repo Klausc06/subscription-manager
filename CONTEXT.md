@@ -15,6 +15,18 @@
   additively.
 - **Adapter**: An injected boundary between the workspace and an external
   concern such as catalog data, exchange rates, Calendar, or synchronization.
+- **Fixed Billing Schedule**: A positive calendar interval, renewal anchor,
+  and billing time zone that deterministically define expected charges.
+  _Avoid_: Billing cycle.
+- **Renewal Anchor**: The original local date and time from which every
+  expected charge is derived, so clamped month-end dates never become a new
+  recurrence basis.
+- **Confirmed Next Renewal**: The next charge date supplied or verified by the
+  person. It gates the forecast but never replaces the Renewal Anchor.
+  Date-only form input is stored at local noon in the billing time zone.
+- **Confirmed Charge**: An immutable record that a past expected charge
+  occurred. Editing a Fixed Billing Schedule never rewrites it.
+  _Avoid_: Expected charge, transaction.
 
 ## Current invariant
 

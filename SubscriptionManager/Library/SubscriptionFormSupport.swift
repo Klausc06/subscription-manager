@@ -46,15 +46,25 @@ struct ValidationMessage: View {
 }
 
 func validationText(
-    for error: SubscriptionCreationValidationError
+    for error: SubscriptionCreationValidationError,
+    field: SubscriptionCreationField? = nil
 ) -> LocalizedStringKey {
+    LocalizedStringKey(validationTextKey(for: error, field: field))
+}
+
+func validationTextKey(
+    for error: SubscriptionCreationValidationError,
+    field: SubscriptionCreationField? = nil
+) -> String {
     switch error {
     case .required:
         "This field is required."
     case .mustBePositive:
         "Enter an amount greater than zero."
     case .beforeStartDate:
-        "The next renewal cannot be before the start date."
+        field == .renewalAnchor
+            ? "The renewal anchor cannot be before the start date."
+            : "The next renewal cannot be before the start date."
     }
 }
 
@@ -69,8 +79,12 @@ extension SubscriptionCreationField {
             "category"
         case .originalAmount:
             "amount"
+        case .renewalAnchor:
+            "renewal-anchor"
         case .confirmedNextRenewal:
             "next-renewal"
+        case .billingSchedule:
+            "billing-schedule"
         }
     }
 }
@@ -91,6 +105,15 @@ extension View {
             keyboardType(.URL)
                 .textInputAutocapitalization(.never)
                 .autocorrectionDisabled()
+        #else
+            self
+        #endif
+    }
+
+    @ViewBuilder
+    func subscriptionNumberKeyboard() -> some View {
+        #if os(iOS)
+            keyboardType(.numberPad)
         #else
             self
         #endif

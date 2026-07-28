@@ -6,39 +6,45 @@ import SubscriptionCore
 final class SwiftDataSubscriptionRepository: SubscriptionRepository {
     private let modelContext: ModelContext
     private let save: (ModelContext) throws -> Void
+    private let defaultBillingTimeZone: () -> TimeZone
+    private let encoder = JSONEncoder()
+    private let decoder = JSONDecoder()
 
     convenience init(modelContainer: ModelContainer) {
         self.init(
             modelContainer: modelContainer,
-            save: { try $0.save() }
+            save: { try $0.save() },
+            defaultBillingTimeZone: { .autoupdatingCurrent }
+        )
+    }
+
+    convenience init(
+        modelContainer: ModelContainer,
+        defaultBillingTimeZone: @escaping () -> TimeZone
+    ) {
+        self.init(
+            modelContainer: modelContainer,
+            save: { try $0.save() },
+            defaultBillingTimeZone: defaultBillingTimeZone
         )
     }
 
     init(
         modelContainer: ModelContainer,
-        save: @escaping (ModelContext) throws -> Void
+        save: @escaping (ModelContext) throws -> Void,
+        defaultBillingTimeZone: @escaping () -> TimeZone = {
+            .autoupdatingCurrent
+        }
     ) {
         modelContext = ModelContext(modelContainer)
         self.save = save
+        self.defaultBillingTimeZone = defaultBillingTimeZone
     }
 
     func createSubscription(_ subscription: Subscription) throws {
-        modelContext.insert(
-            SubscriptionRecord(
-                id: subscription.id,
-                serviceIdentityRawValue: subscription.serviceIdentity.rawValue,
-                serviceName: subscription.serviceName,
-                plan: subscription.plan,
-                category: subscription.category,
-                originalMinorUnits: subscription.originalAmount.minorUnits,
-                currencyRawValue: subscription.originalAmount.currency.rawValue,
-                billingCycleRawValue: subscription.billingCycle.rawValue,
-                startDate: subscription.startDate,
-                confirmedNextRenewal: subscription.confirmedNextRenewal,
-                managementURLString: subscription.managementURL?.absoluteString,
-                notes: subscription.notes
-            )
-        )
+        let record = SubscriptionRecord(id: subscription.id)
+        try apply(subscription, to: record)
+        modelContext.insert(record)
         do {
             try save(modelContext)
         } catch {
@@ -47,11 +53,54 @@ final class SwiftDataSubscriptionRepository: SubscriptionRepository {
         }
     }
 
+    func updateSubscription(_ subscription: Subscription) throws {
+        let lookupID = subscription.id
+        var descriptor = FetchDescriptor<SubscriptionRecord>(
+            predicate: #Predicate { $0.id == lookupID }
+        )
+        descriptor.fetchLimit = 1
+        guard let record = try modelContext.fetch(descriptor).first else {
+            throw RepositoryError.subscriptionNotFound
+        }
+
+        do {
+            try apply(subscription, to: record)
+            try save(modelContext)
+        } catch {
+            modelContext.rollback()
+            throw error
+        }
+    }
+
     func listSubscriptions() throws -> [SubscriptionSummary] {
-        try modelContext
-            .fetch(FetchDescriptor<SubscriptionRecord>())
-            .map(makeSubscription(from:))
-            .map(SubscriptionSummary.init(subscription:))
+        do {
+            let records = try modelContext.fetch(
+                FetchDescriptor<SubscriptionRecord>()
+            )
+            var subscriptions: [Subscription] = []
+            var needsSave = false
+            for record in records {
+                let result = try makeSubscription(from: record)
+                if let backfill = result.billingTimeZoneBackfill {
+                    record.billingTimeZoneIdentifier = backfill
+                    needsSave = true
+                }
+                if let backfill = result.renewalAnchorBackfill {
+                    record.renewalAnchor = backfill
+                    needsSave = true
+                }
+                subscriptions.append(result.subscription)
+            }
+            if needsSave {
+                try save(modelContext)
+            }
+            return subscriptions
+                .sorted { $0.id.uuidString < $1.id.uuidString }
+                .map(SubscriptionSummary.init(subscription:))
+        } catch {
+            modelContext.rollback()
+            throw error
+        }
     }
 
     func subscription(id: UUID) throws -> Subscription? {
@@ -61,23 +110,106 @@ final class SwiftDataSubscriptionRepository: SubscriptionRepository {
         )
         descriptor.fetchLimit = 1
 
-        return try modelContext
-            .fetch(descriptor)
-            .first
-            .map(makeSubscription(from:))
+        do {
+            guard let record = try modelContext.fetch(descriptor).first else {
+                return nil
+            }
+            let result = try makeSubscription(from: record)
+            if let backfill = result.billingTimeZoneBackfill {
+                record.billingTimeZoneIdentifier = backfill
+            }
+            if let backfill = result.renewalAnchorBackfill {
+                record.renewalAnchor = backfill
+            }
+            if result.billingTimeZoneBackfill != nil
+                || result.renewalAnchorBackfill != nil
+            {
+                try save(modelContext)
+            }
+            return result.subscription
+        } catch {
+            modelContext.rollback()
+            throw error
+        }
+    }
+
+    private func apply(
+        _ subscription: Subscription,
+        to record: SubscriptionRecord
+    ) throws {
+        record.serviceIdentityRawValue = subscription.serviceIdentity.rawValue
+        record.serviceName = subscription.serviceName
+        record.plan = subscription.plan
+        record.category = subscription.category
+        record.originalMinorUnits = subscription.originalAmount.minorUnits
+        record.currencyRawValue = subscription.originalAmount.currency.rawValue
+        record.billingCycleRawValue =
+            subscription.billingSchedule.interval.storageIdentifier
+        record.billingIntervalValue =
+            subscription.billingSchedule.interval.customValue
+        record.billingIntervalUnitRawValue =
+            subscription.billingSchedule.interval.customUnit?.rawValue
+        record.billingTimeZoneIdentifier =
+            subscription.billingSchedule.timeZoneIdentifier
+        record.startDate = subscription.startDate
+        record.renewalAnchor = subscription.billingSchedule.renewalAnchor
+        record.confirmedNextRenewal = subscription.confirmedNextRenewal
+        record.managementURLString =
+            subscription.managementURL?.absoluteString
+        record.notes = subscription.notes
+        record.confirmedChargesData = try encoder.encode(
+            subscription.confirmedCharges
+        )
     }
 
     private func makeSubscription(
         from record: SubscriptionRecord
-    ) -> Subscription {
+    ) throws -> (
+        subscription: Subscription,
+        billingTimeZoneBackfill: String?,
+        renewalAnchorBackfill: Date?
+    ) {
         let serviceIdentityRawValue = record.serviceIdentityRawValue.isEmpty
             ? "manual:\(record.id.uuidString)"
             : record.serviceIdentityRawValue
         let managementURL = record.managementURLString.flatMap { value in
             value.isEmpty ? nil : URL(string: value)
         }
+        let interval: BillingInterval
+        if record.billingCycleRawValue == "custom",
+           let value = record.billingIntervalValue,
+           value > 0,
+           let unitRawValue = record.billingIntervalUnitRawValue,
+           let unit = BillingIntervalUnit(rawValue: unitRawValue)
+        {
+            interval = .custom(value: value, unit: unit)
+        } else {
+            interval = BillingInterval(
+                rawValue: record.billingCycleRawValue
+            ) ?? .monthly
+        }
+        let storedTimeZoneIdentifier =
+            record.billingTimeZoneIdentifier.flatMap {
+                TimeZone(identifier: $0) == nil ? nil : $0
+            }
+        let timeZoneIdentifier =
+            storedTimeZoneIdentifier ?? defaultBillingTimeZone().identifier
+        let renewalAnchor = record.renewalAnchor
+            ?? inferredRenewalAnchor(
+                from: record,
+                timeZoneIdentifier: timeZoneIdentifier
+            )
+        let confirmedCharges: [ConfirmedCharge]
+        if let data = record.confirmedChargesData {
+            confirmedCharges = try decoder.decode(
+                [ConfirmedCharge].self,
+                from: data
+            )
+        } else {
+            confirmedCharges = []
+        }
 
-        return Subscription(
+        let subscription = Subscription(
             id: record.id,
             serviceIdentity: ServiceIdentity(
                 rawValue: serviceIdentityRawValue
@@ -89,13 +221,148 @@ final class SwiftDataSubscriptionRepository: SubscriptionRepository {
                 minorUnits: record.originalMinorUnits,
                 currency: Currency(rawValue: record.currencyRawValue) ?? .usd
             ),
-            billingCycle: BillingCycle(
-                rawValue: record.billingCycleRawValue
-            ) ?? .monthly,
+            billingSchedule: FixedBillingSchedule(
+                interval: interval,
+                renewalAnchor: renewalAnchor,
+                timeZoneIdentifier: timeZoneIdentifier
+            ),
             startDate: record.startDate,
             confirmedNextRenewal: record.confirmedNextRenewal,
             managementURL: managementURL,
-            notes: record.notes ?? ""
+            notes: record.notes ?? "",
+            confirmedCharges: confirmedCharges
         )
+        return (
+            subscription: subscription,
+            billingTimeZoneBackfill: storedTimeZoneIdentifier == nil
+                ? timeZoneIdentifier
+                : nil,
+            renewalAnchorBackfill: record.renewalAnchor == nil
+                ? renewalAnchor
+                : nil
+        )
+    }
+
+    private func inferredRenewalAnchor(
+        from record: SubscriptionRecord,
+        timeZoneIdentifier: String
+    ) -> Date {
+        guard record.billingCycleRawValue == BillingInterval.monthly.rawValue,
+              record.confirmedNextRenewal >= record.startDate,
+              let timeZone = TimeZone(identifier: timeZoneIdentifier)
+        else {
+            return record.confirmedNextRenewal
+        }
+
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.locale = Locale(identifier: "en_US_POSIX")
+        calendar.timeZone = timeZone
+        let start = calendar.dateComponents(
+            [.year, .month],
+            from: record.startDate
+        )
+        let renewal = calendar.dateComponents(
+            [.year, .month],
+            from: record.confirmedNextRenewal
+        )
+        guard let startYear = start.year,
+              let startMonth = start.month,
+              let renewalYear = renewal.year,
+              let renewalMonth = renewal.month
+        else {
+            return record.confirmedNextRenewal
+        }
+        let monthOffset =
+            (renewalYear - startYear) * 12 + renewalMonth - startMonth
+        guard monthOffset >= 0,
+              let projectedDate = clampedMonthDate(
+                  from: record.startDate,
+                  monthOffset: monthOffset,
+                  calendar: calendar
+              )
+        else {
+            return record.confirmedNextRenewal
+        }
+        let projectedDay = calendar.dateComponents(
+            [.year, .month, .day],
+            from: projectedDate
+        )
+        let renewalDay = calendar.dateComponents(
+            [.year, .month, .day],
+            from: record.confirmedNextRenewal
+        )
+        guard projectedDay == renewalDay else {
+            return record.confirmedNextRenewal
+        }
+        return anchor(
+            record.startDate,
+            alignedToTimeOfDayIn: record.confirmedNextRenewal,
+            calendar: calendar
+        ) ?? record.startDate
+    }
+
+    private func anchor(
+        _ anchor: Date,
+        alignedToTimeOfDayIn reference: Date,
+        calendar: Calendar
+    ) -> Date? {
+        var components = calendar.dateComponents(
+            [.era, .year, .month, .day],
+            from: anchor
+        )
+        let time = calendar.dateComponents(
+            [.hour, .minute, .second, .nanosecond],
+            from: reference
+        )
+        components.hour = time.hour
+        components.minute = time.minute
+        components.second = time.second
+        components.nanosecond = time.nanosecond
+        return calendar.date(from: components)
+    }
+
+    private func clampedMonthDate(
+        from anchor: Date,
+        monthOffset: Int,
+        calendar: Calendar
+    ) -> Date? {
+        var components = calendar.dateComponents(
+            [
+                .era,
+                .year,
+                .month,
+                .day,
+                .hour,
+                .minute,
+                .second,
+                .nanosecond,
+            ],
+            from: anchor
+        )
+        guard let anchorYear = components.year,
+              let anchorMonth = components.month,
+              let anchorDay = components.day
+        else {
+            return nil
+        }
+        let monthIndex = anchorMonth - 1 + monthOffset
+        components.year = anchorYear + monthIndex / 12
+        components.month = monthIndex % 12 + 1
+        components.day = 1
+        guard let firstOfMonth = calendar.date(from: components),
+              let days = calendar.range(
+                  of: .day,
+                  in: .month,
+                  for: firstOfMonth
+              )
+        else {
+            return nil
+        }
+        components.day = min(anchorDay, days.count)
+        return calendar.date(from: components)
+    }
+
+    private enum RepositoryError: Error {
+        case subscriptionNotFound
     }
 }
