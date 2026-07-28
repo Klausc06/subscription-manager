@@ -2,12 +2,151 @@ import SubscriptionCore
 import SwiftUI
 
 struct LibraryView: View {
+    private enum RootDestination: Hashable {
+        case subscriptions
+        case upcoming
+        case insights
+    }
+
+    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     let workspace: SubscriptionWorkspace
     @State private var presentedSheet: LibrarySheet?
     @State private var isSetupPresented = false
     @State private var isPreferencesPresented = false
+    @State private var selectedDestination: RootDestination = .subscriptions
 
     var body: some View {
+        rootContent
+        .sheet(item: $presentedSheet) { sheet in
+            switch sheet {
+            case .addSubscription:
+                NavigationStack {
+                    AddSubscriptionView(workspace: workspace)
+                }
+            }
+        }
+        .sheet(isPresented: $isSetupPresented) {
+            FirstRunSetupView(workspace: workspace) {
+                isSetupPresented = false
+            }
+        }
+        .sheet(isPresented: $isPreferencesPresented) {
+            UserPreferencesView(workspace: workspace) {
+                isPreferencesPresented = false
+                isSetupPresented = true
+            }
+        }
+        .task {
+            loadInitialState()
+        }
+    }
+
+    @ViewBuilder
+    private var rootContent: some View {
+        if horizontalSizeClass == .regular {
+            wideRoot
+        } else {
+            compactRoot
+        }
+    }
+
+    private var compactRoot: some View {
+        TabView(selection: $selectedDestination) {
+            subscriptionsTab
+                .tag(RootDestination.subscriptions)
+                .tabItem {
+                    Label("Subscriptions", systemImage: "rectangle.stack")
+                }
+
+            UpcomingView(workspace: workspace)
+                .tag(RootDestination.upcoming)
+                .tabItem {
+                    Label("Upcoming", systemImage: "calendar")
+                }
+
+            ContentUnavailableView(
+                "Insights",
+                systemImage: "chart.bar",
+                description: Text("Insights will be available after currency conversion is added.")
+            )
+            .tag(RootDestination.insights)
+            .tabItem {
+                Label("Insights", systemImage: "chart.bar")
+            }
+        }
+        .accessibilityIdentifier("app.tabs")
+    }
+
+    private var wideRoot: some View {
+        NavigationSplitView {
+            List {
+                sidebarButton(
+                    "Subscriptions",
+                    systemImage: "rectangle.stack",
+                    destination: .subscriptions
+                )
+                sidebarButton(
+                    "Upcoming",
+                    systemImage: "calendar",
+                    destination: .upcoming
+                )
+                sidebarButton(
+                    "Insights",
+                    systemImage: "chart.bar",
+                    destination: .insights
+                )
+            }
+            .navigationTitle("Subscription Manager")
+            .accessibilityIdentifier("root.sidebar")
+        } detail: {
+            selectedDestinationContent
+        }
+        .navigationSplitViewStyle(.balanced)
+    }
+
+    @ViewBuilder
+    private var selectedDestinationContent: some View {
+        switch selectedDestination {
+        case .subscriptions:
+            subscriptionsTab
+        case .upcoming:
+            UpcomingView(workspace: workspace)
+        case .insights:
+            ContentUnavailableView(
+                "Insights",
+                systemImage: "chart.bar",
+                description: Text(
+                    "Insights will be available after currency conversion is added."
+                )
+            )
+        }
+    }
+
+    private func sidebarButton(
+        _ title: LocalizedStringKey,
+        systemImage: String,
+        destination: RootDestination
+    ) -> some View {
+        Button {
+            selectedDestination = destination
+        } label: {
+            Label(title, systemImage: systemImage)
+        }
+        .accessibilityIdentifier(sidebarIdentifier(for: destination))
+        .accessibilityAddTraits(
+            selectedDestination == destination ? .isSelected : []
+        )
+    }
+
+    private func sidebarIdentifier(for destination: RootDestination) -> String {
+        switch destination {
+        case .subscriptions: "root.sidebar.subscriptions"
+        case .upcoming: "root.sidebar.upcoming"
+        case .insights: "root.sidebar.insights"
+        }
+    }
+
+    private var subscriptionsTab: some View {
         NavigationStack {
             ScopedLibraryView(
                 workspace: workspace,
@@ -32,45 +171,6 @@ struct LibraryView: View {
                     )
                 }
         }
-        .sheet(item: $presentedSheet) { sheet in
-            switch sheet {
-            case .addSubscription:
-                NavigationStack {
-                    AddSubscriptionView(workspace: workspace)
-                }
-            }
-        }
-        .sheet(isPresented: $isSetupPresented) {
-            FirstRunSetupView(workspace: workspace) {
-                isSetupPresented = false
-            }
-        }
-        .sheet(isPresented: $isPreferencesPresented) {
-            UserPreferencesView(workspace: workspace) {
-                isPreferencesPresented = false
-                isSetupPresented = true
-            }
-        }
-        .task {
-            workspace.loadLibrary(scope: .current)
-            let libraryIsEmpty: Bool
-            if case .empty(.current) = workspace.libraryState {
-                libraryIsEmpty = true
-            } else {
-                libraryIsEmpty = false
-            }
-            workspace.loadSetup(libraryIsEmpty: libraryIsEmpty)
-            let arguments = ProcessInfo.processInfo.arguments
-            let allowsUITestOnboarding = arguments.contains(
-                "--ui-testing-onboarding"
-            )
-            let isUITesting = arguments.contains("--ui-testing")
-            if case .needsSetup = workspace.setupState,
-               !isUITesting || allowsUITestOnboarding
-            {
-                isSetupPresented = true
-            }
-        }
     }
 
     private func presentAddSubscription() {
@@ -79,6 +179,164 @@ struct LibraryView: View {
 
     private func presentPreferences() {
         isPreferencesPresented = true
+    }
+
+    private func loadInitialState() {
+        workspace.loadLibrary(scope: .current)
+        let libraryIsEmpty: Bool
+        if case .empty(.current) = workspace.libraryState {
+            libraryIsEmpty = true
+        } else {
+            libraryIsEmpty = false
+        }
+        workspace.loadSetup(libraryIsEmpty: libraryIsEmpty)
+        let arguments = ProcessInfo.processInfo.arguments
+        let allowsUITestOnboarding = arguments.contains("--ui-testing-onboarding")
+        let isUITesting = arguments.contains("--ui-testing")
+        if case .needsSetup = workspace.setupState,
+           !isUITesting || allowsUITestOnboarding
+        {
+            isSetupPresented = true
+        }
+    }
+}
+
+private struct UpcomingView: View {
+    private enum DateRange: String, CaseIterable, Identifiable {
+        case today
+        case next30Days
+        case next90Days
+
+        var id: String { rawValue }
+
+        var title: LocalizedStringKey {
+            switch self {
+            case .today: "Today"
+            case .next30Days: "Next 30 Days"
+            case .next90Days: "Next 90 Days"
+            }
+        }
+
+        var dayCount: Int {
+            switch self {
+            case .today: 0
+            case .next30Days: 30
+            case .next90Days: 90
+            }
+        }
+    }
+
+    let workspace: SubscriptionWorkspace
+    @State private var dateRange: DateRange = .next30Days
+
+    var body: some View {
+        NavigationStack {
+            List {
+                Section {
+                    Picker("Date Range", selection: $dateRange) {
+                        ForEach(DateRange.allCases) { range in
+                            Text(range.title).tag(range)
+                        }
+                    }
+                    .pickerStyle(.segmented)
+                    .accessibilityIdentifier("upcoming.range")
+                }
+
+                if workspace.upcomingTimeline.isEmpty {
+                    ContentUnavailableView(
+                        "No Upcoming Charges",
+                        systemImage: "calendar.badge.exclamationmark",
+                        description: Text(
+                            "Choose a longer date range or add a subscription."
+                        )
+                    )
+                    .accessibilityIdentifier("upcoming.empty-state")
+                } else {
+                    ForEach(workspace.upcomingTimeline) { item in
+                        NavigationLink(value: item.subscriptionID) {
+                            UpcomingTimelineRow(item: item)
+                        }
+                        .accessibilityIdentifier(
+                            item.kind == .expected
+                                ? "upcoming.row.expected"
+                                : "upcoming.row.confirmed"
+                        )
+                    }
+                }
+            }
+            .navigationTitle("Upcoming")
+            .navigationDestination(for: UUID.self) { subscriptionID in
+                SubscriptionDetailView(
+                    workspace: workspace,
+                    subscriptionID: subscriptionID
+                )
+            }
+        }
+        .onAppear {
+            loadTimeline()
+        }
+        .task(id: dateRange) {
+            loadTimeline()
+        }
+    }
+
+    private var rangeStart: Date {
+        Calendar.current.startOfDay(for: Date())
+    }
+
+    private var rangeEnd: Date {
+        Calendar.current.date(
+            byAdding: .day,
+            value: dateRange.dayCount,
+            to: rangeStart
+        ) ?? rangeStart
+    }
+
+    private func loadTimeline() {
+        workspace.loadUpcomingTimeline(from: rangeStart, through: rangeEnd)
+    }
+}
+
+private struct UpcomingTimelineRow: View {
+    let item: UpcomingTimelineItem
+
+    var body: some View {
+        HStack {
+            Image(
+                systemName: item.kind == .expected
+                    ? "calendar"
+                    : "checkmark.circle"
+            )
+            .accessibilityHidden(true)
+            VStack(alignment: .leading) {
+                Text(item.serviceName)
+                Text(statusTitle)
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+            }
+            Spacer()
+            VStack(alignment: .trailing) {
+                Text(formattedMoney(item.amount))
+                Text(item.date, format: .dateTime.month().day().year())
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel(
+            "\(item.serviceName), \(statusAccessibilityText), "
+                + "\(formattedMoney(item.amount))"
+        )
+    }
+
+    private var statusTitle: LocalizedStringKey {
+        item.kind == .expected ? "Expected Charge" : "Confirmed Payment"
+    }
+
+    private var statusAccessibilityText: String {
+        item.kind == .expected
+            ? String(localized: "Expected Charge")
+            : String(localized: "Confirmed Payment")
     }
 }
 

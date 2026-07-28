@@ -43,6 +43,36 @@ public struct ExpectedCharge: Codable, Equatable, Sendable {
     }
 }
 
+public struct UpcomingTimelineItem: Equatable, Identifiable, Sendable {
+    public enum Kind: Equatable, Sendable {
+        case expected
+        case confirmed
+    }
+
+    public let id: String
+    public let kind: Kind
+    public let subscriptionID: UUID
+    public let serviceName: String
+    public let date: Date
+    public let amount: Money
+
+    public init(
+        id: String,
+        kind: Kind,
+        subscriptionID: UUID,
+        serviceName: String,
+        date: Date,
+        amount: Money
+    ) {
+        self.id = id
+        self.kind = kind
+        self.subscriptionID = subscriptionID
+        self.serviceName = serviceName
+        self.date = date
+        self.amount = amount
+    }
+}
+
 public enum SubscriptionHistoryEntry: Equatable, Sendable {
     case expected(ExpectedCharge)
     case confirmed(ConfirmedCharge)
@@ -365,6 +395,7 @@ public final class SubscriptionWorkspace {
     public private(set) var editingValidationErrors:
         [SubscriptionCreationField: SubscriptionCreationValidationError] = [:]
     public private(set) var expectedCharges: [ExpectedCharge]?
+    public private(set) var upcomingTimeline: [UpcomingTimelineItem] = []
     public private(set) var lifecycleActionError:
         SubscriptionLifecycleActionError?
     public private(set) var paymentHistoryActionError:
@@ -1125,6 +1156,30 @@ public final class SubscriptionWorkspace {
         }
     }
 
+    public func loadUpcomingTimeline(from: Date, through: Date) {
+        guard from <= through else {
+            upcomingTimeline = []
+            return
+        }
+
+        do {
+            let subscriptions = try repository.listSubscriptions()
+            upcomingTimeline = subscriptions.flatMap { subscription in
+                makeUpcomingTimelineItems(
+                    for: subscription,
+                    from: from,
+                    through: through
+                )
+            }
+            .sorted { lhs, rhs in
+                if lhs.date != rhs.date { return lhs.date < rhs.date }
+                return lhs.id < rhs.id
+            }
+        } catch {
+            upcomingTimeline = []
+        }
+    }
+
     private func validate(
         _ input: SubscriptionCreationInput
     ) -> [SubscriptionCreationField: SubscriptionCreationValidationError] {
@@ -1329,6 +1384,49 @@ public final class SubscriptionWorkspace {
         }
 
         return charges
+    }
+
+    private func makeUpcomingTimelineItems(
+        for subscription: Subscription,
+        from: Date,
+        through: Date
+    ) -> [UpcomingTimelineItem] {
+        guard !subscription.isArchived,
+              isEligibleForExpectedCharges(subscription)
+        else {
+            return []
+        }
+
+        let expectedItems = makeExpectedCharges(
+            for: subscription,
+            through: through,
+            maximumCount: .max
+        )
+        .filter { $0.scheduledDate >= from }
+        .map { charge in
+            UpcomingTimelineItem(
+                id: "expected:\(charge.id.subscriptionID.uuidString)-"
+                    + "\(charge.id.year)-\(charge.id.month)-\(charge.id.day)",
+                kind: .expected,
+                subscriptionID: subscription.id,
+                serviceName: subscription.serviceName,
+                date: charge.scheduledDate,
+                amount: charge.amount
+            )
+        }
+        let confirmedItems = subscription.confirmedCharges
+            .filter { $0.chargedDate >= from && $0.chargedDate <= through }
+            .map { charge in
+                UpcomingTimelineItem(
+                    id: "confirmed:\(charge.id.uuidString)",
+                    kind: .confirmed,
+                    subscriptionID: subscription.id,
+                    serviceName: subscription.serviceName,
+                    date: charge.chargedDate,
+                    amount: charge.amount
+                )
+            }
+        return expectedItems + confirmedItems
     }
 
     private func expectedCharge(

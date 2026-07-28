@@ -1,7 +1,85 @@
 import XCTest
+import UIKit
 
 @MainActor
 final class SubscriptionManagerUITests: XCTestCase {
+    func testWideIPadUsesSidebarToSwitchDestinations() throws {
+        try XCTSkipIf(
+            UIDevice.current.userInterfaceIdiom != .pad,
+            "This adaptive-layout contract runs only on iPad."
+        )
+        let app = launch(language: "en", locale: "en_US")
+
+        XCTAssertTrue(
+            app.descendants(matching: .any)["root.sidebar"]
+                .waitForExistence(timeout: 5)
+        )
+        let upcoming = app.descendants(matching: .any)["root.sidebar.upcoming"]
+        XCTAssertTrue(upcoming.waitForExistence(timeout: 5))
+        upcoming.tap()
+        XCTAssertTrue(app.navigationBars["Upcoming"].waitForExistence(timeout: 5))
+    }
+
+    func testTopLevelNavigationProvidesSubscriptionsUpcomingAndInsights() {
+        let app = launch(language: "en", locale: "en_US")
+
+        XCTAssertTrue(topLevelTab("Subscriptions", in: app).waitForExistence(timeout: 5))
+        XCTAssertTrue(topLevelTab("Upcoming", in: app).exists)
+        XCTAssertTrue(topLevelTab("Insights", in: app).exists)
+    }
+
+    func testUpcomingExpectedChargeOpensItsSubscriptionDetail() {
+        let app = launch(language: "en", locale: "en_US")
+
+        app.buttons["subscription.add"].tap()
+        let serviceName = app.textFields["subscription.form.service-name"]
+        XCTAssertTrue(serviceName.waitForExistence(timeout: 5))
+        serviceName.tap()
+        serviceName.typeText("Upcoming Example")
+        app.textFields["subscription.form.plan"].tap()
+        app.textFields["subscription.form.plan"].typeText("Monthly")
+        app.textFields["subscription.form.category"].tap()
+        app.textFields["subscription.form.category"].typeText("Other")
+        app.textFields["subscription.form.amount"].tap()
+        app.textFields["subscription.form.amount"].typeText("9.99")
+        app.buttons["subscription.form.save"].tap()
+
+        topLevelTab("Upcoming", in: app).tap()
+        let ninetyDays = app.buttons["Next 90 Days"]
+        XCTAssertTrue(ninetyDays.waitForExistence(timeout: 5))
+        ninetyDays.tap()
+        let expectedCharge = app.buttons["upcoming.row.expected"].firstMatch
+        XCTAssertTrue(expectedCharge.waitForExistence(timeout: 5))
+        expectedCharge.tap()
+        XCTAssertTrue(
+            app.staticTexts["Subscription Details"].waitForExistence(timeout: 5)
+        )
+        XCTAssertTrue(
+            app.descendants(matching: .any)["subscription.detail"]
+                .waitForExistence(timeout: 5)
+        )
+        XCTAssertTrue(app.staticTexts["Expected Charge"].exists)
+    }
+
+    func testUpcomingDistinguishesConfirmedPaymentsWithoutColorOnly() {
+        let app = launch(language: "en", locale: "en_US")
+        createSubscription(named: "Confirmed Upcoming", in: app)
+        app.buttons["subscription.row"].firstMatch.tap()
+        app.buttons["subscription.lifecycle.actions"].tap()
+        XCTAssertTrue(app.buttons["subscription.confirm"].waitForExistence(timeout: 5))
+        app.buttons["subscription.confirm"].tap()
+        XCTAssertTrue(
+            app.buttons["subscription.confirm.save"].waitForExistence(timeout: 5)
+        )
+        app.buttons["subscription.confirm.save"].tap()
+
+        topLevelTab("Upcoming", in: app).tap()
+        app.buttons["Next 90 Days"].tap()
+        let confirmed = app.buttons["upcoming.row.confirmed"].firstMatch
+        XCTAssertTrue(confirmed.waitForExistence(timeout: 5))
+        XCTAssertTrue(confirmed.label.contains("Confirmed Payment"))
+    }
+
     func testFirstRunShowsPreferenceDefaultsWithoutCalendarPrompt() {
         let app = launch(
             language: "en",
@@ -919,6 +997,23 @@ final class SubscriptionManagerUITests: XCTestCase {
             app.buttons["subscription.row"].firstMatch
                 .waitForExistence(timeout: 5)
         )
+    }
+
+    private func topLevelTab(
+        _ title: String,
+        in app: XCUIApplication
+    ) -> XCUIElement {
+        let phoneTab = app.tabBars.buttons[title]
+        if phoneTab.exists {
+            return phoneTab
+        }
+        let iPadFloatingTab = app.cells[title]
+        if iPadFloatingTab.exists {
+            return iPadFloatingTab
+        }
+        return app.descendants(matching: .any)
+            .matching(NSPredicate(format: "label == %@", title))
+            .firstMatch
     }
 
     private func launch(
