@@ -1,11 +1,37 @@
 import Foundation
 
-public enum CatalogLoadError: Error, Equatable, Sendable {
-    case unsupportedSchemaVersion
-    case duplicatePresetIdentifier
-    case emptyLocalizedText
-    case invalidManagementURL
-    case invalidBillingInterval
+public enum CatalogValidationField: String, Equatable, Sendable {
+    case schemaVersion
+    case catalogVersion
+    case id
+    case serviceName
+    case category
+    case suggestedInterval
+    case managementURL
+    case assetProvenance
+}
+
+public struct CatalogLoadError: Error, Equatable, Sendable,
+    CustomStringConvertible
+{
+    public let presetID: String?
+    public let field: CatalogValidationField
+    public let message: String
+
+    public init(
+        presetID: String?,
+        field: CatalogValidationField,
+        message: String
+    ) {
+        self.presetID = presetID
+        self.field = field
+        self.message = message
+    }
+
+    public var description: String {
+        "catalog validation failed: preset=\(presetID ?? "snapshot") "
+            + "field=\(field.rawValue) reason=\(message)"
+    }
 }
 
 public struct CatalogLocalizedText: Codable, Equatable, Hashable, Sendable {
@@ -39,6 +65,30 @@ public enum CatalogIcon: String, Codable, CaseIterable, Sendable {
     case video
 }
 
+public enum CatalogAssetKind: String, Codable, Sendable {
+    case originalSymbol
+}
+
+public struct CatalogAssetProvenance: Codable, Equatable, Sendable {
+    public let kind: CatalogAssetKind
+    public let license: String
+    public let source: String
+
+    public init(kind: CatalogAssetKind, license: String, source: String) {
+        self.kind = kind
+        self.license = license
+        self.source = source
+    }
+
+    static func originalSymbol(for presetID: String) -> Self {
+        Self(
+            kind: .originalSymbol,
+            license: "CC0-1.0",
+            source: presetID
+        )
+    }
+}
+
 public struct CatalogCategory: Equatable, Identifiable, Sendable {
     public let id: String
     public let title: CatalogLocalizedText
@@ -62,6 +112,7 @@ public struct CatalogPreset: Codable, Equatable, Identifiable, Sendable {
     public let suggestedInterval: BillingInterval
     public let managementURL: URL?
     public let icon: CatalogIcon
+    public let assetProvenance: CatalogAssetProvenance
 
     public init(
         id: String,
@@ -69,7 +120,8 @@ public struct CatalogPreset: Codable, Equatable, Identifiable, Sendable {
         category: CatalogLocalizedText,
         suggestedInterval: BillingInterval,
         managementURL: URL?,
-        icon: CatalogIcon
+        icon: CatalogIcon,
+        assetProvenance: CatalogAssetProvenance? = nil
     ) {
         self.id = id
         self.serviceName = serviceName
@@ -77,6 +129,8 @@ public struct CatalogPreset: Codable, Equatable, Identifiable, Sendable {
         self.suggestedInterval = suggestedInterval
         self.managementURL = managementURL
         self.icon = icon
+        self.assetProvenance = assetProvenance
+            ?? .originalSymbol(for: id)
     }
 }
 
@@ -84,11 +138,27 @@ public struct CatalogSnapshot: Codable, Equatable, Sendable {
     public static let currentSchemaVersion = 1
 
     public let schemaVersion: Int
+    public let catalogVersion: Int
     public let presets: [CatalogPreset]
 
-    public init(schemaVersion: Int, presets: [CatalogPreset]) throws {
+    public init(
+        schemaVersion: Int,
+        catalogVersion: Int = 1,
+        presets: [CatalogPreset]
+    ) throws {
         guard schemaVersion == Self.currentSchemaVersion else {
-            throw CatalogLoadError.unsupportedSchemaVersion
+            throw CatalogLoadError(
+                presetID: nil,
+                field: .schemaVersion,
+                message: "unsupported schema version"
+            )
+        }
+        guard catalogVersion > 0 else {
+            throw CatalogLoadError(
+                presetID: nil,
+                field: .catalogVersion,
+                message: "catalog version must be positive"
+            )
         }
         var identifiers = Set<String>()
         for preset in presets {
@@ -96,22 +166,56 @@ public struct CatalogSnapshot: Codable, Equatable, Sendable {
                 in: .whitespacesAndNewlines
             )
             guard !identifier.isEmpty, identifiers.insert(identifier).inserted else {
-                throw CatalogLoadError.duplicatePresetIdentifier
+                throw CatalogLoadError(
+                    presetID: identifier.isEmpty ? nil : identifier,
+                    field: .id,
+                    message: "identifier is empty or duplicated"
+                )
             }
-            guard preset.serviceName.isValid, preset.category.isValid else {
-                throw CatalogLoadError.emptyLocalizedText
+            guard preset.serviceName.isValid else {
+                throw CatalogLoadError(
+                    presetID: identifier,
+                    field: .serviceName,
+                    message: "English and Simplified-Chinese text are required"
+                )
+            }
+            guard preset.category.isValid else {
+                throw CatalogLoadError(
+                    presetID: identifier,
+                    field: .category,
+                    message: "English and Simplified-Chinese text are required"
+                )
             }
             guard preset.suggestedInterval.isValid else {
-                throw CatalogLoadError.invalidBillingInterval
+                throw CatalogLoadError(
+                    presetID: identifier,
+                    field: .suggestedInterval,
+                    message: "billing interval is unsupported"
+                )
             }
             if let url = preset.managementURL,
                url.scheme?.lowercased() != "http"
                 && url.scheme?.lowercased() != "https"
             {
-                throw CatalogLoadError.invalidManagementURL
+                throw CatalogLoadError(
+                    presetID: identifier,
+                    field: .managementURL,
+                    message: "URL must use HTTP or HTTPS"
+                )
+            }
+            guard preset.assetProvenance.kind == .originalSymbol,
+                  preset.assetProvenance.license == "CC0-1.0",
+                  preset.assetProvenance.source == identifier
+            else {
+                throw CatalogLoadError(
+                    presetID: identifier,
+                    field: .assetProvenance,
+                    message: "asset must be an original CC0 symbol for this preset"
+                )
             }
         }
         self.schemaVersion = schemaVersion
+        self.catalogVersion = catalogVersion
         self.presets = presets
     }
 
@@ -119,6 +223,7 @@ public struct CatalogSnapshot: Codable, Equatable, Sendable {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         try self.init(
             schemaVersion: container.decode(Int.self, forKey: .schemaVersion),
+            catalogVersion: container.decode(Int.self, forKey: .catalogVersion),
             presets: container.decode([CatalogPreset].self, forKey: .presets)
         )
     }
