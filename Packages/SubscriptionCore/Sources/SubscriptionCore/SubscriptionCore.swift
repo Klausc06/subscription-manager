@@ -371,9 +371,12 @@ public final class SubscriptionWorkspace {
         PaymentHistoryActionError?
     public private(set) var paymentHistory: [SubscriptionHistoryEntry] = []
     public private(set) var catalogState: CatalogState = .notLoaded
+    public private(set) var catalogDiagnostics: CatalogDiagnostics?
 
     private let repository: any SubscriptionRepository
     private let catalogRepository: (any CatalogRepository)?
+    private let catalogUpdateSource: (any CatalogUpdateSource)?
+    private let catalogCache: (any CatalogCache)?
     private let identifierGenerator: () -> UUID
     private let now: () -> Date
     private let calendar: Calendar
@@ -386,12 +389,16 @@ public final class SubscriptionWorkspace {
     public init(
         repository: any SubscriptionRepository,
         catalogRepository: (any CatalogRepository)? = nil,
+        catalogUpdateSource: (any CatalogUpdateSource)? = nil,
+        catalogCache: (any CatalogCache)? = nil,
         identifierGenerator: @escaping () -> UUID = UUID.init,
         now: @escaping () -> Date = Date.init,
         calendar: Calendar? = nil
     ) {
         self.repository = repository
         self.catalogRepository = catalogRepository
+        self.catalogUpdateSource = catalogUpdateSource
+        self.catalogCache = catalogCache
         self.identifierGenerator = identifierGenerator
         self.now = now
         self.calendar = calendar ?? Self.defaultRenewalCalendar()
@@ -420,10 +427,63 @@ public final class SubscriptionWorkspace {
         do {
             catalogSnapshot = try catalogRepository.loadSnapshot()
             catalogLocale = locale
+            catalogDiagnostics = CatalogDiagnostics(
+                source: catalogRepository.catalogSource,
+                version: catalogSnapshot?.catalogVersion ?? 0,
+                refreshStatus: .idle
+            )
             refreshCatalogState()
         } catch {
             catalogSnapshot = nil
             catalogState = .failed
+        }
+    }
+
+    public func refreshCatalog() async {
+        guard let catalogRepository,
+              let catalogUpdateSource,
+              let catalogCache
+        else {
+            return
+        }
+
+        do {
+            let activeSnapshot: CatalogSnapshot
+            if let catalogSnapshot {
+                activeSnapshot = catalogSnapshot
+            } else {
+                activeSnapshot = try catalogRepository.loadSnapshot()
+            }
+            let data = try await catalogUpdateSource.fetchCatalogData()
+            let candidate = try JSONDecoder().decode(
+                CatalogSnapshot.self,
+                from: data
+            )
+            guard candidate.catalogVersion > activeSnapshot.catalogVersion else {
+                catalogDiagnostics = CatalogDiagnostics(
+                    source: catalogRepository.catalogSource,
+                    version: activeSnapshot.catalogVersion,
+                    refreshStatus: .alreadyCurrent
+                )
+                return
+            }
+
+            try catalogCache.storeCatalogData(data)
+            catalogSnapshot = candidate
+            catalogDiagnostics = CatalogDiagnostics(
+                source: .cached,
+                version: candidate.catalogVersion,
+                refreshStatus: .updated
+            )
+            refreshCatalogState()
+        } catch {
+            if let catalogSnapshot {
+                catalogDiagnostics = CatalogDiagnostics(
+                    source: catalogRepository.catalogSource,
+                    version: catalogSnapshot.catalogVersion,
+                    refreshStatus: .failed
+                )
+            }
         }
     }
 

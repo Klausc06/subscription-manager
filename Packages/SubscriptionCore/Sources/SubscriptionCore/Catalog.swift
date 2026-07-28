@@ -105,6 +105,34 @@ public enum CatalogState: Equatable, Sendable {
     case failed
 }
 
+public enum CatalogSource: String, Equatable, Sendable {
+    case bundled
+    case cached
+}
+
+public enum CatalogRefreshStatus: Equatable, Sendable {
+    case idle
+    case updated
+    case alreadyCurrent
+    case failed
+}
+
+public struct CatalogDiagnostics: Equatable, Sendable {
+    public let source: CatalogSource
+    public let version: Int
+    public let refreshStatus: CatalogRefreshStatus
+
+    public init(
+        source: CatalogSource,
+        version: Int,
+        refreshStatus: CatalogRefreshStatus
+    ) {
+        self.source = source
+        self.version = version
+        self.refreshStatus = refreshStatus
+    }
+}
+
 public struct CatalogPreset: Codable, Equatable, Identifiable, Sendable {
     public let id: String
     public let serviceName: CatalogLocalizedText
@@ -280,4 +308,19 @@ public struct CatalogSnapshot: Codable, Equatable, Sendable {
 @MainActor
 public protocol CatalogRepository {
     func loadSnapshot() throws -> CatalogSnapshot
+    var catalogSource: CatalogSource { get }
+}
+
+public extension CatalogRepository {
+    var catalogSource: CatalogSource { .bundled }
+}
+
+@MainActor
+public protocol CatalogUpdateSource {
+    func fetchCatalogData() async throws -> Data
+}
+
+@MainActor
+public protocol CatalogCache {
+    func storeCatalogData(_ data: Data) throws
 }

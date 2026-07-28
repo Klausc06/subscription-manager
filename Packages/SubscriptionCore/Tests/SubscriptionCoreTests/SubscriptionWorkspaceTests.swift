@@ -4,6 +4,65 @@ import Testing
 
 @Suite("Subscription workspace")
 struct SubscriptionWorkspaceTests {
+    @Test("A valid newer catalog becomes active without mutating subscriptions")
+    @MainActor
+    func newerCatalogActivatesWithoutMutatingSubscriptions() async throws {
+        let bundled = CatalogPreset(
+            id: "music.example",
+            serviceName: CatalogLocalizedText(
+                en: "Example Music",
+                zhHans: "示例音乐"
+            ),
+            category: CatalogLocalizedText(en: "Music", zhHans: "音乐"),
+            suggestedInterval: .monthly,
+            managementURL: nil,
+            icon: .music
+        )
+        let newer = CatalogPreset(
+            id: "video.example",
+            serviceName: CatalogLocalizedText(
+                en: "Example Video",
+                zhHans: "示例视频"
+            ),
+            category: CatalogLocalizedText(en: "Video", zhHans: "视频"),
+            suggestedInterval: .monthly,
+            managementURL: nil,
+            icon: .video
+        )
+        let update = try JSONEncoder().encode(
+            CatalogSnapshot(
+                schemaVersion: CatalogSnapshot.currentSchemaVersion,
+                catalogVersion: 2,
+                presets: [newer]
+            )
+        )
+        let repository = InMemorySubscriptionRepository()
+        let cache = InMemoryCatalogCache()
+        let workspace = SubscriptionWorkspace(
+            repository: repository,
+            catalogRepository: StaticCatalogRepository(
+                catalogVersion: 1,
+                presets: [bundled]
+            ),
+            catalogUpdateSource: StaticCatalogUpdateSource(data: update),
+            catalogCache: cache
+        )
+
+        workspace.loadCatalog(locale: Locale(identifier: "en"))
+        await workspace.refreshCatalog()
+
+        #expect(workspace.catalogDiagnostics?.version == 2)
+        #expect(workspace.catalogState == .loaded(
+            categories: [CatalogCategory(
+                id: "video",
+                title: newer.category
+            )],
+            presets: [newer]
+        ))
+        #expect(cache.storedData == update)
+        #expect(repository.updateAttemptCount == 0)
+    }
+
     @Test("Active creation stores an active lifecycle")
     @MainActor
     func activeCreationStoresActiveLifecycle() throws {
@@ -1530,13 +1589,38 @@ private struct EmptySubscriptionRepository: SubscriptionRepository {
 
 @MainActor
 private struct StaticCatalogRepository: CatalogRepository {
+    let catalogVersion: Int
     let presets: [CatalogPreset]
+
+    init(catalogVersion: Int = 1, presets: [CatalogPreset]) {
+        self.catalogVersion = catalogVersion
+        self.presets = presets
+    }
 
     func loadSnapshot() throws -> CatalogSnapshot {
         try CatalogSnapshot(
             schemaVersion: CatalogSnapshot.currentSchemaVersion,
+            catalogVersion: catalogVersion,
             presets: presets
         )
+    }
+}
+
+@MainActor
+private struct StaticCatalogUpdateSource: CatalogUpdateSource {
+    let data: Data
+
+    func fetchCatalogData() async throws -> Data {
+        data
+    }
+}
+
+@MainActor
+private final class InMemoryCatalogCache: CatalogCache {
+    private(set) var storedData: Data?
+
+    func storeCatalogData(_ data: Data) throws {
+        storedData = data
     }
 }
 
