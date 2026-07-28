@@ -59,6 +59,53 @@ struct BundledCatalogRepositoryTests {
         )
     }
 
+    @Test("China batch A is complete, categorized, and bilingual-searchable")
+    @MainActor
+    func chinaBatchAIsDiscoverable() throws {
+        let resourceURL = try #require(
+            Bundle.main.url(forResource: "catalog-v1", withExtension: "json")
+        )
+        let snapshot = try BundledCatalogRepository(resourceURL: resourceURL)
+            .loadSnapshot()
+        let chinaBatchAIDs: Set<String> = [
+            "iqiyi-vip", "tencent-video-vip", "youku-vip", "mango-tv-vip",
+            "bilibili-premium", "migu-video-vip", "sohu-video-vip", "pptv-vip",
+            "jianying-vip", "kling-ai-membership",
+            "qq-music-vip", "netease-cloud-music-vip", "kugou-music-vip",
+            "kuwo-music-vip", "migu-music-vip", "ximalaya-vip", "qingting-fm-vip",
+            "lizhi-fm-vip", "kugou-concept-vip", "qq-audiobook-vip",
+            "wechat-reading-unlimited", "qq-reading-vip", "qidian-reading-vip",
+            "zongheng-reading-vip", "fanqie-reading-vip", "jd-reading-vip",
+            "duokan-reading-vip", "jinjiang-reading-vip", "zhuishushenqi-vip",
+            "caixin-digital", "36kr-pro", "huxiu-plus", "yicai-plus",
+            "jiemian-premium", "the-paper-membership", "southern-weekly-digital",
+            "china-daily-digital", "guancha-membership",
+            "genshin-impact-welkin", "honkai-star-rail-supply-pass",
+            "zenless-zone-zero-membership", "honkai-impact-3-monthly-card",
+            "arknights-monthly-card", "identity-v-monthly-card",
+            "onmyoji-monthly-card", "naraka-bladepoint-pass", "taptap-cloud-gaming"
+        ]
+
+        #expect(snapshot.catalogVersion == 2)
+        #expect(chinaBatchAIDs.count == 47)
+        #expect(
+            Set(snapshot.presets.map(\.id)).isSuperset(of: chinaBatchAIDs)
+        )
+        #expect(
+            Set(snapshot.presets.map { $0.category.en }).isSuperset(
+                of: ["Video", "Music", "Reading", "News", "Gaming"]
+            )
+        )
+        #expect(
+            snapshot.search(query: "腾讯视频", locale: Locale(identifier: "zh-Hans"))
+                .contains(where: { $0.id == "tencent-video-vip" })
+        )
+        #expect(
+            snapshot.search(query: "Genshin", locale: Locale(identifier: "en"))
+                .contains(where: { $0.id == "genshin-impact-welkin" })
+        )
+    }
+
     @Test("Malformed bundled catalog identifiers are rejected")
     @MainActor
     func malformedCatalogIdentifiersAreRejected() throws {
