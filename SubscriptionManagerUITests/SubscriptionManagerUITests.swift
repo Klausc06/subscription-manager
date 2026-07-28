@@ -129,6 +129,102 @@ final class SubscriptionManagerUITests: XCTestCase {
         XCTAssertTrue(status.label.contains("试用中"))
     }
 
+    func testRecordsCancellationAndHidesNextExpectedCharge() {
+        let app = launch(
+            language: "en",
+            locale: "en_US",
+            storeToken: "cancel-\(UUID().uuidString)"
+        )
+        createSubscription(named: "Example Streaming", in: app)
+        app.buttons["subscription.row"].firstMatch.tap()
+
+        app.buttons["subscription.actions"].tap()
+        let recordCancellation = app.buttons[
+            "subscription.lifecycle.record-cancellation"
+        ]
+        XCTAssertTrue(recordCancellation.waitForExistence(timeout: 5))
+        recordCancellation.tap()
+
+        XCTAssertTrue(
+            app.descendants(matching: .any)["subscription.cancellation.form"]
+                .waitForExistence(timeout: 5)
+        )
+        XCTAssertTrue(
+            app.datePickers["subscription.cancellation.date"].exists
+        )
+        XCTAssertTrue(
+            app.datePickers["subscription.cancellation.access-until"].exists
+        )
+        app.buttons["subscription.cancellation.save"].tap()
+
+        let status = app.descendants(matching: .any)["subscription.status"]
+        XCTAssertTrue(status.waitForExistence(timeout: 5))
+        XCTAssertTrue(status.label.contains("Cancelled with Access"))
+        XCTAssertFalse(app.staticTexts["Next Expected Charge"].exists)
+        let accessUntil = app.descendants(matching: .any)[
+            "subscription.detail.access-until"
+        ]
+        if !accessUntil.exists {
+            app.swipeUp()
+        }
+        XCTAssertTrue(accessUntil.waitForExistence(timeout: 5))
+        XCTAssertTrue(
+            app.descendants(matching: .any)[
+                "subscription.detail.cancellation-date"
+            ].exists
+        )
+    }
+
+    func testReactivatesWithConfirmedNextRenewal() {
+        let app = launch(
+            language: "en",
+            locale: "en_US",
+            storeToken: "reactivate-\(UUID().uuidString)"
+        )
+        createSubscription(named: "Example Cloud", in: app)
+        app.buttons["subscription.row"].firstMatch.tap()
+
+        app.buttons["subscription.actions"].tap()
+        app.buttons["subscription.lifecycle.record-cancellation"].tap()
+        XCTAssertTrue(
+            app.buttons["subscription.cancellation.save"]
+                .waitForExistence(timeout: 5)
+        )
+        app.buttons["subscription.cancellation.save"].tap()
+
+        app.buttons["subscription.actions"].tap()
+        let reactivate = app.buttons["subscription.lifecycle.reactivate"]
+        XCTAssertTrue(reactivate.waitForExistence(timeout: 5))
+        reactivate.tap()
+
+        let nextRenewal = app.datePickers[
+            "subscription.reactivation.next-renewal"
+        ]
+        XCTAssertTrue(nextRenewal.waitForExistence(timeout: 5))
+        guard let confirmedDate = nextRenewal.value as? String,
+              !confirmedDate.isEmpty
+        else {
+            return XCTFail("Next Renewal must expose its selected date.")
+        }
+        app.buttons["subscription.reactivation.save"].tap()
+
+        let status = app.descendants(matching: .any)["subscription.status"]
+        XCTAssertTrue(status.waitForExistence(timeout: 5))
+        XCTAssertTrue(status.label.contains("Active"))
+        XCTAssertTrue(app.staticTexts["Next Expected Charge"].exists)
+        let expectedChargeDate = app.descendants(matching: .any)[
+            "subscription.detail.expected-charge.date"
+        ]
+        if !expectedChargeDate.exists {
+            app.swipeUp()
+        }
+        XCTAssertTrue(expectedChargeDate.waitForExistence(timeout: 5))
+        XCTAssertTrue(
+            expectedChargeDate.label.contains(confirmedDate),
+            "Expected \(expectedChargeDate.label) to contain \(confirmedDate)"
+        )
+    }
+
     func testInvalidAmountIsExplainedInline() {
         let app = launch(language: "en", locale: "en_US")
 
@@ -177,6 +273,7 @@ final class SubscriptionManagerUITests: XCTestCase {
         createSubscription(named: "Example News", in: app)
         app.buttons["subscription.row"].firstMatch.tap()
 
+        app.buttons["subscription.actions"].tap()
         let editButton = app.buttons["subscription.edit"]
         XCTAssertTrue(editButton.waitForExistence(timeout: 5))
         editButton.tap()
@@ -211,6 +308,7 @@ final class SubscriptionManagerUITests: XCTestCase {
         let app = launch(language: "en", locale: "en_US")
         createSubscription(named: "Example Fitness", in: app)
         app.buttons["subscription.row"].firstMatch.tap()
+        app.buttons["subscription.actions"].tap()
         app.buttons["subscription.edit"].tap()
 
         let billingInterval = app.buttons[

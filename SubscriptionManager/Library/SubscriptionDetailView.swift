@@ -5,20 +5,55 @@ struct SubscriptionDetailView: View {
     let workspace: SubscriptionWorkspace
     let subscriptionID: UUID
     @State private var subscriptionToEdit: Subscription?
+    @State private var lifecycleSheet: LifecycleSheet?
 
     var body: some View {
         detailContent
             .navigationTitle("Subscription Details")
             .toolbar {
-                if case .loaded(let subscription, _, _) = workspace.detailState,
-                   subscription.id == subscriptionID
+                if case .loaded(
+                    let subscription,
+                    let status,
+                    _
+                ) = workspace.detailState,
+                    subscription.id == subscriptionID,
+                    !subscription.isArchived
                 {
                     ToolbarItem(placement: .primaryAction) {
-                        Button("Edit", systemImage: "pencil") {
-                            workspace.beginEditing()
-                            subscriptionToEdit = subscription
+                        Menu("Actions", systemImage: "ellipsis.circle") {
+                            Button("Edit", systemImage: "pencil") {
+                                workspace.beginEditing()
+                                subscriptionToEdit = subscription
+                            }
+                            .accessibilityIdentifier("subscription.edit")
+
+                            switch status {
+                            case .trial, .active:
+                                Button(
+                                    "Record Cancellation",
+                                    systemImage: "xmark.circle"
+                                ) {
+                                    lifecycleSheet = .recordCancellation(
+                                        subscription
+                                    )
+                                }
+                                .accessibilityIdentifier(
+                                    "subscription.lifecycle.record-cancellation"
+                                )
+
+                            case .cancelledWithAccess, .expired:
+                                Button(
+                                    "Reactivate",
+                                    systemImage: "arrow.clockwise"
+                                ) {
+                                    lifecycleSheet = .reactivate(subscription)
+                                }
+                                .accessibilityIdentifier(
+                                    "subscription.lifecycle.reactivate"
+                                )
+                            }
                         }
-                        .accessibilityIdentifier("subscription.edit")
+                        .accessibilityIdentifier("subscription.actions")
                     }
                 }
             }
@@ -28,6 +63,22 @@ struct SubscriptionDetailView: View {
                         workspace: workspace,
                         subscription: subscription
                     )
+                }
+            }
+            .sheet(item: $lifecycleSheet) { sheet in
+                NavigationStack {
+                    switch sheet {
+                    case .recordCancellation(let subscription):
+                        RecordCancellationView(
+                            workspace: workspace,
+                            subscription: subscription
+                        )
+                    case .reactivate(let subscription):
+                        ReactivateSubscriptionView(
+                            workspace: workspace,
+                            subscription: subscription
+                        )
+                    }
                 }
             }
             .task(id: subscriptionID) {
@@ -139,6 +190,9 @@ private struct SubscriptionDetailForm: View {
                     } label: {
                         Text("Date")
                     }
+                    .accessibilityIdentifier(
+                        "subscription.detail.expected-charge.date"
+                    )
                 }
             }
 
@@ -175,6 +229,41 @@ private struct SubscriptionDetailForm: View {
                 }
             }
 
+            if case .cancelled(
+                let cancelledAt,
+                let accessUntil
+            ) = subscription.lifecycle {
+                Section("Lifecycle") {
+                    LabeledContent {
+                        Text(formattedBillingDate(
+                            cancelledAt,
+                            timeZoneIdentifier:
+                                subscription.billingSchedule.timeZoneIdentifier,
+                            locale: locale
+                        ))
+                    } label: {
+                        Text("Cancellation Date")
+                    }
+                    .accessibilityIdentifier(
+                        "subscription.detail.cancellation-date"
+                    )
+
+                    LabeledContent {
+                        Text(formattedBillingDate(
+                            accessUntil,
+                            timeZoneIdentifier:
+                                subscription.billingSchedule.timeZoneIdentifier,
+                            locale: locale
+                        ))
+                    } label: {
+                        Text("Access Until")
+                    }
+                    .accessibilityIdentifier(
+                        "subscription.detail.access-until"
+                    )
+                }
+            }
+
             if subscription.managementURL != nil || !subscription.notes.isEmpty {
                 Section("Additional Information") {
                     if let managementURL = subscription.managementURL {
@@ -191,5 +280,19 @@ private struct SubscriptionDetailForm: View {
         }
         .accessibilityIdentifier("subscription.detail")
         .environment(\.timeZone, timeZone)
+    }
+}
+
+private enum LifecycleSheet: Identifiable {
+    case recordCancellation(Subscription)
+    case reactivate(Subscription)
+
+    var id: String {
+        switch self {
+        case .recordCancellation(let subscription):
+            "record-cancellation-\(subscription.id)"
+        case .reactivate(let subscription):
+            "reactivate-\(subscription.id)"
+        }
     }
 }

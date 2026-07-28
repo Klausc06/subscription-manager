@@ -19,6 +19,12 @@
         "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "金额" } }
       }
     },
+    "Actions" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Actions" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "操作" } }
+      }
+    },
     "Billing Interval" : {
       "localizations" : {
         "en" : { "stringUnit" : { "state" : "translated", "value" : "Billing Interval" } },

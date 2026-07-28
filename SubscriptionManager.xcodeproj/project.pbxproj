@@ -8,8 +8,10 @@
 
 /* Begin PBXBuildFile section */
 		07BD717C844F32E7282360A2 /* SubscriptionLookupTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3ED395A87C6661BAAA9E98BB /* SubscriptionLookupTests.swift */; };
+		29ACA04B956288B794B208B0 /* ReactivateSubscriptionView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A93524FB8A11100D270A0930 /* ReactivateSubscriptionView.swift */; };
 		4C12D90EEC1CC642D35E22A2 /* SubscriptionDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6F7965D45867F28DAFB96A5D /* SubscriptionDetailView.swift */; };
 		54723BACD6E59DC50EEFDCED /* SwiftDataSubscriptionRepository.swift in Sources */ = {isa = PBXBuildFile; fileRef = 58208DD28479A9E167C08113 /* SwiftDataSubscriptionRepository.swift */; };
+		5A00649C395B2B471599C013 /* RecordCancellationView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 53CF076D96FF1C31ED7EC2A2 /* RecordCancellationView.swift */; };
 		5EFACBCB58F5A772FF61FF4B /* SubscriptionManagerApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 03DFA150363397FA01C93872 /* SubscriptionManagerApp.swift */; };
 		665528E003EC11A9189C1B7D /* InfoPlist.xcstrings in Resources */ = {isa = PBXBuildFile; fileRef = 4D90D49FB3AEDF62EFA48202 /* InfoPlist.xcstrings */; };
 		6660C4236F0802CD6EA713D1 /* MoneyFormatting.swift in Sources */ = {isa = PBXBuildFile; fileRef = C3C019FF49A9B77C9987C82B /* MoneyFormatting.swift */; };
@@ -64,6 +66,7 @@
 		4C0A8035198E253EFD0921C9 /* SubscriptionLifecycleSupport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SubscriptionLifecycleSupport.swift; sourceTree = "<group>"; };
 		4C522F69323C0F092E76973D /* SubscriptionManagerUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SubscriptionManagerUITests.swift; sourceTree = "<group>"; };
 		4D90D49FB3AEDF62EFA48202 /* InfoPlist.xcstrings */ = {isa = PBXFileReference; lastKnownFileType = text.json.xcstrings; path = InfoPlist.xcstrings; sourceTree = "<group>"; };
+		53CF076D96FF1C31ED7EC2A2 /* RecordCancellationView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecordCancellationView.swift; sourceTree = "<group>"; };
 		54AE7D1E07F1BF787F9E1BEF /* BillingScheduleSupport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BillingScheduleSupport.swift; sourceTree = "<group>"; };
 		58208DD28479A9E167C08113 /* SwiftDataSubscriptionRepository.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SwiftDataSubscriptionRepository.swift; sourceTree = "<group>"; };
 		6F44B60853F624BFCF8B2F53 /* SwiftDataSubscriptionRepositoryTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SwiftDataSubscriptionRepositoryTests.swift; sourceTree = "<group>"; };
@@ -73,6 +76,7 @@
 		9FEF1B3C25246E96015F3FB1 /* AppDependencies.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDependencies.swift; sourceTree = "<group>"; };
 		A40A43B15F2DC8026034E7B6 /* ManagementURLValidationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ManagementURLValidationTests.swift; sourceTree = "<group>"; };
 		A51067E214337D512DCE7E15 /* SubscriptionManager.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = SubscriptionManager.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		A93524FB8A11100D270A0930 /* ReactivateSubscriptionView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReactivateSubscriptionView.swift; sourceTree = "<group>"; };
 		BC563C5D4CFE9FE1F0148C35 /* SubscriptionCore */ = {isa = PBXFileReference; lastKnownFileType = folder; name = SubscriptionCore; path = Packages/SubscriptionCore; sourceTree = SOURCE_ROOT; };
 		C3C019FF49A9B77C9987C82B /* MoneyFormatting.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MoneyFormatting.swift; sourceTree = "<group>"; };
 		F24364E7E6897202F27AAE1B /* SubscriptionRow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SubscriptionRow.swift; sourceTree = "<group>"; };
@@ -146,6 +150,8 @@
 				33F67B88372C24F8FA06E7F1 /* EditSubscriptionView.swift */,
 				15EA34A86C81D0560BC4A8A0 /* LibraryView.swift */,
 				C3C019FF49A9B77C9987C82B /* MoneyFormatting.swift */,
+				A93524FB8A11100D270A0930 /* ReactivateSubscriptionView.swift */,
+				53CF076D96FF1C31ED7EC2A2 /* RecordCancellationView.swift */,
 				6F7965D45867F28DAFB96A5D /* SubscriptionDetailView.swift */,
 				2CAE4BF38A7217C53E4C047F /* SubscriptionFormSupport.swift */,
 				4C0A8035198E253EFD0921C9 /* SubscriptionLifecycleSupport.swift */,
@@ -325,6 +331,8 @@
 				CF6E7CA71A3B6B192FC10E3D /* EditSubscriptionView.swift in Sources */,
 				C9F6A31BE02C4B3821562DFC /* LibraryView.swift in Sources */,
 				6660C4236F0802CD6EA713D1 /* MoneyFormatting.swift in Sources */,
+				29ACA04B956288B794B208B0 /* ReactivateSubscriptionView.swift in Sources */,
+				5A00649C395B2B471599C013 /* RecordCancellationView.swift in Sources */,
 				4C12D90EEC1CC642D35E22A2 /* SubscriptionDetailView.swift in Sources */,
 				71D3C438264BA1B8C68FE357 /* SubscriptionFormSupport.swift in Sources */,
 				AFD2FBBC3C7453EE8B17A22D /* SubscriptionLifecycleSupport.swift in Sources */,
