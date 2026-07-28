@@ -1630,6 +1630,39 @@ public final class SubscriptionWorkspace {
         calendarReconciliationState = CalendarReconciliationState(result: result)
     }
 
+    public func rebuildCalendarProjection(locale: Locale) async {
+        await performCalendarReconciliation(.rebuild([]), locale: locale)
+    }
+
+    public func disableCalendarReconciliation() async {
+        guard let calendarProjectionReconciler else {
+            calendarReconciliationState = .notConfigured
+            return
+        }
+        calendarReconciliationState = .reconciling
+        let result = await calendarProjectionReconciler.perform(.disable)
+        calendarReconciliationState = CalendarReconciliationState(result: result)
+    }
+
+    private func performCalendarReconciliation(
+        _ command: CalendarReconciliationCommand,
+        locale: Locale
+    ) async {
+        guard calendarReconciliationState != .reconciling,
+              let calendarProjectionReconciler
+        else { return }
+        loadCalendarProjection(locale: locale)
+        calendarReconciliationState = .reconciling
+        let command = switch command {
+        case .rebuild:
+            CalendarReconciliationCommand.rebuild(calendarProjection)
+        default:
+            command
+        }
+        let result = await calendarProjectionReconciler.perform(command)
+        calendarReconciliationState = CalendarReconciliationState(result: result)
+    }
+
     private func validate(
         _ input: SubscriptionCreationInput
     ) -> [SubscriptionCreationField: SubscriptionCreationValidationError] {

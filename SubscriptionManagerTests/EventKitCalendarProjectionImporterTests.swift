@@ -156,6 +156,25 @@ struct EventKitCalendarProjectionImporterTests {
         #expect(store.savedEventIdentifiers.count == 1)
         #expect(try mappings.eventIdentifier(for: stale.uid) == nil)
     }
+
+    @Test("Disabling calendar sync prevents later automatic reconciliation")
+    func disabledCalendarSyncDoesNotWriteEvents() async {
+        let store = CalendarEventStoreFixture(access: .granted)
+        let importer = EventKitCalendarProjectionImporter(
+            eventStore: store,
+            mappingRepository: CalendarMappingFixture()
+        )
+        let events = [calendarEvent(uid: "renewal-1")]
+
+        _ = await importer.importProjection(events: events)
+        let disableResult = await importer.perform(.disable)
+        let reconcileResult = await importer.perform(.reconcile(events))
+
+        #expect(disableResult == .disabled)
+        #expect(reconcileResult == .disabled)
+        #expect(store.accessRequestCount == 1)
+        #expect(store.savedProjectionEvents.count == 1)
+    }
 }
 
 @MainActor
@@ -252,9 +271,16 @@ private final class CalendarEventStoreFixture: CalendarEventStore {
 @MainActor
 private final class CalendarMappingFixture: CalendarProjectionMappingRepository {
     private var calendarID: String?
+    private var isDisabled = false
     private var eventIDs: [String: String] = [:]
 
     func calendarIdentifier() throws -> String? { calendarID }
+
+    func isCalendarSyncDisabled() throws -> Bool { isDisabled }
+
+    func setCalendarSyncDisabled(_ disabled: Bool) throws {
+        isDisabled = disabled
+    }
 
     func saveCalendarIdentifier(_ identifier: String) throws {
         calendarID = identifier

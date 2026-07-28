@@ -52,6 +52,8 @@ protocol CalendarEventStore {
 @MainActor
 protocol CalendarProjectionMappingRepository {
     func calendarIdentifier() throws -> String?
+    func isCalendarSyncDisabled() throws -> Bool
+    func setCalendarSyncDisabled(_ disabled: Bool) throws
     func saveCalendarIdentifier(_ identifier: String) throws
     func eventIdentifier(for projectionUID: String) throws -> String?
     func eventMappings() throws -> [CalendarProjectionEventMapping]
@@ -162,6 +164,29 @@ final class EventKitCalendarProjectionImporter:
         switch command {
         case .reconcile(let events):
             return reconcile(events: events)
+        case .rebuild(let events):
+            return await rebuild(events: events)
+        case .disable:
+            do {
+                try mappingRepository.setCalendarSyncDisabled(true)
+                return .disabled
+            } catch {
+                return .unavailable
+            }
+        }
+    }
+
+    private func rebuild(
+        events: [CalendarProjectionEvent]
+    ) async -> CalendarReconciliationResult {
+        do { try mappingRepository.setCalendarSyncDisabled(false) } catch {
+            return .unavailable
+        }
+        switch await importProjection(events: events) {
+        case .imported, .partialFailure:
+            return .reconciled
+        case .accessDenied, .unavailable:
+            return .unavailable
         }
     }
 
@@ -170,6 +195,9 @@ final class EventKitCalendarProjectionImporter:
     ) -> CalendarReconciliationResult {
         let calendar: CalendarProjectionCalendar
         do {
+            guard try !mappingRepository.isCalendarSyncDisabled() else {
+                return .disabled
+            }
             guard let identifier = try mappingRepository.calendarIdentifier()
             else {
                 return .notConfigured
@@ -338,6 +366,21 @@ final class SwiftDataCalendarProjectionMappingRepository:
 
     func calendarIdentifier() throws -> String? {
         try calendarMetadataRecord()?.calendarIdentifier
+    }
+
+    func isCalendarSyncDisabled() throws -> Bool {
+        try calendarMetadataRecord()?.calendarSyncDisabled ?? false
+    }
+
+    func setCalendarSyncDisabled(_ disabled: Bool) throws {
+        if let record = try calendarMetadataRecord() {
+            record.calendarSyncDisabled = disabled
+        } else {
+            let record = CalendarProjectionMappingRecord(calendarIdentifier: "")
+            record.calendarSyncDisabled = disabled
+            modelContext.insert(record)
+        }
+        try modelContext.save()
     }
 
     func saveCalendarIdentifier(_ identifier: String) throws {

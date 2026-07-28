@@ -50,10 +50,13 @@ public enum CalendarReconciliationDecision: Equatable, Sendable {
 
 public enum CalendarReconciliationCommand: Equatable, Sendable {
     case reconcile([CalendarProjectionEvent])
+    case rebuild([CalendarProjectionEvent])
+    case disable
 }
 
 public enum CalendarReconciliationResult: Equatable, Sendable {
     case notConfigured
+    case disabled
     case reconciled
     case needsDecision(CalendarReconciliationDecision)
     case unavailable
@@ -61,6 +64,7 @@ public enum CalendarReconciliationResult: Equatable, Sendable {
 
 public enum CalendarReconciliationState: Equatable, Sendable {
     case notConfigured
+    case disabled
     case reconciling
     case current
     case needsDecision(CalendarReconciliationDecision)
@@ -70,6 +74,8 @@ public enum CalendarReconciliationState: Equatable, Sendable {
         switch result {
         case .notConfigured:
             self = .notConfigured
+        case .disabled:
+            self = .disabled
         case .reconciled:
             self = .current
         case .needsDecision(let decision):
