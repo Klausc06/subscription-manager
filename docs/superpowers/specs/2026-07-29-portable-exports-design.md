@@ -18,11 +18,12 @@ they are absent from the repository. The query has no mutation path and does
 not depend on network, sync, EventKit, or catalog data.
 
 `PortableBackup` lives in SubscriptionCore. Version 1 contains a schema name,
-schema version, fixed export kind, preferences, and subscriptions. Existing
+schema version, preferences, and subscriptions. Existing
 `Codable` domain records preserve UUIDs, original `Money.minorUnits` plus
 currency, billing schedule/time zone, lifecycle, payments, price history, and
 archive state. The encoder uses ISO-8601 dates, sorted subscription UUIDs, and
-sorted histories so equal logical content yields semantically equivalent JSON.
+preserved stored histories so equal logical content yields semantically
+equivalent JSON.
 
 `PortableCSVEncoder` emits UTF-8 RFC 4180-style records with a documented,
 fixed header. One row represents each subscription; payment and price histories

@@ -46,10 +46,19 @@ struct PortableExportTests {
             subscriptions: [subscription]
         )
 
-        let data = try PortableBackupEncoder().encode(backup)
-        let decoded = try PortableBackupEncoder().decode(data)
+        let encoder = PortableBackupEncoder()
+        let firstExport = try encoder.encode(backup)
+        let secondExport = try encoder.encode(backup)
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+        let decoded = try decoder.decode(PortableBackup.self, from: firstExport)
+        let repeatedExport = try decoder.decode(
+            PortableBackup.self,
+            from: secondExport
+        )
 
         #expect(decoded == backup)
+        #expect(repeatedExport == decoded)
         #expect(decoded.schemaVersion == 1)
     }
 

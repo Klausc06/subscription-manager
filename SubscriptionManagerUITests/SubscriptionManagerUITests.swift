@@ -53,6 +53,20 @@ final class SubscriptionManagerUITests: XCTestCase {
         )
     }
 
+    func testSettingsOffersPortableExports() {
+        let app = launch(language: "en", locale: "en_US")
+
+        app.buttons["library.settings"].tap()
+        let exportEntry = app.buttons["preferences.portable-export"]
+        XCTAssertTrue(exportEntry.waitForExistence(timeout: 5))
+        exportEntry.tap()
+
+        XCTAssertTrue(
+            app.buttons["portable-export.json"].waitForExistence(timeout: 5)
+        )
+        XCTAssertTrue(app.buttons["portable-export.csv"].exists)
+    }
+
     func testUpcomingExpectedChargeOpensItsSubscriptionDetail() {
         let app = launch(language: "en", locale: "en_US")
 

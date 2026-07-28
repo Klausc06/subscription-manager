@@ -1,0 +1,103 @@
+import Foundation
+import SubscriptionCore
+import SwiftUI
+import UniformTypeIdentifiers
+
+struct PortableExportView: View {
+    let workspace: SubscriptionWorkspace
+
+    @State private var jsonDocument = PortableExportDocument(data: Data())
+    @State private var csvDocument = PortableExportDocument(data: Data())
+    @State private var isExportingJSON = false
+    @State private var isExportingCSV = false
+    @State private var exportFailed = false
+
+    var body: some View {
+        List {
+            Section {
+                Text(
+                    "Create offline copies of your subscriptions and preferences. Exports include archived subscriptions, but never device Calendar identifiers or iCloud data."
+                )
+                .foregroundStyle(.secondary)
+            }
+
+            Section("Export Format") {
+                Button("Export JSON Backup", systemImage: "internaldrive") {
+                    exportJSON()
+                }
+                .accessibilityIdentifier("portable-export.json")
+
+                Button("Export CSV", systemImage: "tablecells") {
+                    exportCSV()
+                }
+                .accessibilityIdentifier("portable-export.csv")
+            }
+
+            if exportFailed {
+                Section {
+                    Text("Couldn’t create the export. Try again.")
+                        .foregroundStyle(.red)
+                }
+            }
+        }
+        .navigationTitle("Export Data")
+        .fileExporter(
+            isPresented: $isExportingJSON,
+            document: jsonDocument,
+            contentType: .json,
+            defaultFilename: "Subscription Manager Backup"
+        ) { _ in }
+        .fileExporter(
+            isPresented: $isExportingCSV,
+            document: csvDocument,
+            contentType: .commaSeparatedText,
+            defaultFilename: "Subscription Manager Export"
+        ) { _ in }
+    }
+
+    private func exportJSON() {
+        guard let backup = workspace.makePortableBackup(),
+              let data = try? PortableBackupEncoder().encode(backup) else {
+            exportFailed = true
+            return
+        }
+        jsonDocument = PortableExportDocument(data: data)
+        exportFailed = false
+        isExportingJSON = true
+    }
+
+    private func exportCSV() {
+        guard let backup = workspace.makePortableBackup() else {
+            exportFailed = true
+            return
+        }
+        csvDocument = PortableExportDocument(
+            data: PortableCSVEncoder().encode(
+                preferences: backup.preferences,
+                subscriptions: backup.subscriptions
+            )
+        )
+        exportFailed = false
+        isExportingCSV = true
+    }
+}
+
+private struct PortableExportDocument: FileDocument {
+    static var readableContentTypes: [UTType] { [.json, .commaSeparatedText] }
+
+    var data: Data
+
+    init(data: Data) {
+        self.data = data
+    }
+
+    init(configuration: ReadConfiguration) throws {
+        data = configuration.file.regularFileContents ?? Data()
+    }
+
+    func fileWrapper(
+        configuration: WriteConfiguration
+    ) throws -> FileWrapper {
+        FileWrapper(regularFileWithContents: data)
+    }
+}
