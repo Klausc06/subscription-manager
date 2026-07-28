@@ -65,6 +65,53 @@ struct SubscriptionWorkspaceTests {
         #expect(first.notes.contains("Use the team account"))
     }
 
+    @Test("Calendar import only starts after an explicit preview confirmation")
+    @MainActor
+    func calendarImportUsesThePreviewSnapshotAfterConfirmation() async throws {
+        let calendar = utcCalendar()
+        let now = try actionDate(
+            year: 2026,
+            month: 1,
+            day: 15,
+            hour: 12,
+            calendar: calendar
+        )
+        let importer = CalendarImporterFixture(result: .accessDenied)
+        let workspace = SubscriptionWorkspace(
+            repository: InMemorySubscriptionRepository(
+                subscriptions: [
+                    makeSubscription(
+                        id: UUID(
+                            uuidString: "99999999-2222-3333-4444-555555555555"
+                        )!
+                    )
+                ]
+            ),
+            preferencesRepository: CalendarPreferencesFixture(
+                preferences: UserPreferences(
+                    primaryCurrency: .usd,
+                    calendarProjectionHorizon: .sixMonths,
+                    setupStatus: .completed
+                )
+            ),
+            calendarProjectionImporter: importer,
+            now: { now },
+            calendar: calendar
+        )
+
+        workspace.loadSetup(libraryIsEmpty: false)
+        workspace.loadCalendarProjection(locale: Locale(identifier: "en_US"))
+        let preview = workspace.calendarProjection
+
+        #expect(await importer.importedEvents() == nil)
+        #expect(workspace.calendarImportState == .notRequested)
+
+        await workspace.importCalendarProjection(preview)
+
+        #expect(await importer.importedEvents() == preview)
+        #expect(workspace.calendarImportState == .accessDenied)
+    }
+
     @Test("Sync status remains local-first when iCloud is signed out")
     @MainActor
     func signedOutSyncStatusDoesNotBlockCreation() async throws {
@@ -2160,6 +2207,24 @@ private final class CalendarPreferencesFixture: UserPreferencesRepository {
     func savePreferences(_ preferences: UserPreferences) throws {
         self.preferences = preferences
     }
+}
+
+private actor CalendarImporterFixture: CalendarProjectionImporter {
+    private let result: CalendarProjectionImportResult
+    private var events: [CalendarProjectionEvent]?
+
+    init(result: CalendarProjectionImportResult) {
+        self.result = result
+    }
+
+    func importProjection(
+        events: [CalendarProjectionEvent]
+    ) async -> CalendarProjectionImportResult {
+        self.events = events
+        return result
+    }
+
+    func importedEvents() -> [CalendarProjectionEvent]? { events }
 }
 
 private struct SyncMonitorFixture: LibrarySyncMonitor {
