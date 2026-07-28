@@ -141,6 +141,58 @@ struct SubscriptionWorkspaceTests {
         #expect(cache.state?.lastAttemptAt == now)
     }
 
+    @Test("Expected insights convert charges into selected currency totals")
+    @MainActor
+    func expectedInsightsConvertRangeMonthlyAndCategoryTotals() async throws {
+        let now = Date(timeIntervalSince1970: 1_769_356_800)
+        let renewal = now.addingTimeInterval(86_400)
+        let snapshot = ExchangeRateSnapshot(
+            base: .eur,
+            providerDate: now,
+            fetchedAt: now,
+            source: "fixture",
+            rates: [.eur: 1, .usd: 1.2, .cny: 8.4]
+        )
+        let workspace = SubscriptionWorkspace(
+            repository: InMemorySubscriptionRepository(subscriptions: [
+                makeSubscription(
+                    id: UUID(uuidString: "11111111-2222-3333-4444-555555555555")!,
+                    billingSchedule: FixedBillingSchedule(
+                        interval: .monthly,
+                        renewalAnchor: renewal,
+                        timeZoneIdentifier: "UTC"
+                    ),
+                    confirmedNextRenewal: renewal,
+                    originalAmount: Money(minorUnits: 120, currency: .usd),
+                    category: "Video"
+                ),
+            ]),
+            exchangeRateCache: InMemoryExchangeRateCache(
+                state: ExchangeRateCacheState(
+                    snapshot: snapshot,
+                    lastAttemptAt: now
+                )
+            ),
+            now: { now }
+        )
+
+        await workspace.refreshExchangeRates()
+        workspace.loadInsights(
+            mode: .expected,
+            from: now,
+            through: now.addingTimeInterval(172_800)
+        )
+
+        let insights = try #require(workspace.insightsState.availableValue)
+        #expect(insights.selectedRangeTotal == Money(minorUnits: 840, currency: .cny))
+        #expect(insights.monthlyTotals.map(\.amount) == [
+            Money(minorUnits: 840, currency: .cny),
+        ])
+        #expect(insights.categoryTotals == [
+            SpendingCategoryTotal(category: "Video", amount: Money(minorUnits: 840, currency: .cny)),
+        ])
+    }
+
     @Test("Upcoming timeline orders expected and confirmed charges while excluding cancelled subscriptions")
     @MainActor
     func upcomingTimelineOrdersEligibleCharges() {
@@ -2210,7 +2262,8 @@ private func makeSubscription(
     billingSchedule: FixedBillingSchedule? = nil,
     confirmedNextRenewal: Date? = nil,
     confirmedCharges: [ConfirmedCharge] = [],
-    originalAmount: Money = Money(minorUnits: 999, currency: .usd)
+    originalAmount: Money = Money(minorUnits: 999, currency: .usd),
+    category: String = "Other"
 ) -> Subscription {
     let startDate = Date(timeIntervalSince1970: 1_767_225_600)
     let schedule = billingSchedule ?? FixedBillingSchedule(
@@ -2226,7 +2279,7 @@ private func makeSubscription(
         serviceIdentity: ServiceIdentity(rawValue: "manual:\(id.uuidString)"),
         serviceName: "Example",
         plan: "Standard",
-        category: "Other",
+        category: category,
         originalAmount: originalAmount,
         billingSchedule: schedule,
         startDate: schedule.renewalAnchor,

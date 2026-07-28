@@ -83,3 +83,99 @@ public protocol ExchangeRateCache {
     func loadState() throws -> ExchangeRateCacheState?
     func saveState(_ state: ExchangeRateCacheState) throws
 }
+
+public enum SpendingReportMode: String, CaseIterable, Codable, Sendable {
+    case expected
+    case confirmed
+}
+
+public struct SpendingInsightItem: Equatable, Identifiable, Sendable {
+    public let id: String
+    public let subscriptionID: UUID
+    public let serviceName: String
+    public let category: String
+    public let date: Date
+    public let originalAmount: Money
+    public let convertedAmount: Money
+
+    public init(
+        id: String,
+        subscriptionID: UUID,
+        serviceName: String,
+        category: String,
+        date: Date,
+        originalAmount: Money,
+        convertedAmount: Money
+    ) {
+        self.id = id
+        self.subscriptionID = subscriptionID
+        self.serviceName = serviceName
+        self.category = category
+        self.date = date
+        self.originalAmount = originalAmount
+        self.convertedAmount = convertedAmount
+    }
+}
+
+public struct SpendingMonthlyTotal: Equatable, Identifiable, Sendable {
+    public let month: Date
+    public let amount: Money
+
+    public var id: Date { month }
+
+    public init(month: Date, amount: Money) {
+        self.month = month
+        self.amount = amount
+    }
+}
+
+public struct SpendingCategoryTotal: Equatable, Identifiable, Sendable {
+    public let category: String
+    public let amount: Money
+
+    public var id: String { category }
+
+    public init(category: String, amount: Money) {
+        self.category = category
+        self.amount = amount
+    }
+}
+
+public struct SpendingInsights: Equatable, Sendable {
+    public let mode: SpendingReportMode
+    public let displayCurrency: Currency
+    public let selectedRangeTotal: Money
+    public let annualizedTotal: Money
+    public let monthlyTotals: [SpendingMonthlyTotal]
+    public let categoryTotals: [SpendingCategoryTotal]
+    public let items: [SpendingInsightItem]
+
+    public init(
+        mode: SpendingReportMode,
+        displayCurrency: Currency,
+        selectedRangeTotal: Money,
+        annualizedTotal: Money,
+        monthlyTotals: [SpendingMonthlyTotal],
+        categoryTotals: [SpendingCategoryTotal],
+        items: [SpendingInsightItem]
+    ) {
+        self.mode = mode
+        self.displayCurrency = displayCurrency
+        self.selectedRangeTotal = selectedRangeTotal
+        self.annualizedTotal = annualizedTotal
+        self.monthlyTotals = monthlyTotals
+        self.categoryTotals = categoryTotals
+        self.items = items
+    }
+}
+
+public enum SpendingInsightsState: Equatable, Sendable {
+    case notLoaded
+    case unavailable
+    case available(SpendingInsights)
+
+    public var availableValue: SpendingInsights? {
+        guard case .available(let insights) = self else { return nil }
+        return insights
+    }
+}
