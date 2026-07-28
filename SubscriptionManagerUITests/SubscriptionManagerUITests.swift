@@ -107,11 +107,15 @@ final class SubscriptionManagerUITests: XCTestCase {
         XCTAssertTrue(catalog.waitForExistence(timeout: 5))
         catalog.tap()
 
+        let searchField = app.searchFields.firstMatch
+        XCTAssertTrue(searchField.waitForExistence(timeout: 5))
+        searchField.tap()
+        searchField.typeText("Spotify")
         let spotify = app.buttons["catalog.preset.spotify"]
         XCTAssertTrue(spotify.waitForExistence(timeout: 5))
         let diagnostics = app.staticTexts["catalog.diagnostics"]
         XCTAssertTrue(diagnostics.waitForExistence(timeout: 5))
-        XCTAssertTrue(diagnostics.label.contains("Catalog version 1"))
+        XCTAssertTrue(diagnostics.label.contains("Catalog version 2"))
         spotify.tap()
 
         let usePreset = app.buttons["catalog.use-preset"]
@@ -135,6 +139,55 @@ final class SubscriptionManagerUITests: XCTestCase {
                 .waitForExistence(timeout: 5)
         )
         XCTAssertTrue(app.staticTexts["Spotify"].exists)
+    }
+
+    func testChinaBatchPresetFromEachCategoryCreatesEditableSubscription() {
+        let presets = [
+            ("tencent-video-vip", "Tencent Video VIP", "Tencent Video"),
+            ("qq-music-vip", "QQ Music VIP", "QQ Music"),
+            ("wechat-reading-unlimited", "WeChat Reading Unlimited", "WeChat Reading"),
+            ("caixin-digital", "Caixin Digital", "Caixin"),
+            ("genshin-impact-welkin", "Genshin Impact Welkin Moon", "Genshin"),
+        ]
+
+        for (id, expectedServiceName, searchQuery) in presets {
+            let app = launch(
+                language: "en",
+                locale: "en_US",
+                storeToken: "catalog-\(id)-\(UUID().uuidString)"
+            )
+            XCTAssertTrue(app.buttons["subscription.add"].waitForExistence(timeout: 5))
+            app.buttons["subscription.add"].tap()
+            XCTAssertTrue(
+                app.buttons["subscription.add.catalog"].waitForExistence(timeout: 5)
+            )
+            app.buttons["subscription.add.catalog"].tap()
+
+            let searchField = app.searchFields.firstMatch
+            XCTAssertTrue(searchField.waitForExistence(timeout: 5))
+            searchField.tap()
+            searchField.typeText(searchQuery)
+
+            let preset = app.buttons["catalog.preset.\(id)"]
+            XCTAssertTrue(preset.waitForExistence(timeout: 5))
+            preset.tap()
+            XCTAssertTrue(app.buttons["catalog.use-preset"].waitForExistence(timeout: 5))
+            app.buttons["catalog.use-preset"].tap()
+
+            let serviceName = app.textFields["subscription.form.service-name"]
+            XCTAssertTrue(serviceName.waitForExistence(timeout: 5))
+            XCTAssertEqual(serviceName.value as? String, expectedServiceName)
+            let plan = app.textFields["subscription.form.plan"]
+            plan.tap()
+            plan.typeText("Monthly")
+            let amount = app.textFields["subscription.form.amount"]
+            amount.tap()
+            amount.typeText("9.99")
+            app.buttons["subscription.form.save"].tap()
+
+            XCTAssertTrue(app.buttons["subscription.row"].firstMatch.waitForExistence(timeout: 5))
+            XCTAssertTrue(app.staticTexts[expectedServiceName].exists)
+        }
     }
 
     func testCreatesTrialWithVisibleTrialStatus() {

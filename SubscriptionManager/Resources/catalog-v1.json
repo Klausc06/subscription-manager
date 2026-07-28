@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "catalogVersion": 1,
+  "catalogVersion": 2,
   "presets": [
     {
       "id": "spotify",
@@ -73,6 +73,147 @@
       "managementURL": "https://www.playstation.com/support/subscriptions/",
       "icon": "game",
       "assetProvenance": { "kind": "originalSymbol", "license": "CC0-1.0", "source": "playstation-plus" }
+    },
+    {
+      "id": "iqiyi-vip", "serviceName": { "en": "iQIYI VIP", "zhHans": "爱奇艺 VIP" }, "category": { "en": "Video", "zhHans": "视频" }, "suggestedInterval": "monthly", "managementURL": "https://help.iqiyi.com/", "icon": "video", "assetProvenance": { "kind": "originalSymbol", "license": "CC0-1.0", "source": "iqiyi-vip" }
+    },
+    {
+      "id": "tencent-video-vip", "serviceName": { "en": "Tencent Video VIP", "zhHans": "腾讯视频 VIP" }, "category": { "en": "Video", "zhHans": "视频" }, "suggestedInterval": "monthly", "managementURL": "https://v.qq.com/x/usercenter/", "icon": "video", "assetProvenance": { "kind": "originalSymbol", "license": "CC0-1.0", "source": "tencent-video-vip" }
+    },
+    {
+      "id": "youku-vip", "serviceName": { "en": "Youku VIP", "zhHans": "优酷 VIP" }, "category": { "en": "Video", "zhHans": "视频" }, "suggestedInterval": "monthly", "managementURL": "https://vip.youku.com/", "icon": "video", "assetProvenance": { "kind": "originalSymbol", "license": "CC0-1.0", "source": "youku-vip" }
+    },
+    {
+      "id": "mango-tv-vip", "serviceName": { "en": "Mango TV VIP", "zhHans": "芒果 TV 会员" }, "category": { "en": "Video", "zhHans": "视频" }, "suggestedInterval": "monthly", "managementURL": "https://www.mgtv.com/vip/", "icon": "video", "assetProvenance": { "kind": "originalSymbol", "license": "CC0-1.0", "source": "mango-tv-vip" }
+    },
+    {
+      "id": "bilibili-premium", "serviceName": { "en": "bilibili Premium", "zhHans": "哔哩哔哩大会员" }, "category": { "en": "Video", "zhHans": "视频" }, "suggestedInterval": "monthly", "managementURL": "https://account.bilibili.com/account/home", "icon": "video", "assetProvenance": { "kind": "originalSymbol", "license": "CC0-1.0", "source": "bilibili-premium" }
+    },
+    {
+      "id": "migu-video-vip", "serviceName": { "en": "Migu Video VIP", "zhHans": "咪咕视频会员" }, "category": { "en": "Video", "zhHans": "视频" }, "suggestedInterval": "monthly", "managementURL": "https://www.miguvideo.com/", "icon": "video", "assetProvenance": { "kind": "originalSymbol", "license": "CC0-1.0", "source": "migu-video-vip" }
+    },
+    {
+      "id": "sohu-video-vip", "serviceName": { "en": "Sohu Video VIP", "zhHans": "搜狐视频会员" }, "category": { "en": "Video", "zhHans": "视频" }, "suggestedInterval": "monthly", "managementURL": "https://tv.sohu.com/", "icon": "video", "assetProvenance": { "kind": "originalSymbol", "license": "CC0-1.0", "source": "sohu-video-vip" }
+    },
+    {
+      "id": "pptv-vip", "serviceName": { "en": "PPTV VIP", "zhHans": "PPTV 会员" }, "category": { "en": "Video", "zhHans": "视频" }, "suggestedInterval": "monthly", "managementURL": "https://vip.pptv.com/", "icon": "video", "assetProvenance": { "kind": "originalSymbol", "license": "CC0-1.0", "source": "pptv-vip" }
+    },
+    {
+      "id": "jianying-vip", "serviceName": { "en": "Jianying VIP", "zhHans": "剪映会员" }, "category": { "en": "Video", "zhHans": "视频" }, "suggestedInterval": "monthly", "managementURL": "https://www.capcut.cn/", "icon": "video", "assetProvenance": { "kind": "originalSymbol", "license": "CC0-1.0", "source": "jianying-vip" }
+    },
+    {
+      "id": "kling-ai-membership", "serviceName": { "en": "Kling AI Membership", "zhHans": "可灵 AI 会员" }, "category": { "en": "Video", "zhHans": "视频" }, "suggestedInterval": "monthly", "managementURL": "https://klingai.com/", "icon": "video", "assetProvenance": { "kind": "originalSymbol", "license": "CC0-1.0", "source": "kling-ai-membership" }
+    },
+    {
+      "id": "qq-music-vip", "serviceName": { "en": "QQ Music VIP", "zhHans": "QQ 音乐豪华绿钻" }, "category": { "en": "Music", "zhHans": "音乐" }, "suggestedInterval": "monthly", "managementURL": "https://y.qq.com/vip/", "icon": "music", "assetProvenance": { "kind": "originalSymbol", "license": "CC0-1.0", "source": "qq-music-vip" }
+    },
+    {
+      "id": "netease-cloud-music-vip", "serviceName": { "en": "NetEase Cloud Music VIP", "zhHans": "网易云音乐黑胶 VIP" }, "category": { "en": "Music", "zhHans": "音乐" }, "suggestedInterval": "monthly", "managementURL": "https://music.163.com/#/member", "icon": "music", "assetProvenance": { "kind": "originalSymbol", "license": "CC0-1.0", "source": "netease-cloud-music-vip" }
+    },
+    {
+      "id": "kugou-music-vip", "serviceName": { "en": "Kugou Music VIP", "zhHans": "酷狗音乐 VIP" }, "category": { "en": "Music", "zhHans": "音乐" }, "suggestedInterval": "monthly", "managementURL": "https://vip.kugou.com/", "icon": "music", "assetProvenance": { "kind": "originalSymbol", "license": "CC0-1.0", "source": "kugou-music-vip" }
+    },
+    {
+      "id": "kuwo-music-vip", "serviceName": { "en": "Kuwo Music VIP", "zhHans": "酷我音乐 VIP" }, "category": { "en": "Music", "zhHans": "音乐" }, "suggestedInterval": "monthly", "managementURL": "https://vip.kuwo.cn/", "icon": "music", "assetProvenance": { "kind": "originalSymbol", "license": "CC0-1.0", "source": "kuwo-music-vip" }
+    },
+    {
+      "id": "migu-music-vip", "serviceName": { "en": "Migu Music VIP", "zhHans": "咪咕音乐会员" }, "category": { "en": "Music", "zhHans": "音乐" }, "suggestedInterval": "monthly", "managementURL": "https://music.migu.cn/", "icon": "music", "assetProvenance": { "kind": "originalSymbol", "license": "CC0-1.0", "source": "migu-music-vip" }
+    },
+    {
+      "id": "ximalaya-vip", "serviceName": { "en": "Ximalaya VIP", "zhHans": "喜马拉雅会员" }, "category": { "en": "Music", "zhHans": "音乐" }, "suggestedInterval": "monthly", "managementURL": "https://www.ximalaya.com/vip/", "icon": "music", "assetProvenance": { "kind": "originalSymbol", "license": "CC0-1.0", "source": "ximalaya-vip" }
+    },
+    {
+      "id": "qingting-fm-vip", "serviceName": { "en": "Qingting FM VIP", "zhHans": "蜻蜓 FM 会员" }, "category": { "en": "Music", "zhHans": "音乐" }, "suggestedInterval": "monthly", "managementURL": "https://vip.qtfm.cn/", "icon": "music", "assetProvenance": { "kind": "originalSymbol", "license": "CC0-1.0", "source": "qingting-fm-vip" }
+    },
+    {
+      "id": "lizhi-fm-vip", "serviceName": { "en": "Lizhi FM VIP", "zhHans": "荔枝 FM 会员" }, "category": { "en": "Music", "zhHans": "音乐" }, "suggestedInterval": "monthly", "managementURL": "https://www.lizhi.fm/", "icon": "music", "assetProvenance": { "kind": "originalSymbol", "license": "CC0-1.0", "source": "lizhi-fm-vip" }
+    },
+    {
+      "id": "kugou-concept-vip", "serviceName": { "en": "Kugou Concept Edition VIP", "zhHans": "酷狗概念版 VIP" }, "category": { "en": "Music", "zhHans": "音乐" }, "suggestedInterval": "monthly", "managementURL": "https://vip.kugou.com/", "icon": "music", "assetProvenance": { "kind": "originalSymbol", "license": "CC0-1.0", "source": "kugou-concept-vip" }
+    },
+    {
+      "id": "qq-audiobook-vip", "serviceName": { "en": "QQ Audiobook VIP", "zhHans": "QQ 阅读听书会员" }, "category": { "en": "Music", "zhHans": "音乐" }, "suggestedInterval": "monthly", "managementURL": "https://audiobook.qq.com/", "icon": "music", "assetProvenance": { "kind": "originalSymbol", "license": "CC0-1.0", "source": "qq-audiobook-vip" }
+    },
+    {
+      "id": "wechat-reading-unlimited", "serviceName": { "en": "WeChat Reading Unlimited", "zhHans": "微信读书无限卡" }, "category": { "en": "Reading", "zhHans": "阅读" }, "suggestedInterval": "monthly", "managementURL": "https://weread.qq.com/web/user", "icon": "reading", "assetProvenance": { "kind": "originalSymbol", "license": "CC0-1.0", "source": "wechat-reading-unlimited" }
+    },
+    {
+      "id": "qq-reading-vip", "serviceName": { "en": "QQ Reading VIP", "zhHans": "QQ 阅读会员" }, "category": { "en": "Reading", "zhHans": "阅读" }, "suggestedInterval": "monthly", "managementURL": "https://book.qq.com/", "icon": "reading", "assetProvenance": { "kind": "originalSymbol", "license": "CC0-1.0", "source": "qq-reading-vip" }
+    },
+    {
+      "id": "qidian-reading-vip", "serviceName": { "en": "Qidian Reading VIP", "zhHans": "起点读书会员" }, "category": { "en": "Reading", "zhHans": "阅读" }, "suggestedInterval": "monthly", "managementURL": "https://my.qidian.com/", "icon": "reading", "assetProvenance": { "kind": "originalSymbol", "license": "CC0-1.0", "source": "qidian-reading-vip" }
+    },
+    {
+      "id": "zongheng-reading-vip", "serviceName": { "en": "Zongheng Reading VIP", "zhHans": "纵横小说会员" }, "category": { "en": "Reading", "zhHans": "阅读" }, "suggestedInterval": "monthly", "managementURL": "https://account.zongheng.com/", "icon": "reading", "assetProvenance": { "kind": "originalSymbol", "license": "CC0-1.0", "source": "zongheng-reading-vip" }
+    },
+    {
+      "id": "fanqie-reading-vip", "serviceName": { "en": "Fanqie Reading VIP", "zhHans": "番茄小说会员" }, "category": { "en": "Reading", "zhHans": "阅读" }, "suggestedInterval": "monthly", "managementURL": "https://fanqienovel.com/", "icon": "reading", "assetProvenance": { "kind": "originalSymbol", "license": "CC0-1.0", "source": "fanqie-reading-vip" }
+    },
+    {
+      "id": "jd-reading-vip", "serviceName": { "en": "JD Reading VIP", "zhHans": "京东读书会员" }, "category": { "en": "Reading", "zhHans": "阅读" }, "suggestedInterval": "monthly", "managementURL": "https://e.jd.com/", "icon": "reading", "assetProvenance": { "kind": "originalSymbol", "license": "CC0-1.0", "source": "jd-reading-vip" }
+    },
+    {
+      "id": "duokan-reading-vip", "serviceName": { "en": "Duokan Reading VIP", "zhHans": "多看阅读会员" }, "category": { "en": "Reading", "zhHans": "阅读" }, "suggestedInterval": "monthly", "managementURL": "https://www.duokan.com/", "icon": "reading", "assetProvenance": { "kind": "originalSymbol", "license": "CC0-1.0", "source": "duokan-reading-vip" }
+    },
+    {
+      "id": "jinjiang-reading-vip", "serviceName": { "en": "Jinjiang Reading VIP", "zhHans": "晋江文学城会员" }, "category": { "en": "Reading", "zhHans": "阅读" }, "suggestedInterval": "monthly", "managementURL": "https://www.jjwxc.net/", "icon": "reading", "assetProvenance": { "kind": "originalSymbol", "license": "CC0-1.0", "source": "jinjiang-reading-vip" }
+    },
+    {
+      "id": "zhuishushenqi-vip", "serviceName": { "en": "Zhuishushenqi VIP", "zhHans": "追书神器会员" }, "category": { "en": "Reading", "zhHans": "阅读" }, "suggestedInterval": "monthly", "managementURL": "https://www.zhuishushenqi.com/", "icon": "reading", "assetProvenance": { "kind": "originalSymbol", "license": "CC0-1.0", "source": "zhuishushenqi-vip" }
+    },
+    {
+      "id": "caixin-digital", "serviceName": { "en": "Caixin Digital", "zhHans": "财新数字会员" }, "category": { "en": "News", "zhHans": "新闻" }, "suggestedInterval": "monthly", "managementURL": "https://www.caixin.com/", "icon": "news", "assetProvenance": { "kind": "originalSymbol", "license": "CC0-1.0", "source": "caixin-digital" }
+    },
+    {
+      "id": "36kr-pro", "serviceName": { "en": "36Kr Pro", "zhHans": "36氪 Pro" }, "category": { "en": "News", "zhHans": "新闻" }, "suggestedInterval": "monthly", "managementURL": "https://36kr.com/", "icon": "news", "assetProvenance": { "kind": "originalSymbol", "license": "CC0-1.0", "source": "36kr-pro" }
+    },
+    {
+      "id": "huxiu-plus", "serviceName": { "en": "Huxiu Plus", "zhHans": "虎嗅 Plus" }, "category": { "en": "News", "zhHans": "新闻" }, "suggestedInterval": "monthly", "managementURL": "https://www.huxiu.com/", "icon": "news", "assetProvenance": { "kind": "originalSymbol", "license": "CC0-1.0", "source": "huxiu-plus" }
+    },
+    {
+      "id": "yicai-plus", "serviceName": { "en": "Yicai Plus", "zhHans": "第一财经 Plus" }, "category": { "en": "News", "zhHans": "新闻" }, "suggestedInterval": "monthly", "managementURL": "https://www.yicai.com/", "icon": "news", "assetProvenance": { "kind": "originalSymbol", "license": "CC0-1.0", "source": "yicai-plus" }
+    },
+    {
+      "id": "jiemian-premium", "serviceName": { "en": "Jiemian Premium", "zhHans": "界面新闻会员" }, "category": { "en": "News", "zhHans": "新闻" }, "suggestedInterval": "monthly", "managementURL": "https://www.jiemian.com/", "icon": "news", "assetProvenance": { "kind": "originalSymbol", "license": "CC0-1.0", "source": "jiemian-premium" }
+    },
+    {
+      "id": "the-paper-membership", "serviceName": { "en": "The Paper Membership", "zhHans": "澎湃新闻会员" }, "category": { "en": "News", "zhHans": "新闻" }, "suggestedInterval": "monthly", "managementURL": "https://www.thepaper.cn/", "icon": "news", "assetProvenance": { "kind": "originalSymbol", "license": "CC0-1.0", "source": "the-paper-membership" }
+    },
+    {
+      "id": "southern-weekly-digital", "serviceName": { "en": "Southern Weekly Digital", "zhHans": "南方周末数字会员" }, "category": { "en": "News", "zhHans": "新闻" }, "suggestedInterval": "monthly", "managementURL": "https://www.infzm.com/", "icon": "news", "assetProvenance": { "kind": "originalSymbol", "license": "CC0-1.0", "source": "southern-weekly-digital" }
+    },
+    {
+      "id": "china-daily-digital", "serviceName": { "en": "China Daily Digital", "zhHans": "中国日报数字会员" }, "category": { "en": "News", "zhHans": "新闻" }, "suggestedInterval": "monthly", "managementURL": "https://www.chinadaily.com.cn/", "icon": "news", "assetProvenance": { "kind": "originalSymbol", "license": "CC0-1.0", "source": "china-daily-digital" }
+    },
+    {
+      "id": "guancha-membership", "serviceName": { "en": "Guancha Membership", "zhHans": "观察者网会员" }, "category": { "en": "News", "zhHans": "新闻" }, "suggestedInterval": "monthly", "managementURL": "https://www.guancha.cn/", "icon": "news", "assetProvenance": { "kind": "originalSymbol", "license": "CC0-1.0", "source": "guancha-membership" }
+    },
+    {
+      "id": "genshin-impact-welkin", "serviceName": { "en": "Genshin Impact Welkin Moon", "zhHans": "原神空月祝福" }, "category": { "en": "Gaming", "zhHans": "游戏" }, "suggestedInterval": "monthly", "managementURL": "https://account.hoyoverse.com/", "icon": "game", "assetProvenance": { "kind": "originalSymbol", "license": "CC0-1.0", "source": "genshin-impact-welkin" }
+    },
+    {
+      "id": "honkai-star-rail-supply-pass", "serviceName": { "en": "Honkai: Star Rail Supply Pass", "zhHans": "崩坏：星穹铁道列车补给凭证" }, "category": { "en": "Gaming", "zhHans": "游戏" }, "suggestedInterval": "monthly", "managementURL": "https://account.hoyoverse.com/", "icon": "game", "assetProvenance": { "kind": "originalSymbol", "license": "CC0-1.0", "source": "honkai-star-rail-supply-pass" }
+    },
+    {
+      "id": "zenless-zone-zero-membership", "serviceName": { "en": "Zenless Zone Zero Membership", "zhHans": "绝区零丽都城募" }, "category": { "en": "Gaming", "zhHans": "游戏" }, "suggestedInterval": "monthly", "managementURL": "https://account.hoyoverse.com/", "icon": "game", "assetProvenance": { "kind": "originalSymbol", "license": "CC0-1.0", "source": "zenless-zone-zero-membership" }
+    },
+    {
+      "id": "honkai-impact-3-monthly-card", "serviceName": { "en": "Honkai Impact 3 Monthly Card", "zhHans": "崩坏 3 月卡" }, "category": { "en": "Gaming", "zhHans": "游戏" }, "suggestedInterval": "monthly", "managementURL": "https://user.mihoyo.com/", "icon": "game", "assetProvenance": { "kind": "originalSymbol", "license": "CC0-1.0", "source": "honkai-impact-3-monthly-card" }
+    },
+    {
+      "id": "arknights-monthly-card", "serviceName": { "en": "Arknights Monthly Card", "zhHans": "明日方舟月卡" }, "category": { "en": "Gaming", "zhHans": "游戏" }, "suggestedInterval": "monthly", "managementURL": "https://ak.hypergryph.com/", "icon": "game", "assetProvenance": { "kind": "originalSymbol", "license": "CC0-1.0", "source": "arknights-monthly-card" }
+    },
+    {
+      "id": "identity-v-monthly-card", "serviceName": { "en": "Identity V Monthly Card", "zhHans": "第五人格月卡" }, "category": { "en": "Gaming", "zhHans": "游戏" }, "suggestedInterval": "monthly", "managementURL": "https://id5.163.com/", "icon": "game", "assetProvenance": { "kind": "originalSymbol", "license": "CC0-1.0", "source": "identity-v-monthly-card" }
+    },
+    {
+      "id": "onmyoji-monthly-card", "serviceName": { "en": "Onmyoji Monthly Card", "zhHans": "阴阳师月卡" }, "category": { "en": "Gaming", "zhHans": "游戏" }, "suggestedInterval": "monthly", "managementURL": "https://yys.163.com/", "icon": "game", "assetProvenance": { "kind": "originalSymbol", "license": "CC0-1.0", "source": "onmyoji-monthly-card" }
+    },
+    {
+      "id": "naraka-bladepoint-pass", "serviceName": { "en": "NARAKA: BLADEPOINT Pass", "zhHans": "永劫无间通行证" }, "category": { "en": "Gaming", "zhHans": "游戏" }, "suggestedInterval": "monthly", "managementURL": "https://www.yjwujian.cn/", "icon": "game", "assetProvenance": { "kind": "originalSymbol", "license": "CC0-1.0", "source": "naraka-bladepoint-pass" }
+    },
+    {
+      "id": "taptap-cloud-gaming", "serviceName": { "en": "TapTap Cloud Gaming Membership", "zhHans": "TapTap 云玩会员" }, "category": { "en": "Gaming", "zhHans": "游戏" }, "suggestedInterval": "monthly", "managementURL": "https://www.taptap.cn/", "icon": "game", "assetProvenance": { "kind": "originalSymbol", "license": "CC0-1.0", "source": "taptap-cloud-gaming" }
     }
   ]
 }
