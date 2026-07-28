@@ -49,7 +49,7 @@ workspace.createSubscription(
         notes: ""
     )
 )
-#expect(workspace.syncStatus == .synchronizing)
+#expect(workspace.syncStatus == .signedOut)
 ```
 
 - [ ] **Step 2: Verify the tests fail because the monitor and status do not exist**
@@ -73,7 +73,8 @@ public func refreshSyncStatus() async {
 ```
 
 Call `markLocalChangesForSync()` after each successful repository mutation and
-preferences save; it sets `.synchronizing` only when a monitor exists.
+preferences save; it sets `.synchronizing` only when the prior status is
+`.current` or `.synchronizing`, preserving signed-out and attention states.
 
 - [ ] **Step 4: Run the focused and full core suites**
 

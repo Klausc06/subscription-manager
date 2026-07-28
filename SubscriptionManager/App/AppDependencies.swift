@@ -4,14 +4,49 @@ import SubscriptionCore
 
 @MainActor
 struct AppDependencies {
+    enum CloudKitSelection: Equatable {
+        case privateContainer(String)
+        case disabled
+    }
+
+    static let cloudKitContainerID = "iCloud.com.klausc06.SubscriptionManager"
+
     let modelContainer: ModelContainer
     let workspace: SubscriptionWorkspace
+
+    static func cloudKitSelection(
+        for selection: AppStoreSelection
+    ) -> CloudKitSelection {
+        switch selection {
+        case .production:
+            .privateContainer(cloudKitContainerID)
+        case .ephemeralUITesting, .namedUITesting:
+            .disabled
+        }
+    }
+
+    static func cloudKitDatabase(
+        for selection: AppStoreSelection
+    ) -> ModelConfiguration.CloudKitDatabase {
+        switch cloudKitSelection(for: selection) {
+        case .privateContainer(let containerID):
+            .private(containerID)
+        case .disabled:
+            .none
+        }
+    }
 
     static func live(
         arguments: [String] = ProcessInfo.processInfo.arguments,
         storeDirectory: URL? = nil
     ) -> AppStartupState {
         let schema = Schema([SubscriptionRecord.self, UserPreferencesRecord.self])
+        let selection: AppStoreSelection
+        do {
+            selection = try storeSelection(arguments: arguments)
+        } catch {
+            return .failed(AppStartupFailure(underlyingError: error))
+        }
         #if DEBUG
         let failsLifecycleMutations = arguments.contains("--ui-testing")
             && arguments.contains("--ui-testing-fail-lifecycle-mutations")
@@ -21,10 +56,13 @@ struct AppDependencies {
 
         return make(
             failsLifecycleMutations: failsLifecycleMutations,
-            allowsExchangeRateNetworking: !arguments.contains("--ui-testing")
+            allowsExchangeRateNetworking: !arguments.contains("--ui-testing"),
+            syncMonitor: selection == .production
+                ? CloudKitLibrarySyncMonitor()
+                : nil
         ) {
             let configuration: ModelConfiguration
-            switch try storeSelection(arguments: arguments) {
+            switch selection {
             case .namedUITesting(let token):
                 let rootDirectory: URL
                 if let storeDirectory {
@@ -50,15 +88,21 @@ struct AppDependencies {
                     schema: schema,
                     url: directory.appending(path: "\(token).store"),
                     allowsSave: true,
-                    cloudKitDatabase: .none
+                    cloudKitDatabase: cloudKitDatabase(
+                        for: .namedUITesting(token: token)
+                    )
                 )
             case .ephemeralUITesting:
                 configuration = ModelConfiguration(
                     schema: schema,
-                    isStoredInMemoryOnly: true
+                    isStoredInMemoryOnly: true,
+                    cloudKitDatabase: cloudKitDatabase(for: .ephemeralUITesting)
                 )
             case .production:
-                configuration = ModelConfiguration(schema: schema)
+                configuration = ModelConfiguration(
+                    schema: schema,
+                    cloudKitDatabase: cloudKitDatabase(for: .production)
+                )
             }
             return try ModelContainer(
                 for: schema,
@@ -70,6 +114,7 @@ struct AppDependencies {
     static func make(
         failsLifecycleMutations: Bool = false,
         allowsExchangeRateNetworking: Bool = true,
+        syncMonitor: (any LibrarySyncMonitor)? = nil,
         modelContainer: () throws -> ModelContainer
     ) -> AppStartupState {
         do {
@@ -126,7 +171,8 @@ struct AppDependencies {
                             : nil,
                         exchangeRateCache: allowsExchangeRateNetworking
                             ? exchangeRateCache
-                            : nil
+                            : nil,
+                        syncMonitor: syncMonitor
                     )
                 )
             )

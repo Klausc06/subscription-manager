@@ -36,11 +36,12 @@ out.
 - `requiresAttention`: the account-status probe failed; the local library and
   all edits remain available, with a retry action.
 
-Every workspace mutation marks the status synchronizing only after its local
-repository operation succeeds. A monitor refresh turns it current when the
-account is available; a remote model observation also refreshes workspace
-views without duplicating records. No operation waits for CloudKit before
-returning a successful local edit.
+Every workspace mutation marks a currently available account as synchronizing
+only after its local repository operation succeeds. Signed-out, local-only,
+and attention states remain visible after a local edit. A monitor refresh turns
+an available account current; a remote model observation also refreshes
+workspace views without duplicating records. No operation waits for CloudKit
+before returning a successful local edit.
 
 Records retain application-generated `UUID` identifiers. Scalar subscription
 and preferences fields use CloudKit's normal last-writer-wins behavior. The
