@@ -513,7 +513,7 @@ public final class SubscriptionWorkspace {
                 )
             )
             try repository.updateSubscription(updated)
-            finishLifecycleUpdate(updated)
+            try finishLifecycleUpdate(updated)
         } catch {
             lifecycleActionError = .persistenceFailed
         }
@@ -555,7 +555,7 @@ public final class SubscriptionWorkspace {
                 confirmedNextRenewal: normalizedRenewal
             )
             try repository.updateSubscription(updated)
-            finishLifecycleUpdate(updated)
+            try finishLifecycleUpdate(updated)
         } catch {
             lifecycleActionError = .persistenceFailed
         }
@@ -576,7 +576,7 @@ public final class SubscriptionWorkspace {
 
             let updated = existing.replacingLifecycleFacts(isArchived: true)
             try repository.updateSubscription(updated)
-            finishLifecycleUpdate(updated)
+            try finishLifecycleUpdate(updated)
         } catch {
             lifecycleActionError = .persistenceFailed
         }
@@ -597,7 +597,7 @@ public final class SubscriptionWorkspace {
 
             let updated = existing.replacingLifecycleFacts(isArchived: false)
             try repository.updateSubscription(updated)
-            finishLifecycleUpdate(updated)
+            try finishLifecycleUpdate(updated)
         } catch {
             lifecycleActionError = .persistenceFailed
         }
@@ -612,13 +612,20 @@ public final class SubscriptionWorkspace {
                 return
             }
 
+            let scope = carriedLibraryScope
+            let clearsExpectedCharges =
+                expectedChargesRequest?.subscriptionID == id
+            let refreshedExpectedCharges: [ExpectedCharge]? =
+                clearsExpectedCharges ? nil : expectedCharges
             try repository.deleteSubscription(id: id)
+            let refreshedLibraryState = try makeLibraryState(scope: scope)
+
             detailState = .notFound
-            if expectedChargesRequest?.subscriptionID == id {
-                expectedCharges = nil
+            expectedCharges = refreshedExpectedCharges
+            if clearsExpectedCharges {
                 expectedChargesRequest = nil
             }
-            loadLibrary(scope: carriedLibraryScope)
+            libraryState = refreshedLibraryState
         } catch {
             lifecycleActionError = .persistenceFailed
         }
@@ -629,12 +636,7 @@ public final class SubscriptionWorkspace {
     ) {
         libraryState = .loading(scope)
         do {
-            let subscriptions = try repository.listSubscriptions()
-                .filter { $0.isArchived == (scope == .archived) }
-            let summaries = subscriptions.map(makeSummary)
-            libraryState = summaries.isEmpty
-                ? .empty(scope)
-                : .loaded(scope, summaries)
+            libraryState = try makeLibraryState(scope: scope)
         } catch {
             libraryState = .failed(scope)
         }
@@ -773,23 +775,40 @@ public final class SubscriptionWorkspace {
         ) ?? calendar.timeZone
     }
 
-    private func finishLifecycleUpdate(_ subscription: Subscription) {
-        detailState = makeDetail(subscription)
-        refreshExpectedCharges(for: subscription)
-        loadLibrary(scope: carriedLibraryScope)
+    private func finishLifecycleUpdate(
+        _ subscription: Subscription
+    ) throws {
+        let refreshedDetailState = makeDetail(subscription)
+        let refreshedExpectedCharges: [ExpectedCharge]? =
+            if let request = expectedChargesRequest,
+               request.subscriptionID == subscription.id
+            {
+                makeExpectedCharges(
+                    for: subscription,
+                    through: request.horizon,
+                    maximumCount: request.maximumCount
+                )
+            } else {
+                expectedCharges
+            }
+        let refreshedLibraryState = try makeLibraryState(
+            scope: carriedLibraryScope
+        )
+
+        detailState = refreshedDetailState
+        expectedCharges = refreshedExpectedCharges
+        libraryState = refreshedLibraryState
     }
 
-    private func refreshExpectedCharges(for subscription: Subscription) {
-        guard let request = expectedChargesRequest,
-              request.subscriptionID == subscription.id
-        else {
-            return
-        }
-        expectedCharges = makeExpectedCharges(
-            for: subscription,
-            through: request.horizon,
-            maximumCount: request.maximumCount
-        )
+    private func makeLibraryState(
+        scope: SubscriptionLibraryScope
+    ) throws -> SubscriptionLibraryState {
+        let subscriptions = try repository.listSubscriptions()
+            .filter { $0.isArchived == (scope == .archived) }
+        let summaries = subscriptions.map(makeSummary)
+        return summaries.isEmpty
+            ? .empty(scope)
+            : .loaded(scope, summaries)
     }
 
     private var carriedLibraryScope: SubscriptionLibraryScope {

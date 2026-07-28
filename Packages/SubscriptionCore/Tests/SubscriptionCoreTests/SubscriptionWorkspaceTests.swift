@@ -1050,6 +1050,7 @@ struct SubscriptionWorkspaceTests {
             RepositoryFailure.lookup,
             RepositoryFailure.update,
             RepositoryFailure.delete,
+            RepositoryFailure.list,
         ]
     )
     @MainActor
@@ -1096,10 +1097,62 @@ struct SubscriptionWorkspaceTests {
         }
 
         #expect(workspace.lifecycleActionError == .persistenceFailed)
-        #expect(
-            repository.storedSubscription(id: subscription.id)
-                == subscription
+        if failure == .list {
+            #expect(
+                repository.storedSubscription(id: subscription.id)?
+                    .isArchived == true
+            )
+        } else {
+            #expect(
+                repository.storedSubscription(id: subscription.id)
+                    == subscription
+            )
+        }
+        #expect(workspace.detailState == detailBefore)
+        #expect(workspace.expectedCharges == forecastBefore)
+        #expect(workspace.libraryState == libraryBefore)
+    }
+
+    @Test("A failed post-delete library refresh preserves presentation")
+    @MainActor
+    func failedPostDeleteRefreshPreservesPresentation() throws {
+        let calendar = actionCalendar()
+        let now = try actionDate(
+            year: 2026,
+            month: 7,
+            day: 28,
+            hour: 18,
+            calendar: calendar
         )
+        let subscription = try makeActionSubscription(
+            fixture: .active,
+            calendar: calendar
+        )
+        let repository = InMemorySubscriptionRepository(
+            subscriptions: [subscription]
+        )
+        let workspace = SubscriptionWorkspace(
+            repository: repository,
+            now: { now },
+            calendar: calendar
+        )
+
+        loadActionPresentation(
+            workspace,
+            subscription: subscription,
+            scope: .current,
+            calendar: calendar
+        )
+        let detailBefore = workspace.detailState
+        let forecastBefore = workspace.expectedCharges
+        let libraryBefore = workspace.libraryState
+        #expect(forecastBefore?.isEmpty == false)
+        repository.failure = .list
+
+        workspace.deletePermanently(id: subscription.id)
+
+        #expect(repository.storedSubscription(id: subscription.id) == nil)
+        #expect(workspace.lifecycleActionError == .persistenceFailed)
         #expect(workspace.detailState == detailBefore)
         #expect(workspace.expectedCharges == forecastBefore)
         #expect(workspace.libraryState == libraryBefore)
