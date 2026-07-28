@@ -79,3 +79,13 @@ test first, and run the affected platform builds before opening a pull request.
 Application code is licensed under Apache-2.0. Original catalog metadata added
 later will use CC0; third-party marks and assets are not covered by either
 grant.
+
+Validate the shipped catalog before publishing a data-only update:
+
+```sh
+swift run --package-path Packages/SubscriptionCore CatalogValidator \
+  SubscriptionManager/Resources/catalog-v1.json
+```
+
+The catalog metadata dedication is recorded in
+[`CATALOG_METADATA_LICENSE.md`](SubscriptionManager/Resources/CATALOG_METADATA_LICENSE.md).

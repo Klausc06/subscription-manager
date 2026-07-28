@@ -1,0 +1,78 @@
+{
+  "schemaVersion": 1,
+  "catalogVersion": 1,
+  "presets": [
+    {
+      "id": "spotify",
+      "serviceName": { "en": "Spotify", "zhHans": "Spotify" },
+      "category": { "en": "Music", "zhHans": "音乐" },
+      "suggestedInterval": "monthly",
+      "managementURL": "https://www.spotify.com/account/overview/",
+      "icon": "music",
+      "assetProvenance": { "kind": "originalSymbol", "license": "CC0-1.0", "source": "spotify" }
+    },
+    {
+      "id": "netflix",
+      "serviceName": { "en": "Netflix", "zhHans": "Netflix" },
+      "category": { "en": "Video", "zhHans": "视频" },
+      "suggestedInterval": "monthly",
+      "managementURL": "https://www.netflix.com/account",
+      "icon": "video",
+      "assetProvenance": { "kind": "originalSymbol", "license": "CC0-1.0", "source": "netflix" }
+    },
+    {
+      "id": "icloud-plus",
+      "serviceName": { "en": "iCloud+", "zhHans": "iCloud+" },
+      "category": { "en": "Cloud Storage", "zhHans": "云存储" },
+      "suggestedInterval": "monthly",
+      "managementURL": "https://support.apple.com/108047",
+      "icon": "cloud",
+      "assetProvenance": { "kind": "originalSymbol", "license": "CC0-1.0", "source": "icloud-plus" }
+    },
+    {
+      "id": "notion",
+      "serviceName": { "en": "Notion", "zhHans": "Notion" },
+      "category": { "en": "Productivity", "zhHans": "效率" },
+      "suggestedInterval": "monthly",
+      "managementURL": "https://www.notion.so/help/manage-your-plan",
+      "icon": "productivity",
+      "assetProvenance": { "kind": "originalSymbol", "license": "CC0-1.0", "source": "notion" }
+    },
+    {
+      "id": "kindle-unlimited",
+      "serviceName": { "en": "Kindle Unlimited", "zhHans": "Kindle Unlimited" },
+      "category": { "en": "Reading", "zhHans": "阅读" },
+      "suggestedInterval": "monthly",
+      "managementURL": "https://www.amazon.com/gp/kindle/ku/ku_central",
+      "icon": "reading",
+      "assetProvenance": { "kind": "originalSymbol", "license": "CC0-1.0", "source": "kindle-unlimited" }
+    },
+    {
+      "id": "the-new-york-times",
+      "serviceName": { "en": "The New York Times", "zhHans": "纽约时报" },
+      "category": { "en": "News", "zhHans": "新闻" },
+      "suggestedInterval": "monthly",
+      "managementURL": "https://www.nytimes.com/subscription",
+      "icon": "news",
+      "assetProvenance": { "kind": "originalSymbol", "license": "CC0-1.0", "source": "the-new-york-times" }
+    },
+    {
+      "id": "chatgpt-plus",
+      "serviceName": { "en": "ChatGPT Plus", "zhHans": "ChatGPT Plus" },
+      "category": { "en": "Productivity", "zhHans": "效率" },
+      "suggestedInterval": "monthly",
+      "managementURL": "https://chatgpt.com/",
+      "icon": "productivity",
+      "assetProvenance": { "kind": "originalSymbol", "license": "CC0-1.0", "source": "chatgpt-plus" }
+    },
+    {
+      "id": "playstation-plus",
+      "serviceName": { "en": "PlayStation Plus", "zhHans": "PlayStation Plus" },
+      "category": { "en": "Gaming", "zhHans": "游戏" },
+      "suggestedInterval": "yearly",
+      "managementURL": "https://www.playstation.com/support/subscriptions/",
+      "icon": "game",
+      "assetProvenance": { "kind": "originalSymbol", "license": "CC0-1.0", "source": "playstation-plus" }
+    }
+  ]
+}

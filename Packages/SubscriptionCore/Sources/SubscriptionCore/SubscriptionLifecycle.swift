@@ -89,8 +89,32 @@ extension Subscription {
             managementURL: managementURL,
             notes: notes,
             confirmedCharges: confirmedCharges,
+            priceChanges: priceChanges,
             lifecycle: lifecycle ?? self.lifecycle,
             isArchived: isArchived ?? self.isArchived
+        )
+    }
+
+    func replacingPaymentHistory(
+        confirmedCharges: [ConfirmedCharge]? = nil,
+        priceChanges: [PriceChange]? = nil
+    ) -> Subscription {
+        Subscription(
+            id: id,
+            serviceIdentity: serviceIdentity,
+            serviceName: serviceName,
+            plan: plan,
+            category: category,
+            originalAmount: originalAmount,
+            billingSchedule: billingSchedule,
+            startDate: startDate,
+            confirmedNextRenewal: confirmedNextRenewal,
+            managementURL: managementURL,
+            notes: notes,
+            confirmedCharges: confirmedCharges ?? self.confirmedCharges,
+            priceChanges: priceChanges ?? self.priceChanges,
+            lifecycle: lifecycle,
+            isArchived: isArchived
         )
     }
 }

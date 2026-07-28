@@ -13,9 +13,17 @@ let package = Package(
             name: "SubscriptionCore",
             targets: ["SubscriptionCore"]
         ),
+        .executable(
+            name: "CatalogValidator",
+            targets: ["CatalogValidator"]
+        ),
     ],
     targets: [
         .target(name: "SubscriptionCore"),
+        .executableTarget(
+            name: "CatalogValidator",
+            dependencies: ["SubscriptionCore"]
+        ),
         .testTarget(
             name: "SubscriptionCoreTests",
             dependencies: ["SubscriptionCore"]

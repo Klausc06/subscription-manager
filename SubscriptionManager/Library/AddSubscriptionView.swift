@@ -6,6 +6,8 @@ struct AddSubscriptionView: View {
     @Environment(\.dismiss) private var dismiss
 
     let workspace: SubscriptionWorkspace
+    private let catalogPresetID: String?
+    private let onSuccessfulSave: (() -> Void)?
 
     @State private var serviceName = ""
     @State private var plan = ""
@@ -26,8 +28,36 @@ struct AddSubscriptionView: View {
     @State private var managementURLIsInvalid = false
     @State private var saveFailed = false
 
+    init(
+        workspace: SubscriptionWorkspace,
+        preset: CatalogPreset? = nil,
+        onSuccessfulSave: (() -> Void)? = nil
+    ) {
+        self.workspace = workspace
+        catalogPresetID = preset?.id
+        self.onSuccessfulSave = onSuccessfulSave
+
+        let locale = Locale.current
+        _serviceName = State(
+            initialValue: preset?.serviceName.value(for: locale) ?? ""
+        )
+        _category = State(
+            initialValue: preset?.category.value(for: locale) ?? ""
+        )
+        _intervalChoice = State(
+            initialValue: preset.map {
+                BillingIntervalChoice(interval: $0.suggestedInterval)
+            }
+                ?? .monthly
+        )
+        _managementURLText = State(
+            initialValue: preset?.managementURL?.absoluteString ?? ""
+        )
+    }
+
     var body: some View {
         Form {
+            creationPathSection
             serviceSection
             subscriptionSection
             priceSection
@@ -45,7 +75,9 @@ struct AddSubscriptionView: View {
             }
         }
         .accessibilityIdentifier("subscription.form")
-        .navigationTitle("Add Subscription")
+        .navigationTitle(
+            catalogPresetID == nil ? "Add Subscription" : "Confirm Subscription"
+        )
         #if os(iOS)
             .navigationBarTitleDisplayMode(.inline)
         #endif
@@ -61,6 +93,27 @@ struct AddSubscriptionView: View {
                     save()
                 }
                 .accessibilityIdentifier("subscription.form.save")
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var creationPathSection: some View {
+        if catalogPresetID == nil {
+            Section("Add Subscription") {
+                NavigationLink {
+                    CatalogBrowserView(
+                        workspace: workspace,
+                        onSubscriptionCreated: { dismiss() }
+                    )
+                } label: {
+                    Label("Browse Catalog", systemImage: "square.grid.2x2")
+                }
+                .accessibilityIdentifier("subscription.add.catalog")
+
+                Text("Or enter all subscription terms manually below.")
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
             }
         }
     }
@@ -230,32 +283,42 @@ struct AddSubscriptionView: View {
             return
         }
 
-        workspace.createSubscription(
-            SubscriptionCreationInput(
-                serviceName: serviceName,
-                plan: plan,
-                category: category,
-                originalAmount: amount,
-                billingInterval: intervalChoice.interval(
-                    customValueText: customValueText,
-                    customUnit: customUnit
-                ),
-                startDate: normalizedStartDate,
-                renewalAnchor: normalizedRenewalAnchor,
-                confirmedNextRenewal: normalizedNextRenewal,
-                billingTimeZoneIdentifier: timeZoneIdentifier,
-                managementURL: managementURL(from: managementURLResult),
-                notes: notes,
-                initialStatus: initialStatus
-            )
+        let input = SubscriptionCreationInput(
+            serviceName: serviceName,
+            plan: plan,
+            category: category,
+            originalAmount: amount,
+            billingInterval: intervalChoice.interval(
+                customValueText: customValueText,
+                customUnit: customUnit
+            ),
+            startDate: normalizedStartDate,
+            renewalAnchor: normalizedRenewalAnchor,
+            confirmedNextRenewal: normalizedNextRenewal,
+            billingTimeZoneIdentifier: timeZoneIdentifier,
+            managementURL: managementURL(from: managementURLResult),
+            notes: notes,
+            initialStatus: initialStatus
         )
+        if let catalogPresetID {
+            workspace.createCatalogSubscription(
+                presetID: catalogPresetID,
+                input: input
+            )
+        } else {
+            workspace.createSubscription(input)
+        }
 
         guard workspace.creationValidationErrors.isEmpty else {
             return
         }
 
         if case .loaded = workspace.detailState {
-            dismiss()
+            if let onSuccessfulSave {
+                onSuccessfulSave()
+            } else {
+                dismiss()
+            }
         } else {
             saveFailed = true
         }

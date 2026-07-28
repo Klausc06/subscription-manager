@@ -83,11 +83,27 @@ struct AppDependencies {
             #else
             workspaceRepository = repository
             #endif
+            let catalogDirectory = try FileManager.default.url(
+                for: .applicationSupportDirectory,
+                in: .userDomainMask,
+                appropriateFor: nil,
+                create: true
+            )
+            .appending(path: "SubscriptionManager/Catalog", directoryHint: .isDirectory)
+            let catalogCache = FileCatalogCache(directory: catalogDirectory)
+            let bundledCatalog = BundledCatalogRepository()
+            let catalogRepository = CachedCatalogRepository(
+                bundled: bundledCatalog,
+                cache: catalogCache
+            )
             return .ready(
                 AppDependencies(
                     modelContainer: modelContainer,
                     workspace: SubscriptionWorkspace(
-                        repository: workspaceRepository
+                        repository: workspaceRepository,
+                        catalogRepository: catalogRepository,
+                        catalogUpdateSource: GitHubCatalogUpdateSource(),
+                        catalogCache: catalogCache
                     )
                 )
             )

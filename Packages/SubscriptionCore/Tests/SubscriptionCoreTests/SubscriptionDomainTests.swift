@@ -51,4 +51,37 @@ struct SubscriptionDomainTests {
         )
         #expect(subscription.isArchived == false)
     }
+
+    @Test("Confirmed charges retain their scheduled occurrence identity")
+    func confirmedChargesRetainScheduledOccurrenceIdentity() {
+        let subscriptionID = UUID(
+            uuidString: "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"
+        )!
+        let source = ScheduledChargeID(
+            subscriptionID: subscriptionID,
+            year: 2026,
+            month: 7,
+            day: 29
+        )
+        let confirmedCharge = ConfirmedCharge(
+            id: UUID(),
+            chargedDate: Date(timeIntervalSince1970: 1_785_326_400),
+            amount: Money(minorUnits: 1_299, currency: .usd),
+            sourceScheduledChargeID: source
+        )
+
+        #expect(confirmedCharge.sourceScheduledChargeID == source)
+    }
+
+    @Test("Price changes preserve their effective money")
+    func priceChangesPreserveEffectiveMoney() {
+        let amount = Money(minorUnits: 1_499, currency: .usd)
+        let priceChange = PriceChange(
+            id: UUID(),
+            effectiveDate: Date(timeIntervalSince1970: 1_785_326_400),
+            amount: amount
+        )
+
+        #expect(priceChange.amount == amount)
+    }
 }

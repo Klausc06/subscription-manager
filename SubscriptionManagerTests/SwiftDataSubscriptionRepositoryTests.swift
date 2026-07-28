@@ -107,6 +107,13 @@ struct SwiftDataSubscriptionRepositoryTests {
             chargedDate: Date(timeIntervalSince1970: 1_756_159_200),
             amount: Money(minorUnits: 2_999, currency: .cny)
         )
+        let priceChange = PriceChange(
+            id: UUID(
+                uuidString: "20A09F53-5E76-4B4D-A1B0-9C3644B8455F"
+            )!,
+            effectiveDate: Date(timeIntervalSince1970: 1_758_837_600),
+            amount: Money(minorUnits: 3_499, currency: .cny)
+        )
         let expectedSubscription = Subscription(
             id: subscriptionID,
             serviceIdentity: ServiceIdentity(
@@ -124,7 +131,8 @@ struct SwiftDataSubscriptionRepositoryTests {
             startDate: Date(timeIntervalSince1970: 1_745_715_600),
             managementURL: nil,
             notes: "",
-            confirmedCharges: [confirmedCharge]
+            confirmedCharges: [confirmedCharge],
+            priceChanges: [priceChange]
         )
         let configuration = ModelConfiguration(isStoredInMemoryOnly: true)
         let container = try ModelContainer(
@@ -514,6 +522,7 @@ struct SwiftDataSubscriptionRepositoryTests {
             #expect(subscription.managementURL == managementURL)
             #expect(subscription.notes == "Preserve legacy notes")
             #expect(subscription.confirmedCharges == [charge])
+            #expect(subscription.priceChanges == [])
             #expect(subscription.lifecycle == .active)
             #expect(subscription.isArchived == false)
         }

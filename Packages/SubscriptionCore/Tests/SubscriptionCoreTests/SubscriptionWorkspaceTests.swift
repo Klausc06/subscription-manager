@@ -4,6 +4,121 @@ import Testing
 
 @Suite("Subscription workspace")
 struct SubscriptionWorkspaceTests {
+    @Test("A valid newer catalog becomes active without mutating subscriptions")
+    @MainActor
+    func newerCatalogActivatesWithoutMutatingSubscriptions() async throws {
+        let bundled = CatalogPreset(
+            id: "music.example",
+            serviceName: CatalogLocalizedText(
+                en: "Example Music",
+                zhHans: "示例音乐"
+            ),
+            category: CatalogLocalizedText(en: "Music", zhHans: "音乐"),
+            suggestedInterval: .monthly,
+            managementURL: nil,
+            icon: .music
+        )
+        let newer = CatalogPreset(
+            id: "video.example",
+            serviceName: CatalogLocalizedText(
+                en: "Example Video",
+                zhHans: "示例视频"
+            ),
+            category: CatalogLocalizedText(en: "Video", zhHans: "视频"),
+            suggestedInterval: .monthly,
+            managementURL: nil,
+            icon: .video
+        )
+        let update = try JSONEncoder().encode(
+            CatalogSnapshot(
+                schemaVersion: CatalogSnapshot.currentSchemaVersion,
+                catalogVersion: 2,
+                presets: [newer]
+            )
+        )
+        let repository = InMemorySubscriptionRepository()
+        let cache = InMemoryCatalogCache()
+        let workspace = SubscriptionWorkspace(
+            repository: repository,
+            catalogRepository: StaticCatalogRepository(
+                catalogVersion: 1,
+                presets: [bundled]
+            ),
+            catalogUpdateSource: StaticCatalogUpdateSource(data: update),
+            catalogCache: cache
+        )
+
+        workspace.loadCatalog(locale: Locale(identifier: "en"))
+        await workspace.refreshCatalog()
+
+        #expect(workspace.catalogDiagnostics?.version == 2)
+        #expect(workspace.catalogState == .loaded(
+            categories: [CatalogCategory(
+                id: "video",
+                title: newer.category
+            )],
+            presets: [newer]
+        ))
+        #expect(cache.storedData == update)
+        #expect(repository.updateAttemptCount == 0)
+    }
+
+    @Test("Stale and corrupt catalog updates preserve the active catalog")
+    @MainActor
+    func staleAndCorruptCatalogUpdatesPreserveActiveCatalog() async throws {
+        let bundled = CatalogPreset(
+            id: "music.example",
+            serviceName: CatalogLocalizedText(
+                en: "Example Music",
+                zhHans: "示例音乐"
+            ),
+            category: CatalogLocalizedText(en: "Music", zhHans: "音乐"),
+            suggestedInterval: .monthly,
+            managementURL: nil,
+            icon: .music
+        )
+        let stale = try JSONEncoder().encode(
+            CatalogSnapshot(
+                schemaVersion: CatalogSnapshot.currentSchemaVersion,
+                catalogVersion: 1,
+                presets: [bundled]
+            )
+        )
+        let repository = InMemorySubscriptionRepository()
+        let cache = InMemoryCatalogCache()
+        let workspace = SubscriptionWorkspace(
+            repository: repository,
+            catalogRepository: StaticCatalogRepository(presets: [bundled]),
+            catalogUpdateSource: StaticCatalogUpdateSource(data: stale),
+            catalogCache: cache
+        )
+
+        workspace.loadCatalog(locale: Locale(identifier: "en"))
+        await workspace.refreshCatalog()
+
+        #expect(workspace.catalogDiagnostics?.refreshStatus == .alreadyCurrent)
+        #expect(cache.storedData == nil)
+
+        let corruptWorkspace = SubscriptionWorkspace(
+            repository: repository,
+            catalogRepository: StaticCatalogRepository(presets: [bundled]),
+            catalogUpdateSource: StaticCatalogUpdateSource(
+                data: Data("corrupt".utf8)
+            ),
+            catalogCache: cache
+        )
+        corruptWorkspace.loadCatalog(locale: Locale(identifier: "en"))
+        await corruptWorkspace.refreshCatalog()
+
+        #expect(corruptWorkspace.catalogDiagnostics?.refreshStatus == .failed)
+        #expect(corruptWorkspace.catalogState == .loaded(
+            categories: [CatalogCategory(id: "music", title: bundled.category)],
+            presets: [bundled]
+        ))
+        #expect(cache.storedData == nil)
+        #expect(repository.updateAttemptCount == 0)
+    }
+
     @Test("Active creation stores an active lifecycle")
     @MainActor
     func activeCreationStoresActiveLifecycle() throws {
@@ -37,6 +152,60 @@ struct SubscriptionWorkspaceTests {
         )
         #expect(stored.lifecycle == .active)
         #expect(stored.isArchived == false)
+    }
+
+    @Test("Catalog search and creation preserve the preset identity")
+    @MainActor
+    func catalogSearchAndCreationPreservePresetIdentity() throws {
+        let preset = CatalogPreset(
+            id: "music.example",
+            serviceName: CatalogLocalizedText(
+                en: "Example Music",
+                zhHans: "示例音乐"
+            ),
+            category: CatalogLocalizedText(en: "Music", zhHans: "音乐"),
+            suggestedInterval: .monthly,
+            managementURL: URL(string: "https://example.com/manage"),
+            icon: .music
+        )
+        let repository = InMemorySubscriptionRepository()
+        let subscriptionID = UUID(
+            uuidString: "ACACACAC-BBBB-CCCC-DDDD-EEEEEEEEEEEE"
+        )!
+        let start = Date(timeIntervalSince1970: 1_767_225_600)
+        let workspace = SubscriptionWorkspace(
+            repository: repository,
+            catalogRepository: StaticCatalogRepository(presets: [preset]),
+            identifierGenerator: { subscriptionID }
+        )
+
+        workspace.loadCatalog(locale: Locale(identifier: "zh-Hans"))
+        workspace.setCatalogSearchQuery("音乐")
+        workspace.createCatalogSubscription(
+            presetID: preset.id,
+            input: SubscriptionCreationInput(
+                serviceName: "Example Music",
+                plan: "Family",
+                category: "Music",
+                originalAmount: Money(minorUnits: 1_299, currency: .usd),
+                billingInterval: .monthly,
+                startDate: start,
+                confirmedNextRenewal: start.addingTimeInterval(86_400),
+                managementURL: preset.managementURL,
+                notes: ""
+            )
+        )
+
+        guard case .loaded(let categories, let presets) = workspace.catalogState else {
+            Issue.record("Expected loaded catalog state")
+            return
+        }
+        #expect(categories.count == 1)
+        #expect(presets == [preset])
+        #expect(
+            repository.storedSubscription(id: subscriptionID)?.serviceIdentity
+                == ServiceIdentity(rawValue: "catalog:music.example")
+        )
     }
 
     @Test("Trial creation snapshots next renewal as first paid charge")
@@ -1475,6 +1644,43 @@ private struct EmptySubscriptionRepository: SubscriptionRepository {
 }
 
 @MainActor
+private struct StaticCatalogRepository: CatalogRepository {
+    let catalogVersion: Int
+    let presets: [CatalogPreset]
+
+    init(catalogVersion: Int = 1, presets: [CatalogPreset]) {
+        self.catalogVersion = catalogVersion
+        self.presets = presets
+    }
+
+    func loadSnapshot() throws -> CatalogSnapshot {
+        try CatalogSnapshot(
+            schemaVersion: CatalogSnapshot.currentSchemaVersion,
+            catalogVersion: catalogVersion,
+            presets: presets
+        )
+    }
+}
+
+@MainActor
+private struct StaticCatalogUpdateSource: CatalogUpdateSource {
+    let data: Data
+
+    func fetchCatalogData() async throws -> Data {
+        data
+    }
+}
+
+@MainActor
+private final class InMemoryCatalogCache: CatalogCache {
+    private(set) var storedData: Data?
+
+    func storeCatalogData(_ data: Data) throws {
+        storedData = data
+    }
+}
+
+@MainActor
 private struct FailingSubscriptionRepository: SubscriptionRepository {
     func createSubscription(_ subscription: Subscription) throws {
         throw RepositoryError.unavailable
@@ -1498,6 +1704,157 @@ private struct FailingSubscriptionRepository: SubscriptionRepository {
 
     private enum RepositoryError: Error {
         case unavailable
+    }
+    @Test("Confirming a passed scheduled charge is idempotent")
+    @MainActor
+    func confirmingPassedScheduledChargeIsIdempotent() throws {
+        let calendar = actionCalendar()
+        let now = try actionDate(
+            year: 2026,
+            month: 7,
+            day: 29,
+            hour: 12,
+            calendar: calendar
+        )
+        let subscription = try makeActionSubscription(
+            fixture: .active,
+            calendar: calendar
+        )
+        let repository = InMemorySubscriptionRepository(
+            subscriptions: [subscription]
+        )
+        let workspace = SubscriptionWorkspace(
+            repository: repository,
+            now: { now },
+            calendar: calendar
+        )
+        let scheduledDate = try actionDate(
+            year: 2026,
+            month: 7,
+            day: 28,
+            hour: 12,
+            calendar: calendar
+        )
+        let actualAmount = Money(minorUnits: 1_299, currency: .usd)
+
+        workspace.confirmCharge(
+            id: subscription.id,
+            scheduledDate: scheduledDate,
+            chargedDate: scheduledDate,
+            amount: actualAmount
+        )
+        workspace.confirmCharge(
+            id: subscription.id,
+            scheduledDate: scheduledDate,
+            chargedDate: scheduledDate,
+            amount: actualAmount
+        )
+
+        let stored = try #require(
+            repository.storedSubscription(id: subscription.id)
+        )
+        #expect(stored.confirmedCharges.count == 2)
+        #expect(stored.confirmedCharges.last?.amount == actualAmount)
+    }
+
+    @Test("A scheduled charge on the current billing day can be confirmed")
+    @MainActor
+    func confirmingCurrentBillingDayCharge() throws {
+        let calendar = actionCalendar()
+        let scheduledDate = try actionDate(
+            year: 2026, month: 7, day: 29, hour: 12, calendar: calendar
+        )
+        let now = try actionDate(
+            year: 2026, month: 7, day: 29, hour: 14, calendar: calendar
+        )
+        let nextRenewal = try actionDate(
+            year: 2026, month: 8, day: 29, hour: 12, calendar: calendar
+        )
+        let subscription = Subscription(
+            id: actionTargetID,
+            serviceIdentity: ServiceIdentity(rawValue: "manual:current-day"),
+            serviceName: "Current Day",
+            plan: "Monthly",
+            category: "Other",
+            originalAmount: Money(minorUnits: 999, currency: .usd),
+            billingSchedule: FixedBillingSchedule(
+                interval: .monthly,
+                renewalAnchor: scheduledDate,
+                timeZoneIdentifier: calendar.timeZone.identifier
+            ),
+            startDate: scheduledDate,
+            confirmedNextRenewal: nextRenewal,
+            managementURL: nil,
+            notes: ""
+        )
+        let repository = InMemorySubscriptionRepository(
+            subscriptions: [subscription]
+        )
+        let workspace = SubscriptionWorkspace(
+            repository: repository, now: { now }, calendar: calendar
+        )
+
+        workspace.confirmCharge(
+            id: subscription.id,
+            scheduledDate: scheduledDate,
+            chargedDate: scheduledDate,
+            amount: Money(minorUnits: 999, currency: .usd)
+        )
+
+        #expect(
+            repository.storedSubscription(id: subscription.id)?
+                .confirmedCharges.count == 1
+        )
+        #expect(workspace.paymentHistoryActionError == nil)
+    }
+
+    @Test("Price changes apply on their effective billing day without rewriting facts")
+    @MainActor
+    func priceChangesResolveFutureForecastWithoutRewritingFacts() throws {
+        let calendar = actionCalendar()
+        let now = try actionDate(
+            year: 2026, month: 7, day: 29, hour: 12, calendar: calendar
+        )
+        let subscription = try makeActionSubscription(
+            fixture: .active, calendar: calendar
+        )
+        let repository = InMemorySubscriptionRepository(
+            subscriptions: [subscription]
+        )
+        let workspace = SubscriptionWorkspace(
+            repository: repository, now: { now }, calendar: calendar
+        )
+        let effectiveDate = try actionDate(
+            year: 2026, month: 7, day: 28, hour: 12, calendar: calendar
+        )
+        let changedAmount = Money(minorUnits: 1_499, currency: .usd)
+        let forecastHorizon = try actionDate(
+            year: 2026, month: 8, day: 29, hour: 12, calendar: calendar
+        )
+
+        workspace.recordPriceChange(
+            id: subscription.id,
+            effectiveDate: effectiveDate,
+            amount: changedAmount
+        )
+        workspace.loadExpectedCharges(
+            subscriptionID: subscription.id,
+            through: forecastHorizon,
+            maximumCount: 3
+        )
+
+        let stored = try #require(
+            repository.storedSubscription(id: subscription.id)
+        )
+        #expect(stored.originalAmount == Money(minorUnits: 999, currency: .usd))
+        #expect(stored.confirmedCharges.first?.amount == Money(
+            minorUnits: 999, currency: .usd
+        ))
+        #expect(stored.priceChanges.map(\.amount) == [changedAmount])
+        #expect(workspace.expectedCharges?.first?.amount == changedAmount)
+        #expect(workspace.paymentHistory.contains(.priceChange(
+            try #require(stored.priceChanges.first)
+        )))
     }
 }
 

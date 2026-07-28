@@ -20,6 +20,7 @@ final class SubscriptionRecord {
     var managementURLString: String?
     var notes: String?
     var confirmedChargesData: Data?
+    var priceChangesData: Data?
     var lifecycleRawValue: String?
     var trialFirstPaidChargeAt: Date?
     var cancelledAt: Date?
@@ -46,6 +47,7 @@ final class SubscriptionRecord {
         managementURLString: String? = nil,
         notes: String? = nil,
         confirmedChargesData: Data? = nil,
+        priceChangesData: Data? = nil,
         lifecycleRawValue: String? = nil,
         trialFirstPaidChargeAt: Date? = nil,
         cancelledAt: Date? = nil,
@@ -69,6 +71,7 @@ final class SubscriptionRecord {
         self.managementURLString = managementURLString
         self.notes = notes
         self.confirmedChargesData = confirmedChargesData
+        self.priceChangesData = priceChangesData
         self.lifecycleRawValue = lifecycleRawValue
         self.trialFirstPaidChargeAt = trialFirstPaidChargeAt
         self.cancelledAt = cancelledAt

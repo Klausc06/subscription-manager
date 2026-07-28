@@ -68,6 +68,29 @@ func validationTextKey(
     }
 }
 
+func paymentHistoryActionErrorText(
+    _ error: PaymentHistoryActionError
+) -> LocalizedStringKey {
+    switch error {
+    case .archivedSubscription:
+        "Restore this subscription before changing its payment history."
+    case .invalidScheduledOccurrence:
+        "Choose a scheduled billing date."
+    case .scheduledDateInFuture:
+        "The scheduled date cannot be in the future."
+    case .chargedDateInFuture:
+        "The payment date cannot be in the future."
+    case .effectiveDateBeforeStart:
+        "The effective date cannot be before the subscription starts."
+    case .duplicatePriceChangeDay:
+        "A price change already exists for that day."
+    case .mustBePositive:
+        "Enter an amount greater than zero."
+    case .persistenceFailed:
+        "Couldn’t save payment history. Try again."
+    }
+}
+
 extension SubscriptionCreationField {
     var identifier: String {
         switch self {
