@@ -450,7 +450,7 @@ private struct SubscriptionDetailForm: View {
                 Section("Additional Information") {
                     if let managementURL = subscription.managementURL {
                         Link(
-                            "Open Management Page",
+                            "Manage or Cancel Subscription",
                             destination: managementURL
                         )
                     }

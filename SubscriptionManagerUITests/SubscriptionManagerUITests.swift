@@ -1006,6 +1006,13 @@ final class SubscriptionManagerUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["服务"].exists)
         XCTAssertTrue(app.staticTexts["订阅信息"].exists)
         XCTAssertTrue(app.staticTexts["账单计划"].exists)
+        app.swipeUp()
+        XCTAssertTrue(app.textFields["订阅管理网址"].exists)
+        XCTAssertTrue(
+            app.staticTexts[
+                "打开服务商的账单、续订或取消订阅页面；本应用不会替你取消订阅。"
+            ].exists
+        )
         let billingInterval = app.buttons[
             "subscription.form.billing-interval"
         ]

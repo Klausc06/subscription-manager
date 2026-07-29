@@ -189,10 +189,10 @@
         "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "正在加载订阅" } }
       }
     },
-    "Management URL" : {
+    "Manage or Cancel Subscription" : {
       "localizations" : {
-        "en" : { "stringUnit" : { "state" : "translated", "value" : "Management URL" } },
-        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "管理网址" } }
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Manage or Cancel Subscription" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "管理或取消订阅" } }
       }
     },
     "Monthly" : {
@@ -241,16 +241,22 @@
         "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "备注" } }
       }
     },
-    "Open Management Page" : {
+    "Open the provider's billing, renewal, or cancellation page; this app will not cancel the subscription for you." : {
       "localizations" : {
-        "en" : { "stringUnit" : { "state" : "translated", "value" : "Open Management Page" } },
-        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "打开管理页面" } }
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Open the provider's billing, renewal, or cancellation page; this app will not cancel the subscription for you." } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "打开服务商的账单、续订或取消订阅页面；本应用不会替你取消订阅。" } }
       }
     },
     "Optional" : {
       "localizations" : {
         "en" : { "stringUnit" : { "state" : "translated", "value" : "Optional" } },
         "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "选填" } }
+      }
+    },
+    "Subscription Management URL" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Subscription Management URL" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "订阅管理网址" } }
       }
     },
     "Original Amount" : {

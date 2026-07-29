@@ -219,10 +219,16 @@ struct AddSubscriptionView: View {
 
     private var optionalSection: some View {
         Section("Optional") {
-            TextField("Management URL", text: $managementURLText)
+            TextField("Subscription Management URL", text: $managementURLText)
                 .textContentType(.URL)
                 .subscriptionURLKeyboard()
                 .accessibilityIdentifier("subscription.form.management-url")
+
+            Text(
+                "Open the provider's billing, renewal, or cancellation page; this app will not cancel the subscription for you."
+            )
+            .font(.footnote)
+            .foregroundStyle(.secondary)
 
             if managementURLIsInvalid {
                 ValidationMessage(
