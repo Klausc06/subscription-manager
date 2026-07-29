@@ -677,6 +677,8 @@
 			buildSettings = {
 				APP_GROUP_IDENTIFIER = group.com.klausc06.SubscriptionManager;
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				"CODE_SIGN_ENTITLEMENTS[sdk=iphoneos*]" = SubscriptionManager/SubscriptionManager.entitlements;
+				"CODE_SIGN_ENTITLEMENTS[sdk=iphonesimulator*]" = SubscriptionManager/SubscriptionManager.entitlements;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
 				"CODE_SIGN_IDENTITY[sdk=macosx*]" = "-";
 				"CODE_SIGN_STYLE[sdk=macosx*]" = Manual;
@@ -727,6 +729,8 @@
 			buildSettings = {
 				APP_GROUP_IDENTIFIER = group.com.klausc06.SubscriptionManager;
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				"CODE_SIGN_ENTITLEMENTS[sdk=iphoneos*]" = SubscriptionManager/SubscriptionManager.entitlements;
+				"CODE_SIGN_ENTITLEMENTS[sdk=iphonesimulator*]" = SubscriptionManager/SubscriptionManager.entitlements;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
 				"CODE_SIGN_IDENTITY[sdk=macosx*]" = "-";
 				"CODE_SIGN_STYLE[sdk=macosx*]" = Manual;

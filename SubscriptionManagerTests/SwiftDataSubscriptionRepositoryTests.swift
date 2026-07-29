@@ -32,7 +32,7 @@ struct SwiftDataSubscriptionRepositoryTests {
     @Test("A fresh in-memory store exposes an empty library")
     @MainActor
     func freshStoreIsEmpty() throws {
-        let configuration = ModelConfiguration(isStoredInMemoryOnly: true)
+        let configuration = ModelConfiguration(isStoredInMemoryOnly: true, cloudKitDatabase: .none)
         let container = try ModelContainer(
             for: SubscriptionRecord.self,
             configurations: configuration
@@ -72,7 +72,7 @@ struct SwiftDataSubscriptionRepositoryTests {
             managementURL: URL(string: "https://example.com/account?lang=zh"),
             notes: "工作文件"
         )
-        let configuration = ModelConfiguration(isStoredInMemoryOnly: true)
+        let configuration = ModelConfiguration(isStoredInMemoryOnly: true, cloudKitDatabase: .none)
         let container = try ModelContainer(
             for: SubscriptionRecord.self,
             configurations: configuration
@@ -134,7 +134,7 @@ struct SwiftDataSubscriptionRepositoryTests {
             confirmedCharges: [confirmedCharge],
             priceChanges: [priceChange]
         )
-        let configuration = ModelConfiguration(isStoredInMemoryOnly: true)
+        let configuration = ModelConfiguration(isStoredInMemoryOnly: true, cloudKitDatabase: .none)
         let container = try ModelContainer(
             for: SubscriptionRecord.self,
             configurations: configuration
@@ -197,7 +197,7 @@ struct SwiftDataSubscriptionRepositoryTests {
             notes: "Updated",
             confirmedCharges: original.confirmedCharges
         )
-        let configuration = ModelConfiguration(isStoredInMemoryOnly: true)
+        let configuration = ModelConfiguration(isStoredInMemoryOnly: true, cloudKitDatabase: .none)
         let container = try ModelContainer(
             for: SubscriptionRecord.self,
             configurations: configuration
@@ -233,7 +233,7 @@ struct SwiftDataSubscriptionRepositoryTests {
             managementURL: nil,
             notes: ""
         )
-        let configuration = ModelConfiguration(isStoredInMemoryOnly: true)
+        let configuration = ModelConfiguration(isStoredInMemoryOnly: true, cloudKitDatabase: .none)
         let container = try ModelContainer(
             for: SubscriptionRecord.self,
             configurations: configuration
@@ -253,7 +253,7 @@ struct SwiftDataSubscriptionRepositoryTests {
     @Test("Looking up an unknown identifier returns no subscription")
     @MainActor
     func unknownIdentifierReturnsNoSubscription() throws {
-        let configuration = ModelConfiguration(isStoredInMemoryOnly: true)
+        let configuration = ModelConfiguration(isStoredInMemoryOnly: true, cloudKitDatabase: .none)
         let container = try ModelContainer(
             for: SubscriptionRecord.self,
             configurations: configuration
@@ -272,7 +272,7 @@ struct SwiftDataSubscriptionRepositoryTests {
     @Test("A failed save does not leak its subscription into a later retry")
     @MainActor
     func failedSaveDoesNotLeakIntoLaterRetry() throws {
-        let configuration = ModelConfiguration(isStoredInMemoryOnly: true)
+        let configuration = ModelConfiguration(isStoredInMemoryOnly: true, cloudKitDatabase: .none)
         let container = try ModelContainer(
             for: SubscriptionRecord.self,
             configurations: configuration
@@ -335,7 +335,7 @@ struct SwiftDataSubscriptionRepositoryTests {
     @Test("A failed portable restore rolls back subscriptions and preferences together")
     @MainActor
     func failedPortableRestoreRollsBackEveryMutation() throws {
-        let configuration = ModelConfiguration(isStoredInMemoryOnly: true)
+        let configuration = ModelConfiguration(isStoredInMemoryOnly: true, cloudKitDatabase: .none)
         let container = try ModelContainer(
             for: SubscriptionRecord.self,
             UserPreferencesRecord.self,
@@ -403,7 +403,7 @@ struct SwiftDataSubscriptionRepositoryTests {
         let subscriptionID = UUID(
             uuidString: "BBBBBBBB-CCCC-DDDD-EEEE-FFFFFFFFFFFF"
         )!
-        let configuration = ModelConfiguration(isStoredInMemoryOnly: true)
+        let configuration = ModelConfiguration(isStoredInMemoryOnly: true, cloudKitDatabase: .none)
         let container = try ModelContainer(
             for: SubscriptionRecord.self,
             configurations: configuration
@@ -443,7 +443,7 @@ struct SwiftDataSubscriptionRepositoryTests {
         let subscriptionID = UUID(
             uuidString: "6A25C407-3C96-45A9-83EC-7EE52D62F16F"
         )!
-        let configuration = ModelConfiguration(isStoredInMemoryOnly: true)
+        let configuration = ModelConfiguration(isStoredInMemoryOnly: true, cloudKitDatabase: .none)
         let container = try ModelContainer(
             for: SubscriptionRecord.self,
             configurations: configuration
@@ -617,7 +617,7 @@ struct SwiftDataSubscriptionRepositoryTests {
             ),
             isArchived: true
         )
-        let configuration = ModelConfiguration(isStoredInMemoryOnly: true)
+        let configuration = ModelConfiguration(isStoredInMemoryOnly: true, cloudKitDatabase: .none)
         let container = try ModelContainer(
             for: SubscriptionRecord.self,
             configurations: configuration
@@ -678,7 +678,7 @@ struct SwiftDataSubscriptionRepositoryTests {
         ]
 
         for (index, representation) in invalidRepresentations.enumerated() {
-            let configuration = ModelConfiguration(isStoredInMemoryOnly: true)
+            let configuration = ModelConfiguration(isStoredInMemoryOnly: true, cloudKitDatabase: .none)
             let container = try ModelContainer(
                 for: SubscriptionRecord.self,
                 configurations: configuration
@@ -715,7 +715,7 @@ struct SwiftDataSubscriptionRepositoryTests {
         let subscription = makeSubscription(
             id: UUID(uuidString: "60000000-0000-0000-0000-000000000006")!
         )
-        let configuration = ModelConfiguration(isStoredInMemoryOnly: true)
+        let configuration = ModelConfiguration(isStoredInMemoryOnly: true, cloudKitDatabase: .none)
         let container = try ModelContainer(
             for: SubscriptionRecord.self,
             configurations: configuration
@@ -744,7 +744,7 @@ struct SwiftDataSubscriptionRepositoryTests {
         let subscriptionID = UUID(
             uuidString: "9A69A77D-C15A-4B3C-B3BD-F4C27C584113"
         )!
-        let configuration = ModelConfiguration(isStoredInMemoryOnly: true)
+        let configuration = ModelConfiguration(isStoredInMemoryOnly: true, cloudKitDatabase: .none)
         let container = try ModelContainer(
             for: SubscriptionRecord.self,
             configurations: configuration
@@ -806,7 +806,7 @@ struct SwiftDataSubscriptionRepositoryTests {
         let subscriptionID = UUID(
             uuidString: "D531C53E-E65E-4B08-A388-8944218B6D1C"
         )!
-        let configuration = ModelConfiguration(isStoredInMemoryOnly: true)
+        let configuration = ModelConfiguration(isStoredInMemoryOnly: true, cloudKitDatabase: .none)
         let container = try ModelContainer(
             for: SubscriptionRecord.self,
             configurations: configuration
@@ -878,7 +878,7 @@ struct SwiftDataSubscriptionRepositoryTests {
         let subscriptionID = UUID(
             uuidString: "C9F06BF2-BE52-4806-A65E-D50205EA16C6"
         )!
-        let configuration = ModelConfiguration(isStoredInMemoryOnly: true)
+        let configuration = ModelConfiguration(isStoredInMemoryOnly: true, cloudKitDatabase: .none)
         let container = try ModelContainer(
             for: SubscriptionRecord.self,
             configurations: configuration

@@ -15,20 +15,25 @@ struct AppDependencies {
     let workspace: SubscriptionWorkspace
 
     static func cloudKitSelection(
-        for selection: AppStoreSelection
+        for selection: AppStoreSelection,
+        hasCloudKitEntitlement: Bool = true
     ) -> CloudKitSelection {
         switch selection {
-        case .production:
+        case .production where hasCloudKitEntitlement:
             .privateContainer(cloudKitContainerID)
-        case .ephemeralUITesting, .namedUITesting:
+        case .production, .ephemeralUITesting, .namedUITesting:
             .disabled
         }
     }
 
     static func cloudKitDatabase(
-        for selection: AppStoreSelection
+        for selection: AppStoreSelection,
+        hasCloudKitEntitlement: Bool = true
     ) -> ModelConfiguration.CloudKitDatabase {
-        switch cloudKitSelection(for: selection) {
+        switch cloudKitSelection(
+            for: selection,
+            hasCloudKitEntitlement: hasCloudKitEntitlement
+        ) {
         case .privateContainer(let containerID):
             .private(containerID)
         case .disabled:
@@ -41,7 +46,11 @@ struct AppDependencies {
         storeDirectory: URL? = nil,
         isRunningTests: Bool = ProcessInfo.processInfo.environment[
             "XCTestConfigurationFilePath"
-        ] != nil
+        ] != nil,
+        hasCloudKitEntitlement: Bool =
+            AppRuntimeEntitlements.hasCloudKitContainer,
+        hasAppGroupEntitlement: Bool =
+            AppRuntimeEntitlements.hasAppGroup
     ) -> AppStartupState {
         let schema = Schema([
             SubscriptionRecord.self,
@@ -70,9 +79,11 @@ struct AppDependencies {
             allowsExchangeRateNetworking: !effectiveArguments.contains("--ui-testing"),
             allowsCalendarImport: selection == .production,
             widgetSnapshotPublisher: selection == .production
+                && hasAppGroupEntitlement
                 ? AppGroupWidgetSnapshotPublisher()
                 : nil,
             syncMonitor: selection == .production
+                && hasCloudKitEntitlement
                 ? CloudKitLibrarySyncMonitor()
                 : nil
         ) {
@@ -111,12 +122,18 @@ struct AppDependencies {
                 configuration = ModelConfiguration(
                     schema: schema,
                     isStoredInMemoryOnly: true,
-                    cloudKitDatabase: cloudKitDatabase(for: .ephemeralUITesting)
+                    cloudKitDatabase: cloudKitDatabase(
+                        for: .ephemeralUITesting,
+                        hasCloudKitEntitlement: hasCloudKitEntitlement
+                    )
                 )
             case .production:
                 configuration = ModelConfiguration(
                     schema: schema,
-                    cloudKitDatabase: cloudKitDatabase(for: .production)
+                    cloudKitDatabase: cloudKitDatabase(
+                        for: .production,
+                        hasCloudKitEntitlement: hasCloudKitEntitlement
+                    )
                 )
             }
             return try ModelContainer(
@@ -256,6 +273,14 @@ struct AppDependencies {
         }
         return token
     }
+}
+
+enum AppRuntimeEntitlements {
+    static let hasAppGroup = FileManager.default.containerURL(
+        forSecurityApplicationGroupIdentifier:
+            WidgetSnapshotStore.appGroupIdentifier
+    ) != nil
+    static let hasCloudKitContainer = hasAppGroup
 }
 
 enum AppStoreSelection: Equatable {

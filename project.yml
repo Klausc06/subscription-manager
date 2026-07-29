@@ -54,6 +54,8 @@ targets:
               - subscription-manager
     settings:
       base:
+        "CODE_SIGN_ENTITLEMENTS[sdk=iphoneos*]": SubscriptionManager/SubscriptionManager.entitlements
+        "CODE_SIGN_ENTITLEMENTS[sdk=iphonesimulator*]": SubscriptionManager/SubscriptionManager.entitlements
         "CODE_SIGN_IDENTITY[sdk=macosx*]": "-"
         "CODE_SIGN_STYLE[sdk=macosx*]": Manual
         "DEVELOPMENT_TEAM[sdk=macosx*]": ""

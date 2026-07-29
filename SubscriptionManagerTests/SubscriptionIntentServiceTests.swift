@@ -61,7 +61,7 @@ struct SubscriptionIntentServiceTests {
                     for: SubscriptionRecord.self,
                     UserPreferencesRecord.self,
                     CalendarProjectionMappingRecord.self,
-                    configurations: ModelConfiguration(isStoredInMemoryOnly: true)
+                    configurations: ModelConfiguration(isStoredInMemoryOnly: true, cloudKitDatabase: .none)
                 )
             }
         )

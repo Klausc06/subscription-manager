@@ -3,7 +3,7 @@ import SwiftData
 
 @Model
 final class SubscriptionRecord {
-    var id: UUID
+    var id: UUID = UUID()
     var serviceIdentityRawValue: String = ""
     var serviceName: String = ""
     var plan: String = ""

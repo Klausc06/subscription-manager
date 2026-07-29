@@ -9,10 +9,12 @@ Date: 2026-07-29
 | Core regression suite | Passed | `swift test --package-path Packages/SubscriptionCore` — 93 tests passed. |
 | Menu-bar preference coverage | Passed | `swift test --package-path Packages/SubscriptionCore --filter UserPreferencesTests` — 6 tests passed. |
 | Focused app coverage | Passed | iOS Simulator Xcode tests for `MacMenuBarPresentationTests`, `MacWindowRouterTests`, and `AppDependenciesTests`. |
-| Full app unit-test target | Passed | `xcodebuild test -enableCodeCoverage NO … -only-testing:SubscriptionManagerTests` on an isolated iOS 27 simulator. |
+| Full app unit-test target | Passed | 65 tests passed through XcodeBuildMCP on the isolated iOS 27 simulator, including CloudKit schema compatibility and entitlement fallback coverage. |
 | iPad app unit-test target | Passed | The same `SubscriptionManagerTests` target passed on an iPad Air 11-inch (M4), iOS 27 simulator. |
 | macOS build | Passed | `xcodebuild build -project SubscriptionManager.xcodeproj -scheme SubscriptionManager -destination 'generic/platform=macOS' CODE_SIGNING_ALLOWED=NO`. |
 | iOS Simulator build | Passed | `xcodebuild build -project SubscriptionManager.xcodeproj -scheme SubscriptionManager -destination 'platform=iOS Simulator,id=4BF01B14-BD88-40E6-8DCD-2E91C9857012' CODE_SIGNING_ALLOWED=NO`. |
+| iOS Simulator production launch | Passed | XcodeBuildMCP built, installed, and launched the production app; the main library rendered and startup logs contained no app error. |
+| Personal Team physical-device launch | Passed in local-only mode | The app was automatically signed with Personal Team `Z23GL5RZH7`, installed on device `00008150-000245CA1AB8401C`, and launched as `com.klausc06.SubscriptionManager`. The running process was observed as PID 2289, and the user independently confirmed that reopening no longer crashed. |
 | Test-target compilation | Passed | `xcodebuild build-for-testing` for the iOS Simulator destination. |
 | Copy catalog syntax | Passed | `jq -e . SubscriptionManager/Resources/Localizable.xcstrings`. |
 | Secret scan | Passed | Source and hidden-file scan found no credentials; `secrets.json` and `Secrets.xcconfig` are ignored. |
@@ -35,6 +37,16 @@ links while also accepting the Archived destination. The direct-action UI test
 was also corrected to return from the archived subscription detail before
 asserting on the current-library row.
 
+The production app could trap during startup in `CKContainer.default()`.
+The main target's entitlement file existed but was not bound to the iOS device
+or simulator build settings. Once the entitlement was applied, SwiftData
+reported Cocoa error 134060 because the CloudKit-backed `SubscriptionRecord.id`
+property did not have a default value. The target now binds the entitlement
+file for both iOS SDKs, the model supplies a UUID default, and runtime
+dependencies disable CloudKit and App Group adapters when those entitlements
+are absent. This lets a Personal Team build run with local SwiftData storage
+while full profiles continue to use CloudKit and the Widget snapshot.
+
 ## UI gate follow-up
 
 The complete iOS Simulator run initially completed with 88 passed, 4 failed,
@@ -48,6 +60,11 @@ passing evidence:
 - failed direct lifecycle actions: passed through XcodeBuildMCP after the
   test returned to the current library before asserting its row.
 
+The two startup UI scenarios also passed after the CloudKit fixes:
+
+- first-run preference defaults appear without prompting for Calendar access;
+- a fresh Simplified Chinese launch reaches the empty subscription library.
+
 A crash report for a separately launched
 `SubscriptionManagerUITests-Runner` showed a missing `XCTest.framework`.
 Running the same test through Xcode passed once after rebuilding and again via
@@ -56,13 +73,12 @@ test environment and that XCTest must not be embedded into the product.
 
 ## Remaining external verification
 
-- Real iPhone, iPad, and Mac acceptance, including VoiceOver, Dynamic Type,
-  keyboard navigation, and reduced-motion scenarios.
-- A signed-in private CloudKit and EventKit convergence pass on physical
-  devices. Developer Mode was enabled on the connected iPhone on 2026-07-29
-  and Xcode recognizes it as a valid destination. The Apple Account is listed
-  in Xcode-beta but still requires sign-in; this Mac consequently has no valid
-  Apple Development signing identity, and the app and Widget targets have no
-  development team configured. Calendar permission must remain user-initiated.
+- Real iPad and Mac acceptance, plus VoiceOver, Dynamic Type, keyboard
+  navigation, and reduced-motion scenarios.
+- Full App Group, Widget, private CloudKit, and EventKit convergence on devices
+  signed by a paid/full Apple Developer team. The connected iPhone acceptance
+  launch passed with Personal Team local-only storage, but a Personal Team
+  provisioning profile cannot authorize this app's App Group capability.
+  Calendar permission must remain user-initiated.
 - Manual MenuBarExtra close/reopen/disable/explicit-quit and Login Items
   approval-state scenarios on macOS.

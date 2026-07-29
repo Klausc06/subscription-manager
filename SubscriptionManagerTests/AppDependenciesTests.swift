@@ -6,12 +6,48 @@ import Testing
 @testable import SubscriptionManager
 
 struct AppDependenciesTests {
+    @Test("Production SwiftData schema is compatible with CloudKit")
+    @MainActor
+    func productionSchemaSupportsCloudKit() throws {
+        let directory = FileManager.default.temporaryDirectory.appending(
+            path: "SubscriptionManagerCloudKitSchemaTests-\(UUID().uuidString)",
+            directoryHint: .isDirectory
+        )
+        defer { try? FileManager.default.removeItem(at: directory) }
+        try FileManager.default.createDirectory(
+            at: directory,
+            withIntermediateDirectories: true
+        )
+        let schema = Schema([
+            SubscriptionRecord.self,
+            UserPreferencesRecord.self,
+            CalendarProjectionMappingRecord.self,
+        ])
+        let configuration = ModelConfiguration(
+            "CloudKitCompatibility",
+            schema: schema,
+            url: directory.appending(path: "CloudKitCompatibility.store"),
+            cloudKitDatabase: .private(AppDependencies.cloudKitContainerID)
+        )
+
+        _ = try ModelContainer(
+            for: schema,
+            configurations: [configuration]
+        )
+    }
+
     @Test("Only production storage selects the private CloudKit container")
     @MainActor
     func cloudKitSelectionKeepsUITestingOffline() {
         #expect(
             AppDependencies.cloudKitSelection(for: .production)
                 == .privateContainer(AppDependencies.cloudKitContainerID)
+        )
+        #expect(
+            AppDependencies.cloudKitSelection(
+                for: .production,
+                hasCloudKitEntitlement: false
+            ) == .disabled
         )
         #expect(
             AppDependencies.cloudKitSelection(for: .ephemeralUITesting)
@@ -73,7 +109,7 @@ struct AppDependenciesTests {
         let container = try ModelContainer(
             for: SubscriptionRecord.self,
             UserPreferencesRecord.self,
-            configurations: ModelConfiguration(isStoredInMemoryOnly: true)
+            configurations: ModelConfiguration(isStoredInMemoryOnly: true, cloudKitDatabase: .none)
         )
         let expected = UserPreferences(
             primaryCurrency: .usd,
@@ -100,7 +136,7 @@ struct AppDependenciesTests {
             for: SubscriptionRecord.self,
             UserPreferencesRecord.self,
             CalendarProjectionMappingRecord.self,
-            configurations: ModelConfiguration(isStoredInMemoryOnly: true)
+            configurations: ModelConfiguration(isStoredInMemoryOnly: true, cloudKitDatabase: .none)
         )
         let repository = SwiftDataCalendarProjectionMappingRepository(
             modelContainer: container

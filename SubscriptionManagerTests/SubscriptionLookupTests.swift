@@ -17,7 +17,7 @@ struct SubscriptionLookupTests {
             id: UUID(uuidString: "20000000-0000-0000-0000-000000000002")!,
             serviceName: "Expected service"
         )
-        let configuration = ModelConfiguration(isStoredInMemoryOnly: true)
+        let configuration = ModelConfiguration(isStoredInMemoryOnly: true, cloudKitDatabase: .none)
         let container = try ModelContainer(
             for: SubscriptionRecord.self,
             configurations: configuration
@@ -44,7 +44,7 @@ struct SubscriptionLookupTests {
             id: UUID(uuidString: "40000000-0000-0000-0000-000000000004")!,
             serviceName: "Preserved service"
         )
-        let configuration = ModelConfiguration(isStoredInMemoryOnly: true)
+        let configuration = ModelConfiguration(isStoredInMemoryOnly: true, cloudKitDatabase: .none)
         let container = try ModelContainer(
             for: SubscriptionRecord.self,
             configurations: configuration
