@@ -525,3 +525,115 @@ final class SwiftDataUserPreferencesRepository: UserPreferencesRepository {
         }
     }
 }
+
+@MainActor
+final class SwiftDataPortableBackupImportRepository:
+    PortableBackupImportRepository
+{
+    private let modelContainer: ModelContainer
+    private let save: (ModelContext) throws -> Void
+    private let encoder = JSONEncoder()
+
+    convenience init(modelContainer: ModelContainer) {
+        self.init(modelContainer: modelContainer, save: { try $0.save() })
+    }
+
+    init(
+        modelContainer: ModelContainer,
+        save: @escaping (ModelContext) throws -> Void
+    ) {
+        self.modelContainer = modelContainer
+        self.save = save
+    }
+
+    func apply(_ merge: PortableBackupMerge) throws {
+        let context = ModelContext(modelContainer)
+        do {
+            for subscription in merge.additions {
+                let record = SubscriptionRecord(id: subscription.id)
+                try apply(subscription, to: record)
+                context.insert(record)
+            }
+            for subscription in merge.replacements {
+                let id = subscription.id
+                var descriptor = FetchDescriptor<SubscriptionRecord>(
+                    predicate: #Predicate { $0.id == id }
+                )
+                descriptor.fetchLimit = 1
+                guard let record = try context.fetch(descriptor).first else {
+                    throw PortableBackupImportStorageError.subscriptionNotFound
+                }
+                try apply(subscription, to: record)
+            }
+            if let preferences = merge.preferences {
+                var descriptor = FetchDescriptor<UserPreferencesRecord>()
+                descriptor.fetchLimit = 1
+                let record = try context.fetch(descriptor).first
+                    ?? UserPreferencesRecord()
+                if record.modelContext == nil {
+                    context.insert(record)
+                }
+                record.primaryCurrencyRawValue = preferences.primaryCurrency.rawValue
+                record.calendarProjectionHorizonMonths =
+                    preferences.calendarProjectionHorizon.rawValue
+                record.hideAmountsInCalendar = preferences.hideAmountsInCalendar
+                record.setupStatusRawValue = preferences.setupStatus.rawValue
+            }
+            try save(context)
+        } catch {
+            context.rollback()
+            throw error
+        }
+    }
+
+    private func apply(
+        _ subscription: Subscription,
+        to record: SubscriptionRecord
+    ) throws {
+        record.serviceIdentityRawValue = subscription.serviceIdentity.rawValue
+        record.serviceName = subscription.serviceName
+        record.plan = subscription.plan
+        record.category = subscription.category
+        record.originalMinorUnits = subscription.originalAmount.minorUnits
+        record.currencyRawValue = subscription.originalAmount.currency.rawValue
+        record.billingCycleRawValue =
+            subscription.billingSchedule.interval.storageIdentifier
+        record.billingIntervalValue =
+            subscription.billingSchedule.interval.customValue
+        record.billingIntervalUnitRawValue =
+            subscription.billingSchedule.interval.customUnit?.rawValue
+        record.billingTimeZoneIdentifier =
+            subscription.billingSchedule.timeZoneIdentifier
+        record.startDate = subscription.startDate
+        record.renewalAnchor = subscription.billingSchedule.renewalAnchor
+        record.confirmedNextRenewal = subscription.confirmedNextRenewal
+        record.managementURLString = subscription.managementURL?.absoluteString
+        record.notes = subscription.notes
+        record.confirmedChargesData = try encoder.encode(
+            subscription.confirmedCharges
+        )
+        record.priceChangesData = try encoder.encode(subscription.priceChanges)
+        record.isArchived = subscription.isArchived
+        switch subscription.lifecycle {
+        case .active:
+            record.lifecycleRawValue = "active"
+            record.trialFirstPaidChargeAt = nil
+            record.cancelledAt = nil
+            record.accessUntil = nil
+        case .trial(let firstPaidChargeAt):
+            record.lifecycleRawValue = "trial"
+            record.trialFirstPaidChargeAt = firstPaidChargeAt
+            record.cancelledAt = nil
+            record.accessUntil = nil
+        case .cancelled(let cancelledAt, let accessUntil):
+            record.lifecycleRawValue = "cancelled"
+            record.trialFirstPaidChargeAt = nil
+            record.cancelledAt = cancelledAt
+            record.accessUntil = accessUntil
+        }
+    }
+}
+
+private enum PortableBackupImportStorageError: Error {
+    case subscriptionNotFound
+}

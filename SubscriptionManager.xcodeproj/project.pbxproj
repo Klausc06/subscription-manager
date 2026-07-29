@@ -46,6 +46,7 @@
 		1B1800010000000000000001 /* EventKitCalendarProjectionImporterTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1B1800010000000000000002 /* EventKitCalendarProjectionImporterTests.swift */; };
 		1B1800010000000000000003 /* EventKitCalendarProjectionImporter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1B1800010000000000000004 /* EventKitCalendarProjectionImporter.swift */; };
 		1B2000010000000000000001 /* PortableExportView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1B2000010000000000000002 /* PortableExportView.swift */; };
+		1B2100010000000000000001 /* PortableRestoreView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1B2100010000000000000002 /* PortableRestoreView.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -108,6 +109,7 @@
 		1B1800010000000000000002 /* EventKitCalendarProjectionImporterTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EventKitCalendarProjectionImporterTests.swift; sourceTree = "<group>"; };
 		1B1800010000000000000004 /* EventKitCalendarProjectionImporter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EventKitCalendarProjectionImporter.swift; sourceTree = "<group>"; };
 		1B2000010000000000000002 /* PortableExportView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PortableExportView.swift; sourceTree = "<group>"; };
+		1B2100010000000000000002 /* PortableRestoreView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PortableRestoreView.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -178,6 +180,7 @@
 			children = (
 				1B1700010000000000000002 /* CalendarProjectionView.swift */,
 				1B2000010000000000000002 /* PortableExportView.swift */,
+				1B2100010000000000000002 /* PortableRestoreView.swift */,
 				3E375325DBD112A5F485EF3F /* AddSubscriptionView.swift */,
 				1B0500010000000000000002 /* ConfirmChargeView.swift */,
 				54AE7D1E07F1BF787F9E1BEF /* BillingScheduleSupport.swift */,
@@ -395,6 +398,7 @@
 				1B1800010000000000000003 /* EventKitCalendarProjectionImporter.swift in Sources */,
 				1B1700010000000000000001 /* CalendarProjectionView.swift in Sources */,
 				1B2000010000000000000001 /* PortableExportView.swift in Sources */,
+				1B2100010000000000000001 /* PortableRestoreView.swift in Sources */,
 				1B0600010000000000000008 /* CatalogBrowserView.swift in Sources */,
 				1B0600010000000000000010 /* CatalogPresetDetailView.swift in Sources */,
 				1B0600010000000000000005 /* BundledCatalogRepository.swift in Sources */,

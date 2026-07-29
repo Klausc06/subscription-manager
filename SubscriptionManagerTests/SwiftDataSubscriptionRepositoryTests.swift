@@ -332,6 +332,71 @@ struct SwiftDataSubscriptionRepositoryTests {
         #expect(subscriptions == [retriedSubscription])
     }
 
+    @Test("A failed portable restore rolls back subscriptions and preferences together")
+    @MainActor
+    func failedPortableRestoreRollsBackEveryMutation() throws {
+        let configuration = ModelConfiguration(isStoredInMemoryOnly: true)
+        let container = try ModelContainer(
+            for: SubscriptionRecord.self,
+            UserPreferencesRecord.self,
+            configurations: configuration
+        )
+        let original = makeSubscription(
+            id: UUID(uuidString: "70000000-0000-0000-0000-000000000007")!
+        )
+        let originalPreferences = UserPreferences.default
+        try SwiftDataSubscriptionRepository(modelContainer: container)
+            .createSubscription(original)
+        try SwiftDataUserPreferencesRepository(modelContainer: container)
+            .savePreferences(originalPreferences)
+
+        let replacement = Subscription(
+            id: original.id,
+            serviceIdentity: original.serviceIdentity,
+            serviceName: "Restored name",
+            plan: original.plan,
+            category: original.category,
+            originalAmount: original.originalAmount,
+            billingSchedule: original.billingSchedule,
+            startDate: original.startDate,
+            confirmedNextRenewal: original.confirmedNextRenewal,
+            managementURL: original.managementURL,
+            notes: original.notes
+        )
+        let addition = makeSubscription(
+            id: UUID(uuidString: "80000000-0000-0000-0000-000000000008")!
+        )
+        let restoredPreferences = UserPreferences(
+            primaryCurrency: .usd,
+            calendarProjectionHorizon: .sixMonths,
+            hideAmountsInCalendar: true,
+            setupStatus: .completed
+        )
+        let importer = SwiftDataPortableBackupImportRepository(
+            modelContainer: container,
+            save: { _ in throw SaveFailure.unavailable }
+        )
+
+        #expect(throws: SaveFailure.self) {
+            try importer.apply(
+                PortableBackupMerge(
+                    additions: [addition],
+                    replacements: [replacement],
+                    preferences: restoredPreferences
+                )
+            )
+        }
+
+        let subscriptions = try SwiftDataSubscriptionRepository(
+            modelContainer: container
+        ).listSubscriptions()
+        let preferences = try SwiftDataUserPreferencesRepository(
+            modelContainer: container
+        ).loadPreferences()
+        #expect(subscriptions == [original])
+        #expect(preferences == originalPreferences)
+    }
+
     @Test("A walking-skeleton record remains readable after schema expansion")
     @MainActor
     func walkingSkeletonRecordRemainsReadable() throws {

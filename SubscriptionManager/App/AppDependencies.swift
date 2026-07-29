@@ -138,6 +138,10 @@ struct AppDependencies {
             let preferencesRepository = SwiftDataUserPreferencesRepository(
                 modelContainer: modelContainer
             )
+            let portableBackupImportRepository =
+                SwiftDataPortableBackupImportRepository(
+                    modelContainer: modelContainer
+                )
             let calendarProjectionImporter: any CalendarProjectionImporter
             let calendarProjectionReconciler:
                 (any CalendarProjectionReconciler)?
@@ -189,6 +193,8 @@ struct AppDependencies {
                     workspace: SubscriptionWorkspace(
                         repository: workspaceRepository,
                         preferencesRepository: preferencesRepository,
+                        portableBackupImportRepository:
+                            portableBackupImportRepository,
                         catalogRepository: catalogRepository,
                         catalogUpdateSource: GitHubCatalogUpdateSource(),
                         catalogCache: catalogCache,
