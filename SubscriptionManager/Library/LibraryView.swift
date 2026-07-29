@@ -167,7 +167,7 @@ struct LibraryView: View {
     }
 
     private func presentAddSubscription() {
-        presentedSheet = .addSubscription
+        presentedSheet = .addSubscription(UUID())
     }
 
     private func presentPreferences() {
@@ -1071,10 +1071,14 @@ private struct SyncStatusView: View {
     }
 }
 
-private enum LibrarySheet: String, Identifiable {
-    case addSubscription
+private enum LibrarySheet: Identifiable {
+    case addSubscription(UUID)
 
-    var id: String { rawValue }
+    var id: UUID {
+        switch self {
+        case .addSubscription(let id): id
+        }
+    }
 }
 
 #Preview("Empty library") {

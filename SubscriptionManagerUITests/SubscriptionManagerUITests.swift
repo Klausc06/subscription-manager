@@ -265,10 +265,12 @@ final class SubscriptionManagerUITests: XCTestCase {
         app.buttons["setup.skip"].tap()
         XCTAssertTrue(app.buttons["library.settings"].waitForExistence(timeout: 5))
         app.buttons["library.settings"].tap()
-        XCTAssertTrue(
-            app.buttons["preferences.resume-setup"].waitForExistence(timeout: 5)
-        )
-        app.buttons["preferences.resume-setup"].tap()
+        let resumeSetup = app.buttons["preferences.resume-setup"]
+        if !resumeSetup.waitForExistence(timeout: 2) {
+            app.swipeUp()
+        }
+        XCTAssertTrue(resumeSetup.waitForExistence(timeout: 5))
+        resumeSetup.tap()
         XCTAssertTrue(app.staticTexts["Set Up Your Library"].waitForExistence(timeout: 5))
     }
 
@@ -488,7 +490,7 @@ final class SubscriptionManagerUITests: XCTestCase {
         let archivedStatus = app.descendants(matching: .any)[
             "subscription.status"
         ]
-        XCTAssertTrue(archivedStatus.exists)
+        XCTAssertTrue(archivedStatus.waitForExistence(timeout: 5))
         XCTAssertTrue(archivedStatus.label.contains("Trial"))
 
         app.buttons["subscription.row"].firstMatch.tap()
@@ -509,7 +511,7 @@ final class SubscriptionManagerUITests: XCTestCase {
         let restoredStatus = app.descendants(matching: .any)[
             "subscription.status"
         ]
-        XCTAssertTrue(restoredStatus.exists)
+        XCTAssertTrue(restoredStatus.waitForExistence(timeout: 5))
         XCTAssertTrue(restoredStatus.label.contains("Trial"))
     }
 
@@ -552,6 +554,10 @@ final class SubscriptionManagerUITests: XCTestCase {
         archive.tap()
 
         app.navigationBars.buttons["Subscriptions"].tap()
+        XCTAssertTrue(
+            app.descendants(matching: .any)["library.empty-state"]
+                .waitForExistence(timeout: 5)
+        )
         let archivedLibrary = app.buttons["library.archived"]
         XCTAssertTrue(archivedLibrary.waitForExistence(timeout: 5))
         archivedLibrary.tap()
@@ -605,6 +611,9 @@ final class SubscriptionManagerUITests: XCTestCase {
         app.staticTexts["Archived Failure"].tap()
         app.buttons["subscription.lifecycle.actions"].tap()
         app.buttons["subscription.lifecycle.archive"].tap()
+        XCTAssertTrue(
+            app.staticTexts["Current Failure"].waitForExistence(timeout: 5)
+        )
         app.terminate()
 
         let failingApp = launch(
@@ -1046,7 +1055,7 @@ final class SubscriptionManagerUITests: XCTestCase {
 
         app.buttons["subscription.form.save"].tap()
         XCTAssertTrue(
-            app.buttons["subscription.row"].firstMatch
+            app.staticTexts[serviceNameValue]
                 .waitForExistence(timeout: 5)
         )
     }
