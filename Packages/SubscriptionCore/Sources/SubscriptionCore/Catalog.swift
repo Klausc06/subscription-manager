@@ -186,6 +186,7 @@ public struct CatalogPreset: Codable, Equatable, Identifiable, Sendable {
     public let managementURL: URL?
     public let icon: CatalogIcon
     public let assetProvenance: CatalogAssetProvenance
+    public let legacyPresetIDs: [String]
     public let offers: [CatalogOffer]
 
     public init(
@@ -196,6 +197,7 @@ public struct CatalogPreset: Codable, Equatable, Identifiable, Sendable {
         managementURL: URL?,
         icon: CatalogIcon,
         assetProvenance: CatalogAssetProvenance? = nil,
+        legacyPresetIDs: [String] = [],
         offers: [CatalogOffer] = []
     ) {
         self.id = id
@@ -206,6 +208,7 @@ public struct CatalogPreset: Codable, Equatable, Identifiable, Sendable {
         self.icon = icon
         self.assetProvenance = assetProvenance
             ?? .originalSymbol(for: id)
+        self.legacyPresetIDs = legacyPresetIDs
         self.offers = offers
     }
 
@@ -217,6 +220,7 @@ public struct CatalogPreset: Codable, Equatable, Identifiable, Sendable {
         case managementURL
         case icon
         case assetProvenance
+        case legacyPresetIDs
         case offers
     }
 
@@ -245,6 +249,10 @@ public struct CatalogPreset: Codable, Equatable, Identifiable, Sendable {
                 CatalogAssetProvenance.self,
                 forKey: .assetProvenance
             ),
+            legacyPresetIDs: try container.decodeIfPresent(
+                [String].self,
+                forKey: .legacyPresetIDs
+            ) ?? [],
             offers: try container.decodeIfPresent(
                 [CatalogOffer].self,
                 forKey: .offers
@@ -261,6 +269,9 @@ public struct CatalogPreset: Codable, Equatable, Identifiable, Sendable {
         try container.encodeIfPresent(managementURL, forKey: .managementURL)
         try container.encode(icon, forKey: .icon)
         try container.encode(assetProvenance, forKey: .assetProvenance)
+        if !legacyPresetIDs.isEmpty {
+            try container.encode(legacyPresetIDs, forKey: .legacyPresetIDs)
+        }
         if !offers.isEmpty {
             try container.encode(offers, forKey: .offers)
         }
@@ -346,6 +357,20 @@ public struct CatalogSnapshot: Codable, Equatable, Sendable {
                     message: "asset must be an original CC0 symbol for this preset"
                 )
             }
+            for legacyPresetID in preset.legacyPresetIDs {
+                let legacyIdentifier = legacyPresetID.trimmingCharacters(
+                    in: .whitespacesAndNewlines
+                )
+                guard !legacyIdentifier.isEmpty,
+                      identifiers.insert(legacyIdentifier).inserted
+                else {
+                    throw CatalogLoadError(
+                        presetID: identifier,
+                        field: .id,
+                        message: "legacy identifier is empty or duplicated"
+                    )
+                }
+            }
             var offerIdentifiers = Set<String>()
             for offer in preset.offers {
                 let offerID = offer.id.trimmingCharacters(
@@ -430,6 +455,15 @@ public struct CatalogSnapshot: Codable, Equatable, Sendable {
                 $1.title.value(for: locale)
             ) == .orderedAscending
         }
+    }
+
+    public func canonicalPresetID(for identifier: String) -> String? {
+        let normalized = identifier.trimmingCharacters(
+            in: .whitespacesAndNewlines
+        )
+        return presets.first {
+            $0.id == normalized || $0.legacyPresetIDs.contains(normalized)
+        }?.id
     }
 }
 

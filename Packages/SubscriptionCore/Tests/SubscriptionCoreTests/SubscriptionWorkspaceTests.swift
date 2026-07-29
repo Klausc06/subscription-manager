@@ -654,6 +654,54 @@ struct SubscriptionWorkspaceTests {
         #expect(repository.updateAttemptCount == 0)
     }
 
+    @Test("A new catalog session clears search and category filters")
+    @MainActor
+    func newCatalogSessionClearsFilters() throws {
+        let music = CatalogPreset(
+            id: "music.example",
+            serviceName: CatalogLocalizedText(en: "Music", zhHans: "音乐"),
+            category: CatalogLocalizedText(en: "Music", zhHans: "音乐"),
+            suggestedInterval: .monthly,
+            managementURL: nil,
+            icon: .music
+        )
+        let video = CatalogPreset(
+            id: "video.example",
+            serviceName: CatalogLocalizedText(en: "Video", zhHans: "视频"),
+            category: CatalogLocalizedText(en: "Video", zhHans: "视频"),
+            suggestedInterval: .monthly,
+            managementURL: nil,
+            icon: .video
+        )
+        let workspace = SubscriptionWorkspace(
+            repository: InMemorySubscriptionRepository(),
+            catalogRepository: StaticCatalogRepository(
+                presets: [music, video]
+            )
+        )
+
+        workspace.loadCatalog(locale: Locale(identifier: "en"))
+        workspace.setCatalogSearchQuery("Video")
+        workspace.setCatalogCategory("video")
+        #expect(workspace.catalogState == .loaded(
+            categories: [
+                CatalogCategory(id: "music", title: music.category),
+                CatalogCategory(id: "video", title: video.category),
+            ],
+            presets: [video]
+        ))
+
+        workspace.loadCatalog(locale: Locale(identifier: "en"))
+
+        #expect(workspace.catalogState == .loaded(
+            categories: [
+                CatalogCategory(id: "music", title: music.category),
+                CatalogCategory(id: "video", title: video.category),
+            ],
+            presets: [music, video]
+        ))
+    }
+
     @Test("Active creation stores an active lifecycle")
     @MainActor
     func activeCreationStoresActiveLifecycle() throws {
@@ -716,18 +764,20 @@ struct SubscriptionWorkspaceTests {
 
         workspace.loadCatalog(locale: Locale(identifier: "zh-Hans"))
         workspace.setCatalogSearchQuery("音乐")
-        workspace.createCatalogSubscription(
+        let result = workspace.createCatalogSubscription(
             presetID: preset.id,
-            input: SubscriptionCreationInput(
-                serviceName: "Example Music",
-                plan: "Family",
-                category: "Music",
-                originalAmount: Money(minorUnits: 1_299, currency: .usd),
-                billingInterval: .monthly,
-                startDate: start,
-                confirmedNextRenewal: start.addingTimeInterval(86_400),
-                managementURL: preset.managementURL,
-                notes: ""
+            command: .legacy(
+                SubscriptionCreationInput(
+                    serviceName: "Example Music",
+                    plan: "Family",
+                    category: "Music",
+                    originalAmount: Money(minorUnits: 1_299, currency: .usd),
+                    billingInterval: .monthly,
+                    startDate: start,
+                    confirmedNextRenewal: start.addingTimeInterval(86_400),
+                    managementURL: preset.managementURL,
+                    notes: ""
+                )
             )
         )
 
@@ -741,6 +791,155 @@ struct SubscriptionWorkspaceTests {
             repository.storedSubscription(id: subscriptionID)?.serviceIdentity
                 == ServiceIdentity(rawValue: "catalog:music.example")
         )
+        guard case .created = result else {
+            Issue.record("Expected offer-less legacy catalog creation")
+            return
+        }
+    }
+
+    @Test("Verified catalog creation derives provider fields and permits actual charge")
+    @MainActor
+    func verifiedCatalogCreationDerivesProviderFields() throws {
+        let verifiedOffer = catalogOfferFixture(
+            id: "plus-monthly-us-web",
+            status: .verified
+        )
+        let preset = catalogPresetFixture(offers: [verifiedOffer])
+        let repository = InMemorySubscriptionRepository()
+        let subscriptionID = UUID(
+            uuidString: "ACACACAC-1111-2222-3333-EEEEEEEEEEEE"
+        )!
+        let start = Date(timeIntervalSince1970: 1_767_225_600)
+        let nextRenewal = start.addingTimeInterval(86_400)
+        let workspace = SubscriptionWorkspace(
+            repository: repository,
+            catalogRepository: StaticCatalogRepository(presets: [preset]),
+            identifierGenerator: { subscriptionID }
+        )
+        workspace.loadCatalog(locale: Locale(identifier: "en"))
+
+        let result = workspace.createCatalogSubscription(
+            presetID: preset.id,
+            command: .verifiedOffer(
+                CatalogOfferSubscriptionInput(
+                    offerID: verifiedOffer.id,
+                    actualChargeOverride: Money(
+                        minorUnits: 2_199,
+                        currency: .eur
+                    ),
+                    startDate: start,
+                    renewalAnchor: start,
+                    confirmedNextRenewal: nextRenewal,
+                    billingTimeZoneIdentifier: "UTC",
+                    notes: "Personal note",
+                    initialStatus: .active
+                )
+            )
+        )
+
+        let stored = try #require(
+            repository.storedSubscription(id: subscriptionID)
+        )
+        #expect(result == .created(stored))
+        #expect(stored.serviceName == preset.serviceName.en)
+        #expect(stored.plan == verifiedOffer.planName.en)
+        #expect(stored.category == preset.category.en)
+        #expect(stored.originalAmount == Money(
+            minorUnits: 2_199,
+            currency: .eur
+        ))
+        #expect(stored.billingSchedule.interval == verifiedOffer.billingInterval)
+        #expect(stored.managementURL == preset.managementURL)
+        #expect(stored.serviceIdentity.rawValue == "catalog:\(preset.id)")
+    }
+
+    @Test("Catalog creation rejects an unknown offer identifier")
+    @MainActor
+    func catalogCreationRejectsUnknownOffer() {
+        let preset = catalogPresetFixture(offers: [
+            catalogOfferFixture(
+                id: "plus-monthly-us-web",
+                status: .verified
+            )
+        ])
+        let repository = InMemorySubscriptionRepository()
+        let workspace = SubscriptionWorkspace(
+            repository: repository,
+            catalogRepository: StaticCatalogRepository(presets: [preset])
+        )
+        workspace.loadCatalog(locale: Locale(identifier: "en"))
+
+        let result = workspace.createCatalogSubscription(
+            presetID: preset.id,
+            command: .verifiedOffer(
+                catalogOfferInputFixture(offerID: "unknown")
+            )
+        )
+
+        #expect(result == .rejected(.offerNotFound))
+        #expect((try? repository.listSubscriptions())?.isEmpty == true)
+    }
+
+    @Test("Catalog creation rejects an offer that requires review")
+    @MainActor
+    func catalogCreationRejectsReviewRequiredOffer() {
+        let offer = catalogOfferFixture(
+            id: "research-only",
+            status: .reviewRequired
+        )
+        let preset = catalogPresetFixture(offers: [offer])
+        let repository = InMemorySubscriptionRepository()
+        let workspace = SubscriptionWorkspace(
+            repository: repository,
+            catalogRepository: StaticCatalogRepository(presets: [preset])
+        )
+        workspace.loadCatalog(locale: Locale(identifier: "en"))
+
+        let result = workspace.createCatalogSubscription(
+            presetID: preset.id,
+            command: .verifiedOffer(
+                catalogOfferInputFixture(offerID: offer.id)
+            )
+        )
+
+        #expect(result == .rejected(.offerRequiresReview))
+        #expect((try? repository.listSubscriptions())?.isEmpty == true)
+    }
+
+    @Test("Catalog creation rejects legacy input when a verified offer exists")
+    @MainActor
+    func catalogCreationRequiresVerifiedOfferSelection() {
+        let preset = catalogPresetFixture(offers: [
+            catalogOfferFixture(
+                id: "plus-monthly-us-web",
+                status: .verified
+            )
+        ])
+        let repository = InMemorySubscriptionRepository()
+        let workspace = SubscriptionWorkspace(
+            repository: repository,
+            catalogRepository: StaticCatalogRepository(presets: [preset])
+        )
+        workspace.loadCatalog(locale: Locale(identifier: "en"))
+
+        let result = workspace.createCatalogSubscription(
+            presetID: preset.id,
+            command: .legacy(
+                SubscriptionCreationInput(
+                    serviceName: "Forged",
+                    plan: "Forged",
+                    category: "Forged",
+                    originalAmount: Money(minorUnits: 1, currency: .cny),
+                    startDate: .distantPast,
+                    confirmedNextRenewal: .distantFuture,
+                    managementURL: nil,
+                    notes: ""
+                )
+            )
+        )
+
+        #expect(result == .rejected(.verifiedOfferRequired))
+        #expect((try? repository.listSubscriptions())?.isEmpty == true)
     }
 
     @Test("Trial creation snapshots next renewal as first paid charge")
@@ -2232,6 +2431,59 @@ struct SubscriptionWorkspaceTests {
         #expect(workspace.expectedCharges == forecastBefore)
         #expect(workspace.libraryState == libraryBefore)
     }
+}
+
+private func catalogPresetFixture(
+    offers: [CatalogOffer]
+) -> CatalogPreset {
+    CatalogPreset(
+        id: "provider.example",
+        serviceName: CatalogLocalizedText(
+            en: "Provider",
+            zhHans: "服务商"
+        ),
+        category: CatalogLocalizedText(
+            en: "Productivity",
+            zhHans: "效率"
+        ),
+        suggestedInterval: .monthly,
+        managementURL: URL(string: "https://example.com/account"),
+        icon: .productivity,
+        offers: offers
+    )
+}
+
+private func catalogOfferFixture(
+    id: String,
+    status: CatalogOfferReviewStatus
+) -> CatalogOffer {
+    CatalogOffer(
+        id: id,
+        planName: CatalogLocalizedText(en: "Plus", zhHans: "Plus"),
+        price: Money(minorUnits: 2_000, currency: .usd),
+        billingInterval: .monthly,
+        market: "US",
+        purchaseChannel: .web,
+        sourceURL: URL(string: "https://example.com/pricing")!,
+        verifiedOn: "2026-07-30",
+        reviewStatus: status
+    )
+}
+
+private func catalogOfferInputFixture(
+    offerID: String
+) -> CatalogOfferSubscriptionInput {
+    let start = Date(timeIntervalSince1970: 1_767_225_600)
+    return CatalogOfferSubscriptionInput(
+        offerID: offerID,
+        actualChargeOverride: nil,
+        startDate: start,
+        renewalAnchor: start,
+        confirmedNextRenewal: start.addingTimeInterval(86_400),
+        billingTimeZoneIdentifier: "UTC",
+        notes: "",
+        initialStatus: .active
+    )
 }
 
 @MainActor

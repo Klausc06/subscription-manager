@@ -144,6 +144,7 @@
       "suggestedInterval": "monthly",
       "managementURL": "https://chatgpt.com/",
       "icon": "productivity",
+      "legacyPresetIDs": ["chatgpt-plus"],
       "assetProvenance": {
         "kind": "originalSymbol",
         "license": "CC0-1.0",

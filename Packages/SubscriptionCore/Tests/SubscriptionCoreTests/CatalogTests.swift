@@ -28,6 +28,27 @@ struct CatalogTests {
         #expect(preset.offers.isEmpty)
     }
 
+    @Test("Catalog canonicalizes legacy preset identifiers")
+    func catalogCanonicalizesLegacyPresetIdentifiers() throws {
+        let preset = CatalogPreset(
+            id: "chatgpt",
+            serviceName: CatalogLocalizedText(en: "ChatGPT", zhHans: "ChatGPT"),
+            category: CatalogLocalizedText(en: "Productivity", zhHans: "效率"),
+            suggestedInterval: .monthly,
+            managementURL: URL(string: "https://chatgpt.com/"),
+            icon: .productivity,
+            legacyPresetIDs: ["chatgpt-plus"]
+        )
+        let snapshot = try CatalogSnapshot(
+            schemaVersion: CatalogSnapshot.currentSchemaVersion,
+            presets: [preset]
+        )
+
+        #expect(snapshot.canonicalPresetID(for: "chatgpt") == "chatgpt")
+        #expect(snapshot.canonicalPresetID(for: "chatgpt-plus") == "chatgpt")
+        #expect(snapshot.canonicalPresetID(for: "unknown") == nil)
+    }
+
     @Test("Verified catalog offers round-trip with provenance")
     func verifiedCatalogOffersRoundTrip() throws {
         let offer = CatalogOffer(
@@ -86,6 +107,15 @@ struct CatalogTests {
     func catalogRejectsOffersWithInvalidBillingIntervals() {
         assertOffersAreInvalid([
             catalogOffer(billingInterval: .custom(value: 0, unit: .month))
+        ])
+    }
+
+    @Test("Catalog rejects custom weekly intervals that overflow day arithmetic")
+    func catalogRejectsOverflowingCustomWeeklyIntervals() {
+        assertOffersAreInvalid([
+            catalogOffer(
+                billingInterval: .custom(value: .max, unit: .week)
+            )
         ])
     }
 

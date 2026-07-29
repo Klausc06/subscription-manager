@@ -262,6 +262,56 @@ public struct SubscriptionCreationInput: Equatable, Sendable {
     }
 }
 
+public struct CatalogOfferSubscriptionInput: Equatable, Sendable {
+    public let offerID: String
+    public let actualChargeOverride: Money?
+    public let startDate: Date
+    public let renewalAnchor: Date
+    public let confirmedNextRenewal: Date
+    public let billingTimeZoneIdentifier: String
+    public let notes: String
+    public let initialStatus: SubscriptionInitialStatus
+
+    public init(
+        offerID: String,
+        actualChargeOverride: Money?,
+        startDate: Date,
+        renewalAnchor: Date,
+        confirmedNextRenewal: Date,
+        billingTimeZoneIdentifier: String,
+        notes: String,
+        initialStatus: SubscriptionInitialStatus
+    ) {
+        self.offerID = offerID
+        self.actualChargeOverride = actualChargeOverride
+        self.startDate = startDate
+        self.renewalAnchor = renewalAnchor
+        self.confirmedNextRenewal = confirmedNextRenewal
+        self.billingTimeZoneIdentifier = billingTimeZoneIdentifier
+        self.notes = notes
+        self.initialStatus = initialStatus
+    }
+}
+
+public enum CatalogSubscriptionCreationCommand: Equatable, Sendable {
+    case verifiedOffer(CatalogOfferSubscriptionInput)
+    case legacy(SubscriptionCreationInput)
+}
+
+public enum CatalogSubscriptionCreationRejection: Equatable, Sendable {
+    case presetNotFound
+    case offerNotFound
+    case offerRequiresReview
+    case verifiedOfferRequired
+}
+
+public enum CatalogSubscriptionCreationResult: Equatable, Sendable {
+    case created(Subscription)
+    case rejected(CatalogSubscriptionCreationRejection)
+    case validationFailed
+    case persistenceFailed
+}
+
 @available(*, deprecated, renamed: "SubscriptionCreationInput")
 public typealias MonthlySubscriptionCreationInput = SubscriptionCreationInput
 
@@ -711,10 +761,7 @@ public final class SubscriptionWorkspace {
     }
 
     nonisolated static func defaultRenewalCalendar() -> Calendar {
-        var calendar = Calendar(identifier: .gregorian)
-        calendar.locale = Locale(identifier: "en_US_POSIX")
-        calendar.timeZone = .autoupdatingCurrent
-        return calendar
+        BillingCalendar.calendar(timeZone: .autoupdatingCurrent)
     }
 
     public func refreshExchangeRates() async {
@@ -960,6 +1007,8 @@ public final class SubscriptionWorkspace {
     }
 
     public func loadCatalog(locale: Locale) {
+        catalogSearchQuery = ""
+        catalogCategoryID = nil
         guard let catalogRepository else {
             catalogState = .failed
             return
@@ -1037,17 +1086,67 @@ public final class SubscriptionWorkspace {
         refreshCatalogState()
     }
 
+    @discardableResult
     public func createCatalogSubscription(
         presetID: String,
-        input: SubscriptionCreationInput
-    ) {
-        guard catalogSnapshot?.presets.contains(where: {
+        command: CatalogSubscriptionCreationCommand
+    ) -> CatalogSubscriptionCreationResult {
+        guard let preset = catalogSnapshot?.presets.first(where: {
             $0.id == presetID
-        }) == true else {
-            return
+        }) else {
+            creationValidationErrors = [:]
+            return .rejected(.presetNotFound)
         }
-        createSubscription(input) { _ in
-            ServiceIdentity(rawValue: "catalog:\(presetID)")
+
+        let input: SubscriptionCreationInput
+        switch command {
+        case .verifiedOffer(let offerInput):
+            guard let offer = preset.offers.first(where: {
+                $0.id == offerInput.offerID
+            }) else {
+                creationValidationErrors = [:]
+                return .rejected(.offerNotFound)
+            }
+            guard offer.reviewStatus == .verified else {
+                creationValidationErrors = [:]
+                return .rejected(.offerRequiresReview)
+            }
+            input = SubscriptionCreationInput(
+                serviceName: preset.serviceName.value(for: catalogLocale),
+                plan: offer.planName.value(for: catalogLocale),
+                category: preset.category.value(for: catalogLocale),
+                originalAmount:
+                    offerInput.actualChargeOverride ?? offer.price,
+                billingInterval: offer.billingInterval,
+                startDate: offerInput.startDate,
+                renewalAnchor: offerInput.renewalAnchor,
+                confirmedNextRenewal: offerInput.confirmedNextRenewal,
+                billingTimeZoneIdentifier:
+                    offerInput.billingTimeZoneIdentifier,
+                managementURL: preset.managementURL,
+                notes: offerInput.notes,
+                initialStatus: offerInput.initialStatus
+            )
+        case .legacy(let legacyInput):
+            guard !preset.offers.contains(where: {
+                $0.reviewStatus == .verified
+            }) else {
+                creationValidationErrors = [:]
+                return .rejected(.verifiedOfferRequired)
+            }
+            input = legacyInput
+        }
+
+        let result = createSubscription(input) { _ in
+            ServiceIdentity(rawValue: "catalog:\(preset.id)")
+        }
+        switch result {
+        case .created(let subscription):
+            return .created(subscription)
+        case .validationFailed:
+            return .validationFailed
+        case .persistenceFailed:
+            return .persistenceFailed
         }
     }
 

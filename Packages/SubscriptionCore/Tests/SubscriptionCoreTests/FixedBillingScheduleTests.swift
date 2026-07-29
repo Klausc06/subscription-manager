@@ -71,6 +71,17 @@ struct FixedBillingScheduleTests {
         #expect(calendar.locale?.identifier == "en_US_POSIX")
     }
 
+    @Test("Shared billing calendar uses Gregorian POSIX billing-time-zone semantics")
+    func sharedBillingCalendarIsPinnedToBillingTimeZone() throws {
+        let timeZone = try #require(TimeZone(identifier: "Asia/Shanghai"))
+
+        let calendar = BillingCalendar.calendar(timeZone: timeZone)
+
+        #expect(calendar.identifier == .gregorian)
+        #expect(calendar.locale?.identifier == "en_US_POSIX")
+        #expect(calendar.timeZone.identifier == "Asia/Shanghai")
+    }
+
     @Test(
         "Every supported interval produces its next anchored renewal",
         arguments: [
