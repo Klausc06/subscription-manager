@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "catalogVersion": 2,
+  "catalogVersion": 3,
   "presets": [
     {
       "id": "spotify",
@@ -1008,6 +1008,147 @@
         "license": "CC0-1.0",
         "source": "xunyou-game-booster"
       }
+    },
+    {
+      "id": "wps-office", "serviceName": { "en": "WPS Office", "zhHans": "WPS 会员" }, "category": { "en": "Productivity", "zhHans": "效率" }, "suggestedInterval": "monthly", "managementURL": "https://vip.wps.cn/", "icon": "productivity", "assetProvenance": { "kind": "originalSymbol", "license": "CC0-1.0", "source": "wps-office" }
+    },
+    {
+      "id": "baidu-netdisk", "serviceName": { "en": "Baidu Netdisk", "zhHans": "百度网盘" }, "category": { "en": "Cloud Storage", "zhHans": "云存储" }, "suggestedInterval": "monthly", "managementURL": "https://pan.baidu.com/", "icon": "cloud", "assetProvenance": { "kind": "originalSymbol", "license": "CC0-1.0", "source": "baidu-netdisk" }
+    },
+    {
+      "id": "quark-netdisk", "serviceName": { "en": "Quark Netdisk", "zhHans": "夸克网盘" }, "category": { "en": "Cloud Storage", "zhHans": "云存储" }, "suggestedInterval": "monthly", "managementURL": "https://pan.quark.cn/", "icon": "cloud", "assetProvenance": { "kind": "originalSymbol", "license": "CC0-1.0", "source": "quark-netdisk" }
+    },
+    {
+      "id": "115-life", "serviceName": { "en": "115 Life", "zhHans": "115 生活" }, "category": { "en": "Cloud Storage", "zhHans": "云存储" }, "suggestedInterval": "monthly", "managementURL": "https://115.com/", "icon": "cloud", "assetProvenance": { "kind": "originalSymbol", "license": "CC0-1.0", "source": "115-life" }
+    },
+    {
+      "id": "123-cloud-disk", "serviceName": { "en": "123 Cloud Disk", "zhHans": "123 云盘" }, "category": { "en": "Cloud Storage", "zhHans": "云存储" }, "suggestedInterval": "monthly", "managementURL": "https://www.123pan.com/", "icon": "cloud", "assetProvenance": { "kind": "originalSymbol", "license": "CC0-1.0", "source": "123-cloud-disk" }
+    },
+    {
+      "id": "tianyi-cloud-disk", "serviceName": { "en": "Tianyi Cloud Disk", "zhHans": "天翼云盘" }, "category": { "en": "Cloud Storage", "zhHans": "云存储" }, "suggestedInterval": "monthly", "managementURL": "https://cloud.189.cn/", "icon": "cloud", "assetProvenance": { "kind": "originalSymbol", "license": "CC0-1.0", "source": "tianyi-cloud-disk" }
+    },
+    {
+      "id": "mobile-cloud-disk", "serviceName": { "en": "China Mobile Cloud Disk", "zhHans": "移动云盘" }, "category": { "en": "Cloud Storage", "zhHans": "云存储" }, "suggestedInterval": "monthly", "managementURL": "https://c.139.com/", "icon": "cloud", "assetProvenance": { "kind": "originalSymbol", "license": "CC0-1.0", "source": "mobile-cloud-disk" }
+    },
+    {
+      "id": "nutstore", "serviceName": { "en": "Nutstore", "zhHans": "坚果云" }, "category": { "en": "Cloud Storage", "zhHans": "云存储" }, "suggestedInterval": "monthly", "managementURL": "https://www.jianguoyun.com/", "icon": "cloud", "assetProvenance": { "kind": "originalSymbol", "license": "CC0-1.0", "source": "nutstore" }
+    },
+    {
+      "id": "weiyun", "serviceName": { "en": "Tencent Weiyun", "zhHans": "腾讯微云" }, "category": { "en": "Cloud Storage", "zhHans": "云存储" }, "suggestedInterval": "monthly", "managementURL": "https://www.weiyun.com/", "icon": "cloud", "assetProvenance": { "kind": "originalSymbol", "license": "CC0-1.0", "source": "weiyun" }
+    },
+    {
+      "id": "aliyun", "serviceName": { "en": "Alibaba Cloud", "zhHans": "阿里云" }, "category": { "en": "Cloud Computing", "zhHans": "云计算" }, "suggestedInterval": "monthly", "managementURL": "https://www.aliyun.com/", "icon": "cloud", "assetProvenance": { "kind": "originalSymbol", "license": "CC0-1.0", "source": "aliyun" }
+    },
+    {
+      "id": "tencent-cloud", "serviceName": { "en": "Tencent Cloud", "zhHans": "腾讯云" }, "category": { "en": "Cloud Computing", "zhHans": "云计算" }, "suggestedInterval": "monthly", "managementURL": "https://cloud.tencent.com/", "icon": "cloud", "assetProvenance": { "kind": "originalSymbol", "license": "CC0-1.0", "source": "tencent-cloud" }
+    },
+    {
+      "id": "huawei-cloud", "serviceName": { "en": "Huawei Cloud", "zhHans": "华为云" }, "category": { "en": "Cloud Computing", "zhHans": "云计算" }, "suggestedInterval": "monthly", "managementURL": "https://www.huaweicloud.com/", "icon": "cloud", "assetProvenance": { "kind": "originalSymbol", "license": "CC0-1.0", "source": "huawei-cloud" }
+    },
+    {
+      "id": "volcengine", "serviceName": { "en": "Volcengine", "zhHans": "火山引擎" }, "category": { "en": "Cloud Computing", "zhHans": "云计算" }, "suggestedInterval": "monthly", "managementURL": "https://www.volcengine.com/", "icon": "cloud", "assetProvenance": { "kind": "originalSymbol", "license": "CC0-1.0", "source": "volcengine" }
+    },
+    {
+      "id": "qingcloud", "serviceName": { "en": "QingCloud", "zhHans": "青云科技" }, "category": { "en": "Cloud Computing", "zhHans": "云计算" }, "suggestedInterval": "monthly", "managementURL": "https://www.qingcloud.com/", "icon": "cloud", "assetProvenance": { "kind": "originalSymbol", "license": "CC0-1.0", "source": "qingcloud" }
+    },
+    {
+      "id": "upyun", "serviceName": { "en": "Upyun", "zhHans": "又拍云" }, "category": { "en": "Cloud Computing", "zhHans": "云计算" }, "suggestedInterval": "monthly", "managementURL": "https://www.upyun.com/", "icon": "cloud", "assetProvenance": { "kind": "originalSymbol", "license": "CC0-1.0", "source": "upyun" }
+    },
+    {
+      "id": "tencent-docs", "serviceName": { "en": "Tencent Docs", "zhHans": "腾讯文档" }, "category": { "en": "Productivity", "zhHans": "效率" }, "suggestedInterval": "monthly", "managementURL": "https://docs.qq.com/", "icon": "productivity", "assetProvenance": { "kind": "originalSymbol", "license": "CC0-1.0", "source": "tencent-docs" }
+    },
+    {
+      "id": "shimo-docs", "serviceName": { "en": "Shimo Docs", "zhHans": "石墨文档" }, "category": { "en": "Productivity", "zhHans": "效率" }, "suggestedInterval": "monthly", "managementURL": "https://shimo.im/", "icon": "productivity", "assetProvenance": { "kind": "originalSymbol", "license": "CC0-1.0", "source": "shimo-docs" }
+    },
+    {
+      "id": "feishu", "serviceName": { "en": "Feishu", "zhHans": "飞书" }, "category": { "en": "Productivity", "zhHans": "效率" }, "suggestedInterval": "monthly", "managementURL": "https://www.feishu.cn/", "icon": "productivity", "assetProvenance": { "kind": "originalSymbol", "license": "CC0-1.0", "source": "feishu" }
+    },
+    {
+      "id": "dingtalk", "serviceName": { "en": "DingTalk", "zhHans": "钉钉" }, "category": { "en": "Productivity", "zhHans": "效率" }, "suggestedInterval": "monthly", "managementURL": "https://www.dingtalk.com/", "icon": "productivity", "assetProvenance": { "kind": "originalSymbol", "license": "CC0-1.0", "source": "dingtalk" }
+    },
+    {
+      "id": "youdao-cloud-note", "serviceName": { "en": "Youdao Note", "zhHans": "有道云笔记" }, "category": { "en": "Productivity", "zhHans": "效率" }, "suggestedInterval": "monthly", "managementURL": "https://note.youdao.com/", "icon": "productivity", "assetProvenance": { "kind": "originalSymbol", "license": "CC0-1.0", "source": "youdao-cloud-note" }
+    },
+    {
+      "id": "xmind", "serviceName": { "en": "Xmind", "zhHans": "Xmind 思维导图" }, "category": { "en": "Productivity", "zhHans": "效率" }, "suggestedInterval": "monthly", "managementURL": "https://xmind.cn/", "icon": "productivity", "assetProvenance": { "kind": "originalSymbol", "license": "CC0-1.0", "source": "xmind" }
+    },
+    {
+      "id": "processon", "serviceName": { "en": "ProcessOn", "zhHans": "ProcessOn" }, "category": { "en": "Productivity", "zhHans": "效率" }, "suggestedInterval": "monthly", "managementURL": "https://www.processon.com/", "icon": "productivity", "assetProvenance": { "kind": "originalSymbol", "license": "CC0-1.0", "source": "processon" }
+    },
+    {
+      "id": "lanhu", "serviceName": { "en": "Lanhu", "zhHans": "蓝湖" }, "category": { "en": "Productivity", "zhHans": "效率" }, "suggestedInterval": "monthly", "managementURL": "https://lanhuapp.com/", "icon": "productivity", "assetProvenance": { "kind": "originalSymbol", "license": "CC0-1.0", "source": "lanhu" }
+    },
+    {
+      "id": "mubu", "serviceName": { "en": "Mubu", "zhHans": "幕布" }, "category": { "en": "Productivity", "zhHans": "效率" }, "suggestedInterval": "monthly", "managementURL": "https://mubu.com/", "icon": "productivity", "assetProvenance": { "kind": "originalSymbol", "license": "CC0-1.0", "source": "mubu" }
+    },
+    {
+      "id": "tencent-meeting", "serviceName": { "en": "Tencent Meeting", "zhHans": "腾讯会议" }, "category": { "en": "Productivity", "zhHans": "效率" }, "suggestedInterval": "monthly", "managementURL": "https://meeting.tencent.com/", "icon": "productivity", "assetProvenance": { "kind": "originalSymbol", "license": "CC0-1.0", "source": "tencent-meeting" }
+    },
+    {
+      "id": "xunlei", "serviceName": { "en": "Xunlei", "zhHans": "迅雷会员" }, "category": { "en": "Software", "zhHans": "软件" }, "suggestedInterval": "monthly", "managementURL": "https://www.xunlei.com/", "icon": "other", "assetProvenance": { "kind": "originalSymbol", "license": "CC0-1.0", "source": "xunlei" }
+    },
+    {
+      "id": "baidu-wenku", "serviceName": { "en": "Baidu Wenku", "zhHans": "百度文库" }, "category": { "en": "Software", "zhHans": "软件" }, "suggestedInterval": "monthly", "managementURL": "https://wenku.baidu.com/", "icon": "other", "assetProvenance": { "kind": "originalSymbol", "license": "CC0-1.0", "source": "baidu-wenku" }
+    },
+    {
+      "id": "canva-china", "serviceName": { "en": "Canva China", "zhHans": "可画 Canva" }, "category": { "en": "Software", "zhHans": "软件" }, "suggestedInterval": "monthly", "managementURL": "https://www.canva.cn/", "icon": "other", "assetProvenance": { "kind": "originalSymbol", "license": "CC0-1.0", "source": "canva-china" }
+    },
+    {
+      "id": "meitu-xiuxiu", "serviceName": { "en": "Meitu Xiuxiu", "zhHans": "美图秀秀" }, "category": { "en": "Software", "zhHans": "软件" }, "suggestedInterval": "monthly", "managementURL": "https://xiuxiu.meitu.com/", "icon": "other", "assetProvenance": { "kind": "originalSymbol", "license": "CC0-1.0", "source": "meitu-xiuxiu" }
+    },
+    {
+      "id": "jianying-pro", "serviceName": { "en": "Jianying Pro", "zhHans": "剪映专业版" }, "category": { "en": "Software", "zhHans": "软件" }, "suggestedInterval": "monthly", "managementURL": "https://www.capcut.cn/", "icon": "other", "assetProvenance": { "kind": "originalSymbol", "license": "CC0-1.0", "source": "jianying-pro" }
+    },
+    {
+      "id": "foxit-pdf", "serviceName": { "en": "Foxit PDF", "zhHans": "福昕 PDF" }, "category": { "en": "Software", "zhHans": "软件" }, "suggestedInterval": "monthly", "managementURL": "https://www.foxit.com.cn/", "icon": "other", "assetProvenance": { "kind": "originalSymbol", "license": "CC0-1.0", "source": "foxit-pdf" }
+    },
+    {
+      "id": "iflytek-spark", "serviceName": { "en": "iFlytek Spark", "zhHans": "讯飞星火" }, "category": { "en": "Software", "zhHans": "软件" }, "suggestedInterval": "monthly", "managementURL": "https://xinghuo.xfyun.cn/", "icon": "other", "assetProvenance": { "kind": "originalSymbol", "license": "CC0-1.0", "source": "iflytek-spark" }
+    },
+    {
+      "id": "youdao-premium", "serviceName": { "en": "Youdao Premium", "zhHans": "有道精品课" }, "category": { "en": "Learning", "zhHans": "学习" }, "suggestedInterval": "monthly", "managementURL": "https://www.youdao.com/", "icon": "reading", "assetProvenance": { "kind": "originalSymbol", "license": "CC0-1.0", "source": "youdao-premium" }
+    },
+    {
+      "id": "baicizhan", "serviceName": { "en": "Baicizhan", "zhHans": "百词斩" }, "category": { "en": "Learning", "zhHans": "学习" }, "suggestedInterval": "monthly", "managementURL": "https://www.baicizhan.com/", "icon": "reading", "assetProvenance": { "kind": "originalSymbol", "license": "CC0-1.0", "source": "baicizhan" }
+    },
+    {
+      "id": "zuoyebang", "serviceName": { "en": "Zuoyebang", "zhHans": "作业帮" }, "category": { "en": "Learning", "zhHans": "学习" }, "suggestedInterval": "monthly", "managementURL": "https://www.zybang.com/", "icon": "reading", "assetProvenance": { "kind": "originalSymbol", "license": "CC0-1.0", "source": "zuoyebang" }
+    },
+    {
+      "id": "yuanfudao", "serviceName": { "en": "Yuanfudao", "zhHans": "猿辅导" }, "category": { "en": "Learning", "zhHans": "学习" }, "suggestedInterval": "monthly", "managementURL": "https://www.yuanfudao.com/", "icon": "reading", "assetProvenance": { "kind": "originalSymbol", "license": "CC0-1.0", "source": "yuanfudao" }
+    },
+    {
+      "id": "xueersi", "serviceName": { "en": "Xueersi", "zhHans": "学而思" }, "category": { "en": "Learning", "zhHans": "学习" }, "suggestedInterval": "monthly", "managementURL": "https://www.xueersi.com/", "icon": "reading", "assetProvenance": { "kind": "originalSymbol", "license": "CC0-1.0", "source": "xueersi" }
+    },
+    {
+      "id": "kaoyanbang", "serviceName": { "en": "Kaoyanbang", "zhHans": "考研帮" }, "category": { "en": "Learning", "zhHans": "学习" }, "suggestedInterval": "monthly", "managementURL": "https://www.kaoyan.com/", "icon": "reading", "assetProvenance": { "kind": "originalSymbol", "license": "CC0-1.0", "source": "kaoyanbang" }
+    },
+    {
+      "id": "fan-deng-reading", "serviceName": { "en": "Fan Deng Reading", "zhHans": "帆书" }, "category": { "en": "Learning", "zhHans": "学习" }, "suggestedInterval": "monthly", "managementURL": "https://www.dushu365.com/", "icon": "reading", "assetProvenance": { "kind": "originalSymbol", "license": "CC0-1.0", "source": "fan-deng-reading" }
+    },
+    {
+      "id": "jd-plus", "serviceName": { "en": "JD PLUS", "zhHans": "京东 PLUS 会员" }, "category": { "en": "Membership", "zhHans": "会员" }, "suggestedInterval": "yearly", "managementURL": "https://plus.jd.com/", "icon": "membership", "assetProvenance": { "kind": "originalSymbol", "license": "CC0-1.0", "source": "jd-plus" }
+    },
+    {
+      "id": "taobao-88vip", "serviceName": { "en": "Taobao 88VIP", "zhHans": "淘宝 88VIP" }, "category": { "en": "Membership", "zhHans": "会员" }, "suggestedInterval": "yearly", "managementURL": "https://www.taobao.com/", "icon": "membership", "assetProvenance": { "kind": "originalSymbol", "license": "CC0-1.0", "source": "taobao-88vip" }
+    },
+    {
+      "id": "meituan-membership", "serviceName": { "en": "Meituan Membership", "zhHans": "美团神会员" }, "category": { "en": "Membership", "zhHans": "会员" }, "suggestedInterval": "monthly", "managementURL": "https://www.meituan.com/", "icon": "membership", "assetProvenance": { "kind": "originalSymbol", "license": "CC0-1.0", "source": "meituan-membership" }
+    },
+    {
+      "id": "eleme-super-membership", "serviceName": { "en": "Ele.me Super Membership", "zhHans": "饿了么超级会员" }, "category": { "en": "Membership", "zhHans": "会员" }, "suggestedInterval": "monthly", "managementURL": "https://www.ele.me/", "icon": "membership", "assetProvenance": { "kind": "originalSymbol", "license": "CC0-1.0", "source": "eleme-super-membership" }
+    },
+    {
+      "id": "sams-club-china", "serviceName": { "en": "Sam's Club China", "zhHans": "山姆会员商店" }, "category": { "en": "Membership", "zhHans": "会员" }, "suggestedInterval": "yearly", "managementURL": "https://www.samsclub.cn/", "icon": "membership", "assetProvenance": { "kind": "originalSymbol", "license": "CC0-1.0", "source": "sams-club-china" }
+    },
+    {
+      "id": "costco-china", "serviceName": { "en": "Costco China", "zhHans": "开市客会员" }, "category": { "en": "Membership", "zhHans": "会员" }, "suggestedInterval": "yearly", "managementURL": "https://www.costco.cn/", "icon": "membership", "assetProvenance": { "kind": "originalSymbol", "license": "CC0-1.0", "source": "costco-china" }
+    },
+    {
+      "id": "qq-svip", "serviceName": { "en": "QQ SVIP", "zhHans": "QQ 超级会员" }, "category": { "en": "Membership", "zhHans": "会员" }, "suggestedInterval": "monthly", "managementURL": "https://vip.qq.com/", "icon": "membership", "assetProvenance": { "kind": "originalSymbol", "license": "CC0-1.0", "source": "qq-svip" }
+    },
+    {
+      "id": "kuaishou-membership", "serviceName": { "en": "Kuaishou Membership", "zhHans": "快手会员" }, "category": { "en": "Membership", "zhHans": "会员" }, "suggestedInterval": "monthly", "managementURL": "https://www.kuaishou.com/", "icon": "membership", "assetProvenance": { "kind": "originalSymbol", "license": "CC0-1.0", "source": "kuaishou-membership" }
     }
   ]
 }

@@ -388,7 +388,7 @@ final class SubscriptionManagerUITests: XCTestCase {
         app.swipeUp()
         let diagnostics = app.staticTexts["catalog.diagnostics"]
         XCTAssertTrue(diagnostics.waitForExistence(timeout: 5))
-        XCTAssertTrue(diagnostics.label.contains("Catalog version 2"))
+        XCTAssertTrue(diagnostics.label.contains("Catalog version 3"))
         app.swipeDown()
         spotify.tap()
 
