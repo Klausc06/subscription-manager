@@ -10,6 +10,7 @@
 		0666A187883887DBEE6F3855 /* CatalogPresetDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 41A00EB2BB490F786F4D0953 /* CatalogPresetDetailView.swift */; };
 		07BD717C844F32E7282360A2 /* SubscriptionLookupTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3ED395A87C6661BAAA9E98BB /* SubscriptionLookupTests.swift */; };
 		08A4E57068D41F3F857F3327 /* SubscriptionCore in Frameworks */ = {isa = PBXBuildFile; productRef = 2EE7A221C94060E2B403FAB3 /* SubscriptionCore */; };
+		097A44BB974631E88BE97758 /* CatalogOfferSelectionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = DBD964E5A45925EC35E3893B /* CatalogOfferSelectionTests.swift */; };
 		0B04FE82A821F3CEA01F23B7 /* PortableExportView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 164F6C4095D2303AF7680828 /* PortableExportView.swift */; };
 		0E185A93103BA6D997423247 /* SubscriptionIntentService.swift in Sources */ = {isa = PBXBuildFile; fileRef = CD9C6628BCAE93A6DD412A1A /* SubscriptionIntentService.swift */; };
 		1542C108546F4227953D1C2E /* BundledCatalogRepositoryTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E8E32D343532C15910A82133 /* BundledCatalogRepositoryTests.swift */; };
@@ -35,6 +36,7 @@
 		73C2C4432A240F796882FCD9 /* SubscriptionCore in Frameworks */ = {isa = PBXBuildFile; productRef = 30FD0B5354BE8274C66402A8 /* SubscriptionCore */; };
 		73E4D9C5EAE129D2A72C26FC /* FileCatalogCache.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5B719388CA82311FED0FEB46 /* FileCatalogCache.swift */; };
 		7C34EDA2D016C0D45A4E6D05 /* SubscriptionAppEntity.swift in Sources */ = {isa = PBXBuildFile; fileRef = 828D5E066B7CE82218F88BFF /* SubscriptionAppEntity.swift */; };
+		82667428542FCEE4B628F595 /* CatalogOfferSelection.swift in Sources */ = {isa = PBXBuildFile; fileRef = FC8A2E38EC05A9DE6A60E28B /* CatalogOfferSelection.swift */; };
 		842D256F471F88B7082CF25B /* WidgetSnapshotPublisher.swift in Sources */ = {isa = PBXBuildFile; fileRef = BF78C8D1470F9E0A4F09112F /* WidgetSnapshotPublisher.swift */; };
 		866177EEBBB6B76DADA471C2 /* SubscriptionRecord.swift in Sources */ = {isa = PBXBuildFile; fileRef = 12BBDD4A3C3D5A6F92B3775B /* SubscriptionRecord.swift */; };
 		8BDFDA89FC3799D7A394A305 /* AppDependencies.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9FEF1B3C25246E96015F3FB1 /* AppDependencies.swift */; };
@@ -160,11 +162,13 @@
 		CB5C96CFD90987789D5FBBB5 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		CD9C6628BCAE93A6DD412A1A /* SubscriptionIntentService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SubscriptionIntentService.swift; sourceTree = "<group>"; };
 		CF73BE31E7CBFDDF0AED3F4F /* CATALOG_METADATA_LICENSE.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = CATALOG_METADATA_LICENSE.md; sourceTree = "<group>"; };
+		DBD964E5A45925EC35E3893B /* CatalogOfferSelectionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CatalogOfferSelectionTests.swift; sourceTree = "<group>"; };
 		E06ED39F4F3A5F168380926E /* GitHubCatalogUpdateSource.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GitHubCatalogUpdateSource.swift; sourceTree = "<group>"; };
 		E8E32D343532C15910A82133 /* BundledCatalogRepositoryTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BundledCatalogRepositoryTests.swift; sourceTree = "<group>"; };
 		F24364E7E6897202F27AAE1B /* SubscriptionRow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SubscriptionRow.swift; sourceTree = "<group>"; };
 		F6158744F9B1B175056E79CA /* BundledCatalogRepository.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BundledCatalogRepository.swift; sourceTree = "<group>"; };
 		F97E335435D4B5871F1A384F /* MacMenuBarPresentationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MacMenuBarPresentationTests.swift; sourceTree = "<group>"; };
+		FC8A2E38EC05A9DE6A60E28B /* CatalogOfferSelection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CatalogOfferSelection.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -321,6 +325,7 @@
 				178B2F8071F3AA4EEB4EF445 /* AppDependenciesTests.swift */,
 				E8E32D343532C15910A82133 /* BundledCatalogRepositoryTests.swift */,
 				05BBB5AC4394BF7E865300C5 /* CatalogAlphabetIndexTests.swift */,
+				DBD964E5A45925EC35E3893B /* CatalogOfferSelectionTests.swift */,
 				0ADA9475AF293852B7FA737C /* EventKitCalendarProjectionImporterTests.swift */,
 				F97E335435D4B5871F1A384F /* MacMenuBarPresentationTests.swift */,
 				3220F13255F0E1FBFAE282B1 /* MacWindowRouterTests.swift */,
@@ -358,6 +363,7 @@
 				F6158744F9B1B175056E79CA /* BundledCatalogRepository.swift */,
 				AF747C52A83452ED127F1113 /* CatalogAlphabetIndex.swift */,
 				5617F30677EE31D6D1BA649C /* CatalogBrowserView.swift */,
+				FC8A2E38EC05A9DE6A60E28B /* CatalogOfferSelection.swift */,
 				41A00EB2BB490F786F4D0953 /* CatalogPresetDetailView.swift */,
 				5B719388CA82311FED0FEB46 /* FileCatalogCache.swift */,
 				E06ED39F4F3A5F168380926E /* GitHubCatalogUpdateSource.swift */,
@@ -539,6 +545,7 @@
 				D0321047EAB970503FB76AD5 /* CalendarProjectionView.swift in Sources */,
 				A86822E9F6BC3549F04478CC /* CatalogAlphabetIndex.swift in Sources */,
 				A66C78E13D3580B57945C076 /* CatalogBrowserView.swift in Sources */,
+				82667428542FCEE4B628F595 /* CatalogOfferSelection.swift in Sources */,
 				0666A187883887DBEE6F3855 /* CatalogPresetDetailView.swift in Sources */,
 				401275AD1970EE4B07820785 /* CloudKitLibrarySyncMonitor.swift in Sources */,
 				410E3FCE6503EF3C58F48873 /* ConfirmChargeView.swift in Sources */,
@@ -584,6 +591,7 @@
 				FE9D2A03AAAF24FCBDC2CEA0 /* AppDependenciesTests.swift in Sources */,
 				1542C108546F4227953D1C2E /* BundledCatalogRepositoryTests.swift in Sources */,
 				626F0533A4DF2230483BA384 /* CatalogAlphabetIndexTests.swift in Sources */,
+				097A44BB974631E88BE97758 /* CatalogOfferSelectionTests.swift in Sources */,
 				8E78AFCD49FF2D2EEBC82BEE /* EventKitCalendarProjectionImporterTests.swift in Sources */,
 				396F89532A0E8717BA33BD50 /* MacMenuBarPresentationTests.swift in Sources */,
 				289E4CBB05784C2181F2A79F /* MacWindowRouterTests.swift in Sources */,
