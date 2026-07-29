@@ -4,6 +4,91 @@ import Testing
 
 @Suite("Bundled catalog domain")
 struct CatalogTests {
+    @Test("Legacy catalog presets decode without offers")
+    func legacyCatalogPresetsDecodeWithoutOffers() throws {
+        let preset = try JSONDecoder().decode(
+            CatalogPreset.self,
+            from: Data("""
+            {
+              "id": "legacy",
+              "serviceName": { "en": "Legacy", "zhHans": "旧服务" },
+              "category": { "en": "Other", "zhHans": "其他" },
+              "suggestedInterval": "monthly",
+              "managementURL": null,
+              "icon": "other",
+              "assetProvenance": {
+                "kind": "originalSymbol",
+                "license": "CC0-1.0",
+                "source": "legacy"
+              }
+            }
+            """.utf8)
+        )
+
+        #expect(preset.offers.isEmpty)
+    }
+
+    @Test("Verified catalog offers round-trip with provenance")
+    func verifiedCatalogOffersRoundTrip() throws {
+        let offer = CatalogOffer(
+            id: "plus-monthly-us-web",
+            planName: CatalogLocalizedText(en: "Plus", zhHans: "Plus"),
+            price: Money(minorUnits: 2_000, currency: .usd),
+            billingInterval: .monthly,
+            market: "US",
+            purchaseChannel: .web,
+            sourceURL: try #require(URL(string: "https://example.com/pricing")),
+            verifiedOn: "2026-07-30",
+            reviewStatus: .verified
+        )
+        let preset = catalogPreset(offers: [offer])
+
+        let decoded = try JSONDecoder().decode(
+            CatalogPreset.self,
+            from: JSONEncoder().encode(preset)
+        )
+
+        #expect(decoded.offers == [offer])
+    }
+
+    @Test("Catalog rejects duplicate offer identifiers")
+    func catalogRejectsDuplicateOfferIdentifiers() {
+        let offer = verifiedOffer(id: "duplicate")
+
+        assertOffersAreInvalid([offer, offer])
+    }
+
+    @Test("Catalog rejects zero-price offers")
+    func catalogRejectsZeroPriceOffers() {
+        assertOffersAreInvalid([
+            catalogOffer(price: Money(minorUnits: 0, currency: .usd))
+        ])
+    }
+
+    @Test("Catalog rejects offers with non-HTTPS sources")
+    func catalogRejectsOffersWithNonHTTPSSources() {
+        assertOffersAreInvalid([
+            catalogOffer(sourceURL: URL(string: "http://example.com/pricing")!)
+        ])
+    }
+
+    @Test("Catalog rejects offers with empty markets")
+    func catalogRejectsOffersWithEmptyMarkets() {
+        assertOffersAreInvalid([catalogOffer(market: " \n ")])
+    }
+
+    @Test("Catalog rejects offers with empty verification dates")
+    func catalogRejectsOffersWithEmptyVerificationDates() {
+        assertOffersAreInvalid([catalogOffer(verifiedOn: "")])
+    }
+
+    @Test("Catalog rejects offers with invalid billing intervals")
+    func catalogRejectsOffersWithInvalidBillingIntervals() {
+        assertOffersAreInvalid([
+            catalogOffer(billingInterval: .custom(value: 0, unit: .month))
+        ])
+    }
+
     @Test("Catalog validation identifies the preset and field")
     func catalogValidationIdentifiesPresetAndField() throws {
         let preset = CatalogPreset(
@@ -116,6 +201,59 @@ struct CatalogTests {
                 schemaVersion: CatalogSnapshot.currentSchemaVersion,
                 presets: [preset, preset]
             )
+        }
+    }
+
+    private func catalogPreset(
+        offers: [CatalogOffer] = []
+    ) -> CatalogPreset {
+        CatalogPreset(
+            id: "example",
+            serviceName: CatalogLocalizedText(en: "Example", zhHans: "示例"),
+            category: CatalogLocalizedText(en: "Other", zhHans: "其他"),
+            suggestedInterval: .monthly,
+            managementURL: nil,
+            icon: .other,
+            offers: offers
+        )
+    }
+
+    private func verifiedOffer(id: String = "plus-monthly-us-web") -> CatalogOffer {
+        catalogOffer(id: id)
+    }
+
+    private func catalogOffer(
+        id: String = "plus-monthly-us-web",
+        price: Money = Money(minorUnits: 2_000, currency: .usd),
+        billingInterval: BillingInterval = .monthly,
+        market: String = "US",
+        sourceURL: URL = URL(string: "https://example.com/pricing")!,
+        verifiedOn: String = "2026-07-30"
+    ) -> CatalogOffer {
+        CatalogOffer(
+            id: id,
+            planName: CatalogLocalizedText(en: "Plus", zhHans: "Plus"),
+            price: price,
+            billingInterval: billingInterval,
+            market: market,
+            purchaseChannel: .web,
+            sourceURL: sourceURL,
+            verifiedOn: verifiedOn,
+            reviewStatus: .verified
+        )
+    }
+
+    private func assertOffersAreInvalid(_ offers: [CatalogOffer]) {
+        do {
+            _ = try CatalogSnapshot(
+                schemaVersion: CatalogSnapshot.currentSchemaVersion,
+                presets: [catalogPreset(offers: offers)]
+            )
+            Issue.record("Expected invalid offers to be rejected")
+        } catch let error as CatalogLoadError {
+            #expect(error.field == .offers)
+        } catch {
+            Issue.record("Expected CatalogLoadError, got \(error)")
         }
     }
 }

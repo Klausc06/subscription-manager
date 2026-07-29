@@ -9,6 +9,7 @@ public enum CatalogValidationField: String, Equatable, Sendable {
     case suggestedInterval
     case managementURL
     case assetProvenance
+    case offers
 }
 
 public struct CatalogLoadError: Error, Equatable, Sendable,
@@ -133,6 +134,50 @@ public struct CatalogDiagnostics: Equatable, Sendable {
     }
 }
 
+public enum CatalogPurchaseChannel: String, Codable, Equatable, Sendable {
+    case web
+    case ios = "iOS"
+}
+
+public enum CatalogOfferReviewStatus: String, Codable, Equatable, Sendable {
+    case verified
+    case reviewRequired
+}
+
+public struct CatalogOffer: Codable, Equatable, Identifiable, Sendable {
+    public let id: String
+    public let planName: CatalogLocalizedText
+    public let price: Money
+    public let billingInterval: BillingInterval
+    public let market: String
+    public let purchaseChannel: CatalogPurchaseChannel
+    public let sourceURL: URL
+    public let verifiedOn: String
+    public let reviewStatus: CatalogOfferReviewStatus
+
+    public init(
+        id: String,
+        planName: CatalogLocalizedText,
+        price: Money,
+        billingInterval: BillingInterval,
+        market: String,
+        purchaseChannel: CatalogPurchaseChannel,
+        sourceURL: URL,
+        verifiedOn: String,
+        reviewStatus: CatalogOfferReviewStatus
+    ) {
+        self.id = id
+        self.planName = planName
+        self.price = price
+        self.billingInterval = billingInterval
+        self.market = market
+        self.purchaseChannel = purchaseChannel
+        self.sourceURL = sourceURL
+        self.verifiedOn = verifiedOn
+        self.reviewStatus = reviewStatus
+    }
+}
+
 public struct CatalogPreset: Codable, Equatable, Identifiable, Sendable {
     public let id: String
     public let serviceName: CatalogLocalizedText
@@ -141,6 +186,7 @@ public struct CatalogPreset: Codable, Equatable, Identifiable, Sendable {
     public let managementURL: URL?
     public let icon: CatalogIcon
     public let assetProvenance: CatalogAssetProvenance
+    public let offers: [CatalogOffer]
 
     public init(
         id: String,
@@ -149,7 +195,8 @@ public struct CatalogPreset: Codable, Equatable, Identifiable, Sendable {
         suggestedInterval: BillingInterval,
         managementURL: URL?,
         icon: CatalogIcon,
-        assetProvenance: CatalogAssetProvenance? = nil
+        assetProvenance: CatalogAssetProvenance? = nil,
+        offers: [CatalogOffer] = []
     ) {
         self.id = id
         self.serviceName = serviceName
@@ -159,6 +206,64 @@ public struct CatalogPreset: Codable, Equatable, Identifiable, Sendable {
         self.icon = icon
         self.assetProvenance = assetProvenance
             ?? .originalSymbol(for: id)
+        self.offers = offers
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case id
+        case serviceName
+        case category
+        case suggestedInterval
+        case managementURL
+        case icon
+        case assetProvenance
+        case offers
+    }
+
+    public init(from decoder: any Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        self.init(
+            id: try container.decode(String.self, forKey: .id),
+            serviceName: try container.decode(
+                CatalogLocalizedText.self,
+                forKey: .serviceName
+            ),
+            category: try container.decode(
+                CatalogLocalizedText.self,
+                forKey: .category
+            ),
+            suggestedInterval: try container.decode(
+                BillingInterval.self,
+                forKey: .suggestedInterval
+            ),
+            managementURL: try container.decodeIfPresent(
+                URL.self,
+                forKey: .managementURL
+            ),
+            icon: try container.decode(CatalogIcon.self, forKey: .icon),
+            assetProvenance: try container.decodeIfPresent(
+                CatalogAssetProvenance.self,
+                forKey: .assetProvenance
+            ),
+            offers: try container.decodeIfPresent(
+                [CatalogOffer].self,
+                forKey: .offers
+            ) ?? []
+        )
+    }
+
+    public func encode(to encoder: any Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(id, forKey: .id)
+        try container.encode(serviceName, forKey: .serviceName)
+        try container.encode(category, forKey: .category)
+        try container.encode(suggestedInterval, forKey: .suggestedInterval)
+        try container.encodeIfPresent(managementURL, forKey: .managementURL)
+        try container.encode(icon, forKey: .icon)
+        try container.encode(assetProvenance, forKey: .assetProvenance)
+        if !offers.isEmpty {
+            try container.encode(offers, forKey: .offers)
+        }
     }
 }
 
@@ -241,6 +346,29 @@ public struct CatalogSnapshot: Codable, Equatable, Sendable {
                     message: "asset must be an original CC0 symbol for this preset"
                 )
             }
+            var offerIdentifiers = Set<String>()
+            for offer in preset.offers {
+                let offerID = offer.id.trimmingCharacters(
+                    in: .whitespacesAndNewlines
+                )
+                guard !offerID.isEmpty,
+                      offerIdentifiers.insert(offerID).inserted,
+                      offer.planName.isValid,
+                      offer.price.minorUnits > 0,
+                      offer.billingInterval.isValid,
+                      !offer.market.trimmingCharacters(
+                          in: .whitespacesAndNewlines
+                      ).isEmpty,
+                      offer.sourceURL.scheme?.lowercased() == "https",
+                      isValidCatalogVerificationDate(offer.verifiedOn)
+                else {
+                    throw CatalogLoadError(
+                        presetID: identifier,
+                        field: .offers,
+                        message: "offer is invalid or duplicated"
+                    )
+                }
+            }
         }
         self.schemaVersion = schemaVersion
         self.catalogVersion = catalogVersion
@@ -303,6 +431,19 @@ public struct CatalogSnapshot: Codable, Equatable, Sendable {
             ) == .orderedAscending
         }
     }
+}
+
+private func isValidCatalogVerificationDate(_ value: String) -> Bool {
+    let formatter = DateFormatter()
+    formatter.locale = Locale(identifier: "en_US_POSIX")
+    formatter.calendar = Calendar(identifier: .gregorian)
+    formatter.timeZone = TimeZone(secondsFromGMT: 0)
+    formatter.dateFormat = "yyyy-MM-dd"
+    formatter.isLenient = false
+    guard let date = formatter.date(from: value) else {
+        return false
+    }
+    return formatter.string(from: date) == value
 }
 
 @MainActor
