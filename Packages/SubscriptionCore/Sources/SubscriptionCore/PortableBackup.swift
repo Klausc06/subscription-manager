@@ -39,6 +39,150 @@ public struct PortableBackupEncoder: Sendable {
     }
 }
 
+public enum PortableBackupValidationError: Error, Equatable, Sendable {
+    case malformed
+    case unsupportedSchema
+    case unsupportedVersion
+    case duplicateSubscriptionID
+    case invalidSubscription
+}
+
+public struct PortableBackupValidator: Sendable {
+    public init() {}
+
+    public func decode(_ data: Data) throws -> PortableBackup {
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+        let backup: PortableBackup
+        do {
+            backup = try decoder.decode(PortableBackup.self, from: data)
+        } catch {
+            throw PortableBackupValidationError.malformed
+        }
+        guard backup.schema == PortableBackup.schemaName else {
+            throw PortableBackupValidationError.unsupportedSchema
+        }
+        guard backup.schemaVersion == PortableBackup.currentSchemaVersion else {
+            throw PortableBackupValidationError.unsupportedVersion
+        }
+        guard Set(backup.subscriptions.map(\.id)).count
+            == backup.subscriptions.count
+        else {
+            throw PortableBackupValidationError.duplicateSubscriptionID
+        }
+        guard backup.subscriptions.allSatisfy(isValid) else {
+            throw PortableBackupValidationError.invalidSubscription
+        }
+        return backup
+    }
+
+    private func isValid(_ subscription: Subscription) -> Bool {
+        let whitespace = CharacterSet.whitespacesAndNewlines
+        guard !subscription.serviceIdentity.rawValue
+            .trimmingCharacters(in: whitespace).isEmpty,
+              !subscription.serviceName.trimmingCharacters(in: whitespace).isEmpty,
+              !subscription.plan.trimmingCharacters(in: whitespace).isEmpty,
+              !subscription.category.trimmingCharacters(in: whitespace).isEmpty,
+              subscription.originalAmount.minorUnits > 0,
+              subscription.billingSchedule.interval.isValid,
+              TimeZone(identifier: subscription.billingSchedule.timeZoneIdentifier)
+                != nil,
+              subscription.billingSchedule.renewalAnchor >= subscription.startDate,
+              subscription.confirmedNextRenewal >= subscription.startDate
+        else {
+            return false
+        }
+        return true
+    }
+}
+
+public struct PortableBackupMergeConflict: Equatable, Sendable, Identifiable {
+    public let local: Subscription
+    public let backup: Subscription
+
+    public var id: UUID { local.id }
+
+    public init(local: Subscription, backup: Subscription) {
+        self.local = local
+        self.backup = backup
+    }
+}
+
+public struct PortableBackupMergePreview: Equatable, Sendable {
+    public let additions: [Subscription]
+    public let unchangedSubscriptionIDs: [UUID]
+    public let conflicts: [PortableBackupMergeConflict]
+    public let retainedLocalSubscriptionIDs: [UUID]
+    public let preferences: PortableBackupPreferencesMerge
+
+    public init(
+        additions: [Subscription],
+        unchangedSubscriptionIDs: [UUID],
+        conflicts: [PortableBackupMergeConflict],
+        retainedLocalSubscriptionIDs: [UUID],
+        preferences: PortableBackupPreferencesMerge
+    ) {
+        self.additions = additions
+        self.unchangedSubscriptionIDs = unchangedSubscriptionIDs
+        self.conflicts = conflicts
+        self.retainedLocalSubscriptionIDs = retainedLocalSubscriptionIDs
+        self.preferences = preferences
+    }
+}
+
+public enum PortableBackupPreferencesMerge: Equatable, Sendable {
+    case unchanged
+    case conflict(local: UserPreferences, backup: UserPreferences)
+}
+
+public struct PortableBackupMergePlanner: Sendable {
+    public init() {}
+
+    public func makePreview(
+        backup: PortableBackup,
+        localSubscriptions: [Subscription],
+        localPreferences: UserPreferences
+    ) throws -> PortableBackupMergePreview {
+        let backupIDs = Set(backup.subscriptions.map(\.id))
+        let localByID = Dictionary(
+            uniqueKeysWithValues: localSubscriptions.map { ($0.id, $0) }
+        )
+        var additions: [Subscription] = []
+        var unchangedSubscriptionIDs: [UUID] = []
+        var conflicts: [PortableBackupMergeConflict] = []
+
+        for subscription in backup.subscriptions {
+            guard let local = localByID[subscription.id] else {
+                additions.append(subscription)
+                continue
+            }
+            if local == subscription {
+                unchangedSubscriptionIDs.append(subscription.id)
+            } else {
+                conflicts.append(
+                    PortableBackupMergeConflict(local: local, backup: subscription)
+                )
+            }
+        }
+
+        let retainedLocalSubscriptionIDs = localSubscriptions
+            .filter { !backupIDs.contains($0.id) }
+            .map(\.id)
+            .sorted { $0.uuidString < $1.uuidString }
+        let preferences: PortableBackupPreferencesMerge = backup.preferences
+            == localPreferences
+            ? .unchanged
+            : .conflict(local: localPreferences, backup: backup.preferences)
+        return PortableBackupMergePreview(
+            additions: additions,
+            unchangedSubscriptionIDs: unchangedSubscriptionIDs,
+            conflicts: conflicts,
+            retainedLocalSubscriptionIDs: retainedLocalSubscriptionIDs,
+            preferences: preferences
+        )
+    }
+}
+
 public struct PortableCSVEncoder: Sendable {
     public init() {}
 

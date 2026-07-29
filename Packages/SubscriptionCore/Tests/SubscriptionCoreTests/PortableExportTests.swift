@@ -125,6 +125,63 @@ struct PortableExportTests {
         #expect(backup.subscriptions == [archived])
         #expect(try repository.listSubscriptions() == [archived])
     }
+
+    @Test("Backup validation rejects unsupported schemas and previews stable merge buckets")
+    func validatorAndMergePlannerRejectAndClassify() throws {
+        let unchanged = portableSubscription(
+            id: UUID(uuidString: "11111111-2222-3333-4444-555555555555")!,
+            name: "Unchanged"
+        )
+        let conflictFromBackup = portableSubscription(
+            id: UUID(uuidString: "22222222-2222-3333-4444-555555555555")!,
+            name: "Backup name"
+        )
+        let addition = portableSubscription(
+            id: UUID(uuidString: "33333333-2222-3333-4444-555555555555")!,
+            name: "Addition"
+        )
+        let backup = PortableBackup(
+            preferences: .default,
+            subscriptions: [addition, conflictFromBackup, unchanged]
+        )
+        let validData = try PortableBackupEncoder().encode(backup)
+        let invalidText = try #require(String(data: validData, encoding: .utf8))
+            .replacingOccurrences(
+                of: PortableBackup.schemaName,
+                with: "unknown-backup"
+            )
+
+        #expect(
+            throws: PortableBackupValidationError.unsupportedSchema
+        ) {
+            try PortableBackupValidator().decode(Data(invalidText.utf8))
+        }
+
+        let conflictLocal = portableSubscription(
+            id: conflictFromBackup.id,
+            name: "Local name"
+        )
+        let retainedLocal = portableSubscription(
+            id: UUID(uuidString: "44444444-2222-3333-4444-555555555555")!,
+            name: "Retained"
+        )
+        let preview = try PortableBackupMergePlanner().makePreview(
+            backup: backup,
+            localSubscriptions: [retainedLocal, conflictLocal, unchanged],
+            localPreferences: .default
+        )
+
+        #expect(preview.additions == [addition])
+        #expect(preview.unchangedSubscriptionIDs == [unchanged.id])
+        #expect(preview.conflicts == [
+            PortableBackupMergeConflict(
+                local: conflictLocal,
+                backup: conflictFromBackup
+            )
+        ])
+        #expect(preview.retainedLocalSubscriptionIDs == [retainedLocal.id])
+        #expect(preview.preferences == .unchanged)
+    }
 }
 
 private struct CSVFixtureParser {
@@ -194,4 +251,21 @@ private final class ExportRepositoryFixture: SubscriptionRepository {
     }
 
     func subscription(id: UUID) throws -> Subscription? { subscriptions[id] }
+}
+
+private func portableSubscription(id: UUID, name: String) -> Subscription {
+    Subscription(
+        id: id,
+        serviceIdentity: ServiceIdentity(rawValue: name.lowercased()),
+        serviceName: name,
+        plan: "Standard",
+        category: "Other",
+        originalAmount: Money(minorUnits: 999, currency: .usd),
+        billingCycle: .monthly,
+        startDate: Date(timeIntervalSince1970: 1_704_067_200),
+        confirmedNextRenewal: Date(timeIntervalSince1970: 1_706_745_600),
+        billingTimeZoneIdentifier: "UTC",
+        managementURL: nil,
+        notes: ""
+    )
 }
