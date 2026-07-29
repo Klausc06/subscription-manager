@@ -487,11 +487,9 @@ final class SubscriptionManagerUITests: XCTestCase {
 
         XCTAssertTrue(app.navigationBars["Archived"].waitForExistence(timeout: 5))
         XCTAssertTrue(app.staticTexts["Example Archive"].waitForExistence(timeout: 5))
-        let archivedStatus = app.descendants(matching: .any)[
-            "subscription.status"
-        ]
-        XCTAssertTrue(archivedStatus.waitForExistence(timeout: 5))
-        XCTAssertTrue(archivedStatus.label.contains("Trial"))
+        let archivedRow = app.buttons["subscription.row"].firstMatch
+        XCTAssertTrue(archivedRow.waitForExistence(timeout: 5))
+        XCTAssertTrue(archivedRow.label.contains("Trial"))
 
         app.buttons["subscription.row"].firstMatch.tap()
         app.buttons["subscription.lifecycle.actions"].tap()
@@ -508,11 +506,9 @@ final class SubscriptionManagerUITests: XCTestCase {
         app.navigationBars.buttons["Subscriptions"].tap()
 
         XCTAssertTrue(app.staticTexts["Example Archive"].waitForExistence(timeout: 5))
-        let restoredStatus = app.descendants(matching: .any)[
-            "subscription.status"
-        ]
-        XCTAssertTrue(restoredStatus.waitForExistence(timeout: 5))
-        XCTAssertTrue(restoredStatus.label.contains("Trial"))
+        let restoredRow = app.buttons["subscription.row"].firstMatch
+        XCTAssertTrue(restoredRow.waitForExistence(timeout: 5))
+        XCTAssertTrue(restoredRow.label.contains("Trial"))
     }
 
     func testPermanentDeleteRequiresConfirmation() {
@@ -1053,7 +1049,9 @@ final class SubscriptionManagerUITests: XCTestCase {
         amount.tap()
         amount.typeText("9.99")
 
+        let form = app.descendants(matching: .any)["subscription.form"]
         app.buttons["subscription.form.save"].tap()
+        XCTAssertTrue(form.waitForNonExistence(timeout: 5))
         XCTAssertTrue(
             app.staticTexts[serviceNameValue]
                 .waitForExistence(timeout: 5)

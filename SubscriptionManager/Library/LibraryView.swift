@@ -732,6 +732,9 @@ private struct ScopedLibraryView: View {
             .task(id: scope) {
                 workspace.loadLibrary(scope: scope)
             }
+            .onAppear {
+                workspace.loadLibrary(scope: scope)
+            }
     }
 
     @ToolbarContentBuilder
