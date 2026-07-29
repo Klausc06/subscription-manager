@@ -13,6 +13,12 @@
         "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "其他信息" } }
       }
     },
+    "Adjust Actual Charge" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Adjust Actual Charge" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "调整实际扣款" } }
+      }
+    },
     "Amount" : {
       "localizations" : {
         "en" : { "stringUnit" : { "state" : "translated", "value" : "Amount" } },
@@ -29,6 +35,12 @@
       "localizations" : {
         "en" : { "stringUnit" : { "state" : "translated", "value" : "Billing Interval" } },
         "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "账单周期" } }
+      }
+    },
+    "Billing Period" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Billing Period" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "计费周期" } }
       }
     },
     "Billing Schedule" : {
@@ -251,6 +263,30 @@
       "localizations" : {
         "en" : { "stringUnit" : { "state" : "translated", "value" : "Optional" } },
         "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "选填" } }
+      }
+    },
+    "Official Offer" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Official Offer" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "官方套餐" } }
+      }
+    },
+    "Official Price" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Official Price" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "官方价格" } }
+      }
+    },
+    "Official Pricing Source" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Official Pricing Source" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "官方定价来源" } }
+      }
+    },
+    "Official prices may vary by region, tax, and storefront." : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Official prices may vary by region, tax, and storefront." } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "官方价格可能因地区、税费和购买渠道而异。" } }
       }
     },
     "Subscription Management URL" : {
@@ -726,6 +762,9 @@
     "Total" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Total" } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "总额" } } } },
     "Total Mode" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Total Mode" } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "汇总方式" } } } },
     "Using cached rates from %@" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Using cached rates from %@" } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "正在使用 %@ 的缓存汇率" } } } },
+    "Verified" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Verified" } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "已核验" } } } },
+    "Web" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Web" } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "网页" } } } },
+    "iOS App Store" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "iOS App Store" } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "iOS App Store" } } } },
     "Add a subscription to your library." : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Add a subscription to your library." } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "将订阅添加到你的订阅库。" } } } },
     "Show Upcoming Renewals" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Show Upcoming Renewals" } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "显示即将续费" } } } },
     "Show Monthly Forecast" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Show Monthly Forecast" } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "显示月度预测" } } } },

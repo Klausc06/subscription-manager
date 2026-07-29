@@ -156,7 +156,7 @@ final class SubscriptionManagerUITests: XCTestCase {
         XCTAssertTrue(app.buttons["setup.continue"].waitForExistence(timeout: 5))
         app.buttons["setup.continue"].tap()
         let spotify = app.buttons["setup.preset.spotify"]
-        XCTAssertTrue(spotify.waitForExistence(timeout: 5))
+        XCTAssertTrue(scrollToExistence(spotify, in: app))
         spotify.tap()
         XCTAssertEqual(spotify.value as? String, "Selected")
         app.buttons["setup.actions"].tap()
@@ -164,13 +164,10 @@ final class SubscriptionManagerUITests: XCTestCase {
         XCTAssertTrue(app.buttons["catalog.use-preset"].waitForExistence(timeout: 5))
         app.buttons["catalog.use-preset"].tap()
 
-        let plan = app.textFields["subscription.form.plan"]
-        XCTAssertTrue(plan.waitForExistence(timeout: 5))
-        plan.tap()
-        plan.typeText("Individual")
-        let amount = app.textFields["subscription.form.amount"]
-        amount.tap()
-        amount.typeText("9.99")
+        XCTAssertTrue(
+            app.buttons["subscription.form.offer-plan"]
+                .waitForExistence(timeout: 5)
+        )
         app.buttons["subscription.form.save"].tap()
 
         XCTAssertTrue(app.buttons["setup.actions"].waitForExistence(timeout: 5))
@@ -191,19 +188,18 @@ final class SubscriptionManagerUITests: XCTestCase {
 
         XCTAssertTrue(app.buttons["setup.continue"].waitForExistence(timeout: 5))
         app.buttons["setup.continue"].tap()
-        app.buttons["setup.preset.spotify"].tap()
+        let initialSpotify = app.buttons["setup.preset.spotify"]
+        XCTAssertTrue(scrollToExistence(initialSpotify, in: app))
+        initialSpotify.tap()
         app.buttons["setup.actions"].tap()
         app.buttons["setup.confirm-selected"].tap()
         XCTAssertTrue(app.buttons["catalog.use-preset"].waitForExistence(timeout: 5))
         app.buttons["catalog.use-preset"].tap()
 
-        let plan = app.textFields["subscription.form.plan"]
-        XCTAssertTrue(plan.waitForExistence(timeout: 5))
-        plan.tap()
-        plan.typeText("Individual")
-        let amount = app.textFields["subscription.form.amount"]
-        amount.tap()
-        amount.typeText("9.99")
+        XCTAssertTrue(
+            app.buttons["subscription.form.offer-plan"]
+                .waitForExistence(timeout: 5)
+        )
         app.buttons["subscription.form.save"].tap()
         XCTAssertTrue(app.buttons["setup.actions"].waitForExistence(timeout: 5))
 
@@ -212,7 +208,7 @@ final class SubscriptionManagerUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["Set Up Your Library"].waitForExistence(timeout: 5))
         app.buttons["setup.continue"].tap()
         let spotify = app.buttons["setup.preset.spotify"]
-        XCTAssertTrue(spotify.waitForExistence(timeout: 5))
+        XCTAssertTrue(scrollToExistence(spotify, in: app))
         spotify.tap()
         app.buttons["setup.actions"].tap()
         XCTAssertTrue(app.buttons["setup.finish"].isEnabled)
@@ -363,7 +359,7 @@ final class SubscriptionManagerUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["Next Expected Charge"].exists)
     }
 
-    func testCreatesEditableSubscriptionFromBundledCatalog() {
+    func testCreatesSubscriptionFromBundledCatalogOffer() {
         let app = launch(
             language: "en",
             locale: "en_US",
@@ -389,7 +385,7 @@ final class SubscriptionManagerUITests: XCTestCase {
         app.swipeUp()
         let diagnostics = app.staticTexts["catalog.diagnostics"]
         XCTAssertTrue(diagnostics.waitForExistence(timeout: 5))
-        XCTAssertTrue(diagnostics.label.contains("Catalog version 3"))
+        XCTAssertTrue(diagnostics.label.contains("Catalog version 4"))
         app.swipeDown()
         spotify.tap()
 
@@ -397,16 +393,13 @@ final class SubscriptionManagerUITests: XCTestCase {
         XCTAssertTrue(usePreset.waitForExistence(timeout: 5))
         usePreset.tap()
 
-        let serviceName = app.textFields["subscription.form.service-name"]
-        XCTAssertTrue(serviceName.waitForExistence(timeout: 5))
-        XCTAssertEqual(serviceName.value as? String, "Spotify")
-
-        let plan = app.textFields["subscription.form.plan"]
-        plan.tap()
-        plan.typeText("Premium")
-        let amount = app.textFields["subscription.form.amount"]
-        amount.tap()
-        amount.typeText("11.99")
+        XCTAssertTrue(
+            app.buttons["subscription.form.offer-plan"]
+                .waitForExistence(timeout: 5)
+        )
+        XCTAssertFalse(app.textFields["subscription.form.service-name"].exists)
+        XCTAssertFalse(app.textFields["subscription.form.plan"].exists)
+        XCTAssertFalse(app.textFields["subscription.form.amount"].exists)
         app.buttons["subscription.form.save"].tap()
 
         XCTAssertTrue(
@@ -414,6 +407,79 @@ final class SubscriptionManagerUITests: XCTestCase {
                 .waitForExistence(timeout: 5)
         )
         XCTAssertTrue(app.staticTexts["Spotify"].exists)
+    }
+
+    func testCatalogOfficialOfferPrefillsConfirmation() {
+        let app = launch(
+            language: "en",
+            locale: "en_US",
+            storeToken: "catalog-offer-\(UUID().uuidString)"
+        )
+
+        XCTAssertTrue(
+            app.buttons["subscription.add"].waitForExistence(timeout: 5)
+        )
+        app.buttons["subscription.add"].tap()
+        app.buttons["subscription.add.catalog"].tap()
+
+        let search = app.searchFields.firstMatch
+        XCTAssertTrue(search.waitForExistence(timeout: 5))
+        search.tap()
+        search.typeText("ChatGPT")
+
+        let chatGPT = app.buttons["catalog.preset.chatgpt"]
+        XCTAssertTrue(chatGPT.waitForExistence(timeout: 5))
+        chatGPT.tap()
+        XCTAssertTrue(
+            app.buttons["catalog.use-preset"].waitForExistence(timeout: 5)
+        )
+        app.buttons["catalog.use-preset"].tap()
+
+        let planPicker = app.buttons["subscription.form.offer-plan"]
+        XCTAssertTrue(planPicker.waitForExistence(timeout: 5))
+        planPicker.tap()
+        app.buttons["Pro (5x)"].tap()
+
+        XCTAssertTrue(
+            app.descendants(matching: .any)["subscription.form.selected-plan"]
+                .label.contains("Pro (5x)")
+        )
+        XCTAssertTrue(
+            app.descendants(matching: .any)["subscription.form.selected-price"]
+                .label.contains("$100")
+        )
+        XCTAssertTrue(
+            app.staticTexts["subscription.form.offer-provenance"]
+                .label.contains("US")
+        )
+        XCTAssertFalse(app.textFields["subscription.form.service-name"].exists)
+        XCTAssertFalse(app.textFields["subscription.form.plan"].exists)
+        XCTAssertFalse(app.textFields["subscription.form.amount"].exists)
+
+        let adjustCharge = app.buttons["subscription.form.adjust-charge"]
+        XCTAssertTrue(adjustCharge.exists)
+        adjustCharge.tap()
+        let amount = app.textFields["subscription.form.amount"]
+        XCTAssertTrue(
+            scrollToExistence(amount, in: app, maximumSwipes: 4)
+        )
+        let billingInterval = app.buttons[
+            "subscription.form.billing-interval"
+        ]
+        XCTAssertTrue(
+            scrollToExistence(
+                billingInterval,
+                in: app,
+                maximumSwipes: 4
+            )
+        )
+        XCTAssertFalse(app.textFields["subscription.form.service-name"].exists)
+        XCTAssertFalse(app.textFields["subscription.form.plan"].exists)
+
+        let source = app.links["subscription.form.offer-source"]
+        XCTAssertTrue(
+            scrollToExistence(source, in: app, maximumSwipes: 4)
+        )
     }
 
     func testCatalogAlphabetIndexSupportsTapAndDrag() {
@@ -1111,6 +1177,20 @@ final class SubscriptionManagerUITests: XCTestCase {
             app.staticTexts[serviceNameValue]
                 .waitForExistence(timeout: 5)
         )
+    }
+
+    private func scrollToExistence(
+        _ element: XCUIElement,
+        in app: XCUIApplication,
+        maximumSwipes: Int = 20
+    ) -> Bool {
+        for _ in 0 ..< maximumSwipes {
+            if element.exists {
+                return true
+            }
+            app.swipeUp()
+        }
+        return element.exists
     }
 
     private func topLevelTab(

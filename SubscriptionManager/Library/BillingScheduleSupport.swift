@@ -38,6 +38,52 @@ func formattedBillingDate(
     return formatter.string(from: date)
 }
 
+func defaultNextRenewal(
+    after date: Date,
+    interval: BillingInterval,
+    calendar: Calendar
+) -> Date {
+    let component: Calendar.Component
+    let value: Int
+    switch interval {
+    case .weekly:
+        component = .day
+        value = 7
+    case .monthly:
+        component = .month
+        value = 1
+    case .quarterly:
+        component = .month
+        value = 3
+    case .halfYearly:
+        component = .month
+        value = 6
+    case .yearly:
+        component = .year
+        value = 1
+    case .custom(let count, let unit):
+        switch unit {
+        case .day:
+            component = .day
+            value = count
+        case .week:
+            component = .day
+            value = count * 7
+        case .month:
+            component = .month
+            value = count
+        case .year:
+            component = .year
+            value = count
+        }
+    }
+    return calendar.date(
+        byAdding: component,
+        value: value,
+        to: date
+    ) ?? date
+}
+
 enum BillingIntervalChoice: String, CaseIterable, Identifiable {
     case weekly
     case monthly
@@ -141,6 +187,17 @@ struct BillingScheduleFields: View {
                 billingScheduleValidationText(for: validationError),
                 identifier: "subscription.validation.billing-schedule"
             )
+        }
+    }
+}
+
+extension CatalogPurchaseChannel {
+    var localizedTitle: String {
+        switch self {
+        case .web:
+            String(localized: "Web")
+        case .ios:
+            String(localized: "iOS App Store")
         }
     }
 }
