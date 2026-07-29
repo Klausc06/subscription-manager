@@ -28,6 +28,7 @@
 		573D19E1A08508BA1865924A /* EventKitCalendarProjectionImporter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0842A2D743C1E14345B79D96 /* EventKitCalendarProjectionImporter.swift */; };
 		5A00649C395B2B471599C013 /* RecordCancellationView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 53CF076D96FF1C31ED7EC2A2 /* RecordCancellationView.swift */; };
 		5EFACBCB58F5A772FF61FF4B /* SubscriptionManagerApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 03DFA150363397FA01C93872 /* SubscriptionManagerApp.swift */; };
+		626F0533A4DF2230483BA384 /* CatalogAlphabetIndexTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 05BBB5AC4394BF7E865300C5 /* CatalogAlphabetIndexTests.swift */; };
 		665528E003EC11A9189C1B7D /* InfoPlist.xcstrings in Resources */ = {isa = PBXBuildFile; fileRef = 4D90D49FB3AEDF62EFA48202 /* InfoPlist.xcstrings */; };
 		6660C4236F0802CD6EA713D1 /* MoneyFormatting.swift in Sources */ = {isa = PBXBuildFile; fileRef = C3C019FF49A9B77C9987C82B /* MoneyFormatting.swift */; };
 		71D3C438264BA1B8C68FE357 /* SubscriptionFormSupport.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2CAE4BF38A7217C53E4C047F /* SubscriptionFormSupport.swift */; };
@@ -44,6 +45,7 @@
 		9C86757EC90F9573E7228788 /* Localizable.xcstrings in Resources */ = {isa = PBXBuildFile; fileRef = 0AB60CE097AABC95DB396296 /* Localizable.xcstrings */; };
 		A105480E30F53C6D44A30A8F /* BillingScheduleSupport.swift in Sources */ = {isa = PBXBuildFile; fileRef = 54AE7D1E07F1BF787F9E1BEF /* BillingScheduleSupport.swift */; };
 		A66C78E13D3580B57945C076 /* CatalogBrowserView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5617F30677EE31D6D1BA649C /* CatalogBrowserView.swift */; };
+		A86822E9F6BC3549F04478CC /* CatalogAlphabetIndex.swift in Sources */ = {isa = PBXBuildFile; fileRef = AF747C52A83452ED127F1113 /* CatalogAlphabetIndex.swift */; };
 		AFD2FBBC3C7453EE8B17A22D /* SubscriptionLifecycleSupport.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4C0A8035198E253EFD0921C9 /* SubscriptionLifecycleSupport.swift */; };
 		B3BF2675BDDE0A05AF595127 /* BundledCatalogRepository.swift in Sources */ = {isa = PBXBuildFile; fileRef = F6158744F9B1B175056E79CA /* BundledCatalogRepository.swift */; };
 		BE216D6C64C7F5B6FBA9D245 /* GitHubCatalogUpdateSource.swift in Sources */ = {isa = PBXBuildFile; fileRef = E06ED39F4F3A5F168380926E /* GitHubCatalogUpdateSource.swift */; };
@@ -103,6 +105,7 @@
 
 /* Begin PBXFileReference section */
 		03DFA150363397FA01C93872 /* SubscriptionManagerApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SubscriptionManagerApp.swift; sourceTree = "<group>"; };
+		05BBB5AC4394BF7E865300C5 /* CatalogAlphabetIndexTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CatalogAlphabetIndexTests.swift; sourceTree = "<group>"; };
 		0842A2D743C1E14345B79D96 /* EventKitCalendarProjectionImporter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EventKitCalendarProjectionImporter.swift; sourceTree = "<group>"; };
 		0AB60CE097AABC95DB396296 /* Localizable.xcstrings */ = {isa = PBXFileReference; lastKnownFileType = text.json.xcstrings; path = Localizable.xcstrings; sourceTree = "<group>"; };
 		0ADA9475AF293852B7FA737C /* EventKitCalendarProjectionImporterTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EventKitCalendarProjectionImporterTests.swift; sourceTree = "<group>"; };
@@ -147,6 +150,7 @@
 		A40A43B15F2DC8026034E7B6 /* ManagementURLValidationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ManagementURLValidationTests.swift; sourceTree = "<group>"; };
 		A51067E214337D512DCE7E15 /* SubscriptionManager.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = SubscriptionManager.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		A93524FB8A11100D270A0930 /* ReactivateSubscriptionView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReactivateSubscriptionView.swift; sourceTree = "<group>"; };
+		AF747C52A83452ED127F1113 /* CatalogAlphabetIndex.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CatalogAlphabetIndex.swift; sourceTree = "<group>"; };
 		B59E02688F86D67614CE694A /* MacMenuBarPresentation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MacMenuBarPresentation.swift; sourceTree = "<group>"; };
 		BC563C5D4CFE9FE1F0148C35 /* SubscriptionCore */ = {isa = PBXFileReference; lastKnownFileType = folder; name = SubscriptionCore; path = Packages/SubscriptionCore; sourceTree = SOURCE_ROOT; };
 		BF78C8D1470F9E0A4F09112F /* WidgetSnapshotPublisher.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WidgetSnapshotPublisher.swift; sourceTree = "<group>"; };
@@ -316,6 +320,7 @@
 			children = (
 				178B2F8071F3AA4EEB4EF445 /* AppDependenciesTests.swift */,
 				E8E32D343532C15910A82133 /* BundledCatalogRepositoryTests.swift */,
+				05BBB5AC4394BF7E865300C5 /* CatalogAlphabetIndexTests.swift */,
 				0ADA9475AF293852B7FA737C /* EventKitCalendarProjectionImporterTests.swift */,
 				F97E335435D4B5871F1A384F /* MacMenuBarPresentationTests.swift */,
 				3220F13255F0E1FBFAE282B1 /* MacWindowRouterTests.swift */,
@@ -351,6 +356,7 @@
 			isa = PBXGroup;
 			children = (
 				F6158744F9B1B175056E79CA /* BundledCatalogRepository.swift */,
+				AF747C52A83452ED127F1113 /* CatalogAlphabetIndex.swift */,
 				5617F30677EE31D6D1BA649C /* CatalogBrowserView.swift */,
 				41A00EB2BB490F786F4D0953 /* CatalogPresetDetailView.swift */,
 				5B719388CA82311FED0FEB46 /* FileCatalogCache.swift */,
@@ -531,6 +537,7 @@
 				A105480E30F53C6D44A30A8F /* BillingScheduleSupport.swift in Sources */,
 				B3BF2675BDDE0A05AF595127 /* BundledCatalogRepository.swift in Sources */,
 				D0321047EAB970503FB76AD5 /* CalendarProjectionView.swift in Sources */,
+				A86822E9F6BC3549F04478CC /* CatalogAlphabetIndex.swift in Sources */,
 				A66C78E13D3580B57945C076 /* CatalogBrowserView.swift in Sources */,
 				0666A187883887DBEE6F3855 /* CatalogPresetDetailView.swift in Sources */,
 				401275AD1970EE4B07820785 /* CloudKitLibrarySyncMonitor.swift in Sources */,
@@ -576,6 +583,7 @@
 			files = (
 				FE9D2A03AAAF24FCBDC2CEA0 /* AppDependenciesTests.swift in Sources */,
 				1542C108546F4227953D1C2E /* BundledCatalogRepositoryTests.swift in Sources */,
+				626F0533A4DF2230483BA384 /* CatalogAlphabetIndexTests.swift in Sources */,
 				8E78AFCD49FF2D2EEBC82BEE /* EventKitCalendarProjectionImporterTests.swift in Sources */,
 				396F89532A0E8717BA33BD50 /* MacMenuBarPresentationTests.swift in Sources */,
 				289E4CBB05784C2181F2A79F /* MacWindowRouterTests.swift in Sources */,

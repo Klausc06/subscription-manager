@@ -383,6 +383,7 @@ final class SubscriptionManagerUITests: XCTestCase {
         XCTAssertTrue(search.waitForExistence(timeout: 5))
         search.tap()
         search.typeText("Spotify")
+        XCTAssertFalse(app.otherElements["catalog.alphabet-index"].exists)
         let spotify = app.buttons["catalog.preset.spotify"]
         XCTAssertTrue(spotify.waitForExistence(timeout: 5))
         app.swipeUp()
@@ -413,6 +414,46 @@ final class SubscriptionManagerUITests: XCTestCase {
                 .waitForExistence(timeout: 5)
         )
         XCTAssertTrue(app.staticTexts["Spotify"].exists)
+    }
+
+    func testCatalogAlphabetIndexSupportsTapAndDrag() {
+        let app = launch(
+            language: "en",
+            locale: "en_US",
+            storeToken: "catalog-index-\(UUID().uuidString)"
+        )
+
+        XCTAssertTrue(
+            app.buttons["subscription.add"].waitForExistence(timeout: 5)
+        )
+        app.buttons["subscription.add"].tap()
+
+        let catalog = app.buttons["subscription.add.catalog"]
+        XCTAssertTrue(catalog.waitForExistence(timeout: 5))
+        catalog.tap()
+
+        let index = app.otherElements["catalog.alphabet-index"]
+        XCTAssertTrue(index.waitForExistence(timeout: 5))
+
+        let letterB = app.buttons["catalog.alphabet-index.B"]
+        XCTAssertTrue(letterB.exists)
+        letterB.tap()
+        XCTAssertTrue(
+            app.staticTexts["catalog.section.B"]
+                .waitForExistence(timeout: 5)
+        )
+
+        let start = index.coordinate(
+            withNormalizedOffset: CGVector(dx: 0.5, dy: 0.15)
+        )
+        let end = index.coordinate(
+            withNormalizedOffset: CGVector(dx: 0.5, dy: 0.98)
+        )
+        start.press(forDuration: 0.2, thenDragTo: end)
+        XCTAssertTrue(
+            app.staticTexts["catalog.section.#"]
+                .waitForExistence(timeout: 5)
+        )
     }
 
     func testCreatesTrialWithVisibleTrialStatus() {

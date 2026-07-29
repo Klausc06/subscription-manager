@@ -42,51 +42,88 @@ struct CatalogBrowserView: View {
             .accessibilityIdentifier("catalog.failed")
 
         case .loaded(let categories, let presets):
-            List {
-                Section {
-                    Menu {
-                        Button("All Categories") {
-                            selectedCategoryID = nil
-                            workspace.setCatalogCategory(nil)
-                        }
+            let sections = CatalogIndexProjection.sections(
+                for: presets,
+                locale: locale
+            )
+            ScrollViewReader { proxy in
+                ZStack(alignment: .trailing) {
+                    List {
+                        Section {
+                            Menu {
+                                Button("All Categories") {
+                                    selectedCategoryID = nil
+                                    workspace.setCatalogCategory(nil)
+                                }
 
-                        ForEach(categories) { category in
-                            Button(category.title.value(for: locale)) {
-                                selectedCategoryID = category.id
-                                workspace.setCatalogCategory(category.id)
-                            }
-                        }
-                    } label: {
-                        Label(
-                            selectedCategoryTitle(in: categories),
-                            systemImage: "line.3.horizontal.decrease.circle"
-                        )
-                    }
-                    .accessibilityIdentifier("catalog.category")
-                }
-
-                Section("Catalog") {
-                    if presets.isEmpty {
-                        ContentUnavailableView.search(text: searchQuery)
-                    } else {
-                        ForEach(presets) { preset in
-                            NavigationLink {
-                                CatalogPresetDetailView(
-                                    workspace: workspace,
-                                    preset: preset,
-                                    onSubscriptionCreated: onSubscriptionCreated
-                                )
+                                ForEach(categories) { category in
+                                    Button(category.title.value(for: locale)) {
+                                        selectedCategoryID = category.id
+                                        workspace.setCatalogCategory(category.id)
+                                    }
+                                }
                             } label: {
-                                CatalogPresetRow(preset: preset, locale: locale)
+                                Label(
+                                    selectedCategoryTitle(in: categories),
+                                    systemImage: "line.3.horizontal.decrease.circle"
+                                )
                             }
-                            .accessibilityIdentifier("catalog.preset.\(preset.id)")
+                            .accessibilityIdentifier("catalog.category")
                         }
+
+                        if sections.isEmpty {
+                            Section("Catalog") {
+                                ContentUnavailableView.search(text: searchQuery)
+                            }
+                        } else {
+                            ForEach(sections) { section in
+                                Section {
+                                    ForEach(section.presets) { preset in
+                                        NavigationLink {
+                                            CatalogPresetDetailView(
+                                                workspace: workspace,
+                                                preset: preset,
+                                                onSubscriptionCreated:
+                                                    onSubscriptionCreated
+                                            )
+                                        } label: {
+                                            CatalogPresetRow(
+                                                preset: preset,
+                                                locale: locale
+                                            )
+                                        }
+                                        .accessibilityIdentifier(
+                                            "catalog.preset.\(preset.id)"
+                                        )
+                                    }
+                                } header: {
+                                    Text(section.title)
+                                        .accessibilityIdentifier(
+                                            "catalog.section.\(section.id)"
+                                        )
+                                }
+                                .id(section.id)
+                            }
+                        }
+
+                        catalogDiagnostics
+                    }
+                    .contentMargins(.trailing, 28, for: .scrollContent)
+                    .accessibilityIdentifier("catalog.list")
+
+                    if shouldShowAlphabetIndex(for: sections) {
+                        CatalogAlphabetIndex(
+                            letters: sections.map(\.id)
+                        ) { letter in
+                            withAnimation(.snappy) {
+                                proxy.scrollTo(letter, anchor: .top)
+                            }
+                        }
+                        .padding(.trailing, 2)
+                        .padding(.vertical, 8)
                     }
                 }
-
-                catalogDiagnostics
             }
-            .accessibilityIdentifier("catalog.list")
         }
     }
 
@@ -130,6 +167,13 @@ struct CatalogBrowserView: View {
             return String(localized: "All Categories")
         }
         return category.title.value(for: locale)
+    }
+
+    private func shouldShowAlphabetIndex(
+        for sections: [CatalogIndexSection]
+    ) -> Bool {
+        searchQuery.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            && !sections.isEmpty
     }
 }
 

@@ -654,6 +654,7 @@
     "Choose a JSON backup to inspect it before any changes are made." : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Choose a JSON backup to inspect it before any changes are made." } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "选择 JSON 备份，在任何更改前先检查其内容。" } } } },
     "Apply Restore" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Apply Restore" } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "应用恢复" } } } },
     "Conflicts" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Conflicts" } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "冲突" } } } },
+    "Jump to %@" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Jump to %@" } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "跳转到 %@" } } } },
     "Keep Local" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Keep Local" } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "保留本地版本" } } } },
     "Use Backup" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Use Backup" } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "使用备份版本" } } } },
     "Additions" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Additions" } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "新增项目" } } } },
