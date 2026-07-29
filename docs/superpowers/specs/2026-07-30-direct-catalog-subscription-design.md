@@ -309,6 +309,28 @@ physical iPhone, launch it, and confirm both the main application and widget
 processes. Do not push this new delivery unless the user explicitly requests
 another push.
 
+## Release Target
+
+### REL-01 — Mark the completed state as milestone 0.1
+
+The project already declares `MARKETING_VERSION = 0.1.0`. Keep that version
+for this delivery.
+
+After every implementation and verification target in this document passes,
+create a GitHub milestone named `0.1` for the repository. Its description
+summarizes the offline subscription library, catalog, direct official-offer
+flow, forecasts, backup/restore, widgets, App Intents, and supported Apple
+platform surfaces that form the current 0.1 state.
+
+Acceptance:
+
+- The built app reports marketing version `0.1.0`.
+- GitHub has one open milestone named `0.1`.
+- The milestone is created only after the implementation, regression, local
+  commit, and device smoke are complete.
+- This target does not authorize creating a GitHub Release, Git tag, or remote
+  push of the new implementation.
+
 ## Out of Scope
 
 - Automatically detecting which provider plan the person already has.
