@@ -827,6 +827,7 @@ struct SubscriptionWorkspaceTests {
                         minorUnits: 2_199,
                         currency: .eur
                     ),
+                    billingIntervalSelection: .official,
                     startDate: start,
                     renewalAnchor: start,
                     confirmedNextRenewal: nextRenewal,
@@ -851,6 +852,100 @@ struct SubscriptionWorkspaceTests {
         #expect(stored.billingSchedule.interval == verifiedOffer.billingInterval)
         #expect(stored.managementURL == preset.managementURL)
         #expect(stored.serviceIdentity.rawValue == "catalog:\(preset.id)")
+    }
+
+    @Test("Verified catalog creation permits a valid billing interval override")
+    @MainActor
+    func verifiedCatalogCreationPermitsBillingIntervalOverride() throws {
+        let verifiedOffer = catalogOfferFixture(
+            id: "plus-monthly-us-web",
+            status: .verified
+        )
+        let preset = catalogPresetFixture(offers: [verifiedOffer])
+        let repository = InMemorySubscriptionRepository()
+        let subscriptionID = UUID(
+            uuidString: "ACACACAC-1111-2222-3333-FFFFFFFFFFFF"
+        )!
+        let start = Date(timeIntervalSince1970: 1_767_225_600)
+        let workspace = SubscriptionWorkspace(
+            repository: repository,
+            catalogRepository: StaticCatalogRepository(presets: [preset]),
+            identifierGenerator: { subscriptionID }
+        )
+        workspace.loadCatalog(locale: Locale(identifier: "en"))
+
+        let result = workspace.createCatalogSubscription(
+            presetID: preset.id,
+            command: .verifiedOffer(
+                CatalogOfferSubscriptionInput(
+                    offerID: verifiedOffer.id,
+                    actualChargeOverride: nil,
+                    billingIntervalSelection: .override(
+                        .custom(value: 3, unit: .week)
+                    ),
+                    startDate: start,
+                    renewalAnchor: start,
+                    confirmedNextRenewal:
+                        start.addingTimeInterval(86_400),
+                    billingTimeZoneIdentifier: "UTC",
+                    notes: "",
+                    initialStatus: .active
+                )
+            )
+        )
+
+        let stored = try #require(
+            repository.storedSubscription(id: subscriptionID)
+        )
+        #expect(result == .created(stored))
+        #expect(
+            stored.billingSchedule.interval
+                == .custom(value: 3, unit: .week)
+        )
+    }
+
+    @Test("Verified catalog creation validates a billing interval override")
+    @MainActor
+    func verifiedCatalogCreationValidatesBillingIntervalOverride() {
+        let verifiedOffer = catalogOfferFixture(
+            id: "plus-monthly-us-web",
+            status: .verified
+        )
+        let preset = catalogPresetFixture(offers: [verifiedOffer])
+        let repository = InMemorySubscriptionRepository()
+        let start = Date(timeIntervalSince1970: 1_767_225_600)
+        let workspace = SubscriptionWorkspace(
+            repository: repository,
+            catalogRepository: StaticCatalogRepository(presets: [preset])
+        )
+        workspace.loadCatalog(locale: Locale(identifier: "en"))
+
+        let result = workspace.createCatalogSubscription(
+            presetID: preset.id,
+            command: .verifiedOffer(
+                CatalogOfferSubscriptionInput(
+                    offerID: verifiedOffer.id,
+                    actualChargeOverride: nil,
+                    billingIntervalSelection: .override(
+                        .custom(value: 0, unit: .week)
+                    ),
+                    startDate: start,
+                    renewalAnchor: start,
+                    confirmedNextRenewal:
+                        start.addingTimeInterval(86_400),
+                    billingTimeZoneIdentifier: "UTC",
+                    notes: "",
+                    initialStatus: .active
+                )
+            )
+        )
+
+        #expect(result == .validationFailed)
+        #expect(
+            workspace.creationValidationErrors[.billingSchedule]
+                == .mustBePositive
+        )
+        #expect((try? repository.listSubscriptions())?.isEmpty == true)
     }
 
     @Test("Catalog creation rejects an unknown offer identifier")

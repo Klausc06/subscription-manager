@@ -246,6 +246,15 @@ struct AddSubscriptionView: View {
                     isExpanded: $adjustsActualCharge
                 ) {
                     actualChargeFields
+                    BillingScheduleFields(
+                        intervalChoice: $intervalChoice,
+                        customValueText: $customValueText,
+                        customUnit: $customUnit,
+                        validationError:
+                            workspace.creationValidationErrors[
+                                .billingSchedule
+                            ]
+                    )
                 } label: {
                     VStack(alignment: .leading, spacing: 2) {
                         Text("Adjust Actual Charge")
@@ -253,12 +262,12 @@ struct AddSubscriptionView: View {
                                 "subscription.form.adjust-charge"
                             )
                         if !adjustsActualCharge {
-                            Text(actualChargeSummary)
+                            Text(offerAdjustmentSummary)
                                 .font(.footnote)
                                 .foregroundStyle(.secondary)
                         }
                     }
-                    .accessibilityValue(actualChargeSummary)
+                    .accessibilityValue(offerAdjustmentSummary)
                 }
             }
         }
@@ -348,6 +357,11 @@ struct AddSubscriptionView: View {
         let value = amount.map(formattedMoney)
             ?? amountText.trimmingCharacters(in: .whitespacesAndNewlines)
         return "\(value) · \(currency.rawValue)"
+    }
+
+    private var offerAdjustmentSummary: String {
+        "\(actualChargeSummary) · "
+            + localizedBillingInterval(selectedBillingInterval)
     }
 
     private var billingScheduleSection: some View {
@@ -562,6 +576,11 @@ struct AddSubscriptionView: View {
                         offerID: selectedOffer.id,
                         actualChargeOverride:
                             amount == selectedOffer.price ? nil : amount,
+                        billingIntervalSelection:
+                            selectedBillingInterval
+                                == selectedOffer.billingInterval
+                                ? .official
+                                : .override(selectedBillingInterval),
                         startDate: normalizedStartDate,
                         renewalAnchor: normalizedRenewalAnchor,
                         confirmedNextRenewal: normalizedNextRenewal,
@@ -599,6 +618,9 @@ struct AddSubscriptionView: View {
         guard workspace.creationValidationErrors.isEmpty, wasCreated else {
             if hasVerifiedOffers,
                workspace.creationValidationErrors[.originalAmount] != nil
+                || workspace.creationValidationErrors[
+                    .billingSchedule
+                ] != nil
             {
                 adjustsActualCharge = true
             }

@@ -262,9 +262,15 @@ public struct SubscriptionCreationInput: Equatable, Sendable {
     }
 }
 
+public enum CatalogBillingIntervalSelection: Equatable, Sendable {
+    case official
+    case `override`(BillingInterval)
+}
+
 public struct CatalogOfferSubscriptionInput: Equatable, Sendable {
     public let offerID: String
     public let actualChargeOverride: Money?
+    public let billingIntervalSelection: CatalogBillingIntervalSelection
     public let startDate: Date
     public let renewalAnchor: Date
     public let confirmedNextRenewal: Date
@@ -275,6 +281,7 @@ public struct CatalogOfferSubscriptionInput: Equatable, Sendable {
     public init(
         offerID: String,
         actualChargeOverride: Money?,
+        billingIntervalSelection: CatalogBillingIntervalSelection = .official,
         startDate: Date,
         renewalAnchor: Date,
         confirmedNextRenewal: Date,
@@ -284,6 +291,7 @@ public struct CatalogOfferSubscriptionInput: Equatable, Sendable {
     ) {
         self.offerID = offerID
         self.actualChargeOverride = actualChargeOverride
+        self.billingIntervalSelection = billingIntervalSelection
         self.startDate = startDate
         self.renewalAnchor = renewalAnchor
         self.confirmedNextRenewal = confirmedNextRenewal
@@ -1111,13 +1119,21 @@ public final class SubscriptionWorkspace {
                 creationValidationErrors = [:]
                 return .rejected(.offerRequiresReview)
             }
+            let billingInterval = switch
+                offerInput.billingIntervalSelection
+            {
+            case .official:
+                offer.billingInterval
+            case .override(let interval):
+                interval
+            }
             input = SubscriptionCreationInput(
                 serviceName: preset.serviceName.value(for: catalogLocale),
                 plan: offer.planName.value(for: catalogLocale),
                 category: preset.category.value(for: catalogLocale),
                 originalAmount:
                     offerInput.actualChargeOverride ?? offer.price,
-                billingInterval: offer.billingInterval,
+                billingInterval: billingInterval,
                 startDate: offerInput.startDate,
                 renewalAnchor: offerInput.renewalAnchor,
                 confirmedNextRenewal: offerInput.confirmedNextRenewal,

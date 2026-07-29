@@ -477,7 +477,7 @@ final class SubscriptionManagerUITests: XCTestCase {
         XCTAssertTrue(
             scrollToExistence(amount, in: app, maximumSwipes: 4)
         )
-        XCTAssertFalse(
+        XCTAssertTrue(
             app.buttons["subscription.form.billing-interval"].exists
         )
         XCTAssertFalse(app.textFields["subscription.form.service-name"].exists)
@@ -523,6 +523,64 @@ final class SubscriptionManagerUITests: XCTestCase {
         XCTAssertTrue(amount.waitForExistence(timeout: 5))
         XCTAssertTrue(
             app.staticTexts["subscription.validation.amount"].exists
+        )
+    }
+
+    func testOfficialOfferBillingErrorReopensAdjustmentDisclosure() {
+        let app = launch(
+            language: "en",
+            locale: "en_US",
+            storeToken: "catalog-interval-\(UUID().uuidString)"
+        )
+        app.buttons["subscription.add"].tap()
+        let chatGPT = app.buttons["catalog.preset.chatgpt"]
+        XCTAssertTrue(scrollToExistence(chatGPT, in: app))
+        chatGPT.tap()
+
+        let disclosure = app.buttons["subscription.form.adjust-charge"]
+        XCTAssertTrue(disclosure.waitForExistence(timeout: 5))
+        disclosure.tap()
+
+        let billingInterval = app.buttons[
+            "subscription.form.billing-interval"
+        ]
+        XCTAssertTrue(
+            scrollToExistence(billingInterval, in: app, maximumSwipes: 4)
+        )
+        billingInterval.tap()
+        app.buttons["Custom"].tap()
+
+        let customValue = app.textFields[
+            "subscription.form.custom-interval-value"
+        ]
+        XCTAssertTrue(customValue.waitForExistence(timeout: 5))
+        customValue.tap()
+        customValue.typeText("0")
+        let customUnit = app.buttons[
+            "subscription.form.custom-interval-unit"
+        ]
+        customUnit.tap()
+        app.buttons["Weeks"].tap()
+        for _ in 0 ..< 4 where !disclosure.exists {
+            app.swipeDown()
+        }
+        XCTAssertTrue(disclosure.exists)
+        disclosure.tap()
+        XCTAssertFalse(customValue.exists)
+
+        app.buttons["subscription.form.save"].tap()
+
+        XCTAssertTrue(
+            scrollToExistence(customValue, in: app, maximumSwipes: 4)
+        )
+        XCTAssertEqual(customValue.value as? String, "0")
+        XCTAssertTrue(
+            app.buttons["subscription.form.custom-interval-unit"]
+                .label.contains("Weeks")
+        )
+        XCTAssertTrue(
+            app.staticTexts["subscription.validation.billing-schedule"]
+                .exists
         )
     }
 

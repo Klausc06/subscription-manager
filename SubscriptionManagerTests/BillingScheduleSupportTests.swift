@@ -14,6 +14,12 @@ struct BillingScheduleSupportTests {
         #expect(values.choice == .custom)
         #expect(values.customValueText == "2")
         #expect(values.customUnit == .month)
+        #expect(
+            values.choice.interval(
+                customValueText: values.customValueText,
+                customUnit: values.customUnit
+            ) == .custom(value: 2, unit: .month)
+        )
     }
 
     @Test("Standard intervals clear stale custom values")
