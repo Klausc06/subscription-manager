@@ -156,7 +156,10 @@ offered as an automatic price.
 The first implementation supports fixed-price consumer offers. Quote-only,
 seat-count-dependent, non-renewing prepaid, legacy, promotional, and free
 plans may be documented but are not selectable until their billing semantics
-can be represented without asking the person to repair the preset.
+can be represented without asking the person to repair the preset. An
+officially priced single-member or one-person variant may be selectable when
+its plan name explicitly states that fixed scope; it does not imply support
+for a variable seat count.
 
 Acceptance:
 
