@@ -144,7 +144,7 @@ private struct MacLibraryView: View {
     @State private var sort: SubscriptionTableSort = .serviceName
     @State private var ascending = true
     @State private var selection: Set<UUID> = []
-    @State private var isAddingSubscription = false
+    @State private var addPresentation = MacAddPresentationState()
     @State private var editingSubscription: Subscription?
     @State private var isPreferencesPresented = false
     @FocusState private var isSearchFocused: Bool
@@ -166,7 +166,7 @@ private struct MacLibraryView: View {
                 .toolbar {
                     ToolbarItemGroup {
                         Button("Add Subscription", systemImage: "plus") {
-                            isAddingSubscription = true
+                            addPresentation.present(from: .toolbar)
                         }
                         .keyboardShortcut("n", modifiers: [.command])
 
@@ -193,8 +193,15 @@ private struct MacLibraryView: View {
             detailContent
         }
         .navigationSplitViewStyle(.balanced)
-        .sheet(isPresented: $isAddingSubscription) {
-            AddSubscriptionView(workspace: workspace)
+        .sheet(isPresented: Binding(
+            get: { addPresentation.isPresented },
+            set: { isPresented in
+                if !isPresented {
+                    addPresentation.dismiss()
+                }
+            }
+        )) {
+            CatalogAddFlowView(workspace: workspace)
                 .frame(minWidth: 520, minHeight: 560)
         }
         .sheet(item: $editingSubscription) { subscription in
@@ -221,7 +228,7 @@ private struct MacLibraryView: View {
             workspace.loadLibrary(scope: scope)
         }
         .onReceive(NotificationCenter.default.publisher(for: MacWindowCommand.add)) { _ in
-            isAddingSubscription = true
+            addPresentation.present(from: .command)
         }
         .onReceive(NotificationCenter.default.publisher(for: MacWindowCommand.edit)) { _ in
             beginEditingSelection()
@@ -340,7 +347,7 @@ private struct MacLibraryView: View {
         case .none, .open:
             break
         case .quickAdd:
-            isAddingSubscription = true
+            addPresentation.present(from: .quickAdd)
         }
     }
 }

@@ -22,18 +22,7 @@ struct LibraryView: View {
         .sheet(item: $presentedSheet) { sheet in
             switch sheet {
             case .addSubscription:
-                NavigationStack {
-                    CatalogBrowserView(
-                        workspace: workspace,
-                        onSubscriptionCreated: {
-                            presentedSheet = nil
-                            workspace.loadLibrary(scope: .current)
-                        },
-                        onCancel: {
-                            presentedSheet = nil
-                        }
-                    )
-                }
+                CatalogAddFlowView(workspace: workspace)
             }
         }
         .sheet(isPresented: $isSetupPresented) {
@@ -498,7 +487,6 @@ private struct FirstRunSetupView: View {
         }
         .task {
             applyWorkspacePreferences()
-            confirmedPresetIDs.formUnion(existingCatalogPresetIDs)
         }
     }
 
@@ -558,6 +546,7 @@ private struct FirstRunSetupView: View {
                     if case .failed = workspace.setupState {
                         return
                     }
+                    workspace.loadCatalog(locale: locale)
                     step = .catalog
                 }
                 .accessibilityIdentifier("setup.continue")
@@ -648,6 +637,7 @@ private struct FirstRunSetupView: View {
         }
         .task {
             workspace.loadCatalog(locale: locale)
+            confirmedPresetIDs.formUnion(existingCatalogPresetIDs)
         }
     }
 
@@ -667,13 +657,19 @@ private struct FirstRunSetupView: View {
             return []
         }
         let prefix = "catalog:"
-        return Set(
+        let storedPresetIDs: Set<String> = Set(
             subscriptions.compactMap { subscription in
                 let identity = subscription.serviceIdentity.rawValue
                 guard identity.hasPrefix(prefix) else { return nil }
                 return String(identity.dropFirst(prefix.count))
             }
         )
+        return Set(storedPresetIDs.map { storedPresetID in
+            presets.first(where: {
+                $0.id == storedPresetID
+                    || $0.legacyPresetIDs.contains(storedPresetID)
+            })?.id ?? storedPresetID
+        })
     }
 
     private func toggleSelection(for id: String) {

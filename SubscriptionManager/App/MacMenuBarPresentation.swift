@@ -22,6 +22,28 @@ enum MacWindowDestination: Equatable {
     case quickAdd
 }
 
+enum MacAddSubscriptionTrigger: CaseIterable, Equatable {
+    case toolbar
+    case command
+    case quickAdd
+}
+
+struct MacAddPresentationState: Equatable {
+    private(set) var trigger: MacAddSubscriptionTrigger?
+
+    var isPresented: Bool {
+        trigger != nil
+    }
+
+    mutating func present(from trigger: MacAddSubscriptionTrigger) {
+        self.trigger = trigger
+    }
+
+    mutating func dismiss() {
+        trigger = nil
+    }
+}
+
 /// Keeps menu-bar commands available until a newly recreated window is ready.
 @MainActor
 final class MacWindowRouter: ObservableObject {

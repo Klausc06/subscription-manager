@@ -73,9 +73,15 @@ struct AppDependencies {
         #else
         let failsLifecycleMutations = false
         #endif
+        let seedsLegacyChatGPTPlus =
+            effectiveArguments.contains("--ui-testing")
+            && effectiveArguments.contains(
+                "--ui-testing-seed-legacy-chatgpt-plus"
+            )
 
         return make(
             failsLifecycleMutations: failsLifecycleMutations,
+            seedsLegacyChatGPTPlus: seedsLegacyChatGPTPlus,
             allowsExchangeRateNetworking: !effectiveArguments.contains("--ui-testing"),
             allowsCalendarImport: selection == .production,
             widgetSnapshotPublisher: selection == .production
@@ -145,6 +151,7 @@ struct AppDependencies {
 
     static func make(
         failsLifecycleMutations: Bool = false,
+        seedsLegacyChatGPTPlus: Bool = false,
         allowsExchangeRateNetworking: Bool = true,
         allowsCalendarImport: Bool = false,
         widgetSnapshotPublisher: (any WidgetSnapshotPublishing)? = nil,
@@ -159,6 +166,12 @@ struct AppDependencies {
             let preferencesRepository = SwiftDataUserPreferencesRepository(
                 modelContainer: modelContainer
             )
+            if seedsLegacyChatGPTPlus {
+                try seedLegacyChatGPTPlusSubscription(
+                    repository: repository,
+                    preferencesRepository: preferencesRepository
+                )
+            }
             let portableBackupImportRepository =
                 SwiftDataPortableBackupImportRepository(
                     modelContainer: modelContainer
@@ -236,6 +249,54 @@ struct AppDependencies {
         } catch {
             return .failed(AppStartupFailure(underlyingError: error))
         }
+    }
+
+    private static func seedLegacyChatGPTPlusSubscription(
+        repository: SwiftDataSubscriptionRepository,
+        preferencesRepository: SwiftDataUserPreferencesRepository
+    ) throws {
+        let legacyIdentity = ServiceIdentity(
+            rawValue: "catalog:chatgpt-plus"
+        )
+        if try !repository.listSubscriptions().contains(where: {
+            $0.serviceIdentity == legacyIdentity
+        }) {
+            let start = Date(timeIntervalSince1970: 1_767_225_600)
+            let calendar = BillingCalendar.calendar(
+                timeZone: TimeZone(identifier: "UTC")!
+            )
+            let nextRenewal = calendar.date(
+                byAdding: .month,
+                value: 1,
+                to: start
+            ) ?? start
+            try repository.createSubscription(
+                Subscription(
+                    id: UUID(
+                        uuidString:
+                            "C0DEC0DE-0000-4000-8000-000000000023"
+                    )!,
+                    serviceIdentity: legacyIdentity,
+                    serviceName: "ChatGPT",
+                    plan: "Plus",
+                    category: "Productivity",
+                    originalAmount: Money(
+                        minorUnits: 2_000,
+                        currency: .usd
+                    ),
+                    billingSchedule: FixedBillingSchedule(
+                        interval: .monthly,
+                        renewalAnchor: start,
+                        timeZoneIdentifier: "UTC"
+                    ),
+                    startDate: start,
+                    confirmedNextRenewal: nextRenewal,
+                    managementURL: URL(string: "https://chatgpt.com/"),
+                    notes: ""
+                )
+            )
+        }
+        try preferencesRepository.savePreferences(.default)
     }
 
     static func storeSelection(

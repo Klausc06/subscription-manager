@@ -1,6 +1,27 @@
 import SubscriptionCore
 import SwiftUI
 
+struct CatalogAddFlowView: View {
+    @Environment(\.dismiss) private var dismiss
+
+    let workspace: SubscriptionWorkspace
+
+    var body: some View {
+        NavigationStack {
+            CatalogBrowserView(
+                workspace: workspace,
+                onSubscriptionCreated: finish,
+                onCancel: { dismiss() }
+            )
+        }
+    }
+
+    private func finish() {
+        workspace.loadLibrary(scope: .current)
+        dismiss()
+    }
+}
+
 struct CatalogBrowserView: View {
     @Environment(\.locale) private var locale
 
@@ -74,8 +95,8 @@ struct CatalogBrowserView: View {
                                     selectedCategoryTitle(in: categories),
                                     systemImage: "line.3.horizontal.decrease.circle"
                                 )
+                                .accessibilityIdentifier("catalog.category")
                             }
-                            .accessibilityIdentifier("catalog.category")
                         }
 
                         Section {

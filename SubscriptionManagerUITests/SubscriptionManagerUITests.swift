@@ -219,6 +219,30 @@ final class SubscriptionManagerUITests: XCTestCase {
         XCTAssertEqual(spotifyLabels.count, 1)
     }
 
+    func testLegacyChatGPTSetupResumeUsesCanonicalCatalogIdentity() {
+        let app = launch(
+            language: "en",
+            locale: "en_US",
+            storeToken: "legacy-chatgpt-\(UUID().uuidString)",
+            onboarding: true,
+            seedsLegacyChatGPTPlus: true
+        )
+
+        XCTAssertTrue(app.buttons["setup.continue"].waitForExistence(timeout: 5))
+        app.buttons["setup.continue"].tap()
+        let chatGPT = app.buttons["setup.preset.chatgpt"]
+        XCTAssertTrue(scrollToExistence(chatGPT, in: app))
+        chatGPT.tap()
+        app.buttons["setup.actions"].tap()
+        XCTAssertTrue(app.buttons["setup.finish"].isEnabled)
+        app.buttons["setup.finish"].tap()
+
+        let chatGPTLabels = app.staticTexts.matching(
+            NSPredicate(format: "label == %@", "ChatGPT")
+        )
+        XCTAssertEqual(chatGPTLabels.count, 1)
+    }
+
     func testSettingsPersistsSetupDefaultsAfterSkipping() {
         let storeToken = "setup-settings-\(UUID().uuidString)"
         let app = launch(
@@ -380,11 +404,9 @@ final class SubscriptionManagerUITests: XCTestCase {
         )
         XCTAssertFalse(app.buttons["subscription.add.catalog"].exists)
 
-        let search = app.searchFields.firstMatch
-        XCTAssertTrue(search.waitForExistence(timeout: 5))
-        search.tap()
-        search.typeText("ChatGPT")
-        app.buttons["catalog.preset.chatgpt"].tap()
+        let chatGPT = app.buttons["catalog.preset.chatgpt"]
+        XCTAssertTrue(scrollToExistence(chatGPT, in: app))
+        chatGPT.tap()
 
         XCTAssertTrue(
             app.navigationBars["Confirm Subscription"]
@@ -418,13 +440,8 @@ final class SubscriptionManagerUITests: XCTestCase {
         )
         app.buttons["subscription.add"].tap()
 
-        let search = app.searchFields.firstMatch
-        XCTAssertTrue(search.waitForExistence(timeout: 5))
-        search.tap()
-        search.typeText("ChatGPT")
-
         let chatGPT = app.buttons["catalog.preset.chatgpt"]
-        XCTAssertTrue(chatGPT.waitForExistence(timeout: 5))
+        XCTAssertTrue(scrollToExistence(chatGPT, in: app))
         chatGPT.tap()
 
         let planPicker = app.buttons["subscription.form.offer-plan"]
@@ -433,8 +450,13 @@ final class SubscriptionManagerUITests: XCTestCase {
         app.buttons["Pro (5x)"].tap()
 
         XCTAssertTrue(
-            app.descendants(matching: .any)["subscription.form.selected-plan"]
-                .label.contains("Pro (5x)")
+            app.buttons["subscription.form.offer-plan"].label
+                .contains("Pro (5x)")
+        )
+        XCTAssertFalse(
+            app.descendants(matching: .any)[
+                "subscription.form.selected-plan"
+            ].exists
         )
         XCTAssertTrue(
             app.descendants(matching: .any)["subscription.form.selected-price"]
@@ -455,15 +477,8 @@ final class SubscriptionManagerUITests: XCTestCase {
         XCTAssertTrue(
             scrollToExistence(amount, in: app, maximumSwipes: 4)
         )
-        let billingInterval = app.buttons[
-            "subscription.form.billing-interval"
-        ]
-        XCTAssertTrue(
-            scrollToExistence(
-                billingInterval,
-                in: app,
-                maximumSwipes: 4
-            )
+        XCTAssertFalse(
+            app.buttons["subscription.form.billing-interval"].exists
         )
         XCTAssertFalse(app.textFields["subscription.form.service-name"].exists)
         XCTAssertFalse(app.textFields["subscription.form.plan"].exists)
@@ -472,6 +487,134 @@ final class SubscriptionManagerUITests: XCTestCase {
         XCTAssertTrue(
             scrollToExistence(source, in: app, maximumSwipes: 4)
         )
+    }
+
+    func testActualChargeDisclosureSummarizesAndRevealsValidation() {
+        let app = launch(
+            language: "en",
+            locale: "en_US",
+            storeToken: "catalog-disclosure-\(UUID().uuidString)"
+        )
+        app.buttons["subscription.add"].tap()
+        let chatGPT = app.buttons["catalog.preset.chatgpt"]
+        XCTAssertTrue(scrollToExistence(chatGPT, in: app))
+        chatGPT.tap()
+
+        let disclosure = app.buttons["subscription.form.adjust-charge"]
+        XCTAssertTrue(disclosure.waitForExistence(timeout: 5))
+        XCTAssertTrue(
+            (disclosure.value as? String)?.contains("$8") == true
+        )
+        XCTAssertTrue(
+            (disclosure.value as? String)?.contains("USD") == true
+        )
+        disclosure.tap()
+
+        let amount = app.textFields["subscription.form.amount"]
+        XCTAssertTrue(scrollToExistence(amount, in: app, maximumSwipes: 4))
+        amount.tap(withNumberOfTaps: 3, numberOfTouches: 1)
+        amount.typeText("0")
+        XCTAssertEqual(amount.value as? String, "0")
+        disclosure.tap()
+        XCTAssertFalse(amount.exists)
+
+        app.buttons["subscription.form.save"].tap()
+
+        XCTAssertTrue(amount.waitForExistence(timeout: 5))
+        XCTAssertTrue(
+            app.staticTexts["subscription.validation.amount"].exists
+        )
+    }
+
+    func testCatalogFiltersResetAfterCancelAndSaveReopen() {
+        let app = launch(
+            language: "en",
+            locale: "en_US",
+            storeToken: "catalog-reopen-\(UUID().uuidString)"
+        )
+        app.buttons["subscription.add"].tap()
+        app.buttons["catalog.category"].coordinate(
+            withNormalizedOffset: CGVector(dx: 0.2, dy: 0.5)
+        ).tap()
+        let musicCategory = app.buttons["Music"]
+        XCTAssertTrue(musicCategory.waitForExistence(timeout: 5))
+        musicCategory.tap()
+        let search = app.searchFields.firstMatch
+        XCTAssertTrue(search.waitForExistence(timeout: 5))
+        search.tap()
+        search.typeText("Spotify")
+        app.keyboards.buttons["Search"].tap()
+        let closeSearch = app.buttons["close"]
+        XCTAssertTrue(closeSearch.waitForExistence(timeout: 5))
+        closeSearch.tap()
+        let cancel = app.buttons["catalog.cancel"]
+        XCTAssertTrue(cancel.waitForExistence(timeout: 5))
+        cancel.tap()
+
+        app.buttons["subscription.add"].tap()
+        XCTAssertFalse(
+            (app.searchFields.firstMatch.value as? String) == "Spotify"
+        )
+        XCTAssertTrue(
+            app.buttons["catalog.category"].label.contains("All Categories")
+        )
+
+        let reopenedSearch = app.searchFields.firstMatch
+        reopenedSearch.tap()
+        reopenedSearch.typeText("ChatGPT")
+        app.buttons["catalog.preset.chatgpt"].tap()
+        app.buttons["subscription.form.save"].tap()
+        XCTAssertTrue(
+            app.buttons["subscription.row"].firstMatch
+                .waitForExistence(timeout: 5)
+        )
+
+        app.buttons["subscription.add"].tap()
+        XCTAssertFalse(
+            (app.searchFields.firstMatch.value as? String) == "ChatGPT"
+        )
+        XCTAssertTrue(
+            app.buttons["catalog.category"].label.contains("All Categories")
+        )
+    }
+
+    func testSetupCanResumeAfterPriorCatalogFilters() {
+        let app = launch(
+            language: "en",
+            locale: "en_US",
+            storeToken: "setup-filter-\(UUID().uuidString)",
+            onboarding: true
+        )
+        XCTAssertTrue(app.buttons["setup.skip"].waitForExistence(timeout: 5))
+        app.buttons["setup.skip"].tap()
+        XCTAssertTrue(app.buttons["subscription.add"].waitForExistence(timeout: 5))
+        app.buttons["subscription.add"].tap()
+        app.buttons["catalog.category"].coordinate(
+            withNormalizedOffset: CGVector(dx: 0.2, dy: 0.5)
+        ).tap()
+        let musicCategory = app.buttons["Music"]
+        XCTAssertTrue(musicCategory.waitForExistence(timeout: 5))
+        musicCategory.tap()
+        let search = app.searchFields.firstMatch
+        search.tap()
+        search.typeText("Spotify")
+        app.keyboards.buttons["Search"].tap()
+        let closeSearch = app.buttons["close"]
+        XCTAssertTrue(closeSearch.waitForExistence(timeout: 5))
+        closeSearch.tap()
+        let cancel = app.buttons["catalog.cancel"]
+        XCTAssertTrue(cancel.waitForExistence(timeout: 5))
+        cancel.tap()
+
+        app.buttons["library.settings"].tap()
+        let resumeSetup = app.buttons["preferences.resume-setup"]
+        XCTAssertTrue(scrollToExistence(resumeSetup, in: app))
+        resumeSetup.tap()
+        XCTAssertTrue(
+            app.staticTexts["Set Up Your Library"]
+                .waitForExistence(timeout: 5)
+        )
+        XCTAssertTrue(app.buttons["setup.continue"].exists)
     }
 
     func testCatalogAlphabetIndexSupportsTapAndDrag() {
@@ -1215,7 +1358,8 @@ final class SubscriptionManagerUITests: XCTestCase {
         locale: String,
         storeToken: String? = nil,
         failsLifecycleMutations: Bool = false,
-        onboarding: Bool = false
+        onboarding: Bool = false,
+        seedsLegacyChatGPTPlus: Bool = false
     ) -> XCUIApplication {
         let app = XCUIApplication()
         app.launchArguments = [
@@ -1233,6 +1377,11 @@ final class SubscriptionManagerUITests: XCTestCase {
         }
         if onboarding {
             app.launchArguments.append("--ui-testing-onboarding")
+        }
+        if seedsLegacyChatGPTPlus {
+            app.launchArguments.append(
+                "--ui-testing-seed-legacy-chatgpt-plus"
+            )
         }
         app.launch()
         return app

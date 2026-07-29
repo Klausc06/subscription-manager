@@ -11,6 +11,7 @@ struct AddSubscriptionView: View {
     private let catalogPresetID: String?
     private let onSuccessfulSave: (() -> Void)?
     private let showsCancellationAction: Bool
+    private let billingTimeZoneIdentifier: String
 
     @State private var serviceName = ""
     @State private var plan = ""
@@ -33,7 +34,7 @@ struct AddSubscriptionView: View {
     @State private var selectedOfferID: String?
     @State private var selectedPeriodRawValue = BillingInterval.monthly.rawValue
     @State private var adjustsActualCharge = false
-    @State private var renewalDatesWereEdited = false
+    @State private var billingDateEditState = BillingDateEditState()
 
     init(
         workspace: SubscriptionWorkspace,
@@ -48,6 +49,8 @@ struct AddSubscriptionView: View {
         self.showsCancellationAction = showsCancellationAction
 
         let locale = Locale.current
+        let timeZoneIdentifier = TimeZone.autoupdatingCurrent.identifier
+        billingTimeZoneIdentifier = timeZoneIdentifier
         let defaultOffer = preset.flatMap {
             CatalogOfferSelection.defaultOffer(in: $0)
         }
@@ -86,7 +89,7 @@ struct AddSubscriptionView: View {
             initialValue: defaultNextRenewal(
                 after: initialDate,
                 interval: interval,
-                calendar: .current
+                timeZoneIdentifier: timeZoneIdentifier
             )
         )
         _managementURLText = State(
@@ -105,7 +108,7 @@ struct AddSubscriptionView: View {
             officialOfferSection
             serviceSection
             subscriptionSection
-            if !hasVerifiedOffers || adjustsActualCharge {
+            if !hasVerifiedOffers {
                 priceSection
                 billingScheduleSection
             }
@@ -213,16 +216,11 @@ struct AddSubscriptionView: View {
                     }
                 }
                 .accessibilityIdentifier("subscription.form.offer-plan")
+                .accessibilityValue(
+                    selectedOffer?.planName.value(for: locale) ?? ""
+                )
 
                 if let selectedOffer {
-                    LabeledContent(
-                        "Plan",
-                        value: selectedOffer.planName.value(for: locale)
-                    )
-                    .accessibilityIdentifier(
-                        "subscription.form.selected-plan"
-                    )
-
                     LabeledContent(
                         "Official Price",
                         value: formattedMoney(selectedOffer.price)
@@ -244,12 +242,24 @@ struct AddSubscriptionView: View {
                     )
                 }
 
-                Button("Adjust Actual Charge") {
-                    adjustsActualCharge.toggle()
+                DisclosureGroup(
+                    isExpanded: $adjustsActualCharge
+                ) {
+                    actualChargeFields
+                } label: {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Adjust Actual Charge")
+                            .accessibilityIdentifier(
+                                "subscription.form.adjust-charge"
+                            )
+                        if !adjustsActualCharge {
+                            Text(actualChargeSummary)
+                                .font(.footnote)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                    .accessibilityValue(actualChargeSummary)
                 }
-                .accessibilityIdentifier(
-                    "subscription.form.adjust-charge"
-                )
             }
         }
     }
@@ -301,27 +311,43 @@ struct AddSubscriptionView: View {
 
     private var priceSection: some View {
         Section("Price") {
-            TextField("Amount", text: $amountText)
-                .subscriptionDecimalKeyboard()
-                .accessibilityIdentifier("subscription.form.amount")
+            actualChargeFields
+        }
+    }
 
-            Picker("Currency", selection: $currency) {
-                ForEach(Currency.allCases, id: \.rawValue) { currency in
-                    Text(currency.rawValue).tag(currency)
-                }
-            }
-            .pickerStyle(.segmented)
-            .accessibilityIdentifier("subscription.form.currency")
+    @ViewBuilder
+    private var actualChargeFields: some View {
+        TextField("Amount", text: $amountText)
+            .subscriptionDecimalKeyboard()
+            .accessibilityIdentifier("subscription.form.amount")
 
-            if amountInputIsInvalid {
-                ValidationMessage(
-                    "Enter a valid amount.",
-                    identifier: "subscription.validation.amount"
-                )
-            } else {
-                validationMessage(for: .originalAmount)
+        Picker("Currency", selection: $currency) {
+            ForEach(Currency.allCases, id: \.rawValue) { currency in
+                Text(currency.rawValue).tag(currency)
             }
         }
+        .pickerStyle(.segmented)
+        .accessibilityIdentifier("subscription.form.currency")
+
+        if amountInputIsInvalid {
+            ValidationMessage(
+                "Enter a valid amount.",
+                identifier: "subscription.validation.amount"
+            )
+        } else {
+            validationMessage(for: .originalAmount)
+        }
+    }
+
+    private var actualChargeSummary: String {
+        let amount = MoneyTextParser.parse(
+            amountText,
+            currency: currency,
+            locale: locale
+        )
+        let value = amount.map(formattedMoney)
+            ?? amountText.trimmingCharacters(in: .whitespacesAndNewlines)
+        return "\(value) · \(currency.rawValue)"
     }
 
     private var billingScheduleSection: some View {
@@ -382,10 +408,27 @@ struct AddSubscriptionView: View {
                 .foregroundStyle(.secondary)
             }
 
-            TextField("Subscription Management URL", text: $managementURLText)
+            if hasVerifiedOffers {
+                if let managementURL = catalogPreset?.managementURL {
+                    Link(
+                        "Subscription Management URL",
+                        destination: managementURL
+                    )
+                    .accessibilityIdentifier(
+                        "subscription.form.management-url"
+                    )
+                }
+            } else {
+                TextField(
+                    "Subscription Management URL",
+                    text: $managementURLText
+                )
                 .textContentType(.URL)
                 .subscriptionURLKeyboard()
-                .accessibilityIdentifier("subscription.form.management-url")
+                .accessibilityIdentifier(
+                    "subscription.form.management-url"
+                )
+            }
 
             Text(
                 "Open the provider's billing, renewal, or cancellation page; this app will not cancel the subscription for you."
@@ -393,7 +436,7 @@ struct AddSubscriptionView: View {
             .font(.footnote)
             .foregroundStyle(.secondary)
 
-            if managementURLIsInvalid {
+            if !hasVerifiedOffers, managementURLIsInvalid {
                 ValidationMessage(
                     "Enter a complete HTTP or HTTPS URL.",
                     identifier: "subscription.validation.management-url"
@@ -411,7 +454,7 @@ struct AddSubscriptionView: View {
             get: { startDate },
             set: { newValue in
                 startDate = newValue
-                renewalDatesWereEdited = true
+                billingDateEditState.recordUserEdit(.startDate)
             }
         )
     }
@@ -421,7 +464,13 @@ struct AddSubscriptionView: View {
             get: { renewalAnchor },
             set: { newValue in
                 renewalAnchor = newValue
-                renewalDatesWereEdited = true
+                billingDateEditState.recordUserEdit(.renewalAnchor)
+                confirmedNextRenewal = billingDateEditState.nextRenewal(
+                    current: confirmedNextRenewal,
+                    after: newValue,
+                    interval: selectedBillingInterval,
+                    timeZoneIdentifier: billingTimeZoneIdentifier
+                )
             }
         )
     }
@@ -431,7 +480,7 @@ struct AddSubscriptionView: View {
             get: { confirmedNextRenewal },
             set: { newValue in
                 confirmedNextRenewal = newValue
-                renewalDatesWereEdited = true
+                billingDateEditState.recordUserEdit(.nextRenewal)
             }
         )
     }
@@ -457,6 +506,9 @@ struct AddSubscriptionView: View {
             locale: .current
         )
         amountInputIsInvalid = amount == nil
+        if hasVerifiedOffers, amountInputIsInvalid {
+            adjustsActualCharge = true
+        }
         let managementURLResult = ManagementURLParser.parse(managementURLText)
         managementURLIsInvalid = managementURLResult == .invalid
         saveFailed = false
@@ -464,18 +516,20 @@ struct AddSubscriptionView: View {
         guard !managementURLIsInvalid else {
             return
         }
-        let timeZoneIdentifier = TimeZone.autoupdatingCurrent.identifier
+        guard !amountInputIsInvalid else {
+            return
+        }
         guard let normalizedStartDate = normalizedBillingDate(
                   startDate,
-                  timeZoneIdentifier: timeZoneIdentifier
+                  timeZoneIdentifier: billingTimeZoneIdentifier
               ),
               let normalizedRenewalAnchor = normalizedBillingDate(
                   renewalAnchor,
-                  timeZoneIdentifier: timeZoneIdentifier
+                  timeZoneIdentifier: billingTimeZoneIdentifier
               ),
               let normalizedNextRenewal = normalizedBillingDate(
                   confirmedNextRenewal,
-                  timeZoneIdentifier: timeZoneIdentifier
+                  timeZoneIdentifier: billingTimeZoneIdentifier
               )
         else {
             saveFailed = true
@@ -494,32 +548,68 @@ struct AddSubscriptionView: View {
             startDate: normalizedStartDate,
             renewalAnchor: normalizedRenewalAnchor,
             confirmedNextRenewal: normalizedNextRenewal,
-            billingTimeZoneIdentifier: timeZoneIdentifier,
+            billingTimeZoneIdentifier: billingTimeZoneIdentifier,
             managementURL: managementURL(from: managementURLResult),
             notes: notes,
             initialStatus: initialStatus
         )
-        if let catalogPresetID {
-            workspace.createCatalogSubscription(
+        let wasCreated: Bool
+        if let catalogPresetID, let selectedOffer {
+            let result = workspace.createCatalogSubscription(
                 presetID: catalogPresetID,
-                input: input
+                command: .verifiedOffer(
+                    CatalogOfferSubscriptionInput(
+                        offerID: selectedOffer.id,
+                        actualChargeOverride:
+                            amount == selectedOffer.price ? nil : amount,
+                        startDate: normalizedStartDate,
+                        renewalAnchor: normalizedRenewalAnchor,
+                        confirmedNextRenewal: normalizedNextRenewal,
+                        billingTimeZoneIdentifier:
+                            billingTimeZoneIdentifier,
+                        notes: notes,
+                        initialStatus: initialStatus
+                    )
+                )
             )
+            if case .created = result {
+                wasCreated = true
+            } else {
+                wasCreated = false
+            }
+        } else if let catalogPresetID {
+            let result = workspace.createCatalogSubscription(
+                presetID: catalogPresetID,
+                command: .legacy(input)
+            )
+            if case .created = result {
+                wasCreated = true
+            } else {
+                wasCreated = false
+            }
         } else {
-            workspace.createSubscription(input)
+            let result = workspace.createSubscription(input)
+            if case .created = result {
+                wasCreated = true
+            } else {
+                wasCreated = false
+            }
         }
 
-        guard workspace.creationValidationErrors.isEmpty else {
+        guard workspace.creationValidationErrors.isEmpty, wasCreated else {
+            if hasVerifiedOffers,
+               workspace.creationValidationErrors[.originalAmount] != nil
+            {
+                adjustsActualCharge = true
+            }
+            saveFailed = workspace.creationValidationErrors.isEmpty
             return
         }
 
-        if case .loaded = workspace.detailState {
-            if let onSuccessfulSave {
-                onSuccessfulSave()
-            }
-            dismiss()
-        } else {
-            saveFailed = true
+        if let onSuccessfulSave {
+            onSuccessfulSave()
         }
+        dismiss()
     }
 
     private func applySelectedOffer() {
@@ -533,13 +623,19 @@ struct AddSubscriptionView: View {
         intervalChoice = intervalFormValues.choice
         customValueText = intervalFormValues.customValueText
         customUnit = intervalFormValues.customUnit
-        if !renewalDatesWereEdited {
-            confirmedNextRenewal = defaultNextRenewal(
-                after: renewalAnchor,
-                interval: offer.billingInterval,
-                calendar: .current
-            )
-        }
+        confirmedNextRenewal = billingDateEditState.nextRenewal(
+            current: confirmedNextRenewal,
+            after: renewalAnchor,
+            interval: offer.billingInterval,
+            timeZoneIdentifier: billingTimeZoneIdentifier
+        )
+    }
+
+    private var selectedBillingInterval: BillingInterval {
+        intervalChoice.interval(
+            customValueText: customValueText,
+            customUnit: customUnit
+        )
     }
 
     private func managementURL(

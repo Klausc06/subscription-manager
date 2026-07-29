@@ -13,4 +13,19 @@ struct MacWindowRouterTests {
         #expect(router.takeDestination() == .quickAdd)
         #expect(router.destination == .none)
     }
+
+    @Test(
+        "Every Mac add trigger presents the shared add flow",
+        arguments: MacAddSubscriptionTrigger.allCases
+    )
+    func everyAddTriggerPresentsCatalog(
+        trigger: MacAddSubscriptionTrigger
+    ) {
+        var presentation = MacAddPresentationState()
+
+        presentation.present(from: trigger)
+
+        #expect(presentation.isPresented)
+        #expect(presentation.trigger == trigger)
+    }
 }

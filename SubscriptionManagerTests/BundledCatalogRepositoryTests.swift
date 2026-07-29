@@ -45,6 +45,28 @@ struct BundledCatalogRepositoryTests {
         }
     }
 
+    @Test("Bundled catalog pins the exact verified offer table")
+    @MainActor
+    func bundledCatalogPinsExactVerifiedOfferTable() throws {
+        let snapshot = try BundledCatalogRepository().loadSnapshot()
+
+        let actualOffers = snapshot.presets.flatMap { preset in
+            preset.offers.map { offer in
+                [
+                    preset.id,
+                    offer.id,
+                    offer.planName.en,
+                    offer.planName.zhHans,
+                    offer.billingInterval.rawValue,
+                    String(offer.price.minorUnits),
+                    offer.sourceURL.absoluteString
+                ].joined(separator: "|")
+            }
+        }
+
+        #expect(actualOffers == expectedVerifiedOfferTable)
+    }
+
     @Test("Catalog cache atomically replaces data after it is validated")
     @MainActor
     func catalogCacheStoresReplacementData() throws {
@@ -192,6 +214,39 @@ struct BundledCatalogRepositoryTests {
         }
     }
 }
+
+private let expectedVerifiedOfferTable = [
+    "spotify|individual-monthly-us-web|Individual|Individual|monthly|1299|https://www.spotify.com/us/premium/",
+    "spotify|student-monthly-us-web|Student|Student|monthly|699|https://www.spotify.com/us/premium/",
+    "spotify|duo-monthly-us-web|Duo|Duo|monthly|1899|https://www.spotify.com/us/premium/",
+    "spotify|family-monthly-us-web|Family|Family|monthly|2199|https://www.spotify.com/us/premium/",
+    "netflix|ads-monthly-us-web|Standard with ads|Standard with ads|monthly|899|https://help.netflix.com/en/node/22",
+    "netflix|standard-monthly-us-web|Standard|Standard|monthly|1999|https://help.netflix.com/en/node/22",
+    "netflix|premium-monthly-us-web|Premium|Premium|monthly|2699|https://help.netflix.com/en/node/22",
+    "notion|plus-one-member-monthly-us-web|Plus (1 member)|Plus (1 member)|monthly|1200|https://www.notion.com/pricing",
+    "notion|plus-one-member-yearly-us-web|Plus (1 member)|Plus (1 member)|yearly|12000|https://www.notion.com/pricing",
+    "chatgpt|go-monthly-us-web|Go|Go|monthly|800|https://openai.com/chatgpt/pricing/",
+    "chatgpt|plus-monthly-us-web|Plus|Plus|monthly|2000|https://openai.com/chatgpt/pricing/",
+    "chatgpt|pro-5x-monthly-us-web|Pro (5x)|Pro（5x）|monthly|10000|https://help.openai.com/en/articles/9793128-what-is-chatgpt-pro",
+    "chatgpt|pro-20x-monthly-us-web|Pro (20x)|Pro（20x）|monthly|20000|https://help.openai.com/en/articles/9793128-what-is-chatgpt-pro",
+    "claude|pro-monthly-us-web|Pro|Pro|monthly|2000|https://www.anthropic.com/pricing",
+    "claude|pro-yearly-us-web|Pro|Pro|yearly|20000|https://www.anthropic.com/pricing",
+    "claude|max-5x-monthly-us-web|Max (5x)|Max (5x)|monthly|10000|https://www.anthropic.com/pricing",
+    "claude|max-20x-monthly-us-web|Max (20x)|Max (20x)|monthly|20000|https://www.anthropic.com/pricing",
+    "google-ai|ai-plus-monthly-us-web|Google AI Plus|Google AI Plus|monthly|999|https://one.google.com/about/google-ai-plans/",
+    "google-ai|ai-pro-monthly-us-web|Google AI Pro|Google AI Pro|monthly|1999|https://one.google.com/about/google-ai-plans/",
+    "microsoft-365|personal-monthly-us-web|Personal|Personal|monthly|999|https://www.microsoft.com/en-us/microsoft-365/buy/microsoft-365",
+    "microsoft-365|personal-yearly-us-web|Personal|Personal|yearly|9999|https://www.microsoft.com/en-us/microsoft-365/buy/microsoft-365",
+    "microsoft-365|family-monthly-us-web|Family|Family|monthly|1299|https://www.microsoft.com/en-us/microsoft-365/buy/microsoft-365",
+    "microsoft-365|family-yearly-us-web|Family|Family|yearly|12999|https://www.microsoft.com/en-us/microsoft-365/buy/microsoft-365",
+    "microsoft-365|premium-monthly-us-web|Premium|Premium|monthly|1999|https://www.microsoft.com/en-us/microsoft-365/buy/microsoft-365",
+    "microsoft-365|premium-yearly-us-web|Premium|Premium|yearly|19999|https://www.microsoft.com/en-us/microsoft-365/buy/microsoft-365",
+    "youtube-premium|lite-monthly-us-web|Premium Lite|Premium Lite|monthly|799|https://blog.youtube/news-and-events/introducing-premium-lite/",
+    "disney-plus|ads-monthly-us-web|With Ads|With Ads|monthly|1199|https://help.disneyplus.com/article/disneyplus-price",
+    "disney-plus|premium-monthly-us-web|Premium|Premium|monthly|1899|https://help.disneyplus.com/article/disneyplus-price",
+    "disney-plus|premium-yearly-us-web|Premium|Premium|yearly|18999|https://help.disneyplus.com/article/disneyplus-price",
+    "canva|pro-one-person-yearly-us-web|Pro (1 person)|Pro (1 person)|yearly|18000|https://www.canva.com/pricing/"
+]
 
 private func validCatalogData() -> Data {
     Data("""

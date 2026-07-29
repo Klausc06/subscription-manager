@@ -41,14 +41,21 @@ func formattedBillingDate(
 func defaultNextRenewal(
     after date: Date,
     interval: BillingInterval,
-    calendar: Calendar
+    timeZoneIdentifier: String
 ) -> Date {
+    guard interval.isValid,
+          let calendar = BillingCalendar.calendar(
+              timeZoneIdentifier: timeZoneIdentifier
+          )
+    else {
+        return date
+    }
     let component: Calendar.Component
     let value: Int
     switch interval {
     case .weekly:
-        component = .day
-        value = 7
+        component = .weekOfYear
+        value = 1
     case .monthly:
         component = .month
         value = 1
@@ -67,8 +74,8 @@ func defaultNextRenewal(
             component = .day
             value = count
         case .week:
-            component = .day
-            value = count * 7
+            component = .weekOfYear
+            value = count
         case .month:
             component = .month
             value = count
@@ -82,6 +89,38 @@ func defaultNextRenewal(
         value: value,
         to: date
     ) ?? date
+}
+
+enum BillingDateField {
+    case startDate
+    case renewalAnchor
+    case nextRenewal
+}
+
+struct BillingDateEditState {
+    private var nextRenewalWasEdited = false
+
+    mutating func recordUserEdit(_ field: BillingDateField) {
+        if field == .nextRenewal {
+            nextRenewalWasEdited = true
+        }
+    }
+
+    func nextRenewal(
+        current: Date,
+        after renewalAnchor: Date,
+        interval: BillingInterval,
+        timeZoneIdentifier: String
+    ) -> Date {
+        guard !nextRenewalWasEdited else {
+            return current
+        }
+        return defaultNextRenewal(
+            after: renewalAnchor,
+            interval: interval,
+            timeZoneIdentifier: timeZoneIdentifier
+        )
+    }
 }
 
 enum BillingIntervalChoice: String, CaseIterable, Identifiable {
