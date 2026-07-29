@@ -24,6 +24,7 @@
 		44CD78EEA1938E991A1C14E0 /* SubscriptionIntents.swift in Sources */ = {isa = PBXBuildFile; fileRef = 53F413C34F01EE96E98A703B /* SubscriptionIntents.swift */; };
 		4A33B8E2AB570E0350B57B34 /* SubscriptionManagerWidget.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 66E23744D45A7495B51097E2 /* SubscriptionManagerWidget.appex */; platformFilter = ios; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		4C12D90EEC1CC642D35E22A2 /* SubscriptionDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6F7965D45867F28DAFB96A5D /* SubscriptionDetailView.swift */; };
+		5138A3C0873B818E437C9E73 /* BillingScheduleSupportTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 281DD0B72B27FD70F009F38A /* BillingScheduleSupportTests.swift */; };
 		51B20289CC5385F1DFDA4536 /* CATALOG_METADATA_LICENSE.md in Resources */ = {isa = PBXBuildFile; fileRef = CF73BE31E7CBFDDF0AED3F4F /* CATALOG_METADATA_LICENSE.md */; };
 		54723BACD6E59DC50EEFDCED /* SwiftDataSubscriptionRepository.swift in Sources */ = {isa = PBXBuildFile; fileRef = 58208DD28479A9E167C08113 /* SwiftDataSubscriptionRepository.swift */; };
 		573D19E1A08508BA1865924A /* EventKitCalendarProjectionImporter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0842A2D743C1E14345B79D96 /* EventKitCalendarProjectionImporter.swift */; };
@@ -118,6 +119,7 @@
 		1D36CEA8D99EFB69ED4ED3A3 /* MacMenuBarSupport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MacMenuBarSupport.swift; sourceTree = "<group>"; };
 		1D994A995E43724CEF005FA7 /* MoneyFormattingTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MoneyFormattingTests.swift; sourceTree = "<group>"; };
 		1DB077A74E0C9E4C7BB81F81 /* catalog-v1.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = "catalog-v1.json"; sourceTree = "<group>"; };
+		281DD0B72B27FD70F009F38A /* BillingScheduleSupportTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BillingScheduleSupportTests.swift; sourceTree = "<group>"; };
 		2CAE4BF38A7217C53E4C047F /* SubscriptionFormSupport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SubscriptionFormSupport.swift; sourceTree = "<group>"; };
 		3220F13255F0E1FBFAE282B1 /* MacWindowRouterTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MacWindowRouterTests.swift; sourceTree = "<group>"; };
 		33F67B88372C24F8FA06E7F1 /* EditSubscriptionView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EditSubscriptionView.swift; sourceTree = "<group>"; };
@@ -323,6 +325,7 @@
 			isa = PBXGroup;
 			children = (
 				178B2F8071F3AA4EEB4EF445 /* AppDependenciesTests.swift */,
+				281DD0B72B27FD70F009F38A /* BillingScheduleSupportTests.swift */,
 				E8E32D343532C15910A82133 /* BundledCatalogRepositoryTests.swift */,
 				05BBB5AC4394BF7E865300C5 /* CatalogAlphabetIndexTests.swift */,
 				DBD964E5A45925EC35E3893B /* CatalogOfferSelectionTests.swift */,
@@ -589,6 +592,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				FE9D2A03AAAF24FCBDC2CEA0 /* AppDependenciesTests.swift in Sources */,
+				5138A3C0873B818E437C9E73 /* BillingScheduleSupportTests.swift in Sources */,
 				1542C108546F4227953D1C2E /* BundledCatalogRepositoryTests.swift in Sources */,
 				626F0533A4DF2230483BA384 /* CatalogAlphabetIndexTests.swift in Sources */,
 				097A44BB974631E88BE97758 /* CatalogOfferSelectionTests.swift in Sources */,

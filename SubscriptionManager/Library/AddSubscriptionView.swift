@@ -54,6 +54,9 @@ struct AddSubscriptionView: View {
         let interval = defaultOffer?.billingInterval
             ?? preset?.suggestedInterval
             ?? .monthly
+        let intervalFormValues = BillingIntervalFormValues(
+            interval: interval
+        )
         let initialDate = Date()
         _serviceName = State(
             initialValue: preset?.serviceName.value(for: locale) ?? ""
@@ -71,8 +74,12 @@ struct AddSubscriptionView: View {
         )
         _currency = State(initialValue: defaultOffer?.price.currency ?? .usd)
         _intervalChoice = State(
-            initialValue: BillingIntervalChoice(interval: interval)
+            initialValue: intervalFormValues.choice
         )
+        _customValueText = State(
+            initialValue: intervalFormValues.customValueText
+        )
+        _customUnit = State(initialValue: intervalFormValues.customUnit)
         _startDate = State(initialValue: initialDate)
         _renewalAnchor = State(initialValue: initialDate)
         _confirmedNextRenewal = State(
@@ -542,9 +549,12 @@ struct AddSubscriptionView: View {
         plan = offer.planName.value(for: locale)
         amountText = editableMoneyText(offer.price, locale: locale)
         currency = offer.price.currency
-        intervalChoice = BillingIntervalChoice(
+        let intervalFormValues = BillingIntervalFormValues(
             interval: offer.billingInterval
         )
+        intervalChoice = intervalFormValues.choice
+        customValueText = intervalFormValues.customValueText
+        customUnit = intervalFormValues.customUnit
         if !renewalDatesWereEdited {
             confirmedNextRenewal = defaultNextRenewal(
                 after: renewalAnchor,

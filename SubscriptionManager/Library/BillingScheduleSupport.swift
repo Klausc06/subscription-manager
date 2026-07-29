@@ -152,6 +152,24 @@ enum BillingIntervalChoice: String, CaseIterable, Identifiable {
     }
 }
 
+struct BillingIntervalFormValues {
+    let choice: BillingIntervalChoice
+    let customValueText: String
+    let customUnit: BillingIntervalUnit
+
+    init(interval: BillingInterval) {
+        choice = BillingIntervalChoice(interval: interval)
+        switch interval {
+        case .custom(let value, let unit):
+            customValueText = String(value)
+            customUnit = unit
+        default:
+            customValueText = ""
+            customUnit = .day
+        }
+    }
+}
+
 struct BillingScheduleFields: View {
     @Binding var intervalChoice: BillingIntervalChoice
     @Binding var customValueText: String
