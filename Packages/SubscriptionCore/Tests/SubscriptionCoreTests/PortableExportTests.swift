@@ -4,6 +4,39 @@ import Testing
 
 @Suite("Portable exports")
 struct PortableExportTests {
+
+    @Test("Widget privacy presentation omits amounts but keeps stable deep links")
+    func widgetPrivacyPresentationRedactsAmount() {
+        let identifier = UUID(
+            uuidString: "AAAAAAAA-BBBB-CCCC-DDDD-EEEEEEEEEEEE"
+        )!
+        let snapshot = WidgetSnapshot(
+            generatedAt: Date(timeIntervalSince1970: 1_704_067_200),
+            nextRenewal: WidgetRenewalSnapshot(
+                subscriptionID: identifier,
+                serviceName: "Atlas",
+                renewalDate: Date(timeIntervalSince1970: 1_706_745_600),
+                amountDescription: "US$9.99",
+                isRateStale: true
+            )
+        )
+
+        let presentation = WidgetPresentationBuilder().makePresentation(
+            snapshot: snapshot,
+            privacy: .redacted,
+            dateFormatter: { _ in "Jan 31" }
+        )
+
+        #expect(presentation.title == "Atlas")
+        #expect(presentation.subtitle == "Rates are stale · Jan 31")
+        #expect(presentation.amountDescription == nil)
+        #expect(
+            presentation.deepLink == URL(
+                string: "subscription-manager://subscription/"
+                    + identifier.uuidString
+            )
+        )
+    }
     @Test("A versioned backup round trips stable subscription and preference data")
     func backupRoundTrips() throws {
         let subscription = Subscription(
