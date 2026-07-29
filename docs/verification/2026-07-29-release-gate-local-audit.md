@@ -27,23 +27,32 @@ newly created service rather than any pre-existing row.
 
 Committed as `30e41fa fix(app): reset add subscription sheet state`.
 
-## UI execution limitation observed
+The Archived destination used a `SubscriptionLibraryScope` navigation value
+while the root `NavigationStack` path accepted only `[UUID]`. The toolbar
+button therefore remained on the current library instead of pushing the
+Archived library. The path now uses `NavigationPath`, preserving UUID deep
+links while also accepting the Archived destination. The direct-action UI test
+was also corrected to return from the archived subscription detail before
+asserting on the current-library row.
 
-The complete iOS Simulator run completed with 88 passed, 4 failed, and 1
-skipped test before the form-identity fix. The settings resume test was
-stabilized for Form scrolling. The three archive tests exposed the form reuse
-defect and motivated the fix above.
+## UI gate follow-up
 
-After rebuilding, focused reruns finished their XCTest child processes but
-Xcode 27 remained blocked while finalizing the test log / coverage record; no
-final `.xcresult` was produced. Restarting the Simulator and disabling code
-coverage did not remove the result-finalization hang. The final no-coverage
-attempt emitted no failure summary before its XCTest child process exited, but
-that remains insufficient to claim the scenarios passed. A newly created iOS
-27 simulator reproduced the same behavior, so it is not isolated to the
-original device's data or test session. This is a test-executor limitation,
-not passing evidence. Re-run the three archive scenarios from Xcode or a clean
-Simulator session before closing TB-25.
+The complete iOS Simulator run initially completed with 88 passed, 4 failed,
+and 1 skipped test. The settings-resume test was stabilized for Form scrolling.
+After the fixes above, the four previously problematic scenarios have focused
+passing evidence:
+
+- interrupted setup resume: passed;
+- archive and restore: passed through XcodeBuildMCP;
+- permanent delete confirmation: passed through XcodeBuildMCP;
+- failed direct lifecycle actions: passed through XcodeBuildMCP after the
+  test returned to the current library before asserting its row.
+
+A crash report for a separately launched
+`SubscriptionManagerUITests-Runner` showed a missing `XCTest.framework`.
+Running the same test through Xcode passed once after rebuilding and again via
+`test-without-building`, confirming that the runner requires Xcode's injected
+test environment and that XCTest must not be embedded into the product.
 
 ## Remaining external verification
 
@@ -51,9 +60,9 @@ Simulator session before closing TB-25.
   keyboard navigation, and reduced-motion scenarios.
 - A signed-in private CloudKit and EventKit convergence pass on physical
   devices. Developer Mode was enabled on the connected iPhone on 2026-07-29
-  and Xcode recognizes it as a valid destination. Deployment remains blocked
-  because this Mac has no valid Apple Development signing identity and the
-  app and Widget targets have no development team configured. Calendar
-  permission must remain user-initiated.
+  and Xcode recognizes it as a valid destination. The Apple Account is listed
+  in Xcode-beta but still requires sign-in; this Mac consequently has no valid
+  Apple Development signing identity, and the app and Widget targets have no
+  development team configured. Calendar permission must remain user-initiated.
 - Manual MenuBarExtra close/reopen/disable/explicit-quit and Login Items
   approval-state scenarios on macOS.

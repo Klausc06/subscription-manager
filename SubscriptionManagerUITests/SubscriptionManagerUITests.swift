@@ -607,6 +607,7 @@ final class SubscriptionManagerUITests: XCTestCase {
         app.staticTexts["Archived Failure"].tap()
         app.buttons["subscription.lifecycle.actions"].tap()
         app.buttons["subscription.lifecycle.archive"].tap()
+        app.navigationBars.buttons["Subscriptions"].tap()
         XCTAssertTrue(
             app.staticTexts["Current Failure"].waitForExistence(timeout: 5)
         )

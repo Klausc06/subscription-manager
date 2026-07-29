@@ -15,7 +15,7 @@ struct LibraryView: View {
     @State private var isSetupPresented = false
     @State private var isPreferencesPresented = false
     @State private var selectedDestination: RootDestination = .subscriptions
-    @State private var subscriptionsPath: [UUID] = []
+    @State private var subscriptionsPath = NavigationPath()
 
     var body: some View {
         rootContent
@@ -181,10 +181,11 @@ struct LibraryView: View {
               let identifier = url.pathComponents.dropFirst().first,
               let subscriptionID = UUID(uuidString: identifier)
         else {
-            subscriptionsPath = []
+            subscriptionsPath = NavigationPath()
             return
         }
-        subscriptionsPath = [subscriptionID]
+        subscriptionsPath = NavigationPath()
+        subscriptionsPath.append(subscriptionID)
     }
 
     private func loadInitialState() {
