@@ -4,6 +4,46 @@ import Testing
 @testable import SubscriptionManager
 
 struct BundledCatalogRepositoryTests {
+    @Test("Bundled catalog exposes verified first-batch offers")
+    @MainActor
+    func bundledCatalogExposesVerifiedFirstBatchOffers() throws {
+        let snapshot = try BundledCatalogRepository().loadSnapshot()
+        #expect(snapshot.catalogVersion == 4)
+        #expect(snapshot.presets.count == 106)
+
+        let chatGPT = try #require(
+            snapshot.presets.first(where: { $0.id == "chatgpt" })
+        )
+        #expect(chatGPT.serviceName.en == "ChatGPT")
+        #expect(chatGPT.offers.map(\.id) == [
+            "go-monthly-us-web",
+            "plus-monthly-us-web",
+            "pro-5x-monthly-us-web",
+            "pro-20x-monthly-us-web"
+        ])
+        #expect(
+            chatGPT.offers.map(\.price.minorUnits)
+                == [800, 2_000, 10_000, 20_000]
+        )
+        #expect(chatGPT.offers.allSatisfy {
+            $0.billingInterval == .monthly
+        })
+        #expect(
+            snapshot.presets.contains(where: { $0.id == "chatgpt-plus" })
+                == false
+        )
+
+        for preset in snapshot.presets {
+            for offer in preset.offers {
+                #expect(offer.price.currency == .usd)
+                #expect(offer.market == "US")
+                #expect(offer.reviewStatus == .verified)
+                #expect(offer.sourceURL.scheme == "https")
+                #expect(offer.verifiedOn == "2026-07-30")
+            }
+        }
+    }
+
     @Test("Catalog cache atomically replaces data after it is validated")
     @MainActor
     func catalogCacheStoresReplacementData() throws {
@@ -52,7 +92,7 @@ struct BundledCatalogRepositoryTests {
 
         let snapshot = try repository.loadSnapshot()
 
-        #expect(snapshot.presets.count == 100)
+        #expect(snapshot.presets.count == 106)
         #expect(
             snapshot.search(query: "音乐", locale: Locale(identifier: "zh-Hans"))
                 .contains(where: { $0.id == "spotify" })

@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "catalogVersion": 3,
+  "catalogVersion": 4,
   "presets": [
     {
       "id": "spotify",
@@ -19,7 +19,13 @@
         "kind": "originalSymbol",
         "license": "CC0-1.0",
         "source": "spotify"
-      }
+      },
+      "offers": [
+        { "id": "individual-monthly-us-web", "planName": { "en": "Individual", "zhHans": "Individual" }, "price": { "minorUnits": 1299, "currency": "USD" }, "billingInterval": "monthly", "market": "US", "purchaseChannel": "web", "sourceURL": "https://www.spotify.com/us/premium/", "verifiedOn": "2026-07-30", "reviewStatus": "verified" },
+        { "id": "student-monthly-us-web", "planName": { "en": "Student", "zhHans": "Student" }, "price": { "minorUnits": 699, "currency": "USD" }, "billingInterval": "monthly", "market": "US", "purchaseChannel": "web", "sourceURL": "https://www.spotify.com/us/premium/", "verifiedOn": "2026-07-30", "reviewStatus": "verified" },
+        { "id": "duo-monthly-us-web", "planName": { "en": "Duo", "zhHans": "Duo" }, "price": { "minorUnits": 1899, "currency": "USD" }, "billingInterval": "monthly", "market": "US", "purchaseChannel": "web", "sourceURL": "https://www.spotify.com/us/premium/", "verifiedOn": "2026-07-30", "reviewStatus": "verified" },
+        { "id": "family-monthly-us-web", "planName": { "en": "Family", "zhHans": "Family" }, "price": { "minorUnits": 2199, "currency": "USD" }, "billingInterval": "monthly", "market": "US", "purchaseChannel": "web", "sourceURL": "https://www.spotify.com/us/premium/", "verifiedOn": "2026-07-30", "reviewStatus": "verified" }
+      ]
     },
     {
       "id": "netflix",
@@ -38,7 +44,12 @@
         "kind": "originalSymbol",
         "license": "CC0-1.0",
         "source": "netflix"
-      }
+      },
+      "offers": [
+        { "id": "ads-monthly-us-web", "planName": { "en": "Standard with ads", "zhHans": "Standard with ads" }, "price": { "minorUnits": 899, "currency": "USD" }, "billingInterval": "monthly", "market": "US", "purchaseChannel": "web", "sourceURL": "https://help.netflix.com/en/node/22", "verifiedOn": "2026-07-30", "reviewStatus": "verified" },
+        { "id": "standard-monthly-us-web", "planName": { "en": "Standard", "zhHans": "Standard" }, "price": { "minorUnits": 1999, "currency": "USD" }, "billingInterval": "monthly", "market": "US", "purchaseChannel": "web", "sourceURL": "https://help.netflix.com/en/node/22", "verifiedOn": "2026-07-30", "reviewStatus": "verified" },
+        { "id": "premium-monthly-us-web", "planName": { "en": "Premium", "zhHans": "Premium" }, "price": { "minorUnits": 2699, "currency": "USD" }, "billingInterval": "monthly", "market": "US", "purchaseChannel": "web", "sourceURL": "https://help.netflix.com/en/node/22", "verifiedOn": "2026-07-30", "reviewStatus": "verified" }
+      ]
     },
     {
       "id": "icloud-plus",
@@ -76,7 +87,11 @@
         "kind": "originalSymbol",
         "license": "CC0-1.0",
         "source": "notion"
-      }
+      },
+      "offers": [
+        { "id": "plus-one-member-monthly-us-web", "planName": { "en": "Plus (1 member)", "zhHans": "Plus (1 member)" }, "price": { "minorUnits": 1200, "currency": "USD" }, "billingInterval": "monthly", "market": "US", "purchaseChannel": "web", "sourceURL": "https://www.notion.com/pricing", "verifiedOn": "2026-07-30", "reviewStatus": "verified" },
+        { "id": "plus-one-member-yearly-us-web", "planName": { "en": "Plus (1 member)", "zhHans": "Plus (1 member)" }, "price": { "minorUnits": 12000, "currency": "USD" }, "billingInterval": "yearly", "market": "US", "purchaseChannel": "web", "sourceURL": "https://www.notion.com/pricing", "verifiedOn": "2026-07-30", "reviewStatus": "verified" }
+      ]
     },
     {
       "id": "kindle-unlimited",
@@ -117,10 +132,10 @@
       }
     },
     {
-      "id": "chatgpt-plus",
+      "id": "chatgpt",
       "serviceName": {
-        "en": "ChatGPT Plus",
-        "zhHans": "ChatGPT Plus"
+        "en": "ChatGPT",
+        "zhHans": "ChatGPT"
       },
       "category": {
         "en": "Productivity",
@@ -132,8 +147,14 @@
       "assetProvenance": {
         "kind": "originalSymbol",
         "license": "CC0-1.0",
-        "source": "chatgpt-plus"
-      }
+        "source": "chatgpt"
+      },
+      "offers": [
+        { "id": "go-monthly-us-web", "planName": { "en": "Go", "zhHans": "Go" }, "price": { "minorUnits": 800, "currency": "USD" }, "billingInterval": "monthly", "market": "US", "purchaseChannel": "web", "sourceURL": "https://openai.com/chatgpt/pricing/", "verifiedOn": "2026-07-30", "reviewStatus": "verified" },
+        { "id": "plus-monthly-us-web", "planName": { "en": "Plus", "zhHans": "Plus" }, "price": { "minorUnits": 2000, "currency": "USD" }, "billingInterval": "monthly", "market": "US", "purchaseChannel": "web", "sourceURL": "https://openai.com/chatgpt/pricing/", "verifiedOn": "2026-07-30", "reviewStatus": "verified" },
+        { "id": "pro-5x-monthly-us-web", "planName": { "en": "Pro (5x)", "zhHans": "Pro（5x）" }, "price": { "minorUnits": 10000, "currency": "USD" }, "billingInterval": "monthly", "market": "US", "purchaseChannel": "web", "sourceURL": "https://help.openai.com/en/articles/9793128-what-is-chatgpt-pro", "verifiedOn": "2026-07-30", "reviewStatus": "verified" },
+        { "id": "pro-20x-monthly-us-web", "planName": { "en": "Pro (20x)", "zhHans": "Pro（20x）" }, "price": { "minorUnits": 20000, "currency": "USD" }, "billingInterval": "monthly", "market": "US", "purchaseChannel": "web", "sourceURL": "https://help.openai.com/en/articles/9793128-what-is-chatgpt-pro", "verifiedOn": "2026-07-30", "reviewStatus": "verified" }
+      ]
     },
     {
       "id": "playstation-plus",
@@ -1149,6 +1170,89 @@
     },
     {
       "id": "kuaishou-membership", "serviceName": { "en": "Kuaishou Membership", "zhHans": "快手会员" }, "category": { "en": "Membership", "zhHans": "会员" }, "suggestedInterval": "monthly", "managementURL": "https://www.kuaishou.com/", "icon": "membership", "assetProvenance": { "kind": "originalSymbol", "license": "CC0-1.0", "source": "kuaishou-membership" }
+    },
+    {
+      "id": "claude",
+      "serviceName": { "en": "Claude", "zhHans": "Claude" },
+      "category": { "en": "Productivity", "zhHans": "效率" },
+      "suggestedInterval": "monthly",
+      "managementURL": "https://claude.ai/settings",
+      "icon": "productivity",
+      "assetProvenance": { "kind": "originalSymbol", "license": "CC0-1.0", "source": "claude" },
+      "offers": [
+        { "id": "pro-monthly-us-web", "planName": { "en": "Pro", "zhHans": "Pro" }, "price": { "minorUnits": 2000, "currency": "USD" }, "billingInterval": "monthly", "market": "US", "purchaseChannel": "web", "sourceURL": "https://www.anthropic.com/pricing", "verifiedOn": "2026-07-30", "reviewStatus": "verified" },
+        { "id": "pro-yearly-us-web", "planName": { "en": "Pro", "zhHans": "Pro" }, "price": { "minorUnits": 20000, "currency": "USD" }, "billingInterval": "yearly", "market": "US", "purchaseChannel": "web", "sourceURL": "https://www.anthropic.com/pricing", "verifiedOn": "2026-07-30", "reviewStatus": "verified" },
+        { "id": "max-5x-monthly-us-web", "planName": { "en": "Max (5x)", "zhHans": "Max (5x)" }, "price": { "minorUnits": 10000, "currency": "USD" }, "billingInterval": "monthly", "market": "US", "purchaseChannel": "web", "sourceURL": "https://www.anthropic.com/pricing", "verifiedOn": "2026-07-30", "reviewStatus": "verified" },
+        { "id": "max-20x-monthly-us-web", "planName": { "en": "Max (20x)", "zhHans": "Max (20x)" }, "price": { "minorUnits": 20000, "currency": "USD" }, "billingInterval": "monthly", "market": "US", "purchaseChannel": "web", "sourceURL": "https://www.anthropic.com/pricing", "verifiedOn": "2026-07-30", "reviewStatus": "verified" }
+      ]
+    },
+    {
+      "id": "google-ai",
+      "serviceName": { "en": "Google AI", "zhHans": "Google AI" },
+      "category": { "en": "Productivity", "zhHans": "效率" },
+      "suggestedInterval": "monthly",
+      "managementURL": "https://one.google.com/",
+      "icon": "productivity",
+      "assetProvenance": { "kind": "originalSymbol", "license": "CC0-1.0", "source": "google-ai" },
+      "offers": [
+        { "id": "ai-plus-monthly-us-web", "planName": { "en": "Google AI Plus", "zhHans": "Google AI Plus" }, "price": { "minorUnits": 999, "currency": "USD" }, "billingInterval": "monthly", "market": "US", "purchaseChannel": "web", "sourceURL": "https://one.google.com/about/google-ai-plans/", "verifiedOn": "2026-07-30", "reviewStatus": "verified" },
+        { "id": "ai-pro-monthly-us-web", "planName": { "en": "Google AI Pro", "zhHans": "Google AI Pro" }, "price": { "minorUnits": 1999, "currency": "USD" }, "billingInterval": "monthly", "market": "US", "purchaseChannel": "web", "sourceURL": "https://one.google.com/about/google-ai-plans/", "verifiedOn": "2026-07-30", "reviewStatus": "verified" }
+      ]
+    },
+    {
+      "id": "microsoft-365",
+      "serviceName": { "en": "Microsoft 365", "zhHans": "Microsoft 365" },
+      "category": { "en": "Productivity", "zhHans": "效率" },
+      "suggestedInterval": "monthly",
+      "managementURL": "https://account.microsoft.com/services",
+      "icon": "productivity",
+      "assetProvenance": { "kind": "originalSymbol", "license": "CC0-1.0", "source": "microsoft-365" },
+      "offers": [
+        { "id": "personal-monthly-us-web", "planName": { "en": "Personal", "zhHans": "Personal" }, "price": { "minorUnits": 999, "currency": "USD" }, "billingInterval": "monthly", "market": "US", "purchaseChannel": "web", "sourceURL": "https://www.microsoft.com/en-us/microsoft-365/buy/microsoft-365", "verifiedOn": "2026-07-30", "reviewStatus": "verified" },
+        { "id": "personal-yearly-us-web", "planName": { "en": "Personal", "zhHans": "Personal" }, "price": { "minorUnits": 9999, "currency": "USD" }, "billingInterval": "yearly", "market": "US", "purchaseChannel": "web", "sourceURL": "https://www.microsoft.com/en-us/microsoft-365/buy/microsoft-365", "verifiedOn": "2026-07-30", "reviewStatus": "verified" },
+        { "id": "family-monthly-us-web", "planName": { "en": "Family", "zhHans": "Family" }, "price": { "minorUnits": 1299, "currency": "USD" }, "billingInterval": "monthly", "market": "US", "purchaseChannel": "web", "sourceURL": "https://www.microsoft.com/en-us/microsoft-365/buy/microsoft-365", "verifiedOn": "2026-07-30", "reviewStatus": "verified" },
+        { "id": "family-yearly-us-web", "planName": { "en": "Family", "zhHans": "Family" }, "price": { "minorUnits": 12999, "currency": "USD" }, "billingInterval": "yearly", "market": "US", "purchaseChannel": "web", "sourceURL": "https://www.microsoft.com/en-us/microsoft-365/buy/microsoft-365", "verifiedOn": "2026-07-30", "reviewStatus": "verified" },
+        { "id": "premium-monthly-us-web", "planName": { "en": "Premium", "zhHans": "Premium" }, "price": { "minorUnits": 1999, "currency": "USD" }, "billingInterval": "monthly", "market": "US", "purchaseChannel": "web", "sourceURL": "https://www.microsoft.com/en-us/microsoft-365/buy/microsoft-365", "verifiedOn": "2026-07-30", "reviewStatus": "verified" },
+        { "id": "premium-yearly-us-web", "planName": { "en": "Premium", "zhHans": "Premium" }, "price": { "minorUnits": 19999, "currency": "USD" }, "billingInterval": "yearly", "market": "US", "purchaseChannel": "web", "sourceURL": "https://www.microsoft.com/en-us/microsoft-365/buy/microsoft-365", "verifiedOn": "2026-07-30", "reviewStatus": "verified" }
+      ]
+    },
+    {
+      "id": "youtube-premium",
+      "serviceName": { "en": "YouTube Premium", "zhHans": "YouTube Premium" },
+      "category": { "en": "Video", "zhHans": "视频" },
+      "suggestedInterval": "monthly",
+      "managementURL": "https://www.youtube.com/paid_memberships",
+      "icon": "video",
+      "assetProvenance": { "kind": "originalSymbol", "license": "CC0-1.0", "source": "youtube-premium" },
+      "offers": [
+        { "id": "lite-monthly-us-web", "planName": { "en": "Premium Lite", "zhHans": "Premium Lite" }, "price": { "minorUnits": 799, "currency": "USD" }, "billingInterval": "monthly", "market": "US", "purchaseChannel": "web", "sourceURL": "https://blog.youtube/news-and-events/introducing-premium-lite/", "verifiedOn": "2026-07-30", "reviewStatus": "verified" }
+      ]
+    },
+    {
+      "id": "disney-plus",
+      "serviceName": { "en": "Disney+", "zhHans": "Disney+" },
+      "category": { "en": "Video", "zhHans": "视频" },
+      "suggestedInterval": "monthly",
+      "managementURL": "https://www.disneyplus.com/account",
+      "icon": "video",
+      "assetProvenance": { "kind": "originalSymbol", "license": "CC0-1.0", "source": "disney-plus" },
+      "offers": [
+        { "id": "ads-monthly-us-web", "planName": { "en": "With Ads", "zhHans": "With Ads" }, "price": { "minorUnits": 1199, "currency": "USD" }, "billingInterval": "monthly", "market": "US", "purchaseChannel": "web", "sourceURL": "https://help.disneyplus.com/article/disneyplus-price", "verifiedOn": "2026-07-30", "reviewStatus": "verified" },
+        { "id": "premium-monthly-us-web", "planName": { "en": "Premium", "zhHans": "Premium" }, "price": { "minorUnits": 1899, "currency": "USD" }, "billingInterval": "monthly", "market": "US", "purchaseChannel": "web", "sourceURL": "https://help.disneyplus.com/article/disneyplus-price", "verifiedOn": "2026-07-30", "reviewStatus": "verified" },
+        { "id": "premium-yearly-us-web", "planName": { "en": "Premium", "zhHans": "Premium" }, "price": { "minorUnits": 18999, "currency": "USD" }, "billingInterval": "yearly", "market": "US", "purchaseChannel": "web", "sourceURL": "https://help.disneyplus.com/article/disneyplus-price", "verifiedOn": "2026-07-30", "reviewStatus": "verified" }
+      ]
+    },
+    {
+      "id": "canva",
+      "serviceName": { "en": "Canva", "zhHans": "Canva" },
+      "category": { "en": "Productivity", "zhHans": "效率" },
+      "suggestedInterval": "yearly",
+      "managementURL": "https://www.canva.com/settings/billing/",
+      "icon": "productivity",
+      "assetProvenance": { "kind": "originalSymbol", "license": "CC0-1.0", "source": "canva" },
+      "offers": [
+        { "id": "pro-one-person-yearly-us-web", "planName": { "en": "Pro (1 person)", "zhHans": "Pro (1 person)" }, "price": { "minorUnits": 18000, "currency": "USD" }, "billingInterval": "yearly", "market": "US", "purchaseChannel": "web", "sourceURL": "https://www.canva.com/pricing/", "verifiedOn": "2026-07-30", "reviewStatus": "verified" }
+      ]
     }
   ]
 }
