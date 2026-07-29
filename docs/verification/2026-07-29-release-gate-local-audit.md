@@ -32,12 +32,14 @@ skipped test before the form-identity fix. The settings resume test was
 stabilized for Form scrolling. The three archive tests exposed the form reuse
 defect and motivated the fix above.
 
-After rebuilding, a focused rerun finished its XCTest child process but Xcode
-27 remained blocked while finalizing the test log / coverage record; no final
-`.xcresult` was produced for that rerun. The command was stopped after more
-than five minutes with no XCTest process. This is a test-executor limitation,
-not passing evidence. Re-run the three archive scenarios from Xcode or a clean
-Simulator session before closing TB-25.
+After rebuilding, focused reruns finished their XCTest child processes but
+Xcode 27 remained blocked while finalizing the test log / coverage record; no
+final `.xcresult` was produced. Restarting the Simulator and disabling code
+coverage did not remove the result-finalization hang. The final no-coverage
+attempt emitted no failure summary before its XCTest child process exited, but
+that remains insufficient to claim the scenarios passed. This is a
+test-executor limitation, not passing evidence. Re-run the three archive
+scenarios from Xcode or a clean Simulator session before closing TB-25.
 
 ## Remaining external verification
 
