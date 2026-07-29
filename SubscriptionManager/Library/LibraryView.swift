@@ -883,6 +883,12 @@ struct UserPreferencesView: View {
 
                 Section("Data") {
                     NavigationLink {
+                        PortableRestoreView(workspace: workspace)
+                    } label: {
+                        Label("Restore JSON Backup", systemImage: "arrow.counterclockwise")
+                    }
+                    .accessibilityIdentifier("preferences.portable-restore")
+                    NavigationLink {
                         PortableExportView(workspace: workspace)
                     } label: {
                         Label(

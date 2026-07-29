@@ -67,6 +67,19 @@ final class SubscriptionManagerUITests: XCTestCase {
         XCTAssertTrue(app.buttons["portable-export.csv"].exists)
     }
 
+    func testSettingsOffersPortableRestore() {
+        let app = launch(language: "en", locale: "en_US")
+
+        app.buttons["library.settings"].tap()
+        let restoreEntry = app.buttons["preferences.portable-restore"]
+        XCTAssertTrue(restoreEntry.waitForExistence(timeout: 5))
+        restoreEntry.tap()
+
+        XCTAssertTrue(
+            app.buttons["portable-restore.select-file"].waitForExistence(timeout: 5)
+        )
+    }
+
     func testUpcomingExpectedChargeOpensItsSubscriptionDetail() {
         let app = launch(language: "en", locale: "en_US")
 
