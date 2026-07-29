@@ -37,6 +37,7 @@ struct BundledCatalogRepositoryTests {
             for offer in preset.offers {
                 #expect(offer.price.currency == .usd)
                 #expect(offer.market == "US")
+                #expect(offer.purchaseChannel == .web)
                 #expect(offer.reviewStatus == .verified)
                 #expect(offer.sourceURL.scheme == "https")
                 #expect(offer.verifiedOn == "2026-07-30")
