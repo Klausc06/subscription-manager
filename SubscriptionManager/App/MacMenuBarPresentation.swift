@@ -30,17 +30,30 @@ enum MacAddSubscriptionTrigger: CaseIterable, Equatable {
 
 struct MacAddPresentationState: Equatable {
     private(set) var trigger: MacAddSubscriptionTrigger?
+    private(set) var scope: SubscriptionLibraryScope?
 
     var isPresented: Bool {
         trigger != nil
     }
 
-    mutating func present(from trigger: MacAddSubscriptionTrigger) {
+    mutating func present(
+        from trigger: MacAddSubscriptionTrigger,
+        scope: SubscriptionLibraryScope
+    ) {
         self.trigger = trigger
+        self.scope = scope
+    }
+
+    func complete(
+        _ reload: (SubscriptionLibraryScope) -> Void
+    ) {
+        guard let scope else { return }
+        reload(scope)
     }
 
     mutating func dismiss() {
         trigger = nil
+        scope = nil
     }
 }
 

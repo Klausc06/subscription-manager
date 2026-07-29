@@ -166,7 +166,10 @@ private struct MacLibraryView: View {
                 .toolbar {
                     ToolbarItemGroup {
                         Button("Add Subscription", systemImage: "plus") {
-                            addPresentation.present(from: .toolbar)
+                            addPresentation.present(
+                                from: .toolbar,
+                                scope: scope
+                            )
                         }
                         .keyboardShortcut("n", modifiers: [.command])
 
@@ -201,7 +204,11 @@ private struct MacLibraryView: View {
                 }
             }
         )) {
-            CatalogAddFlowView(workspace: workspace)
+            CatalogAddFlowView(workspace: workspace) {
+                addPresentation.complete { completedScope in
+                    workspace.loadLibrary(scope: completedScope)
+                }
+            }
                 .frame(minWidth: 520, minHeight: 560)
         }
         .sheet(item: $editingSubscription) { subscription in
@@ -228,7 +235,7 @@ private struct MacLibraryView: View {
             workspace.loadLibrary(scope: scope)
         }
         .onReceive(NotificationCenter.default.publisher(for: MacWindowCommand.add)) { _ in
-            addPresentation.present(from: .command)
+            addPresentation.present(from: .command, scope: scope)
         }
         .onReceive(NotificationCenter.default.publisher(for: MacWindowCommand.edit)) { _ in
             beginEditingSelection()
@@ -347,7 +354,7 @@ private struct MacLibraryView: View {
         case .none, .open:
             break
         case .quickAdd:
-            addPresentation.present(from: .quickAdd)
+            addPresentation.present(from: .quickAdd, scope: scope)
         }
     }
 }

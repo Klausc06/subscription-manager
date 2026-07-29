@@ -5,6 +5,7 @@ struct CatalogAddFlowView: View {
     @Environment(\.dismiss) private var dismiss
 
     let workspace: SubscriptionWorkspace
+    let onCompleted: () -> Void
 
     var body: some View {
         NavigationStack {
@@ -17,7 +18,7 @@ struct CatalogAddFlowView: View {
     }
 
     private func finish() {
-        workspace.loadLibrary(scope: .current)
+        onCompleted()
         dismiss()
     }
 }

@@ -1,3 +1,4 @@
+import SubscriptionCore
 import Testing
 @testable import SubscriptionManager
 
@@ -23,9 +24,23 @@ struct MacWindowRouterTests {
     ) {
         var presentation = MacAddPresentationState()
 
-        presentation.present(from: trigger)
+        presentation.present(from: trigger, scope: .current)
 
         #expect(presentation.isPresented)
         #expect(presentation.trigger == trigger)
+        #expect(presentation.scope == .current)
+    }
+
+    @Test("Archived add completion reloads the archived library scope")
+    func archivedAddCompletionReloadsArchivedScope() {
+        var presentation = MacAddPresentationState()
+        var reloadedScope: SubscriptionLibraryScope?
+        presentation.present(from: .toolbar, scope: .archived)
+
+        presentation.complete { scope in
+            reloadedScope = scope
+        }
+
+        #expect(reloadedScope == .archived)
     }
 }

@@ -22,7 +22,9 @@ struct LibraryView: View {
         .sheet(item: $presentedSheet) { sheet in
             switch sheet {
             case .addSubscription:
-                CatalogAddFlowView(workspace: workspace)
+                CatalogAddFlowView(workspace: workspace) {
+                    workspace.loadLibrary(scope: .current)
+                }
             }
         }
         .sheet(isPresented: $isSetupPresented) {
