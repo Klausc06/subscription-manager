@@ -617,7 +617,8 @@ public final class SubscriptionWorkspace {
     public func updatePreferences(
         primaryCurrency: Currency,
         calendarProjectionHorizon: CalendarProjectionHorizon,
-        hideAmountsInCalendar: Bool? = nil
+        hideAmountsInCalendar: Bool? = nil,
+        menuBarModeEnabled: Bool? = nil
     ) {
         persistPreferences(
             UserPreferences(
@@ -625,6 +626,8 @@ public final class SubscriptionWorkspace {
                 calendarProjectionHorizon: calendarProjectionHorizon,
                 hideAmountsInCalendar: hideAmountsInCalendar
                     ?? currentPreferences.hideAmountsInCalendar,
+                menuBarModeEnabled: menuBarModeEnabled
+                    ?? currentPreferences.menuBarModeEnabled,
                 setupStatus: currentPreferences.setupStatus
             )
         )
@@ -637,6 +640,7 @@ public final class SubscriptionWorkspace {
                 primaryCurrency: currentPreferences.primaryCurrency,
                 calendarProjectionHorizon: currentPreferences.calendarProjectionHorizon,
                 hideAmountsInCalendar: currentPreferences.hideAmountsInCalendar,
+                menuBarModeEnabled: currentPreferences.menuBarModeEnabled,
                 setupStatus: .completed
             )
         )
@@ -648,6 +652,7 @@ public final class SubscriptionWorkspace {
                 primaryCurrency: currentPreferences.primaryCurrency,
                 calendarProjectionHorizon: currentPreferences.calendarProjectionHorizon,
                 hideAmountsInCalendar: currentPreferences.hideAmountsInCalendar,
+                menuBarModeEnabled: currentPreferences.menuBarModeEnabled,
                 setupStatus: .skipped
             )
         )
@@ -659,6 +664,7 @@ public final class SubscriptionWorkspace {
                 primaryCurrency: currentPreferences.primaryCurrency,
                 calendarProjectionHorizon: currentPreferences.calendarProjectionHorizon,
                 hideAmountsInCalendar: currentPreferences.hideAmountsInCalendar,
+                menuBarModeEnabled: currentPreferences.menuBarModeEnabled,
                 setupStatus: .notCompleted
             ),
             stateOnSuccess: { .needsSetup($0) }

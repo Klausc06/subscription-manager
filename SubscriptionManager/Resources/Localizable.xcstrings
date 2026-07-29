@@ -725,6 +725,17 @@
     "Show your upcoming subscription renewals." : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Show your upcoming subscription renewals." } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "显示你即将续费的订阅。" } } } },
     "Show this month’s expected subscription spending." : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Show this month’s expected subscription spending." } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "显示本月预计订阅支出。" } } } },
     "Subscription added." : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Subscription added." } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "已添加订阅。" } } } },
+    "Approve Subscription Manager in Login Items to finish enabling launch at login." : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Approve Subscription Manager in Login Items to finish enabling launch at login." } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "请在“登录项”中批准 Subscription Manager，以完成开机启动设置。" } } } },
+    "Couldn’t update launch at login. Try again." : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Couldn’t update launch at login. Try again." } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "无法更新开机启动设置，请重试。" } } } },
+    "Keep Subscription Manager in the Menu Bar" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Keep Subscription Manager in the Menu Bar" } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "在菜单栏中保留 Subscription Manager" } } } },
+    "Launch at Login" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Launch at Login" } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "登录时启动" } } } },
+    "Menu Bar" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Menu Bar" } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "菜单栏" } } } },
+    "Next: %@" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Next: %@" } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "下一项：%@" } } } },
+    "Open App" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Open App" } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "打开应用" } } } },
+    "Quick Add" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Quick Add" } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "快速添加" } } } },
+    "Quit Subscription Manager" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Quit Subscription Manager" } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "退出 Subscription Manager" } } } },
+    "This Month: %@" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "This Month: %@" } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "本月：%@" } } } },
+    "This Month: Forecast Unavailable" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "This Month: Forecast Unavailable" } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "本月：预测暂不可用" } } } },
     "Your subscriptions will appear here." : {
       "localizations" : {
         "en" : {

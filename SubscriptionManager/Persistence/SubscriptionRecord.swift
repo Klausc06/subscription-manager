@@ -85,18 +85,21 @@ final class UserPreferencesRecord {
     var primaryCurrencyRawValue: String = "CNY"
     var calendarProjectionHorizonMonths: Int = 12
     var hideAmountsInCalendar: Bool = false
+    var menuBarModeEnabled: Bool = false
     var setupStatusRawValue: String = "notCompleted"
 
     init(
         primaryCurrencyRawValue: String = "CNY",
         calendarProjectionHorizonMonths: Int = 12,
         hideAmountsInCalendar: Bool = false,
+        menuBarModeEnabled: Bool = false,
         setupStatusRawValue: String = "notCompleted"
     ) {
         self.primaryCurrencyRawValue = primaryCurrencyRawValue
         self.calendarProjectionHorizonMonths =
             calendarProjectionHorizonMonths
         self.hideAmountsInCalendar = hideAmountsInCalendar
+        self.menuBarModeEnabled = menuBarModeEnabled
         self.setupStatusRawValue = setupStatusRawValue
     }
 }

@@ -79,6 +79,7 @@ struct AppDependenciesTests {
             primaryCurrency: .usd,
             calendarProjectionHorizon: .sixMonths,
             hideAmountsInCalendar: true,
+            menuBarModeEnabled: true,
             setupStatus: .completed
         )
 

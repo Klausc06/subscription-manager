@@ -11,6 +11,7 @@ struct UserPreferencesTests {
             UserPreferences.default.calendarProjectionHorizon == .twelveMonths
         )
         #expect(UserPreferences.default.hideAmountsInCalendar == false)
+        #expect(UserPreferences.default.menuBarModeEnabled == false)
         #expect(UserPreferences.default.setupStatus == .notCompleted)
     }
 
@@ -32,6 +33,38 @@ struct UserPreferencesTests {
         )
 
         #expect(preferences.hideAmountsInCalendar == false)
+        #expect(preferences.menuBarModeEnabled == false)
+    }
+
+    @Test("Menu-bar mode persists through the workspace preference command")
+    @MainActor
+    func menuBarModePersistsThroughWorkspace() throws {
+        let preferences = InMemoryUserPreferencesRepository()
+        let workspace = SubscriptionWorkspace(
+            repository: EmptySubscriptionRepository(),
+            preferencesRepository: preferences
+        )
+
+        workspace.loadSetup(libraryIsEmpty: false)
+        workspace.updatePreferences(
+            primaryCurrency: .usd,
+            calendarProjectionHorizon: .sixMonths,
+            menuBarModeEnabled: true
+        )
+
+        #expect(
+            try preferences.loadPreferences()?.menuBarModeEnabled == true
+        )
+        #expect(
+            workspace.setupState == .needsSetup(
+                UserPreferences(
+                    primaryCurrency: .usd,
+                    calendarProjectionHorizon: .sixMonths,
+                    menuBarModeEnabled: true,
+                    setupStatus: .notCompleted
+                )
+            )
+        )
     }
 
     @Test("An empty library starts setup and skipping persists the choice")

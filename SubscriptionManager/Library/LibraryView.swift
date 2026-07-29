@@ -832,6 +832,7 @@ struct UserPreferencesView: View {
     @State private var primaryCurrency: Currency = .cny
     @State private var horizon: CalendarProjectionHorizon = .twelveMonths
     @State private var hideAmountsInCalendar = false
+    @State private var menuBarModeEnabled = false
     @State private var saveFailed = false
 
     var body: some View {
@@ -896,6 +897,17 @@ struct UserPreferencesView: View {
                     SyncStatusView(workspace: workspace)
                 }
 
+                #if os(macOS)
+                Section("Menu Bar") {
+                    Toggle(
+                        "Keep Subscription Manager in the Menu Bar",
+                        isOn: $menuBarModeEnabled
+                    )
+                    .accessibilityIdentifier("preferences.menu-bar.enabled")
+                    LaunchAtLoginSettingsView()
+                }
+                #endif
+
                 Section("Data") {
                     NavigationLink {
                         PortableRestoreView(workspace: workspace)
@@ -949,7 +961,8 @@ struct UserPreferencesView: View {
                         workspace.updatePreferences(
                             primaryCurrency: primaryCurrency,
                             calendarProjectionHorizon: horizon,
-                            hideAmountsInCalendar: hideAmountsInCalendar
+                            hideAmountsInCalendar: hideAmountsInCalendar,
+                            menuBarModeEnabled: menuBarModeEnabled
                         )
                         saveFailed = isSetupSaveFailure
                         if !saveFailed {
@@ -1001,6 +1014,7 @@ struct UserPreferencesView: View {
             primaryCurrency = preferences.primaryCurrency
             horizon = preferences.calendarProjectionHorizon
             hideAmountsInCalendar = preferences.hideAmountsInCalendar
+            menuBarModeEnabled = preferences.menuBarModeEnabled
         case .notLoaded:
             break
         }

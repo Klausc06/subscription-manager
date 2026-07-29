@@ -9,10 +9,16 @@ import SwiftUI
 struct SubscriptionManagerApp: App {
     @Environment(\.scenePhase) private var scenePhase
     private let startupState: AppStartupState
+    #if os(macOS)
+    private let macWindowRouter: MacWindowRouter
+    #endif
 
     @MainActor
     init() {
         startupState = AppDependencies.live()
+        #if os(macOS)
+        macWindowRouter = MacWindowRouter()
+        #endif
         if case .ready(let dependencies) = startupState {
             AppDependencyManager.shared.add(
                 dependency: SubscriptionIntentService(
@@ -23,37 +29,20 @@ struct SubscriptionManagerApp: App {
     }
 
     var body: some Scene {
-        WindowGroup {
-            Group {
-            switch startupState {
-            case .ready(let dependencies):
-                #if os(macOS)
-                MacLibraryView(workspace: dependencies.workspace)
-                    .modelContainer(dependencies.modelContainer)
-                #else
-                LibraryView(workspace: dependencies.workspace)
-                    .modelContainer(dependencies.modelContainer)
-                #endif
-            case .failed:
-                ContentUnavailableView(
-                    "library.error.title",
-                    systemImage: "externaldrive.badge.exclamationmark",
-                    description: Text("library.error.description")
-                )
-            }
-            }
-            .onReceive(NotificationCenter.default.publisher(
-                for: .EKEventStoreChanged
-            )) { _ in
-                guard case .ready(let dependencies) = startupState else {
-                    return
+        WindowGroup(id: "main-window") {
+            rootContent
+                .onReceive(NotificationCenter.default.publisher(
+                    for: .EKEventStoreChanged
+                )) { _ in
+                    guard case .ready(let dependencies) = startupState else {
+                        return
+                    }
+                    Task {
+                        await dependencies.workspace.reconcileCalendarProjection(
+                            locale: .current
+                        )
+                    }
                 }
-                Task {
-                    await dependencies.workspace.reconcileCalendarProjection(
-                        locale: .current
-                    )
-                }
-            }
         }
         .onChange(of: scenePhase) { _, phase in
             guard phase == .active,
@@ -68,11 +57,52 @@ struct SubscriptionManagerApp: App {
         #if os(macOS)
         .commands { MacWindowCommands() }
         #endif
+        #if os(macOS)
+        MacMenuBarScene(
+            workspace: menuBarWorkspace,
+            router: macWindowRouter
+        )
+        #endif
     }
+
+    #if os(macOS)
+    private var menuBarWorkspace: SubscriptionWorkspace? {
+        guard case .ready(let dependencies) = startupState else {
+            return nil
+        }
+        return dependencies.workspace
+    }
+    #endif
+
+    @ViewBuilder
+    private var rootContent: some View {
+        Group {
+            switch startupState {
+            case .ready(let dependencies):
+                #if os(macOS)
+                MacLibraryView(
+                    workspace: dependencies.workspace,
+                    router: macWindowRouter
+                )
+                    .modelContainer(dependencies.modelContainer)
+                #else
+                LibraryView(workspace: dependencies.workspace)
+                    .modelContainer(dependencies.modelContainer)
+                #endif
+            case .failed:
+                ContentUnavailableView(
+                    "library.error.title",
+                    systemImage: "externaldrive.badge.exclamationmark",
+                    description: Text("library.error.description")
+                )
+            }
+        }
+    }
+
 }
 
 #if os(macOS)
-private enum MacWindowCommand {
+enum MacWindowCommand {
     static let add = Notification.Name("MacWindowCommand.add")
     static let edit = Notification.Name("MacWindowCommand.edit")
     static let archive = Notification.Name("MacWindowCommand.archive")
@@ -107,6 +137,7 @@ private struct MacWindowCommands: Commands {
 
 private struct MacLibraryView: View {
     let workspace: SubscriptionWorkspace
+    @ObservedObject var router: MacWindowRouter
 
     @State private var scope: SubscriptionLibraryScope = .current
     @State private var searchText = ""
@@ -176,6 +207,14 @@ private struct MacLibraryView: View {
         }
         .task {
             workspace.loadLibrary(scope: scope)
+            let libraryIsEmpty: Bool
+            if case .empty = workspace.libraryState {
+                libraryIsEmpty = true
+            } else {
+                libraryIsEmpty = false
+            }
+            workspace.loadSetup(libraryIsEmpty: libraryIsEmpty)
+            applyPendingRoute()
         }
         .onChange(of: scope) {
             selection.removeAll()
@@ -195,6 +234,9 @@ private struct MacLibraryView: View {
         }
         .onReceive(NotificationCenter.default.publisher(for: MacWindowCommand.settings)) { _ in
             isPreferencesPresented = true
+        }
+        .onChange(of: router.destination) { _, _ in
+            applyPendingRoute()
         }
     }
 
@@ -291,6 +333,15 @@ private struct MacLibraryView: View {
         }
         workspace.beginEditing()
         editingSubscription = subscription
+    }
+
+    private func applyPendingRoute() {
+        switch router.takeDestination() {
+        case .none, .open:
+            break
+        case .quickAdd:
+            isAddingSubscription = true
+        }
     }
 }
 #endif

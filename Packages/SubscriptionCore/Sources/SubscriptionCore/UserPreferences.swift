@@ -13,17 +13,20 @@ public struct UserPreferences: Codable, Equatable, Sendable {
     public let primaryCurrency: Currency
     public let calendarProjectionHorizon: CalendarProjectionHorizon
     public let hideAmountsInCalendar: Bool
+    public let menuBarModeEnabled: Bool
     public let setupStatus: SetupStatus
 
     public init(
         primaryCurrency: Currency,
         calendarProjectionHorizon: CalendarProjectionHorizon,
         hideAmountsInCalendar: Bool = false,
+        menuBarModeEnabled: Bool = false,
         setupStatus: SetupStatus
     ) {
         self.primaryCurrency = primaryCurrency
         self.calendarProjectionHorizon = calendarProjectionHorizon
         self.hideAmountsInCalendar = hideAmountsInCalendar
+        self.menuBarModeEnabled = menuBarModeEnabled
         self.setupStatus = setupStatus
     }
 
@@ -31,6 +34,7 @@ public struct UserPreferences: Codable, Equatable, Sendable {
         primaryCurrency: .cny,
         calendarProjectionHorizon: .twelveMonths,
         hideAmountsInCalendar: false,
+        menuBarModeEnabled: false,
         setupStatus: .notCompleted
     )
 
@@ -38,6 +42,7 @@ public struct UserPreferences: Codable, Equatable, Sendable {
         case primaryCurrency
         case calendarProjectionHorizon
         case hideAmountsInCalendar
+        case menuBarModeEnabled
         case setupStatus
     }
 
@@ -55,6 +60,10 @@ public struct UserPreferences: Codable, Equatable, Sendable {
             Bool.self,
             forKey: .hideAmountsInCalendar
         ) ?? false
+        menuBarModeEnabled = try container.decodeIfPresent(
+            Bool.self,
+            forKey: .menuBarModeEnabled
+        ) ?? false
         setupStatus = try container.decode(SetupStatus.self, forKey: .setupStatus)
     }
 
@@ -69,6 +78,7 @@ public struct UserPreferences: Codable, Equatable, Sendable {
             hideAmountsInCalendar,
             forKey: .hideAmountsInCalendar
         )
+        try container.encode(menuBarModeEnabled, forKey: .menuBarModeEnabled)
         try container.encode(setupStatus, forKey: .setupStatus)
     }
 }
