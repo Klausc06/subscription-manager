@@ -7,46 +7,52 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		0666A187883887DBEE6F3855 /* CatalogPresetDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 41A00EB2BB490F786F4D0953 /* CatalogPresetDetailView.swift */; };
 		07BD717C844F32E7282360A2 /* SubscriptionLookupTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3ED395A87C6661BAAA9E98BB /* SubscriptionLookupTests.swift */; };
+		08A4E57068D41F3F857F3327 /* SubscriptionCore in Frameworks */ = {isa = PBXBuildFile; productRef = 2EE7A221C94060E2B403FAB3 /* SubscriptionCore */; };
+		0B04FE82A821F3CEA01F23B7 /* PortableExportView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 164F6C4095D2303AF7680828 /* PortableExportView.swift */; };
+		1542C108546F4227953D1C2E /* BundledCatalogRepositoryTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E8E32D343532C15910A82133 /* BundledCatalogRepositoryTests.swift */; };
+		28984F46B98D36A9E90C9FE2 /* Localizable.xcstrings in Resources */ = {isa = PBXBuildFile; fileRef = C0A423C4110A0F526EE23D14 /* Localizable.xcstrings */; };
 		29ACA04B956288B794B208B0 /* ReactivateSubscriptionView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A93524FB8A11100D270A0930 /* ReactivateSubscriptionView.swift */; };
-		1B0500010000000000000001 /* ConfirmChargeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1B0500010000000000000002 /* ConfirmChargeView.swift */; };
-		1B0500010000000000000003 /* RecordPriceChangeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1B0500010000000000000004 /* RecordPriceChangeView.swift */; };
+		401275AD1970EE4B07820785 /* CloudKitLibrarySyncMonitor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4C641E399B272135737B7EF9 /* CloudKitLibrarySyncMonitor.swift */; };
+		410E3FCE6503EF3C58F48873 /* ConfirmChargeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 433C5876A0B42C2F728CB2BA /* ConfirmChargeView.swift */; };
+		4A33B8E2AB570E0350B57B34 /* SubscriptionManagerWidget.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 66E23744D45A7495B51097E2 /* SubscriptionManagerWidget.appex */; platformFilter = ios; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		4C12D90EEC1CC642D35E22A2 /* SubscriptionDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6F7965D45867F28DAFB96A5D /* SubscriptionDetailView.swift */; };
+		51B20289CC5385F1DFDA4536 /* CATALOG_METADATA_LICENSE.md in Resources */ = {isa = PBXBuildFile; fileRef = CF73BE31E7CBFDDF0AED3F4F /* CATALOG_METADATA_LICENSE.md */; };
 		54723BACD6E59DC50EEFDCED /* SwiftDataSubscriptionRepository.swift in Sources */ = {isa = PBXBuildFile; fileRef = 58208DD28479A9E167C08113 /* SwiftDataSubscriptionRepository.swift */; };
+		573D19E1A08508BA1865924A /* EventKitCalendarProjectionImporter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0842A2D743C1E14345B79D96 /* EventKitCalendarProjectionImporter.swift */; };
 		5A00649C395B2B471599C013 /* RecordCancellationView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 53CF076D96FF1C31ED7EC2A2 /* RecordCancellationView.swift */; };
 		5EFACBCB58F5A772FF61FF4B /* SubscriptionManagerApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 03DFA150363397FA01C93872 /* SubscriptionManagerApp.swift */; };
 		665528E003EC11A9189C1B7D /* InfoPlist.xcstrings in Resources */ = {isa = PBXBuildFile; fileRef = 4D90D49FB3AEDF62EFA48202 /* InfoPlist.xcstrings */; };
 		6660C4236F0802CD6EA713D1 /* MoneyFormatting.swift in Sources */ = {isa = PBXBuildFile; fileRef = C3C019FF49A9B77C9987C82B /* MoneyFormatting.swift */; };
 		71D3C438264BA1B8C68FE357 /* SubscriptionFormSupport.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2CAE4BF38A7217C53E4C047F /* SubscriptionFormSupport.swift */; };
 		73C2C4432A240F796882FCD9 /* SubscriptionCore in Frameworks */ = {isa = PBXBuildFile; productRef = 30FD0B5354BE8274C66402A8 /* SubscriptionCore */; };
+		73E4D9C5EAE129D2A72C26FC /* FileCatalogCache.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5B719388CA82311FED0FEB46 /* FileCatalogCache.swift */; };
+		842D256F471F88B7082CF25B /* WidgetSnapshotPublisher.swift in Sources */ = {isa = PBXBuildFile; fileRef = BF78C8D1470F9E0A4F09112F /* WidgetSnapshotPublisher.swift */; };
 		866177EEBBB6B76DADA471C2 /* SubscriptionRecord.swift in Sources */ = {isa = PBXBuildFile; fileRef = 12BBDD4A3C3D5A6F92B3775B /* SubscriptionRecord.swift */; };
 		8BDFDA89FC3799D7A394A305 /* AppDependencies.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9FEF1B3C25246E96015F3FB1 /* AppDependencies.swift */; };
+		8E78AFCD49FF2D2EEBC82BEE /* EventKitCalendarProjectionImporterTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0ADA9475AF293852B7FA737C /* EventKitCalendarProjectionImporterTests.swift */; };
 		95DD1A1B26E3AC5313818053 /* AddSubscriptionView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3E375325DBD112A5F485EF3F /* AddSubscriptionView.swift */; };
+		964962A62D11B3CCB4389E47 /* SubscriptionManagerWidget.swift in Sources */ = {isa = PBXBuildFile; fileRef = 53D835B74581775DBE9B5313 /* SubscriptionManagerWidget.swift */; };
 		9C86757EC90F9573E7228788 /* Localizable.xcstrings in Resources */ = {isa = PBXBuildFile; fileRef = 0AB60CE097AABC95DB396296 /* Localizable.xcstrings */; };
 		A105480E30F53C6D44A30A8F /* BillingScheduleSupport.swift in Sources */ = {isa = PBXBuildFile; fileRef = 54AE7D1E07F1BF787F9E1BEF /* BillingScheduleSupport.swift */; };
+		A66C78E13D3580B57945C076 /* CatalogBrowserView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5617F30677EE31D6D1BA649C /* CatalogBrowserView.swift */; };
 		AFD2FBBC3C7453EE8B17A22D /* SubscriptionLifecycleSupport.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4C0A8035198E253EFD0921C9 /* SubscriptionLifecycleSupport.swift */; };
+		B3BF2675BDDE0A05AF595127 /* BundledCatalogRepository.swift in Sources */ = {isa = PBXBuildFile; fileRef = F6158744F9B1B175056E79CA /* BundledCatalogRepository.swift */; };
+		BE216D6C64C7F5B6FBA9D245 /* GitHubCatalogUpdateSource.swift in Sources */ = {isa = PBXBuildFile; fileRef = E06ED39F4F3A5F168380926E /* GitHubCatalogUpdateSource.swift */; };
 		BFE237030B51A0B5AFBF49CE /* SubscriptionCore in Frameworks */ = {isa = PBXBuildFile; productRef = 68D9CBCB130A9BFEC4CE076E /* SubscriptionCore */; };
 		C90E83DF13A2B2073C083FBF /* SwiftDataSubscriptionRepositoryTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6F44B60853F624BFCF8B2F53 /* SwiftDataSubscriptionRepositoryTests.swift */; };
 		C9F6A31BE02C4B3821562DFC /* LibraryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 15EA34A86C81D0560BC4A8A0 /* LibraryView.swift */; };
 		CD2E291B88ADA438114AEA63 /* MoneyFormattingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D994A995E43724CEF005FA7 /* MoneyFormattingTests.swift */; };
+		CD2F7E3555106B7275202D40 /* RecordPriceChangeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6D7EF077DB4CCAEF72B8D27F /* RecordPriceChangeView.swift */; };
 		CF6E7CA71A3B6B192FC10E3D /* EditSubscriptionView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 33F67B88372C24F8FA06E7F1 /* EditSubscriptionView.swift */; };
+		D0321047EAB970503FB76AD5 /* CalendarProjectionView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0EAF91956261FDFF4C91AAD /* CalendarProjectionView.swift */; };
+		D5FE413ECB49E303A5EE9F07 /* catalog-v1.json in Resources */ = {isa = PBXBuildFile; fileRef = 1DB077A74E0C9E4C7BB81F81 /* catalog-v1.json */; };
+		DEC01EB4E532BAC0F3359C00 /* PortableRestoreView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3D462734DE864FE8B34F0EFE /* PortableRestoreView.swift */; };
 		E3EC37D5EF593651F866C788 /* SubscriptionRow.swift in Sources */ = {isa = PBXBuildFile; fileRef = F24364E7E6897202F27AAE1B /* SubscriptionRow.swift */; };
 		F227D20F28F63E3A1A7D0681 /* SubscriptionManagerUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4C522F69323C0F092E76973D /* SubscriptionManagerUITests.swift */; };
 		F67C63EB88D910146E613A1A /* ManagementURLValidationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A40A43B15F2DC8026034E7B6 /* ManagementURLValidationTests.swift */; };
 		FE9D2A03AAAF24FCBDC2CEA0 /* AppDependenciesTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 178B2F8071F3AA4EEB4EF445 /* AppDependenciesTests.swift */; };
-		1B0600010000000000000001 /* BundledCatalogRepositoryTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1B0600010000000000000002 /* BundledCatalogRepositoryTests.swift */; };
-		1B0600010000000000000003 /* catalog-v1.json in Resources */ = {isa = PBXBuildFile; fileRef = 1B0600010000000000000004 /* catalog-v1.json */; };
-		1B0600010000000000000005 /* BundledCatalogRepository.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1B0600010000000000000006 /* BundledCatalogRepository.swift */; };
-		1B0600010000000000000008 /* CatalogBrowserView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1B0600010000000000000009 /* CatalogBrowserView.swift */; };
-		1B0600010000000000000010 /* CatalogPresetDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1B0600010000000000000011 /* CatalogPresetDetailView.swift */; };
-		1B0700010000000000000001 /* FileCatalogCache.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1B0700010000000000000002 /* FileCatalogCache.swift */; };
-		1B0700010000000000000003 /* GitHubCatalogUpdateSource.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1B0700010000000000000004 /* GitHubCatalogUpdateSource.swift */; };
-		1B1600010000000000000001 /* CloudKitLibrarySyncMonitor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1B1600010000000000000002 /* CloudKitLibrarySyncMonitor.swift */; };
-		1B1700010000000000000001 /* CalendarProjectionView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1B1700010000000000000002 /* CalendarProjectionView.swift */; };
-		1B1800010000000000000001 /* EventKitCalendarProjectionImporterTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1B1800010000000000000002 /* EventKitCalendarProjectionImporterTests.swift */; };
-		1B1800010000000000000003 /* EventKitCalendarProjectionImporter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1B1800010000000000000004 /* EventKitCalendarProjectionImporter.swift */; };
-		1B2000010000000000000001 /* PortableExportView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1B2000010000000000000002 /* PortableExportView.swift */; };
-		1B2100010000000000000001 /* PortableRestoreView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1B2100010000000000000002 /* PortableRestoreView.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -57,6 +63,13 @@
 			remoteGlobalIDString = 56B439A7F4EE5BEA55D5EE49;
 			remoteInfo = SubscriptionManager;
 		};
+		A908677E8961223AFA1D009C /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 7027914DB025F3AD4DCB8619 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 21E9F491093B85881405063B;
+			remoteInfo = SubscriptionManagerWidget;
+		};
 		F6ADE214110C6AAEAF9E7231 /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
 			containerPortal = 7027914DB025F3AD4DCB8619 /* Project object */;
@@ -66,28 +79,55 @@
 		};
 /* End PBXContainerItemProxy section */
 
+/* Begin PBXCopyFilesBuildPhase section */
+		B3B4F32AA7E5386AC44F8C38 /* Embed Foundation Extensions */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 13;
+			files = (
+				4A33B8E2AB570E0350B57B34 /* SubscriptionManagerWidget.appex in Embed Foundation Extensions */,
+			);
+			name = "Embed Foundation Extensions";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXCopyFilesBuildPhase section */
+
 /* Begin PBXFileReference section */
 		03DFA150363397FA01C93872 /* SubscriptionManagerApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SubscriptionManagerApp.swift; sourceTree = "<group>"; };
+		0842A2D743C1E14345B79D96 /* EventKitCalendarProjectionImporter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EventKitCalendarProjectionImporter.swift; sourceTree = "<group>"; };
 		0AB60CE097AABC95DB396296 /* Localizable.xcstrings */ = {isa = PBXFileReference; lastKnownFileType = text.json.xcstrings; path = Localizable.xcstrings; sourceTree = "<group>"; };
+		0ADA9475AF293852B7FA737C /* EventKitCalendarProjectionImporterTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EventKitCalendarProjectionImporterTests.swift; sourceTree = "<group>"; };
 		12BBDD4A3C3D5A6F92B3775B /* SubscriptionRecord.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SubscriptionRecord.swift; sourceTree = "<group>"; };
 		15EA34A86C81D0560BC4A8A0 /* LibraryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LibraryView.swift; sourceTree = "<group>"; };
+		164F6C4095D2303AF7680828 /* PortableExportView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PortableExportView.swift; sourceTree = "<group>"; };
 		178B2F8071F3AA4EEB4EF445 /* AppDependenciesTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDependenciesTests.swift; sourceTree = "<group>"; };
-		1B0500010000000000000002 /* ConfirmChargeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConfirmChargeView.swift; sourceTree = "<group>"; };
-		1B0500010000000000000004 /* RecordPriceChangeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecordPriceChangeView.swift; sourceTree = "<group>"; };
 		1D994A995E43724CEF005FA7 /* MoneyFormattingTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MoneyFormattingTests.swift; sourceTree = "<group>"; };
+		1DB077A74E0C9E4C7BB81F81 /* catalog-v1.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = "catalog-v1.json"; sourceTree = "<group>"; };
 		2CAE4BF38A7217C53E4C047F /* SubscriptionFormSupport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SubscriptionFormSupport.swift; sourceTree = "<group>"; };
 		33F67B88372C24F8FA06E7F1 /* EditSubscriptionView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EditSubscriptionView.swift; sourceTree = "<group>"; };
+		3D462734DE864FE8B34F0EFE /* PortableRestoreView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PortableRestoreView.swift; sourceTree = "<group>"; };
 		3E375325DBD112A5F485EF3F /* AddSubscriptionView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AddSubscriptionView.swift; sourceTree = "<group>"; };
 		3ED395A87C6661BAAA9E98BB /* SubscriptionLookupTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SubscriptionLookupTests.swift; sourceTree = "<group>"; };
 		417B504B82A0927D26DDDB31 /* SubscriptionManagerUITests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = SubscriptionManagerUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		41A00EB2BB490F786F4D0953 /* CatalogPresetDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CatalogPresetDetailView.swift; sourceTree = "<group>"; };
+		433C5876A0B42C2F728CB2BA /* ConfirmChargeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConfirmChargeView.swift; sourceTree = "<group>"; };
 		4C0A8035198E253EFD0921C9 /* SubscriptionLifecycleSupport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SubscriptionLifecycleSupport.swift; sourceTree = "<group>"; };
 		4C522F69323C0F092E76973D /* SubscriptionManagerUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SubscriptionManagerUITests.swift; sourceTree = "<group>"; };
+		4C641E399B272135737B7EF9 /* CloudKitLibrarySyncMonitor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CloudKitLibrarySyncMonitor.swift; sourceTree = "<group>"; };
 		4D90D49FB3AEDF62EFA48202 /* InfoPlist.xcstrings */ = {isa = PBXFileReference; lastKnownFileType = text.json.xcstrings; path = InfoPlist.xcstrings; sourceTree = "<group>"; };
 		53CF076D96FF1C31ED7EC2A2 /* RecordCancellationView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecordCancellationView.swift; sourceTree = "<group>"; };
+		53D835B74581775DBE9B5313 /* SubscriptionManagerWidget.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SubscriptionManagerWidget.swift; sourceTree = "<group>"; };
 		54AE7D1E07F1BF787F9E1BEF /* BillingScheduleSupport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BillingScheduleSupport.swift; sourceTree = "<group>"; };
+		5617F30677EE31D6D1BA649C /* CatalogBrowserView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CatalogBrowserView.swift; sourceTree = "<group>"; };
 		58208DD28479A9E167C08113 /* SwiftDataSubscriptionRepository.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SwiftDataSubscriptionRepository.swift; sourceTree = "<group>"; };
+		5B719388CA82311FED0FEB46 /* FileCatalogCache.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FileCatalogCache.swift; sourceTree = "<group>"; };
+		5CC10FC8A411B77E62CFF99F /* SubscriptionManagerWidget.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = SubscriptionManagerWidget.entitlements; sourceTree = "<group>"; };
+		66E23744D45A7495B51097E2 /* SubscriptionManagerWidget.appex */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = "wrapper.app-extension"; path = SubscriptionManagerWidget.appex; sourceTree = BUILT_PRODUCTS_DIR; };
+		6D7EF077DB4CCAEF72B8D27F /* RecordPriceChangeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecordPriceChangeView.swift; sourceTree = "<group>"; };
 		6F44B60853F624BFCF8B2F53 /* SwiftDataSubscriptionRepositoryTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SwiftDataSubscriptionRepositoryTests.swift; sourceTree = "<group>"; };
 		6F7965D45867F28DAFB96A5D /* SubscriptionDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SubscriptionDetailView.swift; sourceTree = "<group>"; };
+		80BE4889FA614AABADFAC968 /* SubscriptionManager.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = SubscriptionManager.entitlements; sourceTree = "<group>"; };
 		8D1784DAF6D526C287B9B8CF /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		99D687DDF8D151CB8B4AB595 /* SubscriptionManagerTests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = SubscriptionManagerTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		9FEF1B3C25246E96015F3FB1 /* AppDependencies.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDependencies.swift; sourceTree = "<group>"; };
@@ -95,21 +135,16 @@
 		A51067E214337D512DCE7E15 /* SubscriptionManager.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = SubscriptionManager.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		A93524FB8A11100D270A0930 /* ReactivateSubscriptionView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReactivateSubscriptionView.swift; sourceTree = "<group>"; };
 		BC563C5D4CFE9FE1F0148C35 /* SubscriptionCore */ = {isa = PBXFileReference; lastKnownFileType = folder; name = SubscriptionCore; path = Packages/SubscriptionCore; sourceTree = SOURCE_ROOT; };
+		BF78C8D1470F9E0A4F09112F /* WidgetSnapshotPublisher.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WidgetSnapshotPublisher.swift; sourceTree = "<group>"; };
+		C0A423C4110A0F526EE23D14 /* Localizable.xcstrings */ = {isa = PBXFileReference; lastKnownFileType = text.json.xcstrings; path = Localizable.xcstrings; sourceTree = "<group>"; };
+		C0EAF91956261FDFF4C91AAD /* CalendarProjectionView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CalendarProjectionView.swift; sourceTree = "<group>"; };
 		C3C019FF49A9B77C9987C82B /* MoneyFormatting.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MoneyFormatting.swift; sourceTree = "<group>"; };
+		CB5C96CFD90987789D5FBBB5 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
+		CF73BE31E7CBFDDF0AED3F4F /* CATALOG_METADATA_LICENSE.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = CATALOG_METADATA_LICENSE.md; sourceTree = "<group>"; };
+		E06ED39F4F3A5F168380926E /* GitHubCatalogUpdateSource.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GitHubCatalogUpdateSource.swift; sourceTree = "<group>"; };
+		E8E32D343532C15910A82133 /* BundledCatalogRepositoryTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BundledCatalogRepositoryTests.swift; sourceTree = "<group>"; };
 		F24364E7E6897202F27AAE1B /* SubscriptionRow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SubscriptionRow.swift; sourceTree = "<group>"; };
-		1B0600010000000000000002 /* BundledCatalogRepositoryTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BundledCatalogRepositoryTests.swift; sourceTree = "<group>"; };
-		1B0600010000000000000004 /* catalog-v1.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = "catalog-v1.json"; sourceTree = "<group>"; };
-		1B0600010000000000000006 /* BundledCatalogRepository.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BundledCatalogRepository.swift; sourceTree = "<group>"; };
-		1B0600010000000000000009 /* CatalogBrowserView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CatalogBrowserView.swift; sourceTree = "<group>"; };
-		1B0600010000000000000011 /* CatalogPresetDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CatalogPresetDetailView.swift; sourceTree = "<group>"; };
-		1B0700010000000000000002 /* FileCatalogCache.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FileCatalogCache.swift; sourceTree = "<group>"; };
-		1B0700010000000000000004 /* GitHubCatalogUpdateSource.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GitHubCatalogUpdateSource.swift; sourceTree = "<group>"; };
-		1B1600010000000000000002 /* CloudKitLibrarySyncMonitor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CloudKitLibrarySyncMonitor.swift; sourceTree = "<group>"; };
-		1B1700010000000000000002 /* CalendarProjectionView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CalendarProjectionView.swift; sourceTree = "<group>"; };
-		1B1800010000000000000002 /* EventKitCalendarProjectionImporterTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EventKitCalendarProjectionImporterTests.swift; sourceTree = "<group>"; };
-		1B1800010000000000000004 /* EventKitCalendarProjectionImporter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EventKitCalendarProjectionImporter.swift; sourceTree = "<group>"; };
-		1B2000010000000000000002 /* PortableExportView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PortableExportView.swift; sourceTree = "<group>"; };
-		1B2100010000000000000002 /* PortableRestoreView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PortableRestoreView.swift; sourceTree = "<group>"; };
+		F6158744F9B1B175056E79CA /* BundledCatalogRepository.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BundledCatalogRepository.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -118,6 +153,14 @@
 			buildActionMask = 2147483647;
 			files = (
 				73C2C4432A240F796882FCD9 /* SubscriptionCore in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		4C42055694A559E7BEC3B2B6 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				08A4E57068D41F3F857F3327 /* SubscriptionCore in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -145,6 +188,7 @@
 			children = (
 				9FEF1B3C25246E96015F3FB1 /* AppDependencies.swift */,
 				03DFA150363397FA01C93872 /* SubscriptionManagerApp.swift */,
+				BF78C8D1470F9E0A4F09112F /* WidgetSnapshotPublisher.swift */,
 			);
 			path = App;
 			sourceTree = "<group>";
@@ -153,15 +197,24 @@
 			isa = PBXGroup;
 			children = (
 				8D1784DAF6D526C287B9B8CF /* Info.plist */,
+				80BE4889FA614AABADFAC968 /* SubscriptionManager.entitlements */,
 				2360679A7B1308DF2E926578 /* App */,
-				1B0600010000000000000007 /* Catalog */,
+				D2B6A0902C6A9C20F8632959 /* Calendar */,
+				E0FC65A280B01C63999EA02E /* Catalog */,
 				438293401ACA5626F66CBFAC /* Library */,
 				EF3A0C116AD330A62C107F93 /* Persistence */,
-				1B1600010000000000000003 /* Sync */,
-				1B1800010000000000000005 /* Calendar */,
 				8AC3B566569D42543C5D51CB /* Resources */,
+				2E26132264F9E5A39059498D /* Sync */,
 			);
 			path = SubscriptionManager;
+			sourceTree = "<group>";
+		};
+		2E26132264F9E5A39059498D /* Sync */ = {
+			isa = PBXGroup;
+			children = (
+				4C641E399B272135737B7EF9 /* CloudKitLibrarySyncMonitor.swift */,
+			);
+			path = Sync;
 			sourceTree = "<group>";
 		};
 		330771DFBD330C997380DE27 = {
@@ -171,59 +224,43 @@
 				290714ACD769A082A5CCAE7D /* SubscriptionManager */,
 				8DE509BE733D1FCB078CC966 /* SubscriptionManagerTests */,
 				5354945DBF005C0FA67FB4EC /* SubscriptionManagerUITests */,
+				429BF48C487ABD842E56D12E /* SubscriptionManagerWidget */,
 				91D10F42CF493F725CBDF4AC /* Products */,
 			);
+			sourceTree = "<group>";
+		};
+		429BF48C487ABD842E56D12E /* SubscriptionManagerWidget */ = {
+			isa = PBXGroup;
+			children = (
+				CB5C96CFD90987789D5FBBB5 /* Info.plist */,
+				C0A423C4110A0F526EE23D14 /* Localizable.xcstrings */,
+				5CC10FC8A411B77E62CFF99F /* SubscriptionManagerWidget.entitlements */,
+				53D835B74581775DBE9B5313 /* SubscriptionManagerWidget.swift */,
+			);
+			path = SubscriptionManagerWidget;
 			sourceTree = "<group>";
 		};
 		438293401ACA5626F66CBFAC /* Library */ = {
 			isa = PBXGroup;
 			children = (
-				1B1700010000000000000002 /* CalendarProjectionView.swift */,
-				1B2000010000000000000002 /* PortableExportView.swift */,
-				1B2100010000000000000002 /* PortableRestoreView.swift */,
 				3E375325DBD112A5F485EF3F /* AddSubscriptionView.swift */,
-				1B0500010000000000000002 /* ConfirmChargeView.swift */,
 				54AE7D1E07F1BF787F9E1BEF /* BillingScheduleSupport.swift */,
+				C0EAF91956261FDFF4C91AAD /* CalendarProjectionView.swift */,
+				433C5876A0B42C2F728CB2BA /* ConfirmChargeView.swift */,
 				33F67B88372C24F8FA06E7F1 /* EditSubscriptionView.swift */,
 				15EA34A86C81D0560BC4A8A0 /* LibraryView.swift */,
 				C3C019FF49A9B77C9987C82B /* MoneyFormatting.swift */,
+				164F6C4095D2303AF7680828 /* PortableExportView.swift */,
+				3D462734DE864FE8B34F0EFE /* PortableRestoreView.swift */,
 				A93524FB8A11100D270A0930 /* ReactivateSubscriptionView.swift */,
 				53CF076D96FF1C31ED7EC2A2 /* RecordCancellationView.swift */,
-				1B0500010000000000000004 /* RecordPriceChangeView.swift */,
+				6D7EF077DB4CCAEF72B8D27F /* RecordPriceChangeView.swift */,
 				6F7965D45867F28DAFB96A5D /* SubscriptionDetailView.swift */,
 				2CAE4BF38A7217C53E4C047F /* SubscriptionFormSupport.swift */,
 				4C0A8035198E253EFD0921C9 /* SubscriptionLifecycleSupport.swift */,
 				F24364E7E6897202F27AAE1B /* SubscriptionRow.swift */,
 			);
 			path = Library;
-			sourceTree = "<group>";
-		};
-		1B0600010000000000000007 /* Catalog */ = {
-			isa = PBXGroup;
-			children = (
-				1B0600010000000000000009 /* CatalogBrowserView.swift */,
-				1B0600010000000000000011 /* CatalogPresetDetailView.swift */,
-				1B0600010000000000000006 /* BundledCatalogRepository.swift */,
-				1B0700010000000000000002 /* FileCatalogCache.swift */,
-				1B0700010000000000000004 /* GitHubCatalogUpdateSource.swift */,
-			);
-			path = Catalog;
-			sourceTree = "<group>";
-		};
-		1B1600010000000000000003 /* Sync */ = {
-			isa = PBXGroup;
-			children = (
-				1B1600010000000000000002 /* CloudKitLibrarySyncMonitor.swift */,
-			);
-			path = Sync;
-			sourceTree = "<group>";
-		};
-		1B1800010000000000000005 /* Calendar */ = {
-			isa = PBXGroup;
-			children = (
-				1B1800010000000000000004 /* EventKitCalendarProjectionImporter.swift */,
-			);
-			path = Calendar;
 			sourceTree = "<group>";
 		};
 		5354945DBF005C0FA67FB4EC /* SubscriptionManagerUITests */ = {
@@ -237,7 +274,8 @@
 		8AC3B566569D42543C5D51CB /* Resources */ = {
 			isa = PBXGroup;
 			children = (
-				1B0600010000000000000004 /* catalog-v1.json */,
+				CF73BE31E7CBFDDF0AED3F4F /* CATALOG_METADATA_LICENSE.md */,
+				1DB077A74E0C9E4C7BB81F81 /* catalog-v1.json */,
 				4D90D49FB3AEDF62EFA48202 /* InfoPlist.xcstrings */,
 				0AB60CE097AABC95DB396296 /* Localizable.xcstrings */,
 			);
@@ -247,9 +285,9 @@
 		8DE509BE733D1FCB078CC966 /* SubscriptionManagerTests */ = {
 			isa = PBXGroup;
 			children = (
-				1B1800010000000000000002 /* EventKitCalendarProjectionImporterTests.swift */,
 				178B2F8071F3AA4EEB4EF445 /* AppDependenciesTests.swift */,
-				1B0600010000000000000002 /* BundledCatalogRepositoryTests.swift */,
+				E8E32D343532C15910A82133 /* BundledCatalogRepositoryTests.swift */,
+				0ADA9475AF293852B7FA737C /* EventKitCalendarProjectionImporterTests.swift */,
 				A40A43B15F2DC8026034E7B6 /* ManagementURLValidationTests.swift */,
 				1D994A995E43724CEF005FA7 /* MoneyFormattingTests.swift */,
 				3ED395A87C6661BAAA9E98BB /* SubscriptionLookupTests.swift */,
@@ -264,8 +302,29 @@
 				A51067E214337D512DCE7E15 /* SubscriptionManager.app */,
 				99D687DDF8D151CB8B4AB595 /* SubscriptionManagerTests.xctest */,
 				417B504B82A0927D26DDDB31 /* SubscriptionManagerUITests.xctest */,
+				66E23744D45A7495B51097E2 /* SubscriptionManagerWidget.appex */,
 			);
 			name = Products;
+			sourceTree = "<group>";
+		};
+		D2B6A0902C6A9C20F8632959 /* Calendar */ = {
+			isa = PBXGroup;
+			children = (
+				0842A2D743C1E14345B79D96 /* EventKitCalendarProjectionImporter.swift */,
+			);
+			path = Calendar;
+			sourceTree = "<group>";
+		};
+		E0FC65A280B01C63999EA02E /* Catalog */ = {
+			isa = PBXGroup;
+			children = (
+				F6158744F9B1B175056E79CA /* BundledCatalogRepository.swift */,
+				5617F30677EE31D6D1BA649C /* CatalogBrowserView.swift */,
+				41A00EB2BB490F786F4D0953 /* CatalogPresetDetailView.swift */,
+				5B719388CA82311FED0FEB46 /* FileCatalogCache.swift */,
+				E06ED39F4F3A5F168380926E /* GitHubCatalogUpdateSource.swift */,
+			);
+			path = Catalog;
 			sourceTree = "<group>";
 		};
 		EF3A0C116AD330A62C107F93 /* Persistence */ = {
@@ -280,6 +339,26 @@
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
+		21E9F491093B85881405063B /* SubscriptionManagerWidget */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 9DF56F7898D7F03C18F0BEAB /* Build configuration list for PBXNativeTarget "SubscriptionManagerWidget" */;
+			buildPhases = (
+				599218F18812D4425A03C3AF /* Sources */,
+				577D9F5FB5A69B96A3365BBD /* Resources */,
+				4C42055694A559E7BEC3B2B6 /* Frameworks */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = SubscriptionManagerWidget;
+			packageProductDependencies = (
+				2EE7A221C94060E2B403FAB3 /* SubscriptionCore */,
+			);
+			productName = SubscriptionManagerWidget;
+			productReference = 66E23744D45A7495B51097E2 /* SubscriptionManagerWidget.appex */;
+			productType = "com.apple.product-type.app-extension";
+		};
 		56B439A7F4EE5BEA55D5EE49 /* SubscriptionManager */ = {
 			isa = PBXNativeTarget;
 			buildConfigurationList = 399D641B54CC2C910B7B2090 /* Build configuration list for PBXNativeTarget "SubscriptionManager" */;
@@ -287,10 +366,12 @@
 				79057D6825C052EBE1FBA7B0 /* Sources */,
 				EF0F8F628B42511776D79188 /* Resources */,
 				56391C7CCBE0DD97C44297FC /* Frameworks */,
+				B3B4F32AA7E5386AC44F8C38 /* Embed Foundation Extensions */,
 			);
 			buildRules = (
 			);
 			dependencies = (
+				E52B77EFF60B06E7B93ED454 /* PBXTargetDependency */,
 			);
 			name = SubscriptionManager;
 			packageProductDependencies = (
@@ -371,6 +452,7 @@
 			projectRoot = "";
 			targets = (
 				56B439A7F4EE5BEA55D5EE49 /* SubscriptionManager */,
+				21E9F491093B85881405063B /* SubscriptionManagerWidget */,
 				8EF6D325FD11789E1AAF40EF /* SubscriptionManagerTests */,
 				C31F72127A379DD9E25117AA /* SubscriptionManagerUITests */,
 			);
@@ -378,43 +460,60 @@
 /* End PBXProject section */
 
 /* Begin PBXResourcesBuildPhase section */
+		577D9F5FB5A69B96A3365BBD /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				28984F46B98D36A9E90C9FE2 /* Localizable.xcstrings in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		EF0F8F628B42511776D79188 /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				1B0600010000000000000003 /* catalog-v1.json in Resources */,
+				51B20289CC5385F1DFDA4536 /* CATALOG_METADATA_LICENSE.md in Resources */,
 				665528E003EC11A9189C1B7D /* InfoPlist.xcstrings in Resources */,
 				9C86757EC90F9573E7228788 /* Localizable.xcstrings in Resources */,
+				D5FE413ECB49E303A5EE9F07 /* catalog-v1.json in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
+		599218F18812D4425A03C3AF /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				964962A62D11B3CCB4389E47 /* SubscriptionManagerWidget.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		79057D6825C052EBE1FBA7B0 /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				1B1800010000000000000003 /* EventKitCalendarProjectionImporter.swift in Sources */,
-				1B1700010000000000000001 /* CalendarProjectionView.swift in Sources */,
-				1B2000010000000000000001 /* PortableExportView.swift in Sources */,
-				1B2100010000000000000001 /* PortableRestoreView.swift in Sources */,
-				1B0600010000000000000008 /* CatalogBrowserView.swift in Sources */,
-				1B0600010000000000000010 /* CatalogPresetDetailView.swift in Sources */,
-				1B0600010000000000000005 /* BundledCatalogRepository.swift in Sources */,
-				1B0700010000000000000001 /* FileCatalogCache.swift in Sources */,
-				1B0700010000000000000003 /* GitHubCatalogUpdateSource.swift in Sources */,
-				1B1600010000000000000001 /* CloudKitLibrarySyncMonitor.swift in Sources */,
 				95DD1A1B26E3AC5313818053 /* AddSubscriptionView.swift in Sources */,
-				1B0500010000000000000001 /* ConfirmChargeView.swift in Sources */,
 				8BDFDA89FC3799D7A394A305 /* AppDependencies.swift in Sources */,
 				A105480E30F53C6D44A30A8F /* BillingScheduleSupport.swift in Sources */,
+				B3BF2675BDDE0A05AF595127 /* BundledCatalogRepository.swift in Sources */,
+				D0321047EAB970503FB76AD5 /* CalendarProjectionView.swift in Sources */,
+				A66C78E13D3580B57945C076 /* CatalogBrowserView.swift in Sources */,
+				0666A187883887DBEE6F3855 /* CatalogPresetDetailView.swift in Sources */,
+				401275AD1970EE4B07820785 /* CloudKitLibrarySyncMonitor.swift in Sources */,
+				410E3FCE6503EF3C58F48873 /* ConfirmChargeView.swift in Sources */,
 				CF6E7CA71A3B6B192FC10E3D /* EditSubscriptionView.swift in Sources */,
+				573D19E1A08508BA1865924A /* EventKitCalendarProjectionImporter.swift in Sources */,
+				73E4D9C5EAE129D2A72C26FC /* FileCatalogCache.swift in Sources */,
+				BE216D6C64C7F5B6FBA9D245 /* GitHubCatalogUpdateSource.swift in Sources */,
 				C9F6A31BE02C4B3821562DFC /* LibraryView.swift in Sources */,
 				6660C4236F0802CD6EA713D1 /* MoneyFormatting.swift in Sources */,
+				0B04FE82A821F3CEA01F23B7 /* PortableExportView.swift in Sources */,
+				DEC01EB4E532BAC0F3359C00 /* PortableRestoreView.swift in Sources */,
 				29ACA04B956288B794B208B0 /* ReactivateSubscriptionView.swift in Sources */,
 				5A00649C395B2B471599C013 /* RecordCancellationView.swift in Sources */,
-				1B0500010000000000000003 /* RecordPriceChangeView.swift in Sources */,
+				CD2F7E3555106B7275202D40 /* RecordPriceChangeView.swift in Sources */,
 				4C12D90EEC1CC642D35E22A2 /* SubscriptionDetailView.swift in Sources */,
 				71D3C438264BA1B8C68FE357 /* SubscriptionFormSupport.swift in Sources */,
 				AFD2FBBC3C7453EE8B17A22D /* SubscriptionLifecycleSupport.swift in Sources */,
@@ -422,6 +521,7 @@
 				866177EEBBB6B76DADA471C2 /* SubscriptionRecord.swift in Sources */,
 				E3EC37D5EF593651F866C788 /* SubscriptionRow.swift in Sources */,
 				54723BACD6E59DC50EEFDCED /* SwiftDataSubscriptionRepository.swift in Sources */,
+				842D256F471F88B7082CF25B /* WidgetSnapshotPublisher.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -437,9 +537,9 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				1B1800010000000000000001 /* EventKitCalendarProjectionImporterTests.swift in Sources */,
 				FE9D2A03AAAF24FCBDC2CEA0 /* AppDependenciesTests.swift in Sources */,
-				1B0600010000000000000001 /* BundledCatalogRepositoryTests.swift in Sources */,
+				1542C108546F4227953D1C2E /* BundledCatalogRepositoryTests.swift in Sources */,
+				8E78AFCD49FF2D2EEBC82BEE /* EventKitCalendarProjectionImporterTests.swift in Sources */,
 				F67C63EB88D910146E613A1A /* ManagementURLValidationTests.swift in Sources */,
 				CD2E291B88ADA438114AEA63 /* MoneyFormattingTests.swift in Sources */,
 				07BD717C844F32E7282360A2 /* SubscriptionLookupTests.swift in Sources */,
@@ -454,6 +554,12 @@
 			isa = PBXTargetDependency;
 			target = 56B439A7F4EE5BEA55D5EE49 /* SubscriptionManager */;
 			targetProxy = F6ADE214110C6AAEAF9E7231 /* PBXContainerItemProxy */;
+		};
+		E52B77EFF60B06E7B93ED454 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			platformFilter = ios;
+			target = 21E9F491093B85881405063B /* SubscriptionManagerWidget */;
+			targetProxy = A908677E8961223AFA1D009C /* PBXContainerItemProxy */;
 		};
 		E68F9056E1EF6C13BC991365 /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
@@ -518,7 +624,6 @@
 				MTL_ENABLE_DEBUG_INFO = NO;
 				MTL_FAST_MATH = YES;
 				PRODUCT_NAME = "$(TARGET_NAME)";
-				SDKROOT = auto;
 				SWIFT_COMPILATION_MODE = wholemodule;
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_OPTIMIZATION_LEVEL = "-O";
@@ -530,9 +635,9 @@
 		235D4C6A2EF97463CDAF1134 /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				APP_GROUP_IDENTIFIER = group.com.klausc06.SubscriptionManager;
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
-				CODE_SIGN_ENTITLEMENTS = SubscriptionManager/SubscriptionManager.entitlements;
 				"CODE_SIGN_IDENTITY[sdk=macosx*]" = "-";
 				"CODE_SIGN_STYLE[sdk=macosx*]" = Manual;
 				"DEVELOPMENT_TEAM[sdk=macosx*]" = "";
@@ -580,9 +685,9 @@
 		906C8C11EB8C1922291138CE /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				APP_GROUP_IDENTIFIER = group.com.klausc06.SubscriptionManager;
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
-				CODE_SIGN_ENTITLEMENTS = SubscriptionManager/SubscriptionManager.entitlements;
 				"CODE_SIGN_IDENTITY[sdk=macosx*]" = "-";
 				"CODE_SIGN_STYLE[sdk=macosx*]" = Manual;
 				"DEVELOPMENT_TEAM[sdk=macosx*]" = "";
@@ -687,7 +792,6 @@
 				MTL_FAST_MATH = YES;
 				ONLY_ACTIVE_ARCH = YES;
 				PRODUCT_NAME = "$(TARGET_NAME)";
-				SDKROOT = auto;
 				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
@@ -695,6 +799,40 @@
 				SWIFT_VERSION = 6.0;
 			};
 			name = Debug;
+		};
+		D05CBF808400DC8AFCA962B4 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				APP_GROUP_IDENTIFIER = group.com.klausc06.SubscriptionManager;
+				CODE_SIGN_ENTITLEMENTS = SubscriptionManagerWidget/SubscriptionManagerWidget.entitlements;
+				INFOPLIST_FILE = SubscriptionManagerWidget/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.klausc06.SubscriptionManager.Widget;
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		D8BD76FD4660BD19EE34FB30 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				APP_GROUP_IDENTIFIER = group.com.klausc06.SubscriptionManager;
+				CODE_SIGN_ENTITLEMENTS = SubscriptionManagerWidget/SubscriptionManagerWidget.entitlements;
+				INFOPLIST_FILE = SubscriptionManagerWidget/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.klausc06.SubscriptionManager.Widget;
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
 		};
 		E4176EA6D439E187792956ED /* Release */ = {
 			isa = XCBuildConfiguration;
@@ -785,6 +923,15 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Debug;
 		};
+		9DF56F7898D7F03C18F0BEAB /* Build configuration list for PBXNativeTarget "SubscriptionManagerWidget" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				D05CBF808400DC8AFCA962B4 /* Debug */,
+				D8BD76FD4660BD19EE34FB30 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
 /* End XCConfigurationList section */
 
 /* Begin XCLocalSwiftPackageReference section */
@@ -795,6 +942,10 @@
 /* End XCLocalSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
+		2EE7A221C94060E2B403FAB3 /* SubscriptionCore */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = SubscriptionCore;
+		};
 		30FD0B5354BE8274C66402A8 /* SubscriptionCore */ = {
 			isa = XCSwiftPackageProductDependency;
 			productName = SubscriptionCore;

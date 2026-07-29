@@ -38,6 +38,55 @@ public struct WidgetSnapshot: Codable, Equatable, Sendable {
     }
 }
 
+/// A deliberately small shared-store boundary for WidgetKit extensions.
+///
+/// The store contains only a derived renewal snapshot. It never opens the
+/// Subscription Library or performs a network request from the extension.
+public final class WidgetSnapshotStore {
+    public static let appGroupIdentifier =
+        "group.com.klausc06.SubscriptionManager"
+    public static let snapshotKey = "subscription-manager.widget-snapshot"
+
+    private let defaults: UserDefaults
+    private let encoder: JSONEncoder
+    private let decoder: JSONDecoder
+
+    public init(defaults: UserDefaults) {
+        self.defaults = defaults
+        encoder = JSONEncoder()
+        encoder.dateEncodingStrategy = .iso8601
+        decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+    }
+
+    public convenience init?(suiteName: String) {
+        guard let defaults = UserDefaults(suiteName: suiteName) else {
+            return nil
+        }
+        self.init(defaults: defaults)
+    }
+
+    public func write(_ snapshot: WidgetSnapshot) {
+        guard let data = try? encoder.encode(snapshot) else { return }
+        defaults.set(data, forKey: Self.snapshotKey)
+    }
+
+    public func read() -> WidgetSnapshot? {
+        guard let data = defaults.data(forKey: Self.snapshotKey),
+              let snapshot = try? decoder.decode(WidgetSnapshot.self, from: data),
+              snapshot.version == WidgetSnapshot.currentVersion
+        else {
+            return nil
+        }
+        return snapshot
+    }
+}
+
+@MainActor
+public protocol WidgetSnapshotPublishing {
+    func publish(_ snapshot: WidgetSnapshot)
+}
+
 public enum WidgetPrivacyMode: Equatable, Sendable {
     case standard
     case redacted

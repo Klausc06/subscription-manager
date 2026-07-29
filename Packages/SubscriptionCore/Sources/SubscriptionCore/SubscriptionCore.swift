@@ -513,6 +513,7 @@ public final class SubscriptionWorkspace {
     private let preferencesRepository: (any UserPreferencesRepository)?
     private let portableBackupImportRepository:
         (any PortableBackupImportRepository)?
+    private let widgetSnapshotPublisher: (any WidgetSnapshotPublishing)?
     private let catalogRepository: (any CatalogRepository)?
     private let catalogUpdateSource: (any CatalogUpdateSource)?
     private let catalogCache: (any CatalogCache)?
@@ -537,6 +538,7 @@ public final class SubscriptionWorkspace {
         preferencesRepository: (any UserPreferencesRepository)? = nil,
         portableBackupImportRepository:
             (any PortableBackupImportRepository)? = nil,
+        widgetSnapshotPublisher: (any WidgetSnapshotPublishing)? = nil,
         catalogRepository: (any CatalogRepository)? = nil,
         catalogUpdateSource: (any CatalogUpdateSource)? = nil,
         catalogCache: (any CatalogCache)? = nil,
@@ -553,6 +555,7 @@ public final class SubscriptionWorkspace {
         self.repository = repository
         self.preferencesRepository = preferencesRepository
         self.portableBackupImportRepository = portableBackupImportRepository
+        self.widgetSnapshotPublisher = widgetSnapshotPublisher
         self.catalogRepository = catalogRepository
         self.catalogUpdateSource = catalogUpdateSource
         self.catalogCache = catalogCache
@@ -1495,8 +1498,40 @@ public final class SubscriptionWorkspace {
         libraryState = .loading(scope)
         do {
             libraryState = try makeLibraryState(scope: scope)
+            publishWidgetSnapshot()
         } catch {
             libraryState = .failed(scope)
+        }
+    }
+
+    public func makeWidgetSnapshot() -> WidgetSnapshot? {
+        do {
+            let nextRenewal = try repository.listSubscriptions()
+                .compactMap { subscription -> WidgetRenewalSnapshot? in
+                    guard let charge = makeExpectedCharges(
+                        for: subscription,
+                        through: .distantFuture,
+                        maximumCount: 1
+                    ).first else {
+                        return nil
+                    }
+                    return WidgetRenewalSnapshot(
+                        subscriptionID: subscription.id,
+                        serviceName: subscription.serviceName,
+                        renewalDate: charge.scheduledDate,
+                        amountDescription: formattedWidgetAmount(charge.amount),
+                        isRateStale: false
+                    )
+                }
+                .min { lhs, rhs in
+                    if lhs.renewalDate != rhs.renewalDate {
+                        return lhs.renewalDate < rhs.renewalDate
+                    }
+                    return lhs.subscriptionID.uuidString < rhs.subscriptionID.uuidString
+                }
+            return WidgetSnapshot(generatedAt: now(), nextRenewal: nextRenewal)
+        } catch {
+            return nil
         }
     }
 
@@ -1798,6 +1833,17 @@ public final class SubscriptionWorkspace {
         TimeZone(
             identifier: subscription.billingSchedule.timeZoneIdentifier
         ) ?? calendar.timeZone
+    }
+
+    private func publishWidgetSnapshot() {
+        guard let snapshot = makeWidgetSnapshot() else { return }
+        widgetSnapshotPublisher?.publish(snapshot)
+    }
+
+    private func formattedWidgetAmount(_ money: Money) -> String {
+        (Decimal(money.minorUnits) / 100).formatted(
+            .currency(code: money.currency.rawValue).locale(.current)
+        )
     }
 
     private func finishLifecycleUpdate(

@@ -37,6 +37,22 @@ struct PortableExportTests {
             )
         )
     }
+
+    @Test("Widget snapshots round trip through a local shared store")
+    func widgetSnapshotStoreRoundTripsOnlyCurrentSchema() {
+        let suiteName = "SubscriptionCoreTests.WidgetSnapshot.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        let snapshot = WidgetSnapshot(
+            generatedAt: Date(timeIntervalSince1970: 1_704_067_200),
+            nextRenewal: nil
+        )
+        let store = WidgetSnapshotStore(defaults: defaults)
+
+        store.write(snapshot)
+
+        #expect(store.read() == snapshot)
+    }
     @Test("A versioned backup round trips stable subscription and preference data")
     func backupRoundTrips() throws {
         let subscription = Subscription(

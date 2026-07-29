@@ -69,6 +69,9 @@ struct AppDependencies {
             failsLifecycleMutations: failsLifecycleMutations,
             allowsExchangeRateNetworking: !effectiveArguments.contains("--ui-testing"),
             allowsCalendarImport: selection == .production,
+            widgetSnapshotPublisher: selection == .production
+                ? AppGroupWidgetSnapshotPublisher()
+                : nil,
             syncMonitor: selection == .production
                 ? CloudKitLibrarySyncMonitor()
                 : nil
@@ -127,6 +130,7 @@ struct AppDependencies {
         failsLifecycleMutations: Bool = false,
         allowsExchangeRateNetworking: Bool = true,
         allowsCalendarImport: Bool = false,
+        widgetSnapshotPublisher: (any WidgetSnapshotPublishing)? = nil,
         syncMonitor: (any LibrarySyncMonitor)? = nil,
         modelContainer: () throws -> ModelContainer
     ) -> AppStartupState {
@@ -195,6 +199,7 @@ struct AppDependencies {
                         preferencesRepository: preferencesRepository,
                         portableBackupImportRepository:
                             portableBackupImportRepository,
+                        widgetSnapshotPublisher: widgetSnapshotPublisher,
                         catalogRepository: catalogRepository,
                         catalogUpdateSource: GitHubCatalogUpdateSource(),
                         catalogCache: catalogCache,

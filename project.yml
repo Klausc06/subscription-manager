@@ -35,6 +35,9 @@ targets:
         optional: true
     dependencies:
       - package: SubscriptionCore
+      - target: SubscriptionManagerWidget
+        embed: true
+        platformFilter: iOS
     info:
       path: SubscriptionManager/Info.plist
       properties:
@@ -43,13 +46,35 @@ targets:
         CFBundleVersion: "$(CURRENT_PROJECT_VERSION)"
         LSApplicationCategoryType: public.app-category.finance
         UILaunchScreen: {}
+        UIBackgroundModes:
+          - remote-notification
+        NSCalendarsFullAccessUsageDescription: Subscription Manager uses full Calendar access only after you choose Import to Calendar, so it can keep your dedicated renewal calendar free of duplicate events.
+        CFBundleURLTypes:
+          - CFBundleURLSchemes:
+              - subscription-manager
     settings:
       base:
         "CODE_SIGN_IDENTITY[sdk=macosx*]": "-"
         "CODE_SIGN_STYLE[sdk=macosx*]": Manual
         "DEVELOPMENT_TEAM[sdk=macosx*]": ""
+        APP_GROUP_IDENTIFIER: group.com.klausc06.SubscriptionManager
         PRODUCT_BUNDLE_IDENTIFIER: com.klausc06.SubscriptionManager
         SUPPORTS_MACCATALYST: false
+        TARGETED_DEVICE_FAMILY: "1,2"
+
+  SubscriptionManagerWidget:
+    type: app-extension
+    platform: iOS
+    sources:
+      - path: SubscriptionManagerWidget
+    dependencies:
+      - package: SubscriptionCore
+    settings:
+      base:
+        CODE_SIGN_ENTITLEMENTS: SubscriptionManagerWidget/SubscriptionManagerWidget.entitlements
+        APP_GROUP_IDENTIFIER: group.com.klausc06.SubscriptionManager
+        INFOPLIST_FILE: SubscriptionManagerWidget/Info.plist
+        PRODUCT_BUNDLE_IDENTIFIER: com.klausc06.SubscriptionManager.Widget
         TARGETED_DEVICE_FAMILY: "1,2"
 
   SubscriptionManagerTests:

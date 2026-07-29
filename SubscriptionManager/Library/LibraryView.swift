@@ -15,6 +15,7 @@ struct LibraryView: View {
     @State private var isSetupPresented = false
     @State private var isPreferencesPresented = false
     @State private var selectedDestination: RootDestination = .subscriptions
+    @State private var subscriptionsPath: [UUID] = []
 
     var body: some View {
         rootContent
@@ -40,6 +41,7 @@ struct LibraryView: View {
         .task {
             loadInitialState()
         }
+        .onOpenURL(perform: openDeepLink)
     }
 
     @ViewBuilder
@@ -138,7 +140,7 @@ struct LibraryView: View {
     }
 
     private var subscriptionsTab: some View {
-        NavigationStack {
+        NavigationStack(path: $subscriptionsPath) {
             ScopedLibraryView(
                 workspace: workspace,
                 scope: .current,
@@ -170,6 +172,19 @@ struct LibraryView: View {
 
     private func presentPreferences() {
         isPreferencesPresented = true
+    }
+
+    private func openDeepLink(_ url: URL) {
+        guard url.scheme == "subscription-manager" else { return }
+        selectedDestination = .subscriptions
+        guard url.host == "subscription",
+              let identifier = url.pathComponents.dropFirst().first,
+              let subscriptionID = UUID(uuidString: identifier)
+        else {
+            subscriptionsPath = []
+            return
+        }
+        subscriptionsPath = [subscriptionID]
     }
 
     private func loadInitialState() {
