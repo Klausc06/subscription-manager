@@ -50,8 +50,10 @@ Simulator session before closing TB-25.
 - Real iPhone, iPad, and Mac acceptance, including VoiceOver, Dynamic Type,
   keyboard navigation, and reduced-motion scenarios.
 - A signed-in private CloudKit and EventKit convergence pass on physical
-  devices. The connected iPhone is visible to Xcode but currently has
-  Developer Mode disabled, so it cannot run a development build until that
-  device setting is enabled. Calendar permission must remain user-initiated.
+  devices. Developer Mode was enabled on the connected iPhone on 2026-07-29
+  and Xcode recognizes it as a valid destination. Deployment remains blocked
+  because this Mac has no valid Apple Development signing identity and the
+  app and Widget targets have no development team configured. Calendar
+  permission must remain user-initiated.
 - Manual MenuBarExtra close/reopen/disable/explicit-quit and Login Items
   approval-state scenarios on macOS.
