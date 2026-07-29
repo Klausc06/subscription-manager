@@ -1,4 +1,5 @@
 import EventKit
+import AppIntents
 import SwiftData
 import SubscriptionCore
 import SwiftUI
@@ -9,8 +10,16 @@ struct SubscriptionManagerApp: App {
     @Environment(\.scenePhase) private var scenePhase
     private let startupState: AppStartupState
 
+    @MainActor
     init() {
         startupState = AppDependencies.live()
+        if case .ready(let dependencies) = startupState {
+            AppDependencyManager.shared.add(
+                dependency: SubscriptionIntentService(
+                    workspace: dependencies.workspace
+                )
+            )
+        }
     }
 
     var body: some Scene {

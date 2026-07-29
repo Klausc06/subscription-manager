@@ -719,6 +719,12 @@
     "Total" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Total" } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "总额" } } } },
     "Total Mode" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Total Mode" } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "汇总方式" } } } },
     "Using cached rates from %@" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Using cached rates from %@" } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "正在使用 %@ 的缓存汇率" } } } },
+    "Add a subscription to your library." : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Add a subscription to your library." } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "将订阅添加到你的订阅库。" } } } },
+    "Show Upcoming Renewals" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Show Upcoming Renewals" } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "显示即将续费" } } } },
+    "Show Monthly Forecast" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Show Monthly Forecast" } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "显示月度预测" } } } },
+    "Show your upcoming subscription renewals." : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Show your upcoming subscription renewals." } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "显示你即将续费的订阅。" } } } },
+    "Show this month’s expected subscription spending." : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Show this month’s expected subscription spending." } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "显示本月预计订阅支出。" } } } },
+    "Subscription added." : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Subscription added." } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "已添加订阅。" } } } },
     "Your subscriptions will appear here." : {
       "localizations" : {
         "en" : {
