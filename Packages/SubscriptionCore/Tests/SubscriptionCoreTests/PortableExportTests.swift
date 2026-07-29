@@ -182,6 +182,54 @@ struct PortableExportTests {
         #expect(preview.retainedLocalSubscriptionIDs == [retainedLocal.id])
         #expect(preview.preferences == .unchanged)
     }
+
+    @Test("Workspace only submits a fully resolved portable merge")
+    @MainActor
+    func workspaceSubmitsResolvedPortableMergeOnce() throws {
+        let local = portableSubscription(
+            id: UUID(uuidString: "55555555-2222-3333-4444-555555555555")!,
+            name: "Local"
+        )
+        let backupVersion = portableSubscription(id: local.id, name: "Backup")
+        let addition = portableSubscription(
+            id: UUID(uuidString: "66666666-2222-3333-4444-555555555555")!,
+            name: "Addition"
+        )
+        let repository = ExportRepositoryFixture(subscriptions: [local])
+        let importer = RecordingPortableImportRepository()
+        let workspace = SubscriptionWorkspace(
+            repository: repository,
+            portableBackupImportRepository: importer
+        )
+        let data = try PortableBackupEncoder().encode(
+            PortableBackup(preferences: .default, subscriptions: [backupVersion, addition])
+        )
+        let preview = try workspace.preparePortableBackupImport(data)
+
+        #expect(throws: PortableBackupImportError.incompleteConflictResolution) {
+            try workspace.applyPortableBackupImport(
+                preview: preview,
+                selectedAdditionIDs: Set([addition.id]),
+                conflictResolutions: [:],
+                preferencesResolution: nil
+            )
+        }
+        #expect(importer.merges.isEmpty)
+
+        try workspace.applyPortableBackupImport(
+            preview: preview,
+            selectedAdditionIDs: Set([addition.id]),
+            conflictResolutions: [local.id: .useBackup],
+            preferencesResolution: nil
+        )
+        #expect(importer.merges == [
+            PortableBackupMerge(
+                additions: [addition],
+                replacements: [backupVersion],
+                preferences: nil
+            )
+        ])
+    }
 }
 
 private struct CSVFixtureParser {
@@ -251,6 +299,15 @@ private final class ExportRepositoryFixture: SubscriptionRepository {
     }
 
     func subscription(id: UUID) throws -> Subscription? { subscriptions[id] }
+}
+
+@MainActor
+private final class RecordingPortableImportRepository: PortableBackupImportRepository {
+    private(set) var merges: [PortableBackupMerge] = []
+
+    func apply(_ merge: PortableBackupMerge) throws {
+        merges.append(merge)
+    }
 }
 
 private func portableSubscription(id: UUID, name: String) -> Subscription {

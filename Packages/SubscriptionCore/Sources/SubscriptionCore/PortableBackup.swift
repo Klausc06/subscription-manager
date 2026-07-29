@@ -135,6 +135,38 @@ public enum PortableBackupPreferencesMerge: Equatable, Sendable {
     case conflict(local: UserPreferences, backup: UserPreferences)
 }
 
+public enum PortableBackupConflictResolution: Equatable, Sendable {
+    case keepLocal
+    case useBackup
+}
+
+public struct PortableBackupMerge: Equatable, Sendable {
+    public let additions: [Subscription]
+    public let replacements: [Subscription]
+    public let preferences: UserPreferences?
+
+    public init(
+        additions: [Subscription],
+        replacements: [Subscription],
+        preferences: UserPreferences?
+    ) {
+        self.additions = additions.sorted { $0.id.uuidString < $1.id.uuidString }
+        self.replacements = replacements.sorted { $0.id.uuidString < $1.id.uuidString }
+        self.preferences = preferences
+    }
+}
+
+public enum PortableBackupImportError: Error, Equatable, Sendable {
+    case unavailable
+    case incompleteConflictResolution
+    case incompletePreferencesResolution
+}
+
+@MainActor
+public protocol PortableBackupImportRepository {
+    func apply(_ merge: PortableBackupMerge) throws
+}
+
 public struct PortableBackupMergePlanner: Sendable {
     public init() {}
 
@@ -178,6 +210,40 @@ public struct PortableBackupMergePlanner: Sendable {
             unchangedSubscriptionIDs: unchangedSubscriptionIDs,
             conflicts: conflicts,
             retainedLocalSubscriptionIDs: retainedLocalSubscriptionIDs,
+            preferences: preferences
+        )
+    }
+
+    public func makeMerge(
+        preview: PortableBackupMergePreview,
+        selectedAdditionIDs: Set<UUID>,
+        conflictResolutions: [UUID: PortableBackupConflictResolution],
+        preferencesResolution: PortableBackupConflictResolution?
+    ) throws -> PortableBackupMerge {
+        guard preview.conflicts.allSatisfy({
+            conflictResolutions[$0.id] != nil
+        }) else {
+            throw PortableBackupImportError.incompleteConflictResolution
+        }
+        let preferences: UserPreferences?
+        switch preview.preferences {
+        case .unchanged:
+            preferences = nil
+        case .conflict(_, let backup):
+            guard let preferencesResolution else {
+                throw PortableBackupImportError.incompletePreferencesResolution
+            }
+            preferences = preferencesResolution == .useBackup ? backup : nil
+        }
+        return PortableBackupMerge(
+            additions: preview.additions.filter {
+                selectedAdditionIDs.contains($0.id)
+            },
+            replacements: preview.conflicts.compactMap { conflict in
+                conflictResolutions[conflict.id] == .useBackup
+                    ? conflict.backup
+                    : nil
+            },
             preferences: preferences
         )
     }

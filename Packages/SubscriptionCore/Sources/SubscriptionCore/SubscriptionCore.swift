@@ -511,6 +511,8 @@ public final class SubscriptionWorkspace {
 
     private let repository: any SubscriptionRepository
     private let preferencesRepository: (any UserPreferencesRepository)?
+    private let portableBackupImportRepository:
+        (any PortableBackupImportRepository)?
     private let catalogRepository: (any CatalogRepository)?
     private let catalogUpdateSource: (any CatalogUpdateSource)?
     private let catalogCache: (any CatalogCache)?
@@ -533,6 +535,8 @@ public final class SubscriptionWorkspace {
     public init(
         repository: any SubscriptionRepository,
         preferencesRepository: (any UserPreferencesRepository)? = nil,
+        portableBackupImportRepository:
+            (any PortableBackupImportRepository)? = nil,
         catalogRepository: (any CatalogRepository)? = nil,
         catalogUpdateSource: (any CatalogUpdateSource)? = nil,
         catalogCache: (any CatalogCache)? = nil,
@@ -548,6 +552,7 @@ public final class SubscriptionWorkspace {
     ) {
         self.repository = repository
         self.preferencesRepository = preferencesRepository
+        self.portableBackupImportRepository = portableBackupImportRepository
         self.catalogRepository = catalogRepository
         self.catalogUpdateSource = catalogUpdateSource
         self.catalogCache = catalogCache
@@ -1605,6 +1610,41 @@ public final class SubscriptionWorkspace {
         } catch {
             return nil
         }
+    }
+
+    public func preparePortableBackupImport(
+        _ data: Data
+    ) throws -> PortableBackupMergePreview {
+        let backup = try PortableBackupValidator().decode(data)
+        let localSubscriptions = try repository.listSubscriptions()
+        let localPreferences = try preferencesRepository?.loadPreferences()
+            ?? currentPreferences
+        return try PortableBackupMergePlanner().makePreview(
+            backup: backup,
+            localSubscriptions: localSubscriptions,
+            localPreferences: localPreferences
+        )
+    }
+
+    public func applyPortableBackupImport(
+        preview: PortableBackupMergePreview,
+        selectedAdditionIDs: Set<UUID>,
+        conflictResolutions: [UUID: PortableBackupConflictResolution],
+        preferencesResolution: PortableBackupConflictResolution?
+    ) throws {
+        guard let portableBackupImportRepository else {
+            throw PortableBackupImportError.unavailable
+        }
+        let merge = try PortableBackupMergePlanner().makeMerge(
+            preview: preview,
+            selectedAdditionIDs: selectedAdditionIDs,
+            conflictResolutions: conflictResolutions,
+            preferencesResolution: preferencesResolution
+        )
+        try portableBackupImportRepository.apply(merge)
+        markLocalChangesForSync()
+        loadLibrary()
+        loadSetup(libraryIsEmpty: false)
     }
 
     public func importCalendarProjection(
