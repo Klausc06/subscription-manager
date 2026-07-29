@@ -10,6 +10,7 @@ Date: 2026-07-29
 | Menu-bar preference coverage | Passed | `swift test --package-path Packages/SubscriptionCore --filter UserPreferencesTests` — 6 tests passed. |
 | Focused app coverage | Passed | iOS Simulator Xcode tests for `MacMenuBarPresentationTests`, `MacWindowRouterTests`, and `AppDependenciesTests`. |
 | Full app unit-test target | Passed | `xcodebuild test -enableCodeCoverage NO … -only-testing:SubscriptionManagerTests` on an isolated iOS 27 simulator. |
+| iPad app unit-test target | Passed | The same `SubscriptionManagerTests` target passed on an iPad Air 11-inch (M4), iOS 27 simulator. |
 | macOS build | Passed | `xcodebuild build -project SubscriptionManager.xcodeproj -scheme SubscriptionManager -destination 'generic/platform=macOS' CODE_SIGNING_ALLOWED=NO`. |
 | iOS Simulator build | Passed | `xcodebuild build -project SubscriptionManager.xcodeproj -scheme SubscriptionManager -destination 'platform=iOS Simulator,id=4BF01B14-BD88-40E6-8DCD-2E91C9857012' CODE_SIGNING_ALLOWED=NO`. |
 | Test-target compilation | Passed | `xcodebuild build-for-testing` for the iOS Simulator destination. |
