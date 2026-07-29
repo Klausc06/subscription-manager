@@ -6,6 +6,7 @@ struct CatalogBrowserView: View {
 
     let workspace: SubscriptionWorkspace
     let onSubscriptionCreated: () -> Void
+    let onCancel: () -> Void
 
     @State private var searchQuery = ""
     @State private var selectedCategoryID: String?
@@ -23,6 +24,12 @@ struct CatalogBrowserView: View {
             }
             .task {
                 workspace.loadCatalog(locale: locale)
+            }
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel", action: onCancel)
+                        .accessibilityIdentifier("catalog.cancel")
+                }
             }
     }
 
@@ -71,6 +78,22 @@ struct CatalogBrowserView: View {
                             .accessibilityIdentifier("catalog.category")
                         }
 
+                        Section {
+                            NavigationLink {
+                                AddSubscriptionView(
+                                    workspace: workspace,
+                                    showsCancellationAction: false,
+                                    onSuccessfulSave: onSubscriptionCreated
+                                )
+                            } label: {
+                                Label(
+                                    "Add Manually",
+                                    systemImage: "square.and.pencil"
+                                )
+                            }
+                            .accessibilityIdentifier("catalog.add-manually")
+                        }
+
                         if sections.isEmpty {
                             Section("Catalog") {
                                 ContentUnavailableView.search(text: searchQuery)
@@ -80,10 +103,11 @@ struct CatalogBrowserView: View {
                                 Section {
                                     ForEach(section.presets) { preset in
                                         NavigationLink {
-                                            CatalogPresetDetailView(
+                                            AddSubscriptionView(
                                                 workspace: workspace,
                                                 preset: preset,
-                                                onSubscriptionCreated:
+                                                showsCancellationAction: false,
+                                                onSuccessfulSave:
                                                     onSubscriptionCreated
                                             )
                                         } label: {

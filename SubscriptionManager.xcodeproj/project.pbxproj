@@ -7,7 +7,6 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
-		0666A187883887DBEE6F3855 /* CatalogPresetDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 41A00EB2BB490F786F4D0953 /* CatalogPresetDetailView.swift */; };
 		07BD717C844F32E7282360A2 /* SubscriptionLookupTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3ED395A87C6661BAAA9E98BB /* SubscriptionLookupTests.swift */; };
 		08A4E57068D41F3F857F3327 /* SubscriptionCore in Frameworks */ = {isa = PBXBuildFile; productRef = 2EE7A221C94060E2B403FAB3 /* SubscriptionCore */; };
 		097A44BB974631E88BE97758 /* CatalogOfferSelectionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = DBD964E5A45925EC35E3893B /* CatalogOfferSelectionTests.swift */; };
@@ -127,7 +126,6 @@
 		3E375325DBD112A5F485EF3F /* AddSubscriptionView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AddSubscriptionView.swift; sourceTree = "<group>"; };
 		3ED395A87C6661BAAA9E98BB /* SubscriptionLookupTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SubscriptionLookupTests.swift; sourceTree = "<group>"; };
 		417B504B82A0927D26DDDB31 /* SubscriptionManagerUITests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = SubscriptionManagerUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
-		41A00EB2BB490F786F4D0953 /* CatalogPresetDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CatalogPresetDetailView.swift; sourceTree = "<group>"; };
 		433C5876A0B42C2F728CB2BA /* ConfirmChargeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConfirmChargeView.swift; sourceTree = "<group>"; };
 		4BB3CC1FBA7074325EA61DC3 /* SubscriptionIntentServiceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SubscriptionIntentServiceTests.swift; sourceTree = "<group>"; };
 		4C0A8035198E253EFD0921C9 /* SubscriptionLifecycleSupport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SubscriptionLifecycleSupport.swift; sourceTree = "<group>"; };
@@ -367,7 +365,6 @@
 				AF747C52A83452ED127F1113 /* CatalogAlphabetIndex.swift */,
 				5617F30677EE31D6D1BA649C /* CatalogBrowserView.swift */,
 				FC8A2E38EC05A9DE6A60E28B /* CatalogOfferSelection.swift */,
-				41A00EB2BB490F786F4D0953 /* CatalogPresetDetailView.swift */,
 				5B719388CA82311FED0FEB46 /* FileCatalogCache.swift */,
 				E06ED39F4F3A5F168380926E /* GitHubCatalogUpdateSource.swift */,
 			);
@@ -549,7 +546,6 @@
 				A86822E9F6BC3549F04478CC /* CatalogAlphabetIndex.swift in Sources */,
 				A66C78E13D3580B57945C076 /* CatalogBrowserView.swift in Sources */,
 				82667428542FCEE4B628F595 /* CatalogOfferSelection.swift in Sources */,
-				0666A187883887DBEE6F3855 /* CatalogPresetDetailView.swift in Sources */,
 				401275AD1970EE4B07820785 /* CloudKitLibrarySyncMonitor.swift in Sources */,
 				410E3FCE6503EF3C58F48873 /* ConfirmChargeView.swift in Sources */,
 				CF6E7CA71A3B6B192FC10E3D /* EditSubscriptionView.swift in Sources */,

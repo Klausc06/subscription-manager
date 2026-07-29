@@ -38,8 +38,8 @@ struct AddSubscriptionView: View {
     init(
         workspace: SubscriptionWorkspace,
         preset: CatalogPreset? = nil,
-        onSuccessfulSave: (() -> Void)? = nil,
-        showsCancellationAction: Bool = true
+        showsCancellationAction: Bool = true,
+        onSuccessfulSave: (() -> Void)? = nil
     ) {
         self.workspace = workspace
         catalogPreset = preset
@@ -103,7 +103,6 @@ struct AddSubscriptionView: View {
     var body: some View {
         Form {
             officialOfferSection
-            creationPathSection
             serviceSection
             subscriptionSection
             if !hasVerifiedOffers || adjustsActualCharge {
@@ -150,27 +149,6 @@ struct AddSubscriptionView: View {
         }
         .onChange(of: selectedOfferID) { _, _ in
             applySelectedOffer()
-        }
-    }
-
-    @ViewBuilder
-    private var creationPathSection: some View {
-        if catalogPresetID == nil {
-            Section("Add Subscription") {
-                NavigationLink {
-                    CatalogBrowserView(
-                        workspace: workspace,
-                        onSubscriptionCreated: { dismiss() }
-                    )
-                } label: {
-                    Label("Browse Catalog", systemImage: "square.grid.2x2")
-                }
-                .accessibilityIdentifier("subscription.add.catalog")
-
-                Text("Or enter all subscription terms manually below.")
-                    .font(.footnote)
-                    .foregroundStyle(.secondary)
-            }
         }
     }
 

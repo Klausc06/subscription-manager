@@ -23,7 +23,16 @@ struct LibraryView: View {
             switch sheet {
             case .addSubscription:
                 NavigationStack {
-                    AddSubscriptionView(workspace: workspace)
+                    CatalogBrowserView(
+                        workspace: workspace,
+                        onSubscriptionCreated: {
+                            presentedSheet = nil
+                            workspace.loadLibrary(scope: .current)
+                        },
+                        onCancel: {
+                            presentedSheet = nil
+                        }
+                    )
                 }
             }
         }
@@ -475,10 +484,11 @@ private struct FirstRunSetupView: View {
             }
             .navigationDestination(for: String.self) { presetID in
                 if let preset = presets.first(where: { $0.id == presetID }) {
-                    CatalogPresetDetailView(
+                    AddSubscriptionView(
                         workspace: workspace,
                         preset: preset,
-                        onSubscriptionCreated: {
+                        showsCancellationAction: false,
+                        onSuccessfulSave: {
                             confirmedPresetIDs.insert(presetID)
                             navigationPath.removeAll()
                         }
@@ -600,7 +610,10 @@ private struct FirstRunSetupView: View {
 
             Section {
                 NavigationLink {
-                    AddSubscriptionView(workspace: workspace)
+                    AddSubscriptionView(
+                        workspace: workspace,
+                        showsCancellationAction: false
+                    )
                 } label: {
                     Label("Add Manually Instead", systemImage: "plus")
                 }
