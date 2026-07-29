@@ -584,6 +584,80 @@ final class SubscriptionManagerUITests: XCTestCase {
         )
     }
 
+    func testOfficialOfferIntervalChangeRecomputesUntouchedRenewal() throws {
+        let locale = Locale(identifier: "en_US")
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.locale = locale
+        let app = launch(
+            language: "en",
+            locale: "en_US",
+            storeToken: "catalog-renewal-\(UUID().uuidString)"
+        )
+        app.buttons["subscription.add"].tap()
+        let chatGPT = app.buttons["catalog.preset.chatgpt"]
+        XCTAssertTrue(scrollToExistence(chatGPT, in: app))
+        chatGPT.tap()
+
+        let disclosure = app.buttons["subscription.form.adjust-charge"]
+        XCTAssertTrue(disclosure.waitForExistence(timeout: 5))
+        disclosure.tap()
+        let billingInterval = app.buttons[
+            "subscription.form.billing-interval"
+        ]
+        XCTAssertTrue(
+            scrollToExistence(billingInterval, in: app, maximumSwipes: 4)
+        )
+        billingInterval.tap()
+        app.buttons["Yearly"].tap()
+        app.buttons["subscription.form.save"].tap()
+
+        let row = app.buttons["subscription.row"].firstMatch
+        XCTAssertTrue(row.waitForExistence(timeout: 5))
+        row.tap()
+        let yearlySchedule = app.descendants(matching: .any)[
+            "subscription.detail.billing-interval"
+        ]
+        XCTAssertTrue(
+            scrollToExistence(yearlySchedule, in: app, maximumSwipes: 4)
+        )
+        XCTAssertTrue(yearlySchedule.label.contains("Yearly"))
+        let detailAnchor = app.descendants(matching: .any)[
+            "subscription.detail.renewal-anchor"
+        ]
+        XCTAssertTrue(
+            scrollToExistence(detailAnchor, in: app, maximumSwipes: 8)
+        )
+        let anchorValue = try XCTUnwrap(detailAnchor.value as? String)
+        let anchorDate = date(
+            fromLocalizedValue: anchorValue,
+            locale: locale,
+            calendar: calendar
+        )
+        let expectedRenewal = try XCTUnwrap(
+            calendar.date(byAdding: .year, value: 1, to: anchorDate)
+        )
+        let expectedRenewalValue = localizedDateValue(
+            expectedRenewal,
+            locale: locale,
+            calendar: calendar
+        )
+        let detailNextRenewal = app.cells.containing(
+            .staticText,
+            identifier: "Next Renewal"
+        ).firstMatch
+        XCTAssertTrue(
+            scrollToExistence(
+                detailNextRenewal,
+                in: app,
+                maximumSwipes: 8
+            )
+        )
+        XCTAssertTrue(
+            detailNextRenewal.staticTexts[expectedRenewalValue].exists,
+            "Untouched Next Renewal must follow the selected interval."
+        )
+    }
+
     func testCatalogFiltersResetAfterCancelAndSaveReopen() {
         let app = launch(
             language: "en",

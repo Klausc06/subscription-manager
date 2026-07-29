@@ -153,6 +153,17 @@ struct AddSubscriptionView: View {
         .onChange(of: selectedOfferID) { _, _ in
             applySelectedOffer()
         }
+        .onChange(
+            of: selectedBillingInterval
+        ) { previousInterval, interval in
+            confirmedNextRenewal = billingDateEditState.nextRenewal(
+                current: confirmedNextRenewal,
+                after: renewalAnchor,
+                changingIntervalFrom: previousInterval,
+                to: interval,
+                timeZoneIdentifier: billingTimeZoneIdentifier
+            )
+        }
     }
 
     private var availablePeriods: [String] {

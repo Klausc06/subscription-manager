@@ -121,6 +121,24 @@ struct BillingDateEditState {
             timeZoneIdentifier: timeZoneIdentifier
         )
     }
+
+    func nextRenewal(
+        current: Date,
+        after renewalAnchor: Date,
+        changingIntervalFrom previousInterval: BillingInterval,
+        to interval: BillingInterval,
+        timeZoneIdentifier: String
+    ) -> Date {
+        guard previousInterval != interval else {
+            return current
+        }
+        return nextRenewal(
+            current: current,
+            after: renewalAnchor,
+            interval: interval,
+            timeZoneIdentifier: timeZoneIdentifier
+        )
+    }
 }
 
 enum BillingIntervalChoice: String, CaseIterable, Identifiable {

@@ -83,6 +83,111 @@ struct BillingScheduleSupportTests {
         #expect(preserved == personSelected)
     }
 
+    @Test("Changing monthly to yearly recalculates an untouched renewal")
+    func monthlyToYearlyRecalculatesUntouchedRenewal() throws {
+        let editState = BillingDateEditState()
+        let calendar = try #require(
+            BillingCalendar.calendar(timeZoneIdentifier: "UTC")
+        )
+        let anchor = try #require(
+            calendar.date(
+                from: DateComponents(
+                    year: 2026,
+                    month: 1,
+                    day: 15,
+                    hour: 12
+                )
+            )
+        )
+        let monthlyRenewal = try #require(
+            calendar.date(byAdding: .month, value: 1, to: anchor)
+        )
+
+        let recalculated = editState.nextRenewal(
+            current: monthlyRenewal,
+            after: anchor,
+            changingIntervalFrom: .monthly,
+            to: .yearly,
+            timeZoneIdentifier: "UTC"
+        )
+
+        #expect(
+            calendar.dateComponents(
+                [.year, .month, .day],
+                from: recalculated
+            ) == DateComponents(year: 2027, month: 1, day: 15)
+        )
+    }
+
+    @Test("Changing monthly to custom uses the selected value and unit")
+    func monthlyToCustomRecalculatesWithValueAndUnit() throws {
+        let editState = BillingDateEditState()
+        let calendar = try #require(
+            BillingCalendar.calendar(timeZoneIdentifier: "UTC")
+        )
+        let anchor = try #require(
+            calendar.date(
+                from: DateComponents(
+                    year: 2026,
+                    month: 1,
+                    day: 15,
+                    hour: 12
+                )
+            )
+        )
+        let monthlyRenewal = try #require(
+            calendar.date(byAdding: .month, value: 1, to: anchor)
+        )
+
+        let recalculated = editState.nextRenewal(
+            current: monthlyRenewal,
+            after: anchor,
+            changingIntervalFrom: .monthly,
+            to: .custom(value: 3, unit: .week),
+            timeZoneIdentifier: "UTC"
+        )
+
+        #expect(
+            calendar.dateComponents(
+                [.year, .month, .day],
+                from: recalculated
+            ) == DateComponents(year: 2026, month: 2, day: 5)
+        )
+    }
+
+    @Test("Interval changes preserve a person-edited renewal")
+    func intervalChangePreservesPersonEditedRenewal() {
+        var editState = BillingDateEditState()
+        let personSelected = Date(timeIntervalSince1970: 1_800_000_000)
+        editState.recordUserEdit(.nextRenewal)
+
+        let preserved = editState.nextRenewal(
+            current: personSelected,
+            after: .distantPast,
+            changingIntervalFrom: .monthly,
+            to: .custom(value: 3, unit: .week),
+            timeZoneIdentifier: "UTC"
+        )
+
+        #expect(preserved == personSelected)
+    }
+
+    @Test("A semantically unchanged interval does not recalculate")
+    func unchangedIntervalDoesNotRecalculate() {
+        let editState = BillingDateEditState()
+        let current = Date(timeIntervalSince1970: 1_800_000_000)
+
+        let preserved = editState.nextRenewal(
+            current: current,
+            after: .distantPast,
+            changingIntervalFrom: .monthly,
+            to: .monthly,
+            timeZoneIdentifier: "UTC"
+        )
+
+        #expect(preserved == current)
+    }
+
     @Test("Form renewal defaults use Gregorian billing semantics")
     func renewalDefaultsIgnoreNonGregorianDisplayCalendar() throws {
         var displayCalendar = Calendar(identifier: .islamicCivil)
