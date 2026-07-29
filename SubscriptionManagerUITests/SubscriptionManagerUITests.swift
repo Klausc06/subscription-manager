@@ -379,11 +379,17 @@ final class SubscriptionManagerUITests: XCTestCase {
         XCTAssertTrue(catalog.waitForExistence(timeout: 5))
         catalog.tap()
 
+        let search = app.searchFields.firstMatch
+        XCTAssertTrue(search.waitForExistence(timeout: 5))
+        search.tap()
+        search.typeText("Spotify")
         let spotify = app.buttons["catalog.preset.spotify"]
         XCTAssertTrue(spotify.waitForExistence(timeout: 5))
+        app.swipeUp()
         let diagnostics = app.staticTexts["catalog.diagnostics"]
         XCTAssertTrue(diagnostics.waitForExistence(timeout: 5))
-        XCTAssertTrue(diagnostics.label.contains("Catalog version 1"))
+        XCTAssertTrue(diagnostics.label.contains("Catalog version 2"))
+        app.swipeDown()
         spotify.tap()
 
         let usePreset = app.buttons["catalog.use-preset"]

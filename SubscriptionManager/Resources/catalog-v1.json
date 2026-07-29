@@ -1,78 +1,1013 @@
 {
   "schemaVersion": 1,
-  "catalogVersion": 1,
+  "catalogVersion": 2,
   "presets": [
     {
       "id": "spotify",
-      "serviceName": { "en": "Spotify", "zhHans": "Spotify" },
-      "category": { "en": "Music", "zhHans": "音乐" },
+      "serviceName": {
+        "en": "Spotify",
+        "zhHans": "Spotify"
+      },
+      "category": {
+        "en": "Music",
+        "zhHans": "音乐"
+      },
       "suggestedInterval": "monthly",
       "managementURL": "https://www.spotify.com/account/overview/",
       "icon": "music",
-      "assetProvenance": { "kind": "originalSymbol", "license": "CC0-1.0", "source": "spotify" }
+      "assetProvenance": {
+        "kind": "originalSymbol",
+        "license": "CC0-1.0",
+        "source": "spotify"
+      }
     },
     {
       "id": "netflix",
-      "serviceName": { "en": "Netflix", "zhHans": "Netflix" },
-      "category": { "en": "Video", "zhHans": "视频" },
+      "serviceName": {
+        "en": "Netflix",
+        "zhHans": "Netflix"
+      },
+      "category": {
+        "en": "Video",
+        "zhHans": "视频"
+      },
       "suggestedInterval": "monthly",
       "managementURL": "https://www.netflix.com/account",
       "icon": "video",
-      "assetProvenance": { "kind": "originalSymbol", "license": "CC0-1.0", "source": "netflix" }
+      "assetProvenance": {
+        "kind": "originalSymbol",
+        "license": "CC0-1.0",
+        "source": "netflix"
+      }
     },
     {
       "id": "icloud-plus",
-      "serviceName": { "en": "iCloud+", "zhHans": "iCloud+" },
-      "category": { "en": "Cloud Storage", "zhHans": "云存储" },
+      "serviceName": {
+        "en": "iCloud+",
+        "zhHans": "iCloud+"
+      },
+      "category": {
+        "en": "Cloud Storage",
+        "zhHans": "云存储"
+      },
       "suggestedInterval": "monthly",
       "managementURL": "https://support.apple.com/108047",
       "icon": "cloud",
-      "assetProvenance": { "kind": "originalSymbol", "license": "CC0-1.0", "source": "icloud-plus" }
+      "assetProvenance": {
+        "kind": "originalSymbol",
+        "license": "CC0-1.0",
+        "source": "icloud-plus"
+      }
     },
     {
       "id": "notion",
-      "serviceName": { "en": "Notion", "zhHans": "Notion" },
-      "category": { "en": "Productivity", "zhHans": "效率" },
+      "serviceName": {
+        "en": "Notion",
+        "zhHans": "Notion"
+      },
+      "category": {
+        "en": "Productivity",
+        "zhHans": "效率"
+      },
       "suggestedInterval": "monthly",
       "managementURL": "https://www.notion.so/help/manage-your-plan",
       "icon": "productivity",
-      "assetProvenance": { "kind": "originalSymbol", "license": "CC0-1.0", "source": "notion" }
+      "assetProvenance": {
+        "kind": "originalSymbol",
+        "license": "CC0-1.0",
+        "source": "notion"
+      }
     },
     {
       "id": "kindle-unlimited",
-      "serviceName": { "en": "Kindle Unlimited", "zhHans": "Kindle Unlimited" },
-      "category": { "en": "Reading", "zhHans": "阅读" },
+      "serviceName": {
+        "en": "Kindle Unlimited",
+        "zhHans": "Kindle Unlimited"
+      },
+      "category": {
+        "en": "Reading",
+        "zhHans": "阅读"
+      },
       "suggestedInterval": "monthly",
       "managementURL": "https://www.amazon.com/gp/kindle/ku/ku_central",
       "icon": "reading",
-      "assetProvenance": { "kind": "originalSymbol", "license": "CC0-1.0", "source": "kindle-unlimited" }
+      "assetProvenance": {
+        "kind": "originalSymbol",
+        "license": "CC0-1.0",
+        "source": "kindle-unlimited"
+      }
     },
     {
       "id": "the-new-york-times",
-      "serviceName": { "en": "The New York Times", "zhHans": "纽约时报" },
-      "category": { "en": "News", "zhHans": "新闻" },
+      "serviceName": {
+        "en": "The New York Times",
+        "zhHans": "纽约时报"
+      },
+      "category": {
+        "en": "News",
+        "zhHans": "新闻"
+      },
       "suggestedInterval": "monthly",
       "managementURL": "https://www.nytimes.com/subscription",
       "icon": "news",
-      "assetProvenance": { "kind": "originalSymbol", "license": "CC0-1.0", "source": "the-new-york-times" }
+      "assetProvenance": {
+        "kind": "originalSymbol",
+        "license": "CC0-1.0",
+        "source": "the-new-york-times"
+      }
     },
     {
       "id": "chatgpt-plus",
-      "serviceName": { "en": "ChatGPT Plus", "zhHans": "ChatGPT Plus" },
-      "category": { "en": "Productivity", "zhHans": "效率" },
+      "serviceName": {
+        "en": "ChatGPT Plus",
+        "zhHans": "ChatGPT Plus"
+      },
+      "category": {
+        "en": "Productivity",
+        "zhHans": "效率"
+      },
       "suggestedInterval": "monthly",
       "managementURL": "https://chatgpt.com/",
       "icon": "productivity",
-      "assetProvenance": { "kind": "originalSymbol", "license": "CC0-1.0", "source": "chatgpt-plus" }
+      "assetProvenance": {
+        "kind": "originalSymbol",
+        "license": "CC0-1.0",
+        "source": "chatgpt-plus"
+      }
     },
     {
       "id": "playstation-plus",
-      "serviceName": { "en": "PlayStation Plus", "zhHans": "PlayStation Plus" },
-      "category": { "en": "Gaming", "zhHans": "游戏" },
+      "serviceName": {
+        "en": "PlayStation Plus",
+        "zhHans": "PlayStation Plus"
+      },
+      "category": {
+        "en": "Gaming",
+        "zhHans": "游戏"
+      },
       "suggestedInterval": "yearly",
       "managementURL": "https://www.playstation.com/support/subscriptions/",
       "icon": "game",
-      "assetProvenance": { "kind": "originalSymbol", "license": "CC0-1.0", "source": "playstation-plus" }
+      "assetProvenance": {
+        "kind": "originalSymbol",
+        "license": "CC0-1.0",
+        "source": "playstation-plus"
+      }
+    },
+    {
+      "id": "bilibili",
+      "serviceName": {
+        "en": "Bilibili Membership",
+        "zhHans": "哔哩哔哩大会员"
+      },
+      "category": {
+        "en": "Video",
+        "zhHans": "视频"
+      },
+      "suggestedInterval": "monthly",
+      "managementURL": "https://big.bilibili.com/",
+      "icon": "video",
+      "assetProvenance": {
+        "kind": "originalSymbol",
+        "license": "CC0-1.0",
+        "source": "bilibili"
+      }
+    },
+    {
+      "id": "iqiyi",
+      "serviceName": {
+        "en": "iQIYI VIP",
+        "zhHans": "爱奇艺 VIP"
+      },
+      "category": {
+        "en": "Video",
+        "zhHans": "视频"
+      },
+      "suggestedInterval": "monthly",
+      "managementURL": "https://vip.iqiyi.com/",
+      "icon": "video",
+      "assetProvenance": {
+        "kind": "originalSymbol",
+        "license": "CC0-1.0",
+        "source": "iqiyi"
+      }
+    },
+    {
+      "id": "tencent-video",
+      "serviceName": {
+        "en": "Tencent Video VIP",
+        "zhHans": "腾讯视频 VIP"
+      },
+      "category": {
+        "en": "Video",
+        "zhHans": "视频"
+      },
+      "suggestedInterval": "monthly",
+      "managementURL": "https://film.qq.com/",
+      "icon": "video",
+      "assetProvenance": {
+        "kind": "originalSymbol",
+        "license": "CC0-1.0",
+        "source": "tencent-video"
+      }
+    },
+    {
+      "id": "youku",
+      "serviceName": {
+        "en": "Youku VIP",
+        "zhHans": "优酷 VIP"
+      },
+      "category": {
+        "en": "Video",
+        "zhHans": "视频"
+      },
+      "suggestedInterval": "monthly",
+      "managementURL": "https://vip.youku.com/",
+      "icon": "video",
+      "assetProvenance": {
+        "kind": "originalSymbol",
+        "license": "CC0-1.0",
+        "source": "youku"
+      }
+    },
+    {
+      "id": "mango-tv",
+      "serviceName": {
+        "en": "Mango TV VIP",
+        "zhHans": "芒果 TV 会员"
+      },
+      "category": {
+        "en": "Video",
+        "zhHans": "视频"
+      },
+      "suggestedInterval": "monthly",
+      "managementURL": "https://vip.mgtv.com/",
+      "icon": "video",
+      "assetProvenance": {
+        "kind": "originalSymbol",
+        "license": "CC0-1.0",
+        "source": "mango-tv"
+      }
+    },
+    {
+      "id": "migu-video",
+      "serviceName": {
+        "en": "Migu Video VIP",
+        "zhHans": "咪咕视频会员"
+      },
+      "category": {
+        "en": "Video",
+        "zhHans": "视频"
+      },
+      "suggestedInterval": "monthly",
+      "managementURL": "https://m.miguvideo.com/",
+      "icon": "video",
+      "assetProvenance": {
+        "kind": "originalSymbol",
+        "license": "CC0-1.0",
+        "source": "migu-video"
+      }
+    },
+    {
+      "id": "sohu-video",
+      "serviceName": {
+        "en": "Sohu Video VIP",
+        "zhHans": "搜狐视频会员"
+      },
+      "category": {
+        "en": "Video",
+        "zhHans": "视频"
+      },
+      "suggestedInterval": "monthly",
+      "managementURL": "https://film.sohu.com/",
+      "icon": "video",
+      "assetProvenance": {
+        "kind": "originalSymbol",
+        "license": "CC0-1.0",
+        "source": "sohu-video"
+      }
+    },
+    {
+      "id": "douyin",
+      "serviceName": {
+        "en": "Douyin Membership",
+        "zhHans": "抖音会员"
+      },
+      "category": {
+        "en": "Video",
+        "zhHans": "视频"
+      },
+      "suggestedInterval": "monthly",
+      "managementURL": "https://www.douyin.com/",
+      "icon": "video",
+      "assetProvenance": {
+        "kind": "originalSymbol",
+        "license": "CC0-1.0",
+        "source": "douyin"
+      }
+    },
+    {
+      "id": "tencent-anime",
+      "serviceName": {
+        "en": "Tencent Anime VIP",
+        "zhHans": "腾讯动漫会员"
+      },
+      "category": {
+        "en": "Video",
+        "zhHans": "视频"
+      },
+      "suggestedInterval": "monthly",
+      "managementURL": "https://ac.qq.com/",
+      "icon": "video",
+      "assetProvenance": {
+        "kind": "originalSymbol",
+        "license": "CC0-1.0",
+        "source": "tencent-anime"
+      }
+    },
+    {
+      "id": "qq-music",
+      "serviceName": {
+        "en": "QQ Music VIP",
+        "zhHans": "QQ 音乐会员"
+      },
+      "category": {
+        "en": "Music",
+        "zhHans": "音乐"
+      },
+      "suggestedInterval": "monthly",
+      "managementURL": "https://y.qq.com/",
+      "icon": "music",
+      "assetProvenance": {
+        "kind": "originalSymbol",
+        "license": "CC0-1.0",
+        "source": "qq-music"
+      }
+    },
+    {
+      "id": "netease-cloud-music",
+      "serviceName": {
+        "en": "NetEase Cloud Music VIP",
+        "zhHans": "网易云音乐会员"
+      },
+      "category": {
+        "en": "Music",
+        "zhHans": "音乐"
+      },
+      "suggestedInterval": "monthly",
+      "managementURL": "https://music.163.com/",
+      "icon": "music",
+      "assetProvenance": {
+        "kind": "originalSymbol",
+        "license": "CC0-1.0",
+        "source": "netease-cloud-music"
+      }
+    },
+    {
+      "id": "kugou-music",
+      "serviceName": {
+        "en": "KuGou Music VIP",
+        "zhHans": "酷狗音乐会员"
+      },
+      "category": {
+        "en": "Music",
+        "zhHans": "音乐"
+      },
+      "suggestedInterval": "monthly",
+      "managementURL": "https://www.kugou.com/",
+      "icon": "music",
+      "assetProvenance": {
+        "kind": "originalSymbol",
+        "license": "CC0-1.0",
+        "source": "kugou-music"
+      }
+    },
+    {
+      "id": "kuwo-music",
+      "serviceName": {
+        "en": "KuWo Music VIP",
+        "zhHans": "酷我音乐会员"
+      },
+      "category": {
+        "en": "Music",
+        "zhHans": "音乐"
+      },
+      "suggestedInterval": "monthly",
+      "managementURL": "https://www.kuwo.cn/",
+      "icon": "music",
+      "assetProvenance": {
+        "kind": "originalSymbol",
+        "license": "CC0-1.0",
+        "source": "kuwo-music"
+      }
+    },
+    {
+      "id": "migu-music",
+      "serviceName": {
+        "en": "Migu Music",
+        "zhHans": "咪咕音乐"
+      },
+      "category": {
+        "en": "Music",
+        "zhHans": "音乐"
+      },
+      "suggestedInterval": "monthly",
+      "managementURL": "https://music.migu.cn/",
+      "icon": "music",
+      "assetProvenance": {
+        "kind": "originalSymbol",
+        "license": "CC0-1.0",
+        "source": "migu-music"
+      }
+    },
+    {
+      "id": "ximalaya",
+      "serviceName": {
+        "en": "Ximalaya",
+        "zhHans": "喜马拉雅"
+      },
+      "category": {
+        "en": "Music",
+        "zhHans": "音乐"
+      },
+      "suggestedInterval": "monthly",
+      "managementURL": "https://www.ximalaya.com/",
+      "icon": "music",
+      "assetProvenance": {
+        "kind": "originalSymbol",
+        "license": "CC0-1.0",
+        "source": "ximalaya"
+      }
+    },
+    {
+      "id": "qingting-fm",
+      "serviceName": {
+        "en": "Qingting FM",
+        "zhHans": "蜻蜓 FM"
+      },
+      "category": {
+        "en": "Music",
+        "zhHans": "音乐"
+      },
+      "suggestedInterval": "monthly",
+      "managementURL": "https://www.qingting.fm/",
+      "icon": "music",
+      "assetProvenance": {
+        "kind": "originalSymbol",
+        "license": "CC0-1.0",
+        "source": "qingting-fm"
+      }
+    },
+    {
+      "id": "lizhi-fm",
+      "serviceName": {
+        "en": "Lizhi FM",
+        "zhHans": "荔枝 FM"
+      },
+      "category": {
+        "en": "Music",
+        "zhHans": "音乐"
+      },
+      "suggestedInterval": "monthly",
+      "managementURL": "https://www.lizhi.fm/",
+      "icon": "music",
+      "assetProvenance": {
+        "kind": "originalSymbol",
+        "license": "CC0-1.0",
+        "source": "lizhi-fm"
+      }
+    },
+    {
+      "id": "apple-music",
+      "serviceName": {
+        "en": "Apple Music",
+        "zhHans": "Apple Music"
+      },
+      "category": {
+        "en": "Music",
+        "zhHans": "音乐"
+      },
+      "suggestedInterval": "monthly",
+      "managementURL": "https://support.apple.com/118428",
+      "icon": "music",
+      "assetProvenance": {
+        "kind": "originalSymbol",
+        "license": "CC0-1.0",
+        "source": "apple-music"
+      }
+    },
+    {
+      "id": "wechat-reading",
+      "serviceName": {
+        "en": "WeChat Read",
+        "zhHans": "微信读书"
+      },
+      "category": {
+        "en": "Reading",
+        "zhHans": "阅读"
+      },
+      "suggestedInterval": "monthly",
+      "managementURL": "https://weread.qq.com/",
+      "icon": "reading",
+      "assetProvenance": {
+        "kind": "originalSymbol",
+        "license": "CC0-1.0",
+        "source": "wechat-reading"
+      }
+    },
+    {
+      "id": "qq-reading",
+      "serviceName": {
+        "en": "QQ Reading",
+        "zhHans": "QQ 阅读"
+      },
+      "category": {
+        "en": "Reading",
+        "zhHans": "阅读"
+      },
+      "suggestedInterval": "monthly",
+      "managementURL": "https://book.qq.com/",
+      "icon": "reading",
+      "assetProvenance": {
+        "kind": "originalSymbol",
+        "license": "CC0-1.0",
+        "source": "qq-reading"
+      }
+    },
+    {
+      "id": "qidian",
+      "serviceName": {
+        "en": "Qidian Reading",
+        "zhHans": "起点读书"
+      },
+      "category": {
+        "en": "Reading",
+        "zhHans": "阅读"
+      },
+      "suggestedInterval": "monthly",
+      "managementURL": "https://www.qidian.com/",
+      "icon": "reading",
+      "assetProvenance": {
+        "kind": "originalSymbol",
+        "license": "CC0-1.0",
+        "source": "qidian"
+      }
+    },
+    {
+      "id": "fanqie-novel",
+      "serviceName": {
+        "en": "Fanqie Novel",
+        "zhHans": "番茄小说"
+      },
+      "category": {
+        "en": "Reading",
+        "zhHans": "阅读"
+      },
+      "suggestedInterval": "monthly",
+      "managementURL": "https://fanqienovel.com/",
+      "icon": "reading",
+      "assetProvenance": {
+        "kind": "originalSymbol",
+        "license": "CC0-1.0",
+        "source": "fanqie-novel"
+      }
+    },
+    {
+      "id": "jinjiang-literature-city",
+      "serviceName": {
+        "en": "Jinjiang Literature City",
+        "zhHans": "晋江文学城"
+      },
+      "category": {
+        "en": "Reading",
+        "zhHans": "阅读"
+      },
+      "suggestedInterval": "monthly",
+      "managementURL": "https://www.jjwxc.net/",
+      "icon": "reading",
+      "assetProvenance": {
+        "kind": "originalSymbol",
+        "license": "CC0-1.0",
+        "source": "jinjiang-literature-city"
+      }
+    },
+    {
+      "id": "zongheng",
+      "serviceName": {
+        "en": "Zongheng",
+        "zhHans": "纵横中文网"
+      },
+      "category": {
+        "en": "Reading",
+        "zhHans": "阅读"
+      },
+      "suggestedInterval": "monthly",
+      "managementURL": "https://www.zongheng.com/",
+      "icon": "reading",
+      "assetProvenance": {
+        "kind": "originalSymbol",
+        "license": "CC0-1.0",
+        "source": "zongheng"
+      }
+    },
+    {
+      "id": "ireader",
+      "serviceName": {
+        "en": "iReader",
+        "zhHans": "掌阅"
+      },
+      "category": {
+        "en": "Reading",
+        "zhHans": "阅读"
+      },
+      "suggestedInterval": "monthly",
+      "managementURL": "https://www.ireader.com/",
+      "icon": "reading",
+      "assetProvenance": {
+        "kind": "originalSymbol",
+        "license": "CC0-1.0",
+        "source": "ireader"
+      }
+    },
+    {
+      "id": "douban-reading",
+      "serviceName": {
+        "en": "Douban Read",
+        "zhHans": "豆瓣阅读"
+      },
+      "category": {
+        "en": "Reading",
+        "zhHans": "阅读"
+      },
+      "suggestedInterval": "monthly",
+      "managementURL": "https://read.douban.com/",
+      "icon": "reading",
+      "assetProvenance": {
+        "kind": "originalSymbol",
+        "license": "CC0-1.0",
+        "source": "douban-reading"
+      }
+    },
+    {
+      "id": "dushu",
+      "serviceName": {
+        "en": "Dushu",
+        "zhHans": "读书"
+      },
+      "category": {
+        "en": "Reading",
+        "zhHans": "阅读"
+      },
+      "suggestedInterval": "monthly",
+      "managementURL": "https://www.dushu.com/",
+      "icon": "reading",
+      "assetProvenance": {
+        "kind": "originalSymbol",
+        "license": "CC0-1.0",
+        "source": "dushu"
+      }
+    },
+    {
+      "id": "dedao",
+      "serviceName": {
+        "en": "Dedao",
+        "zhHans": "得到"
+      },
+      "category": {
+        "en": "Reading",
+        "zhHans": "阅读"
+      },
+      "suggestedInterval": "monthly",
+      "managementURL": "https://www.dedao.cn/",
+      "icon": "reading",
+      "assetProvenance": {
+        "kind": "originalSymbol",
+        "license": "CC0-1.0",
+        "source": "dedao"
+      }
+    },
+    {
+      "id": "bilibili-manga",
+      "serviceName": {
+        "en": "Bilibili Manga",
+        "zhHans": "哔哩哔哩漫画"
+      },
+      "category": {
+        "en": "Reading",
+        "zhHans": "阅读"
+      },
+      "suggestedInterval": "monthly",
+      "managementURL": "https://manga.bilibili.com/",
+      "icon": "reading",
+      "assetProvenance": {
+        "kind": "originalSymbol",
+        "license": "CC0-1.0",
+        "source": "bilibili-manga"
+      }
+    },
+    {
+      "id": "caixin",
+      "serviceName": {
+        "en": "Caixin",
+        "zhHans": "财新"
+      },
+      "category": {
+        "en": "News",
+        "zhHans": "新闻"
+      },
+      "suggestedInterval": "yearly",
+      "managementURL": "https://www.caixin.com/",
+      "icon": "news",
+      "assetProvenance": {
+        "kind": "originalSymbol",
+        "license": "CC0-1.0",
+        "source": "caixin"
+      }
+    },
+    {
+      "id": "the-paper",
+      "serviceName": {
+        "en": "The Paper",
+        "zhHans": "澎湃新闻"
+      },
+      "category": {
+        "en": "News",
+        "zhHans": "新闻"
+      },
+      "suggestedInterval": "monthly",
+      "managementURL": "https://www.thepaper.cn/",
+      "icon": "news",
+      "assetProvenance": {
+        "kind": "originalSymbol",
+        "license": "CC0-1.0",
+        "source": "the-paper"
+      }
+    },
+    {
+      "id": "yicai",
+      "serviceName": {
+        "en": "Yicai",
+        "zhHans": "第一财经"
+      },
+      "category": {
+        "en": "News",
+        "zhHans": "新闻"
+      },
+      "suggestedInterval": "yearly",
+      "managementURL": "https://www.yicai.com/",
+      "icon": "news",
+      "assetProvenance": {
+        "kind": "originalSymbol",
+        "license": "CC0-1.0",
+        "source": "yicai"
+      }
+    },
+    {
+      "id": "jiemian",
+      "serviceName": {
+        "en": "Jiemian",
+        "zhHans": "界面新闻"
+      },
+      "category": {
+        "en": "News",
+        "zhHans": "新闻"
+      },
+      "suggestedInterval": "monthly",
+      "managementURL": "https://www.jiemian.com/",
+      "icon": "news",
+      "assetProvenance": {
+        "kind": "originalSymbol",
+        "license": "CC0-1.0",
+        "source": "jiemian"
+      }
+    },
+    {
+      "id": "huxiu",
+      "serviceName": {
+        "en": "Huxiu",
+        "zhHans": "虎嗅"
+      },
+      "category": {
+        "en": "News",
+        "zhHans": "新闻"
+      },
+      "suggestedInterval": "monthly",
+      "managementURL": "https://www.huxiu.com/",
+      "icon": "news",
+      "assetProvenance": {
+        "kind": "originalSymbol",
+        "license": "CC0-1.0",
+        "source": "huxiu"
+      }
+    },
+    {
+      "id": "zhihu",
+      "serviceName": {
+        "en": "Zhihu",
+        "zhHans": "知乎"
+      },
+      "category": {
+        "en": "News",
+        "zhHans": "新闻"
+      },
+      "suggestedInterval": "monthly",
+      "managementURL": "https://www.zhihu.com/",
+      "icon": "news",
+      "assetProvenance": {
+        "kind": "originalSymbol",
+        "license": "CC0-1.0",
+        "source": "zhihu"
+      }
+    },
+    {
+      "id": "36kr",
+      "serviceName": {
+        "en": "36Kr",
+        "zhHans": "36氪"
+      },
+      "category": {
+        "en": "News",
+        "zhHans": "新闻"
+      },
+      "suggestedInterval": "monthly",
+      "managementURL": "https://www.36kr.com/",
+      "icon": "news",
+      "assetProvenance": {
+        "kind": "originalSymbol",
+        "license": "CC0-1.0",
+        "source": "36kr"
+      }
+    },
+    {
+      "id": "cailianpress",
+      "serviceName": {
+        "en": "Cailianpress",
+        "zhHans": "财联社"
+      },
+      "category": {
+        "en": "News",
+        "zhHans": "新闻"
+      },
+      "suggestedInterval": "monthly",
+      "managementURL": "https://www.cailianpress.com/",
+      "icon": "news",
+      "assetProvenance": {
+        "kind": "originalSymbol",
+        "license": "CC0-1.0",
+        "source": "cailianpress"
+      }
+    },
+    {
+      "id": "china-daily",
+      "serviceName": {
+        "en": "China Daily",
+        "zhHans": "中国日报"
+      },
+      "category": {
+        "en": "News",
+        "zhHans": "新闻"
+      },
+      "suggestedInterval": "yearly",
+      "managementURL": "https://www.chinadaily.com.cn/",
+      "icon": "news",
+      "assetProvenance": {
+        "kind": "originalSymbol",
+        "license": "CC0-1.0",
+        "source": "china-daily"
+      }
+    },
+    {
+      "id": "xbox-game-pass",
+      "serviceName": {
+        "en": "Xbox Game Pass",
+        "zhHans": "Xbox Game Pass"
+      },
+      "category": {
+        "en": "Gaming",
+        "zhHans": "游戏"
+      },
+      "suggestedInterval": "monthly",
+      "managementURL": "https://account.microsoft.com/services/",
+      "icon": "game",
+      "assetProvenance": {
+        "kind": "originalSymbol",
+        "license": "CC0-1.0",
+        "source": "xbox-game-pass"
+      }
+    },
+    {
+      "id": "nintendo-switch-online",
+      "serviceName": {
+        "en": "Nintendo Switch Online",
+        "zhHans": "Nintendo Switch Online"
+      },
+      "category": {
+        "en": "Gaming",
+        "zhHans": "游戏"
+      },
+      "suggestedInterval": "yearly",
+      "managementURL": "https://www.nintendo.com.hk/switch/online_service/",
+      "icon": "game",
+      "assetProvenance": {
+        "kind": "originalSymbol",
+        "license": "CC0-1.0",
+        "source": "nintendo-switch-online"
+      }
+    },
+    {
+      "id": "tencent-start",
+      "serviceName": {
+        "en": "Tencent START",
+        "zhHans": "腾讯 START 云游戏"
+      },
+      "category": {
+        "en": "Gaming",
+        "zhHans": "游戏"
+      },
+      "suggestedInterval": "monthly",
+      "managementURL": "https://start.qq.com/",
+      "icon": "game",
+      "assetProvenance": {
+        "kind": "originalSymbol",
+        "license": "CC0-1.0",
+        "source": "tencent-start"
+      }
+    },
+    {
+      "id": "netease-cloud-gaming",
+      "serviceName": {
+        "en": "NetEase Cloud Gaming",
+        "zhHans": "网易云游戏"
+      },
+      "category": {
+        "en": "Gaming",
+        "zhHans": "游戏"
+      },
+      "suggestedInterval": "monthly",
+      "managementURL": "https://cg.163.com/",
+      "icon": "game",
+      "assetProvenance": {
+        "kind": "originalSymbol",
+        "license": "CC0-1.0",
+        "source": "netease-cloud-gaming"
+      }
+    },
+    {
+      "id": "geforce-now",
+      "serviceName": {
+        "en": "GeForce NOW",
+        "zhHans": "GeForce NOW 云游戏"
+      },
+      "category": {
+        "en": "Gaming",
+        "zhHans": "游戏"
+      },
+      "suggestedInterval": "monthly",
+      "managementURL": "https://gfn.qq.com/",
+      "icon": "game",
+      "assetProvenance": {
+        "kind": "originalSymbol",
+        "license": "CC0-1.0",
+        "source": "geforce-now"
+      }
+    },
+    {
+      "id": "uu-game-booster",
+      "serviceName": {
+        "en": "UU Game Booster",
+        "zhHans": "网易 UU 加速器"
+      },
+      "category": {
+        "en": "Gaming",
+        "zhHans": "游戏"
+      },
+      "suggestedInterval": "monthly",
+      "managementURL": "https://uu.163.com/",
+      "icon": "game",
+      "assetProvenance": {
+        "kind": "originalSymbol",
+        "license": "CC0-1.0",
+        "source": "uu-game-booster"
+      }
+    },
+    {
+      "id": "xunyou-game-booster",
+      "serviceName": {
+        "en": "Xunyou Game Booster",
+        "zhHans": "迅游加速器"
+      },
+      "category": {
+        "en": "Gaming",
+        "zhHans": "游戏"
+      },
+      "suggestedInterval": "monthly",
+      "managementURL": "https://www.xunyou.com/",
+      "icon": "game",
+      "assetProvenance": {
+        "kind": "originalSymbol",
+        "license": "CC0-1.0",
+        "source": "xunyou-game-booster"
+      }
     }
   ]
 }

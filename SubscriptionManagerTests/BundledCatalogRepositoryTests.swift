@@ -52,10 +52,34 @@ struct BundledCatalogRepositoryTests {
 
         let snapshot = try repository.loadSnapshot()
 
-        #expect(snapshot.presets.count >= 8)
+        #expect(snapshot.presets.count == 53)
         #expect(
             snapshot.search(query: "音乐", locale: Locale(identifier: "zh-Hans"))
                 .contains(where: { $0.id == "spotify" })
+        )
+        #expect(
+            snapshot.search(query: "哔哩哔哩", locale: Locale(identifier: "zh-Hans"))
+                .contains(where: { $0.id == "bilibili" })
+        )
+        #expect(
+            snapshot.search(query: "Bilibili", locale: Locale(identifier: "en"))
+                .contains(where: { $0.id == "bilibili" })
+        )
+        #expect(
+            snapshot.search(query: "网易云音乐", locale: Locale(identifier: "zh-Hans"))
+                .contains(where: { $0.id == "netease-cloud-music" })
+        )
+        #expect(
+            snapshot.search(query: "起点读书", locale: Locale(identifier: "zh-Hans"))
+                .contains(where: { $0.id == "qidian" })
+        )
+        #expect(
+            snapshot.search(query: "财新", locale: Locale(identifier: "zh-Hans"))
+                .contains(where: { $0.id == "caixin" })
+        )
+        #expect(
+            snapshot.search(query: "Tencent START", locale: Locale(identifier: "en"))
+                .contains(where: { $0.id == "tencent-start" })
         )
     }
 
