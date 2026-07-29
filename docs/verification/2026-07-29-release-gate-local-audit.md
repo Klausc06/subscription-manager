@@ -37,9 +37,11 @@ Xcode 27 remained blocked while finalizing the test log / coverage record; no
 final `.xcresult` was produced. Restarting the Simulator and disabling code
 coverage did not remove the result-finalization hang. The final no-coverage
 attempt emitted no failure summary before its XCTest child process exited, but
-that remains insufficient to claim the scenarios passed. This is a
-test-executor limitation, not passing evidence. Re-run the three archive
-scenarios from Xcode or a clean Simulator session before closing TB-25.
+that remains insufficient to claim the scenarios passed. A newly created iOS
+27 simulator reproduced the same behavior, so it is not isolated to the
+original device's data or test session. This is a test-executor limitation,
+not passing evidence. Re-run the three archive scenarios from Xcode or a clean
+Simulator session before closing TB-25.
 
 ## Remaining external verification
 
