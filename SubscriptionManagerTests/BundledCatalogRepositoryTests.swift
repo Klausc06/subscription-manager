@@ -105,6 +105,93 @@ struct BundledCatalogRepositoryTests {
         #expect(repository.catalogSource == .bundled)
     }
 
+    @Test("An older cache never overrides a newer bundled catalog")
+    @MainActor
+    func olderCacheDoesNotOverrideNewerBundle() throws {
+        let directory = FileManager.default.temporaryDirectory.appending(
+            path: UUID().uuidString,
+            directoryHint: .isDirectory
+        )
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let cache = FileCatalogCache(directory: directory)
+        try cache.storeCatalogData(
+            validCatalogData(catalogVersion: 3, presetID: "cached")
+        )
+        let repository = CachedCatalogRepository(
+            bundled: BundledCatalogRepository(
+                data: validCatalogData(
+                    catalogVersion: 4,
+                    presetID: "bundled"
+                )
+            ),
+            cache: cache
+        )
+
+        let snapshot = try repository.loadSnapshot()
+
+        #expect(snapshot.catalogVersion == 4)
+        #expect(snapshot.presets.map(\.id) == ["bundled"])
+        #expect(repository.catalogSource == .bundled)
+    }
+
+    @Test("A newer cache overrides the bundled catalog")
+    @MainActor
+    func newerCacheOverridesBundle() throws {
+        let directory = FileManager.default.temporaryDirectory.appending(
+            path: UUID().uuidString,
+            directoryHint: .isDirectory
+        )
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let cache = FileCatalogCache(directory: directory)
+        try cache.storeCatalogData(
+            validCatalogData(catalogVersion: 5, presetID: "cached")
+        )
+        let repository = CachedCatalogRepository(
+            bundled: BundledCatalogRepository(
+                data: validCatalogData(
+                    catalogVersion: 4,
+                    presetID: "bundled"
+                )
+            ),
+            cache: cache
+        )
+
+        let snapshot = try repository.loadSnapshot()
+
+        #expect(snapshot.catalogVersion == 5)
+        #expect(snapshot.presets.map(\.id) == ["cached"])
+        #expect(repository.catalogSource == .cached)
+    }
+
+    @Test("A same-version cache defers to the trusted bundle")
+    @MainActor
+    func sameVersionCacheDefersToBundle() throws {
+        let directory = FileManager.default.temporaryDirectory.appending(
+            path: UUID().uuidString,
+            directoryHint: .isDirectory
+        )
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let cache = FileCatalogCache(directory: directory)
+        try cache.storeCatalogData(
+            validCatalogData(catalogVersion: 4, presetID: "cached")
+        )
+        let repository = CachedCatalogRepository(
+            bundled: BundledCatalogRepository(
+                data: validCatalogData(
+                    catalogVersion: 4,
+                    presetID: "bundled"
+                )
+            ),
+            cache: cache
+        )
+
+        let snapshot = try repository.loadSnapshot()
+
+        #expect(snapshot.catalogVersion == 4)
+        #expect(snapshot.presets.map(\.id) == ["bundled"])
+        #expect(repository.catalogSource == .bundled)
+    }
+
     @Test("The bundled catalog decodes and exposes localized presets")
     @MainActor
     func bundledCatalogIsValid() throws {
@@ -248,20 +335,23 @@ private let expectedVerifiedOfferTable = [
     "canva|pro-one-person-yearly-us-web|Pro (1 person)|Pro (1 person)|yearly|18000|https://www.canva.com/pricing/"
 ]
 
-private func validCatalogData() -> Data {
+private func validCatalogData(
+    catalogVersion: Int = 1,
+    presetID: String = "music.example"
+) -> Data {
     Data("""
     {
       "schemaVersion": 1,
-      "catalogVersion": 1,
+      "catalogVersion": \(catalogVersion),
       "presets": [
         {
-          "id": "music.example",
+          "id": "\(presetID)",
           "serviceName": { "en": "Music", "zhHans": "音乐" },
           "category": { "en": "Music", "zhHans": "音乐" },
           "suggestedInterval": "monthly",
           "managementURL": null,
           "icon": "music",
-          "assetProvenance": { "kind": "originalSymbol", "license": "CC0-1.0", "source": "music.example" }
+          "assetProvenance": { "kind": "originalSymbol", "license": "CC0-1.0", "source": "\(presetID)" }
         }
       ]
     }

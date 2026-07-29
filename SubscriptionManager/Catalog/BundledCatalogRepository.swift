@@ -49,21 +49,29 @@ final class CachedCatalogRepository: CatalogRepository {
     }
 
     func loadSnapshot() throws -> CatalogSnapshot {
+        let bundledSnapshot = try bundled.loadSnapshot()
+
         do {
             if let data = try cache.loadCatalogData() {
-                let snapshot = try JSONDecoder().decode(
+                let cachedSnapshot = try JSONDecoder().decode(
                     CatalogSnapshot.self,
                     from: data
                 )
-                catalogSource = .cached
-                return snapshot
+                if cachedSnapshot.catalogVersion
+                    > bundledSnapshot.catalogVersion
+                {
+                    catalogSource = .cached
+                    return cachedSnapshot
+                }
+                // The trusted app bundle wins ties; only newer cache data
+                // is allowed to replace it.
             }
         } catch {
             // A corrupt cache is never allowed to prevent offline browsing.
         }
 
         catalogSource = .bundled
-        return try bundled.loadSnapshot()
+        return bundledSnapshot
     }
 }
 
