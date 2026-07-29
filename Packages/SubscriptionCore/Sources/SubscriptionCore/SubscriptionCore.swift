@@ -353,6 +353,12 @@ public enum SubscriptionCreationValidationError: Equatable, Sendable {
     case beforeStartDate
 }
 
+public enum SubscriptionCreationResult: Equatable, Sendable {
+    case created(Subscription)
+    case validationFailed
+    case persistenceFailed
+}
+
 public enum SubscriptionLibraryScope: Hashable, Sendable {
     case current
     case archived
@@ -938,9 +944,10 @@ public final class SubscriptionWorkspace {
         }
     }
 
+    @discardableResult
     public func createSubscription(
         _ input: SubscriptionCreationInput
-    ) {
+    ) -> SubscriptionCreationResult {
         createSubscription(input) { id in
             ServiceIdentity(rawValue: "manual:\(id.uuidString)")
         }
@@ -1038,15 +1045,16 @@ public final class SubscriptionWorkspace {
         }
     }
 
+    @discardableResult
     private func createSubscription(
         _ input: SubscriptionCreationInput,
         serviceIdentity: (UUID) -> ServiceIdentity
-    ) {
+    ) -> SubscriptionCreationResult {
         creationValidationErrors = validate(input)
         guard creationValidationErrors.isEmpty,
               let originalAmount = input.originalAmount
         else {
-            return
+            return .validationFailed
         }
 
         let whitespace = CharacterSet.whitespacesAndNewlines
@@ -1080,8 +1088,10 @@ public final class SubscriptionWorkspace {
             markLocalChangesForSync()
             detailState = makeDetail(subscription)
             loadLibrary()
+            return .created(subscription)
         } catch {
             detailState = .failed
+            return .persistenceFailed
         }
     }
 
@@ -1555,6 +1565,15 @@ public final class SubscriptionWorkspace {
         }
     }
 
+    public func subscriptions() throws -> [Subscription] {
+        try repository.listSubscriptions()
+            .sorted { $0.id.uuidString < $1.id.uuidString }
+    }
+
+    public func subscription(for id: UUID) throws -> Subscription? {
+        try repository.subscription(id: id)
+    }
+
     public func loadExpectedCharges(
         subscriptionID: UUID,
         through horizon: Date,
@@ -1583,14 +1602,20 @@ public final class SubscriptionWorkspace {
     }
 
     public func loadUpcomingTimeline(from: Date, through: Date) {
-        guard from <= through else {
-            upcomingTimeline = []
-            return
-        }
-
         do {
-            let subscriptions = try repository.listSubscriptions()
-            upcomingTimeline = subscriptions.flatMap { subscription in
+            upcomingTimeline = try upcomingRenewals(from: from, through: through)
+        } catch {
+            upcomingTimeline = []
+        }
+    }
+
+    public func upcomingRenewals(
+        from: Date,
+        through: Date
+    ) throws -> [UpcomingTimelineItem] {
+        guard from <= through else { return [] }
+        return try subscriptions()
+            .flatMap { subscription in
                 makeUpcomingTimelineItems(
                     for: subscription,
                     from: from,
@@ -1601,9 +1626,6 @@ public final class SubscriptionWorkspace {
                 if lhs.date != rhs.date { return lhs.date < rhs.date }
                 return lhs.id < rhs.id
             }
-        } catch {
-            upcomingTimeline = []
-        }
     }
 
     public func loadCalendarProjection(locale: Locale) {

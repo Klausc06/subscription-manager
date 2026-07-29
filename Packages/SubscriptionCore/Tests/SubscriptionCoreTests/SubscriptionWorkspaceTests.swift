@@ -960,6 +960,79 @@ struct SubscriptionWorkspaceTests {
         #expect(subscriptions.map(\.id) == [subscriptionID])
     }
 
+    @Test("Creation reports the one normalized record persisted by the workspace")
+    @MainActor
+    func creationReportsExactlyOnePersistedSubscription() throws {
+        let repository = InMemorySubscriptionRepository()
+        let subscriptionID = UUID(
+            uuidString: "33333333-4444-5555-6666-777777777777"
+        )!
+        let workspace = SubscriptionWorkspace(
+            repository: repository,
+            identifierGenerator: { subscriptionID }
+        )
+
+        let result = workspace.createSubscription(
+            SubscriptionCreationInput(
+                serviceName: " Atlas ",
+                plan: "Pro",
+                category: "Productivity",
+                originalAmount: Money(minorUnits: 1_299, currency: .usd),
+                startDate: Date(timeIntervalSince1970: 1_767_225_600),
+                confirmedNextRenewal: Date(timeIntervalSince1970: 1_769_904_000),
+                managementURL: nil,
+                notes: ""
+            )
+        )
+
+        guard case .created(let created) = result else {
+            Issue.record("Expected a persisted subscription result")
+            return
+        }
+        #expect(created.id == subscriptionID)
+        #expect(created.serviceName == "Atlas")
+        #expect(try repository.listSubscriptions() == [created])
+    }
+
+    @Test("Intent-facing queries keep stable records but exclude archived renewals")
+    @MainActor
+    func intentFacingQueriesUseTheSameWorkspaceRules() throws {
+        let currentID = UUID(
+            uuidString: "44444444-5555-6666-7777-888888888888"
+        )!
+        let archivedID = UUID(
+            uuidString: "55555555-6666-7777-8888-999999999999"
+        )!
+        let now = Date(timeIntervalSince1970: 1_767_225_600)
+        let current = makeSubscription(
+            id: currentID,
+            confirmedNextRenewal: now.addingTimeInterval(86_400),
+            serviceName: "Atlas"
+        )
+        let archived = makeSubscription(
+            id: archivedID,
+            isArchived: true,
+            confirmedNextRenewal: now.addingTimeInterval(43_200),
+            serviceName: "Beacon"
+        )
+        let workspace = SubscriptionWorkspace(
+            repository: InMemorySubscriptionRepository(
+                subscriptions: [archived, current]
+            ),
+            now: { now }
+        )
+
+        #expect(try workspace.subscriptions().map(\.id) == [currentID, archivedID])
+        #expect(try workspace.subscription(for: archivedID) == archived)
+        #expect(try workspace.subscription(for: UUID()) == nil)
+        #expect(
+            try workspace.upcomingRenewals(
+                from: now,
+                through: now.addingTimeInterval(40 * 86_400)
+            ).map(\.subscriptionID) == [currentID]
+        )
+    }
+
     @Test("The in-memory repository lists subscriptions in stable identifier order")
     @MainActor
     func inMemoryRepositoryListsSubscriptionsInStableIdentifierOrder() throws {
