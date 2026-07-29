@@ -16,7 +16,12 @@ enum CatalogOfferSelection {
                 .map(\.billingInterval.rawValue)
         )
         return values.sorted {
-            periodRank($0) < periodRank($1)
+            let leftRank = periodRank($0)
+            let rightRank = periodRank($1)
+            if leftRank != rightRank {
+                return leftRank < rightRank
+            }
+            return $0 < $1
         }
     }
 
@@ -39,10 +44,15 @@ enum CatalogOfferSelection {
         _ lhs: CatalogOffer,
         _ rhs: CatalogOffer
     ) -> Bool {
-        let leftRank = periodRank(lhs.billingInterval.rawValue)
-        let rightRank = periodRank(rhs.billingInterval.rawValue)
+        let leftRawValue = lhs.billingInterval.rawValue
+        let rightRawValue = rhs.billingInterval.rawValue
+        let leftRank = periodRank(leftRawValue)
+        let rightRank = periodRank(rightRawValue)
         if leftRank != rightRank {
             return leftRank < rightRank
+        }
+        if leftRawValue != rightRawValue {
+            return leftRawValue < rightRawValue
         }
         if lhs.price.minorUnits != rhs.price.minorUnits {
             return lhs.price.minorUnits < rhs.price.minorUnits

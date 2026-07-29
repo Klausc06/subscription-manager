@@ -90,6 +90,50 @@ struct CatalogOfferSelectionTests {
         )
     }
 
+    @Test("Custom periods use raw values as a deterministic tie-breaker")
+    func customPeriodsHaveStableOrdering() {
+        let preset = preset(
+            offers: [
+                offer(
+                    id: "seven-days",
+                    interval: .custom(value: 7, unit: .day)
+                ),
+                offer(
+                    id: "two-months",
+                    interval: .custom(value: 2, unit: .month)
+                )
+            ]
+        )
+
+        #expect(
+            CatalogOfferSelection.periods(in: preset)
+                == ["custom:2:month", "custom:7:day"]
+        )
+    }
+
+    @Test("Custom offer ordering uses raw values before price")
+    func customOffersHaveStableOrdering() {
+        let preset = preset(
+            offers: [
+                offer(
+                    id: "seven-days",
+                    minorUnits: 100,
+                    interval: .custom(value: 7, unit: .day)
+                ),
+                offer(
+                    id: "two-months",
+                    minorUnits: 1_000,
+                    interval: .custom(value: 2, unit: .month)
+                )
+            ]
+        )
+
+        #expect(
+            CatalogOfferSelection.selectableOffers(in: preset).map(\.id)
+                == ["two-months", "seven-days"]
+        )
+    }
+
     @Test("Offer-less legacy services have no selection")
     func offerLessLegacyServiceHasNoSelection() {
         let legacyPreset = preset()
