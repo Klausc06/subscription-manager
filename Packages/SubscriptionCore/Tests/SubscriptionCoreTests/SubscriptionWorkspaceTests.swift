@@ -272,6 +272,78 @@ struct SubscriptionWorkspaceTests {
         #expect(result.map(\.id) == [firstID, thirdID])
     }
 
+    @Test("Every table sort keeps pinned subscriptions first by recency")
+    func tableQueryKeepsPinnedSummariesFirst() {
+        let newestID = UUID(
+            uuidString: "11111111-2222-3333-4444-555555555555"
+        )!
+        let tiedFirstID = UUID(
+            uuidString: "22222222-2222-3333-4444-555555555555"
+        )!
+        let tiedSecondID = UUID(
+            uuidString: "33333333-2222-3333-4444-555555555555"
+        )!
+        let unpinnedID = UUID(
+            uuidString: "44444444-2222-3333-4444-555555555555"
+        )!
+        let olderPin = Date(timeIntervalSinceReferenceDate: 800_000_000)
+        let newestPin = olderPin.addingTimeInterval(60)
+        let summaries = [
+            SubscriptionSummary(
+                subscription: makeSubscription(
+                    id: unpinnedID,
+                    serviceName: "A Service"
+                ),
+                status: .active,
+                nextExpectedCharge: nil
+            ),
+            SubscriptionSummary(
+                subscription: makeSubscription(
+                    id: tiedSecondID,
+                    pinnedAt: olderPin,
+                    serviceName: "Z Service"
+                ),
+                status: .active,
+                nextExpectedCharge: nil
+            ),
+            SubscriptionSummary(
+                subscription: makeSubscription(
+                    id: newestID,
+                    pinnedAt: newestPin,
+                    serviceName: "M Service"
+                ),
+                status: .active,
+                nextExpectedCharge: nil
+            ),
+            SubscriptionSummary(
+                subscription: makeSubscription(
+                    id: tiedFirstID,
+                    pinnedAt: olderPin,
+                    serviceName: "Y Service"
+                ),
+                status: .active,
+                nextExpectedCharge: nil
+            ),
+        ]
+
+        for sort in SubscriptionTableSort.allCases {
+            for ascending in [true, false] {
+                let result = SubscriptionTableQuery(
+                    searchText: "service",
+                    sort: sort,
+                    ascending: ascending
+                )
+                .apply(to: summaries)
+
+                #expect(
+                    Array(result.prefix(3).map(\.id))
+                        == [newestID, tiedFirstID, tiedSecondID]
+                )
+                #expect(result.last?.id == unpinnedID)
+            }
+        }
+    }
+
     @Test("EUR snapshot converts source money through its base rate")
     func exchangeRateSnapshotConvertsThroughEUR() throws {
         let now = Date(timeIntervalSince1970: 1_769_356_800)
@@ -2601,6 +2673,120 @@ struct SubscriptionWorkspaceTests {
         #expect(workspace.libraryState == libraryBefore)
     }
 
+    @Test("Pin commands persist recency and preserve it through archive")
+    @MainActor
+    func pinCommandsPersistRecencyAndPreserveArchive() throws {
+        let subscriptionID = UUID(
+            uuidString: "70000000-0000-0000-0000-000000000007"
+        )!
+        let now = Date(timeIntervalSinceReferenceDate: 810_000_000)
+        let subscription = makeSubscription(id: subscriptionID)
+        let repository = InMemorySubscriptionRepository(
+            subscriptions: [subscription]
+        )
+        let workspace = SubscriptionWorkspace(
+            repository: repository,
+            now: { now }
+        )
+
+        workspace.loadLibrary(scope: .current)
+        workspace.setPinned(id: subscriptionID, pinned: true)
+
+        var stored = try #require(
+            repository.storedSubscription(id: subscriptionID)
+        )
+        #expect(stored.pinnedAt == now)
+        #expect(repository.updateAttemptCount == 1)
+        guard case .loaded(.current, let pinnedSummaries) =
+            workspace.libraryState
+        else {
+            Issue.record("Expected refreshed current library")
+            return
+        }
+        #expect(pinnedSummaries.first?.pinnedAt == now)
+
+        workspace.setPinned(id: subscriptionID, pinned: true)
+        #expect(repository.updateAttemptCount == 1)
+
+        workspace.archive(id: subscriptionID)
+        stored = try #require(
+            repository.storedSubscription(id: subscriptionID)
+        )
+        #expect(stored.isArchived)
+        #expect(stored.pinnedAt == now)
+
+        workspace.restore(id: subscriptionID)
+        stored = try #require(
+            repository.storedSubscription(id: subscriptionID)
+        )
+        #expect(!stored.isArchived)
+        #expect(stored.pinnedAt == now)
+
+        workspace.setPinned(id: subscriptionID, pinned: false)
+        stored = try #require(
+            repository.storedSubscription(id: subscriptionID)
+        )
+        #expect(stored.pinnedAt == nil)
+        #expect(repository.updateAttemptCount == 4)
+
+        workspace.setPinned(id: subscriptionID, pinned: false)
+        #expect(repository.updateAttemptCount == 4)
+    }
+
+    @Test("Archived subscriptions cannot be newly pinned")
+    @MainActor
+    func archivedSubscriptionsCannotBeNewlyPinned() throws {
+        let subscription = makeSubscription(
+            id: UUID(
+                uuidString: "80000000-0000-0000-0000-000000000008"
+            )!,
+            isArchived: true
+        )
+        let repository = InMemorySubscriptionRepository(
+            subscriptions: [subscription]
+        )
+        let workspace = SubscriptionWorkspace(repository: repository)
+
+        workspace.setPinned(id: subscription.id, pinned: true)
+
+        #expect(
+            repository.storedSubscription(id: subscription.id)
+                == subscription
+        )
+        #expect(repository.updateAttemptCount == 0)
+        #expect(
+            workspace.lifecycleActionError == .invalidLifecycleTransition
+        )
+    }
+
+    @Test("A failed pin keeps persisted and presented state unchanged")
+    @MainActor
+    func failedPinKeepsStateUnchanged() {
+        let subscription = makeSubscription(
+            id: UUID(
+                uuidString: "90000000-0000-0000-0000-000000000009"
+            )!
+        )
+        let repository = InMemorySubscriptionRepository(
+            subscriptions: [subscription]
+        )
+        let workspace = SubscriptionWorkspace(repository: repository)
+        workspace.loadLibrary(scope: .current)
+        let libraryBefore = workspace.libraryState
+        repository.failure = .update
+
+        workspace.setPinned(id: subscription.id, pinned: true)
+
+        #expect(
+            repository.storedSubscription(id: subscription.id)
+                == subscription
+        )
+        #expect(workspace.libraryState == libraryBefore)
+        #expect(
+            workspace.lifecycleActionError == .persistenceFailed
+        )
+    }
+
     @Test(
         "Every current lifecycle can be archived without changing its facts",
         arguments: LifecycleFixture.allCases
@@ -3690,6 +3876,7 @@ private func makeSubscription(
     id: UUID,
     lifecycle: SubscriptionLifecycle = .active,
     isArchived: Bool = false,
+    pinnedAt: Date? = nil,
     billingSchedule: FixedBillingSchedule? = nil,
     confirmedNextRenewal: Date? = nil,
     confirmedCharges: [ConfirmedCharge] = [],
@@ -3722,7 +3909,8 @@ private func makeSubscription(
         notes: notes,
         confirmedCharges: confirmedCharges,
         lifecycle: lifecycle,
-        isArchived: isArchived
+        isArchived: isArchived,
+        pinnedAt: pinnedAt
     )
 }
 

@@ -49,6 +49,10 @@
 - **Archived Subscription**: A Subscription hidden from current-library
   queries, forecasts, and insights while retaining its lifecycle and history.
   Restoring it changes visibility only.
+- **Pinned Subscription**: A current-library subscription with a persisted
+  `pinnedAt` timestamp. Pinned rows always precede ordinary rows; newer pin
+  timestamps sort first, with UUID as the deterministic tie-breaker. Archive
+  and restore preserve the timestamp.
 
 ## Current invariant
 

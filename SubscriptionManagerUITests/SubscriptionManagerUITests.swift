@@ -946,6 +946,48 @@ final class SubscriptionManagerUITests: XCTestCase {
         XCTAssertTrue(status.label.contains("Trial"))
     }
 
+    func testLeadingSwipePinsAndUnpinsLibraryRows() {
+        let app = launch(
+            language: "en",
+            locale: "en_US",
+            storeToken: "pin-unpin-\(UUID().uuidString)"
+        )
+        createSubscription(named: "Alpha Service", in: app)
+        createSubscription(named: "Beta Service", in: app)
+
+        let betaRow = app.buttons.matching(
+            identifier: "subscription.row"
+        )
+        .matching(
+            NSPredicate(format: "label CONTAINS %@", "Beta Service")
+        )
+        .firstMatch
+        XCTAssertTrue(betaRow.waitForExistence(timeout: 5))
+        betaRow.swipeRight()
+
+        let pin = app.buttons["subscription.pin"]
+        XCTAssertTrue(pin.waitForExistence(timeout: 5))
+        pin.tap()
+
+        let firstPinnedRow = app.buttons[
+            "subscription.row"
+        ].firstMatch
+        XCTAssertTrue(firstPinnedRow.waitForExistence(timeout: 5))
+        XCTAssertTrue(firstPinnedRow.label.contains("Beta Service"))
+        XCTAssertTrue(firstPinnedRow.value as? String == "Pinned")
+
+        firstPinnedRow.swipeRight()
+        let unpin = app.buttons["subscription.unpin"]
+        XCTAssertTrue(unpin.waitForExistence(timeout: 5))
+        unpin.tap()
+
+        let firstUnpinnedRow = app.buttons[
+            "subscription.row"
+        ].firstMatch
+        XCTAssertTrue(firstUnpinnedRow.waitForExistence(timeout: 5))
+        XCTAssertTrue(firstUnpinnedRow.label.contains("Alpha Service"))
+    }
+
     func testSimplifiedChineseLifecycleStatusIsLocalized() {
         let app = launch(
             language: "zh-Hans",

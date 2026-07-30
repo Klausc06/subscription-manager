@@ -107,6 +107,7 @@ public struct Subscription: Codable, Equatable, Identifiable, Sendable {
     public let priceChanges: [PriceChange]
     public let lifecycle: SubscriptionLifecycle
     public let isArchived: Bool
+    public let pinnedAt: Date?
 
     public var billingCycle: BillingInterval {
         billingSchedule.interval
@@ -127,7 +128,8 @@ public struct Subscription: Codable, Equatable, Identifiable, Sendable {
         confirmedCharges: [ConfirmedCharge] = [],
         priceChanges: [PriceChange] = [],
         lifecycle: SubscriptionLifecycle = .active,
-        isArchived: Bool = false
+        isArchived: Bool = false,
+        pinnedAt: Date? = nil
     ) {
         self.id = id
         self.serviceIdentity = serviceIdentity
@@ -145,6 +147,7 @@ public struct Subscription: Codable, Equatable, Identifiable, Sendable {
         self.priceChanges = priceChanges
         self.lifecycle = lifecycle
         self.isArchived = isArchived
+        self.pinnedAt = pinnedAt
     }
 
     public init(
@@ -163,7 +166,8 @@ public struct Subscription: Codable, Equatable, Identifiable, Sendable {
         confirmedCharges: [ConfirmedCharge] = [],
         priceChanges: [PriceChange] = [],
         lifecycle: SubscriptionLifecycle = .active,
-        isArchived: Bool = false
+        isArchived: Bool = false,
+        pinnedAt: Date? = nil
     ) {
         self.init(
             id: id,
@@ -184,7 +188,8 @@ public struct Subscription: Codable, Equatable, Identifiable, Sendable {
             confirmedCharges: confirmedCharges,
             priceChanges: priceChanges,
             lifecycle: lifecycle,
-            isArchived: isArchived
+            isArchived: isArchived,
+            pinnedAt: pinnedAt
         )
     }
 }
@@ -200,6 +205,7 @@ public struct SubscriptionSummary: Codable, Equatable, Identifiable, Sendable {
     public let confirmedNextRenewal: Date
     public let status: SubscriptionStatus
     public let nextExpectedCharge: ExpectedCharge?
+    public let pinnedAt: Date?
 
     public init(
         subscription: Subscription,
@@ -216,6 +222,7 @@ public struct SubscriptionSummary: Codable, Equatable, Identifiable, Sendable {
         confirmedNextRenewal = subscription.confirmedNextRenewal
         self.status = status
         self.nextExpectedCharge = nextExpectedCharge
+        pinnedAt = subscription.pinnedAt
     }
 }
 
@@ -471,6 +478,19 @@ public struct SubscriptionTableQuery: Equatable, Sendable {
                     }
             }
             .sorted { lhs, rhs in
+                switch (lhs.pinnedAt, rhs.pinnedAt) {
+                case let (left?, right?):
+                    if left != right {
+                        return left > right
+                    }
+                    return lhs.id.uuidString < rhs.id.uuidString
+                case (_?, nil):
+                    return true
+                case (nil, _?):
+                    return false
+                case (nil, nil):
+                    break
+                }
                 let order = comparison(of: lhs, and: rhs, locale: locale)
                 if order == .orderedSame {
                     return lhs.id.uuidString < rhs.id.uuidString
@@ -1324,7 +1344,8 @@ public final class SubscriptionWorkspace {
                 confirmedCharges: existing.confirmedCharges,
                 priceChanges: existing.priceChanges,
                 lifecycle: lifecycle,
-                isArchived: existing.isArchived
+                isArchived: existing.isArchived,
+                pinnedAt: existing.pinnedAt
             )
             try repository.updateSubscription(edited)
             markLocalChangesForSync()
@@ -1625,6 +1646,32 @@ public final class SubscriptionWorkspace {
                 ),
                 startDate: startDate,
                 confirmedNextRenewal: normalizedRenewal
+            )
+            try repository.updateSubscription(updated)
+            finishLifecycleUpdate(updated)
+        } catch {
+            lifecycleActionError = .persistenceFailed
+        }
+    }
+
+    public func setPinned(id: UUID, pinned: Bool) {
+        lifecycleActionError = nil
+
+        do {
+            guard let existing = try repository.subscription(id: id) else {
+                detailState = .notFound
+                return
+            }
+            guard !existing.isArchived else {
+                lifecycleActionError = .invalidLifecycleTransition
+                return
+            }
+            guard (existing.pinnedAt != nil) != pinned else {
+                return
+            }
+
+            let updated = existing.replacingPinnedAt(
+                pinned ? now() : nil
             )
             try repository.updateSubscription(updated)
             finishLifecycleUpdate(updated)
@@ -2131,9 +2178,12 @@ public final class SubscriptionWorkspace {
         let subscriptions = try repository.listSubscriptions()
             .filter { $0.isArchived == (scope == .archived) }
         let summaries = subscriptions.map(makeSummary)
-        return summaries.isEmpty
+        let orderedSummaries = scope == .current
+            ? SubscriptionTableQuery().apply(to: summaries)
+            : summaries
+        return orderedSummaries.isEmpty
             ? .empty(scope)
-            : .loaded(scope, summaries)
+            : .loaded(scope, orderedSummaries)
     }
 
     private var carriedLibraryScope: SubscriptionLibraryScope {

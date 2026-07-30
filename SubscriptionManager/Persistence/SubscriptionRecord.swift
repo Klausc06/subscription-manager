@@ -26,6 +26,7 @@ final class SubscriptionRecord {
     var cancelledAt: Date?
     var accessUntil: Date?
     var isArchived: Bool?
+    var pinnedAt: Date?
 
     init(
         id: UUID,
@@ -52,7 +53,8 @@ final class SubscriptionRecord {
         trialFirstPaidChargeAt: Date? = nil,
         cancelledAt: Date? = nil,
         accessUntil: Date? = nil,
-        isArchived: Bool? = nil
+        isArchived: Bool? = nil,
+        pinnedAt: Date? = nil
     ) {
         self.id = id
         self.serviceIdentityRawValue = serviceIdentityRawValue
@@ -77,6 +79,7 @@ final class SubscriptionRecord {
         self.cancelledAt = cancelledAt
         self.accessUntil = accessUntil
         self.isArchived = isArchived
+        self.pinnedAt = pinnedAt
     }
 }
 

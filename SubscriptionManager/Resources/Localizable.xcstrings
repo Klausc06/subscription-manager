@@ -97,6 +97,12 @@
         "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "无法保存此订阅，请重试。" } }
       }
     },
+    "Couldn’t Update Pin" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Couldn’t Update Pin" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "无法更新置顶状态" } }
+      }
+    },
     "Couldn’t Load Subscriptions" : {
       "localizations" : {
         "en" : {
@@ -535,6 +541,18 @@
         "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "永久删除" } }
       }
     },
+    "Pin" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Pin" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "置顶" } }
+      }
+    },
+    "Pinned" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Pinned" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "已置顶" } }
+      }
+    },
     "Permanently Delete “%@”?" : {
       "localizations" : {
         "en" : { "stringUnit" : { "state" : "translated", "value" : "Permanently Delete “%@”?" } },
@@ -589,6 +607,12 @@
         "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "此操作无法撤销。" } }
       }
     },
+    "The subscription stayed unchanged. Try again." : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "The subscription stayed unchanged. Try again." } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "订阅未发生更改，请重试。" } }
+      }
+    },
     "This action isn’t available for the subscription’s current status." : {
       "localizations" : {
         "en" : { "stringUnit" : { "state" : "translated", "value" : "This action isn’t available for the subscription’s current status." } },
@@ -605,6 +629,12 @@
       "localizations" : {
         "en" : { "stringUnit" : { "state" : "translated", "value" : "Trial Start" } },
         "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "试用开始" } }
+      }
+    },
+    "Unpin" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Unpin" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "取消置顶" } }
       }
     },
     "Unit" : {

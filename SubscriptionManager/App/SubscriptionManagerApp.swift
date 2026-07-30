@@ -147,6 +147,7 @@ private struct MacLibraryView: View {
     @State private var addPresentation = MacAddPresentationState()
     @State private var editingSubscription: Subscription?
     @State private var isPreferencesPresented = false
+    @State private var pinActionFailed = false
     @FocusState private var isSearchFocused: Bool
 
     var body: some View {
@@ -190,12 +191,38 @@ private struct MacLibraryView: View {
                             archiveSelection()
                         }
                         .disabled(scope != .current || selection.isEmpty)
+
+                        if selectedSubscriptionsArePinned {
+                            Button("Unpin", systemImage: "pin.slash") {
+                                pinSelection(pinned: false)
+                            }
+                            .disabled(
+                                scope != .current || selection.isEmpty
+                            )
+                        } else {
+                            Button("Pin", systemImage: "pin") {
+                                pinSelection(pinned: true)
+                            }
+                            .disabled(
+                                scope != .current || selection.isEmpty
+                            )
+                        }
                     }
                 }
         } detail: {
             detailContent
         }
         .navigationSplitViewStyle(.balanced)
+        .alert(
+            "Couldn’t Update Pin",
+            isPresented: $pinActionFailed
+        ) {
+            Button("OK") {
+                workspace.clearLifecycleActionError()
+            }
+        } message: {
+            Text("The subscription stayed unchanged. Try again.")
+        }
         .sheet(isPresented: Binding(
             get: { addPresentation.isPresented },
             set: { isPresented in
@@ -261,6 +288,31 @@ private struct MacLibraryView: View {
             Table(visibleSummaries, selection: $selection) {
                 TableColumn("Service") { summary in
                     Text(summary.serviceName)
+                        .accessibilityValue(
+                            summary.pinnedAt == nil ? Text("") : Text("Pinned")
+                        )
+                        .contextMenu {
+                            if scope == .current {
+                                if summary.pinnedAt == nil {
+                                    Button("Pin", systemImage: "pin") {
+                                        updatePin(
+                                            id: summary.id,
+                                            pinned: true
+                                        )
+                                    }
+                                } else {
+                                    Button(
+                                        "Unpin",
+                                        systemImage: "pin.slash"
+                                    ) {
+                                        updatePin(
+                                            id: summary.id,
+                                            pinned: false
+                                        )
+                                    }
+                                }
+                            }
+                        }
                 }
                 TableColumn("Plan") { summary in
                     Text(summary.plan)
@@ -322,6 +374,14 @@ private struct MacLibraryView: View {
         .apply(to: summaries)
     }
 
+    private var selectedSubscriptionsArePinned: Bool {
+        let selectedSummaries = visibleSummaries.filter {
+            selection.contains($0.id)
+        }
+        return !selectedSummaries.isEmpty
+            && selectedSummaries.allSatisfy { $0.pinnedAt != nil }
+    }
+
     private func sortTitle(for value: SubscriptionTableSort) -> LocalizedStringKey {
         switch value {
         case .serviceName: "Service"
@@ -337,6 +397,23 @@ private struct MacLibraryView: View {
         selection.forEach(workspace.archive)
         workspace.loadLibrary(scope: scope)
         selection.removeAll()
+    }
+
+    private func pinSelection(pinned: Bool) {
+        guard scope == .current else { return }
+        var failed = false
+        selection.forEach {
+            workspace.setPinned(id: $0, pinned: pinned)
+            failed = failed || workspace.lifecycleActionError != nil
+        }
+        pinActionFailed = failed
+        workspace.loadLibrary(scope: scope)
+    }
+
+    private func updatePin(id: UUID, pinned: Bool) {
+        workspace.clearLifecycleActionError()
+        workspace.setPinned(id: id, pinned: pinned)
+        pinActionFailed = workspace.lifecycleActionError != nil
     }
 
     private func beginEditingSelection() {

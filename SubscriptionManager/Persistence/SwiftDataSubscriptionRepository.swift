@@ -179,6 +179,7 @@ final class SwiftDataSubscriptionRepository: SubscriptionRepository {
         )
         record.priceChangesData = try encoder.encode(subscription.priceChanges)
         record.isArchived = subscription.isArchived
+        record.pinnedAt = subscription.pinnedAt
         switch subscription.lifecycle {
         case .active:
             record.lifecycleRawValue = LifecycleStorageKind.active.rawValue
@@ -276,7 +277,8 @@ final class SwiftDataSubscriptionRepository: SubscriptionRepository {
             confirmedCharges: confirmedCharges,
             priceChanges: priceChanges,
             lifecycle: lifecycle,
-            isArchived: record.isArchived ?? false
+            isArchived: record.isArchived ?? false,
+            pinnedAt: record.pinnedAt
         )
         return (
             subscription: subscription,

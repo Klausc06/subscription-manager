@@ -83,7 +83,8 @@ struct PortableExportTests {
                 )
             ],
             lifecycle: .active,
-            isArchived: true
+            isArchived: true,
+            pinnedAt: Date(timeIntervalSince1970: 1_736_000_000.75)
         )
         let backup = PortableBackup(
             preferences: UserPreferences(
@@ -98,17 +99,51 @@ struct PortableExportTests {
         let encoder = PortableBackupEncoder()
         let firstExport = try encoder.encode(backup)
         let secondExport = try encoder.encode(backup)
-        let decoder = JSONDecoder()
-        decoder.dateDecodingStrategy = .iso8601
-        let decoded = try decoder.decode(PortableBackup.self, from: firstExport)
-        let repeatedExport = try decoder.decode(
-            PortableBackup.self,
-            from: secondExport
-        )
+        let decoded = try encoder.decode(firstExport)
+        let repeatedExport = try encoder.decode(secondExport)
 
         #expect(decoded == backup)
         #expect(repeatedExport == decoded)
         #expect(decoded.schemaVersion == 1)
+        #expect(
+            decoded.subscriptions.first?.pinnedAt
+                == Date(timeIntervalSince1970: 1_736_000_000.75)
+        )
+    }
+
+    @Test("Backups still decode legacy ISO 8601 dates")
+    func backupDecodesLegacyDates() throws {
+        let subscription = Subscription(
+            id: UUID(uuidString: "99999999-2222-3333-4444-555555555558")!,
+            serviceIdentity: ServiceIdentity(rawValue: "atlas"),
+            serviceName: "Atlas",
+            plan: "Pro",
+            category: "Productivity",
+            originalAmount: Money(minorUnits: 999, currency: .usd),
+            billingCycle: .monthly,
+            startDate: Date(timeIntervalSince1970: 1_704_067_200),
+            confirmedNextRenewal: Date(timeIntervalSince1970: 1_706_745_600),
+            billingTimeZoneIdentifier: "UTC",
+            managementURL: nil,
+            notes: ""
+        )
+        let data = try PortableBackupEncoder().encode(
+            PortableBackup(
+                preferences: .default,
+                subscriptions: [subscription]
+            )
+        )
+        let numericDate = "1704067200"
+        let legacyDate = "\"2024-01-01T00:00:00Z\""
+        let legacyData = Data(
+            String(decoding: data, as: UTF8.self)
+                .replacingOccurrences(of: numericDate, with: legacyDate)
+                .utf8
+        )
+
+        let decoded = try PortableBackupEncoder().decode(legacyData)
+
+        #expect(decoded.subscriptions.first?.startDate == subscription.startDate)
     }
 
     @Test("CSV quotes Unicode commas quotes and line breaks with machine money")
@@ -126,7 +161,8 @@ struct PortableExportTests {
             billingTimeZoneIdentifier: "UTC",
             managementURL: nil,
             notes: "A \"quoted\" note",
-            isArchived: true
+            isArchived: true,
+            pinnedAt: Date(timeIntervalSince1970: 1_736_000_000)
         )
 
         let data = PortableCSVEncoder().encode(
@@ -144,6 +180,8 @@ struct PortableExportTests {
         #expect(rows[1][11].isEmpty)
         #expect(rows[1][12] == "A \"quoted\" note")
         #expect(rows[1][13] == "true")
+        #expect(rows[0][14] == "pinned_at")
+        #expect(rows[1][14] == "2025-01-04T14:13:20Z")
     }
 
     @Test("Workspace export includes archived records without changing the library")

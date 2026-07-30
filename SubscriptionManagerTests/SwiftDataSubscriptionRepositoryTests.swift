@@ -54,6 +54,7 @@ struct SwiftDataSubscriptionRepositoryTests {
         )!
         let startDate = Date(timeIntervalSince1970: 1_767_225_600)
         let renewalDate = Date(timeIntervalSince1970: 1_769_904_000)
+        let pinnedAt = Date(timeIntervalSince1970: 1_770_000_000)
         let expectedSubscription = Subscription(
             id: subscriptionID,
             serviceIdentity: ServiceIdentity(
@@ -70,7 +71,8 @@ struct SwiftDataSubscriptionRepositoryTests {
             startDate: startDate,
             confirmedNextRenewal: renewalDate,
             managementURL: URL(string: "https://example.com/account?lang=zh"),
-            notes: "工作文件"
+            notes: "工作文件",
+            pinnedAt: pinnedAt
         )
         let configuration = ModelConfiguration(isStoredInMemoryOnly: true, cloudKitDatabase: .none)
         let container = try ModelContainer(
@@ -91,6 +93,7 @@ struct SwiftDataSubscriptionRepositoryTests {
 
         #expect(reloadedSubscription == expectedSubscription)
         #expect(reloadedSubscription?.confirmedNextRenewal == renewalDate)
+        #expect(reloadedSubscription?.pinnedAt == pinnedAt)
     }
 
     @Test("A custom schedule and confirmed history survive a repository reload")

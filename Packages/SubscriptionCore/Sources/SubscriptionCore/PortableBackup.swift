@@ -27,15 +27,51 @@ public struct PortableBackupEncoder: Sendable {
 
     public func encode(_ backup: PortableBackup) throws -> Data {
         let encoder = JSONEncoder()
-        encoder.dateEncodingStrategy = .iso8601
+        encoder.dateEncodingStrategy = PortableBackupDateCoding.encodingStrategy
         encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
         return try encoder.encode(backup)
     }
 
     public func decode(_ data: Data) throws -> PortableBackup {
         let decoder = JSONDecoder()
-        decoder.dateDecodingStrategy = .iso8601
+        decoder.dateDecodingStrategy = PortableBackupDateCoding.decodingStrategy
         return try decoder.decode(PortableBackup.self, from: data)
+    }
+}
+
+private enum PortableBackupDateCoding {
+    static let encodingStrategy = JSONEncoder.DateEncodingStrategy.custom {
+        date,
+        encoder in
+        var container = encoder.singleValueContainer()
+        try container.encode(date.timeIntervalSince1970)
+    }
+
+    static let decodingStrategy = JSONDecoder.DateDecodingStrategy.custom {
+        decoder in
+        let container = try decoder.singleValueContainer()
+        if let seconds = try? container.decode(Double.self) {
+            return Date(timeIntervalSince1970: seconds)
+        }
+
+        let value = try container.decode(String.self)
+        let fractionalFormatter = ISO8601DateFormatter()
+        fractionalFormatter.formatOptions = [
+            .withInternetDateTime,
+            .withFractionalSeconds,
+        ]
+        if let date = fractionalFormatter.date(from: value) {
+            return date
+        }
+
+        let formatter = ISO8601DateFormatter()
+        guard let date = formatter.date(from: value) else {
+            throw DecodingError.dataCorruptedError(
+                in: container,
+                debugDescription: "Expected a Unix timestamp or ISO 8601 date."
+            )
+        }
+        return date
     }
 }
 
@@ -52,7 +88,7 @@ public struct PortableBackupValidator: Sendable {
 
     public func decode(_ data: Data) throws -> PortableBackup {
         let decoder = JSONDecoder()
-        decoder.dateDecodingStrategy = .iso8601
+        decoder.dateDecodingStrategy = PortableBackupDateCoding.decodingStrategy
         let backup: PortableBackup
         do {
             backup = try decoder.decode(PortableBackup.self, from: data)
@@ -261,8 +297,8 @@ public struct PortableCSVEncoder: Sendable {
             "service_identity", "billing_interval", "original_minor_units",
             "original_currency", "start_date", "confirmed_next_renewal",
             "billing_time_zone", "management_url", "notes", "is_archived",
-            "lifecycle", "confirmed_charges_json", "price_changes_json",
-            "preferences_json"
+            "pinned_at", "lifecycle", "confirmed_charges_json",
+            "price_changes_json", "preferences_json"
         ]
         let rows = subscriptions.sorted { $0.id.uuidString < $1.id.uuidString }
             .map { subscription in
@@ -281,6 +317,7 @@ public struct PortableCSVEncoder: Sendable {
                     subscription.managementURL?.absoluteString ?? "",
                     subscription.notes,
                     String(subscription.isArchived),
+                    subscription.pinnedAt.map(dateString) ?? "",
                     jsonString(subscription.lifecycle),
                     jsonString(subscription.confirmedCharges),
                     jsonString(subscription.priceChanges),

@@ -722,6 +722,7 @@ private struct ScopedLibraryView: View {
     let scope: SubscriptionLibraryScope
     let onAddSubscription: () -> Void
     let onPreferences: () -> Void
+    @State private var pinActionFailed = false
 
     var body: some View {
         libraryContent
@@ -746,6 +747,16 @@ private struct ScopedLibraryView: View {
             }
             .onAppear {
                 workspace.loadLibrary(scope: scope)
+            }
+            .alert(
+                "Couldn’t Update Pin",
+                isPresented: $pinActionFailed
+            ) {
+                Button("OK") {
+                    workspace.clearLifecycleActionError()
+                }
+            } message: {
+                Text("The subscription stayed unchanged. Try again.")
             }
     }
 
@@ -809,15 +820,7 @@ private struct ScopedLibraryView: View {
 
         case let .loaded(stateScope, subscriptions) where stateScope == scope:
             List(subscriptions) { subscription in
-                NavigationLink(value: subscription.id) {
-                    SubscriptionRow(subscription: subscription)
-                }
-                .accessibilityLabel(
-                    "\(subscription.serviceName), \(subscription.plan), "
-                        + "\(formattedMoney(subscription.originalAmount)), "
-                        + localizedSubscriptionStatus(subscription.status)
-                )
-                .accessibilityIdentifier("subscription.row")
+                subscriptionRow(subscription)
             }
 
         case .failed(let stateScope) where stateScope == scope:
@@ -835,6 +838,63 @@ private struct ScopedLibraryView: View {
             ProgressView("Loading Subscriptions")
                 .accessibilityIdentifier("library.loading")
         }
+    }
+
+    @ViewBuilder
+    private func subscriptionRow(
+        _ subscription: SubscriptionSummary
+    ) -> some View {
+        let row = NavigationLink(value: subscription.id) {
+            SubscriptionRow(subscription: subscription)
+        }
+        .accessibilityLabel(
+            "\(subscription.serviceName), \(subscription.plan), "
+                + "\(formattedMoney(subscription.originalAmount)), "
+                + localizedSubscriptionStatus(subscription.status)
+        )
+        .accessibilityIdentifier("subscription.row")
+
+        #if os(iOS)
+        if scope == .current {
+            row
+                .accessibilityValue(
+                    subscription.pinnedAt == nil ? Text("") : Text("Pinned")
+                )
+                .swipeActions(
+                    edge: .leading,
+                    allowsFullSwipe: true
+                ) {
+                    Button {
+                        updatePin(subscription)
+                    } label: {
+                        if subscription.pinnedAt == nil {
+                            Label("Pin", systemImage: "pin")
+                        } else {
+                            Label("Unpin", systemImage: "pin.slash")
+                        }
+                    }
+                    .tint(.orange)
+                    .accessibilityIdentifier(
+                        subscription.pinnedAt == nil
+                            ? "subscription.pin"
+                            : "subscription.unpin"
+                    )
+                }
+        } else {
+            row
+        }
+        #else
+        row
+        #endif
+    }
+
+    private func updatePin(_ subscription: SubscriptionSummary) {
+        workspace.clearLifecycleActionError()
+        workspace.setPinned(
+            id: subscription.id,
+            pinned: subscription.pinnedAt == nil
+        )
+        pinActionFailed = workspace.lifecycleActionError != nil
     }
 }
 
