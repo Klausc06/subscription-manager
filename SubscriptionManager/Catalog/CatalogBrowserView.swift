@@ -189,6 +189,13 @@ struct CatalogBrowserView: View {
                     Task {
                         isRefreshing = true
                         await workspace.refreshCatalog()
+                        if workspace.catalogDiagnostics?.refreshStatus
+                            == .updated
+                        {
+                            workspace.reconcileCatalogAssociations(
+                                locale: locale
+                            )
+                        }
                         isRefreshing = false
                     }
                 }

@@ -142,4 +142,31 @@ extension Subscription {
             pinnedAt: pinnedAt
         )
     }
+
+    func replacingCatalogAssociation(
+        serviceIdentity: ServiceIdentity,
+        serviceName: String,
+        plan: String,
+        category: String,
+        managementURL: URL?
+    ) -> Subscription {
+        Subscription(
+            id: id,
+            serviceIdentity: serviceIdentity,
+            serviceName: serviceName,
+            plan: plan,
+            category: category,
+            originalAmount: originalAmount,
+            billingSchedule: billingSchedule,
+            startDate: startDate,
+            confirmedNextRenewal: confirmedNextRenewal,
+            managementURL: managementURL,
+            notes: notes,
+            confirmedCharges: confirmedCharges,
+            priceChanges: priceChanges,
+            lifecycle: lifecycle,
+            isArchived: isArchived,
+            pinnedAt: pinnedAt
+        )
+    }
 }

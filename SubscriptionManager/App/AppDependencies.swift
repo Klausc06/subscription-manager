@@ -258,8 +258,11 @@ struct AppDependencies {
         let legacyIdentity = ServiceIdentity(
             rawValue: "catalog:chatgpt-plus"
         )
+        let seedID = UUID(
+            uuidString: "C0DEC0DE-0000-4000-8000-000000000023"
+        )!
         if try !repository.listSubscriptions().contains(where: {
-            $0.serviceIdentity == legacyIdentity
+            $0.id == seedID || $0.serviceIdentity == legacyIdentity
         }) {
             let start = Date(timeIntervalSince1970: 1_767_225_600)
             let calendar = BillingCalendar.calendar(
@@ -272,12 +275,9 @@ struct AppDependencies {
             ) ?? start
             try repository.createSubscription(
                 Subscription(
-                    id: UUID(
-                        uuidString:
-                            "C0DEC0DE-0000-4000-8000-000000000023"
-                    )!,
+                    id: seedID,
                     serviceIdentity: legacyIdentity,
-                    serviceName: "ChatGPT",
+                    serviceName: "ChatGPT Plus",
                     plan: "Plus",
                     category: "Productivity",
                     originalAmount: Money(

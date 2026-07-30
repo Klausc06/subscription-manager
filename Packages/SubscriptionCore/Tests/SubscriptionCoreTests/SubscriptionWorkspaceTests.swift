@@ -3386,17 +3386,462 @@ struct SubscriptionWorkspaceTests {
         #expect(workspace.expectedCharges == forecastBefore)
         #expect(workspace.libraryState == libraryBefore)
     }
+
+    @Test("Manual ChatGPT Plus creation adopts the verified catalog offer")
+    @MainActor
+    func manualCreationReconcilesUniqueCatalogOffer() throws {
+        let repository = InMemorySubscriptionRepository()
+        let preset = catalogPresetFixture(
+            offers: [catalogOfferFixture(id: "plus", status: .verified)],
+            id: "chatgpt",
+            serviceName: CatalogLocalizedText(
+                en: "ChatGPT",
+                zhHans: "ChatGPT"
+            ),
+            matchAliases: ["ChatGPT Plus"]
+        )
+        let now = Date(timeIntervalSince1970: 1_769_731_200)
+        let workspace = SubscriptionWorkspace(
+            repository: repository,
+            catalogRepository: StaticCatalogRepository(presets: [preset]),
+            now: { now }
+        )
+        workspace.loadCatalog(locale: Locale(identifier: "en"))
+
+        let result = workspace.createSubscription(
+            SubscriptionCreationInput(
+                serviceName: "ChatGPT Plus",
+                plan: "Anything",
+                category: "Other",
+                originalAmount: Money(
+                    minorUnits: 2_000,
+                    currency: .usd
+                ),
+                billingInterval: .monthly,
+                startDate: now,
+                confirmedNextRenewal: now,
+                billingTimeZoneIdentifier: "UTC",
+                managementURL: nil,
+                notes: "Keep this",
+                initialStatus: .active
+            )
+        )
+
+        let created: Subscription
+        switch result {
+        case .created(let subscription):
+            created = subscription
+        case .validationFailed, .persistenceFailed:
+            Issue.record("Expected a reconciled subscription.")
+            return
+        }
+        #expect(created.serviceIdentity.rawValue == "catalog:chatgpt")
+        #expect(created.serviceName == "ChatGPT")
+        #expect(created.plan == "Plus")
+        #expect(created.category == "Productivity")
+        #expect(created.managementURL == preset.managementURL)
+        #expect(created.originalAmount.minorUnits == 2_000)
+        #expect(created.notes == "Keep this")
+    }
+
+    @Test("Manual editing uses the same catalog reconciliation seam")
+    @MainActor
+    func manualEditReconcilesUniqueCatalogOffer() throws {
+        let id = UUID(
+            uuidString: "90000000-0000-0000-0000-000000000047"
+        )!
+        let pinnedAt = Date(timeIntervalSince1970: 1_769_700_000)
+        let existing = makeSubscription(
+            id: id,
+            pinnedAt: pinnedAt,
+            originalAmount: Money(minorUnits: 2_000, currency: .usd),
+            serviceName: "Before Edit",
+            notes: "Original notes"
+        )
+        let repository = InMemorySubscriptionRepository(
+            subscriptions: [existing]
+        )
+        let preset = catalogPresetFixture(
+            offers: [catalogOfferFixture(id: "plus", status: .verified)],
+            id: "chatgpt",
+            serviceName: CatalogLocalizedText(
+                en: "ChatGPT",
+                zhHans: "ChatGPT"
+            ),
+            matchAliases: ["ChatGPT Plus"]
+        )
+        let now = Date(timeIntervalSince1970: 1_769_731_200)
+        let workspace = SubscriptionWorkspace(
+            repository: repository,
+            catalogRepository: StaticCatalogRepository(presets: [preset]),
+            now: { now }
+        )
+        workspace.loadCatalog(locale: Locale(identifier: "en"))
+
+        workspace.editSubscription(
+            id: id,
+            input: SubscriptionEditInput(
+                serviceName: "ChatGPT Plus",
+                plan: "Ignored Plan",
+                category: "Ignored Category",
+                billingSchedule: existing.billingSchedule,
+                startDate: existing.startDate,
+                confirmedNextRenewal: existing.confirmedNextRenewal,
+                managementURL: nil,
+                notes: "Edited notes"
+            )
+        )
+
+        let edited = try #require(
+            repository.storedSubscription(id: id)
+        )
+        #expect(edited.serviceIdentity.rawValue == "catalog:chatgpt")
+        #expect(edited.serviceName == "ChatGPT")
+        #expect(edited.plan == "Plus")
+        #expect(edited.category == "Productivity")
+        #expect(edited.managementURL == preset.managementURL)
+        #expect(edited.notes == "Edited notes")
+        #expect(edited.pinnedAt == pinnedAt)
+    }
+
+    @Test(
+        "Explicit reconciliation preserves every non-catalog fact and is idempotent"
+    )
+    @MainActor
+    func explicitCatalogReconciliationPreservesFacts() throws {
+        let id = UUID(
+            uuidString: "A0000000-0000-0000-0000-000000000047"
+        )!
+        let now = Date(timeIntervalSince1970: 1_769_731_200)
+        let pinnedAt = now.addingTimeInterval(-300)
+        let existing = Subscription(
+            id: id,
+            serviceIdentity: ServiceIdentity(rawValue: "manual:\(id)"),
+            serviceName: "ChatGPT Plus",
+            plan: "User Plan",
+            category: "Other",
+            originalAmount: Money(minorUnits: 1_500, currency: .usd),
+            billingSchedule: FixedBillingSchedule(
+                interval: .monthly,
+                renewalAnchor: now,
+                timeZoneIdentifier: "UTC"
+            ),
+            startDate: now,
+            confirmedNextRenewal: now.addingTimeInterval(86_400),
+            managementURL: URL(string: "https://old.example.com"),
+            notes: "Preserved notes",
+            confirmedCharges: [
+                ConfirmedCharge(
+                    id: UUID(
+                        uuidString:
+                            "A0000000-0000-0000-0000-000000000048"
+                    )!,
+                    chargedDate: now.addingTimeInterval(-86_400),
+                    amount: Money(minorUnits: 1_500, currency: .usd)
+                ),
+            ],
+            priceChanges: [
+                PriceChange(
+                    id: UUID(
+                        uuidString:
+                            "A0000000-0000-0000-0000-000000000049"
+                    )!,
+                    effectiveDate: now.addingTimeInterval(-3_600),
+                    amount: Money(minorUnits: 2_000, currency: .usd)
+                ),
+            ],
+            lifecycle: .cancelled(
+                cancelledAt: now.addingTimeInterval(-1_800),
+                accessUntil: now.addingTimeInterval(86_400)
+            ),
+            isArchived: true,
+            pinnedAt: pinnedAt
+        )
+        let repository = InMemorySubscriptionRepository(
+            subscriptions: [existing]
+        )
+        let preset = catalogPresetFixture(
+            offers: [catalogOfferFixture(id: "plus", status: .verified)],
+            id: "chatgpt",
+            serviceName: CatalogLocalizedText(
+                en: "ChatGPT",
+                zhHans: "ChatGPT"
+            ),
+            matchAliases: ["ChatGPT Plus"]
+        )
+        let workspace = SubscriptionWorkspace(
+            repository: repository,
+            catalogRepository: StaticCatalogRepository(presets: [preset]),
+            now: { now }
+        )
+        workspace.loadCatalog(locale: Locale(identifier: "en"))
+
+        let first = workspace.reconcileCatalogAssociations(
+            locale: Locale(identifier: "en")
+        )
+        let normalized = try #require(
+            repository.storedSubscription(id: id)
+        )
+
+        #expect(first.normalizedIDs == [id])
+        #expect(first.unchangedIDs.isEmpty)
+        #expect(first.ambiguousIDs.isEmpty)
+        #expect(first.failedIDs.isEmpty)
+        #expect(first.commandError == nil)
+        #expect(normalized.serviceIdentity.rawValue == "catalog:chatgpt")
+        #expect(normalized.serviceName == "ChatGPT")
+        #expect(normalized.plan == "Plus")
+        #expect(normalized.category == "Productivity")
+        #expect(normalized.managementURL == preset.managementURL)
+        #expect(normalized.originalAmount == existing.originalAmount)
+        #expect(normalized.billingSchedule == existing.billingSchedule)
+        #expect(normalized.startDate == existing.startDate)
+        #expect(
+            normalized.confirmedNextRenewal
+                == existing.confirmedNextRenewal
+        )
+        #expect(normalized.notes == existing.notes)
+        #expect(normalized.confirmedCharges == existing.confirmedCharges)
+        #expect(normalized.priceChanges == existing.priceChanges)
+        #expect(normalized.lifecycle == existing.lifecycle)
+        #expect(normalized.isArchived == existing.isArchived)
+        #expect(normalized.pinnedAt == existing.pinnedAt)
+
+        let second = workspace.reconcileCatalogAssociations(
+            locale: Locale(identifier: "en")
+        )
+        #expect(second.normalizedIDs.isEmpty)
+        #expect(second.unchangedIDs == [id])
+        #expect(repository.updateAttemptCount == 1)
+    }
+
+    @Test("Reconciliation refreshes loaded consumers from persisted truth")
+    @MainActor
+    func reconciliationRefreshesLoadedConsumers() throws {
+        let id = UUID(
+            uuidString: "A1000000-0000-0000-0000-000000000047"
+        )!
+        let now = Date(timeIntervalSince1970: 1_768_521_600)
+        let existing = makeSubscription(
+            id: id,
+            originalAmount: Money(minorUnits: 2_000, currency: .usd),
+            serviceName: "ChatGPT Plus"
+        )
+        let repository = InMemorySubscriptionRepository(
+            subscriptions: [existing]
+        )
+        let preset = catalogPresetFixture(
+            offers: [catalogOfferFixture(id: "plus", status: .verified)],
+            id: "chatgpt",
+            serviceName: CatalogLocalizedText(
+                en: "ChatGPT",
+                zhHans: "ChatGPT"
+            ),
+            matchAliases: ["ChatGPT Plus"]
+        )
+        let workspace = SubscriptionWorkspace(
+            repository: repository,
+            catalogRepository: StaticCatalogRepository(presets: [preset]),
+            now: { now }
+        )
+        workspace.loadCatalog(locale: Locale(identifier: "en"))
+        workspace.loadLibrary()
+        workspace.loadSubscription(id: id)
+        workspace.loadUpcomingTimeline(
+            from: existing.startDate,
+            through: existing.confirmedNextRenewal.addingTimeInterval(
+                62 * 86_400
+            )
+        )
+        workspace.loadCalendarProjection(
+            locale: Locale(identifier: "en")
+        )
+        #expect(
+            workspace.upcomingTimeline.contains {
+                $0.serviceName == "ChatGPT Plus"
+            }
+        )
+        #expect(
+            workspace.calendarProjection.contains {
+                $0.title.contains("ChatGPT Plus")
+            }
+        )
+
+        workspace.reconcileCatalogAssociations(
+            locale: Locale(identifier: "en")
+        )
+
+        guard case .loaded(let detail, _, _) = workspace.detailState else {
+            Issue.record("Expected refreshed detail.")
+            return
+        }
+        #expect(detail.serviceName == "ChatGPT")
+        #expect(
+            workspace.upcomingTimeline.allSatisfy {
+                $0.serviceName == "ChatGPT"
+            }
+        )
+        #expect(
+            workspace.calendarProjection.allSatisfy {
+                !$0.title.contains("ChatGPT Plus")
+                    && $0.title.contains("ChatGPT")
+            }
+        )
+        #expect(
+            workspace.makeWidgetSnapshot()?.nextRenewal?.serviceName
+                == "ChatGPT"
+        )
+    }
+
+    @Test("Reconciliation reports ambiguity and partial persistence failure")
+    @MainActor
+    func reconciliationReportsAmbiguityAndFailure() throws {
+        let ambiguousID = UUID(
+            uuidString: "B0000000-0000-0000-0000-000000000047"
+        )!
+        let failedID = UUID(
+            uuidString: "B0000000-0000-0000-0000-000000000048"
+        )!
+        let successfulID = UUID(
+            uuidString: "B0000000-0000-0000-0000-000000000049"
+        )!
+        let ambiguous = makeSubscription(
+            id: ambiguousID,
+            originalAmount: Money(minorUnits: 2_000, currency: .usd),
+            serviceName: "Shared Alias"
+        )
+        let failed = makeSubscription(
+            id: failedID,
+            originalAmount: Money(minorUnits: 2_000, currency: .usd),
+            serviceName: "ChatGPT Plus"
+        )
+        let successful = makeSubscription(
+            id: successfulID,
+            originalAmount: Money(minorUnits: 2_000, currency: .usd),
+            serviceName: "ChatGPT Plus"
+        )
+        let repository = InMemorySubscriptionRepository(
+            subscriptions: [ambiguous, failed, successful]
+        )
+        repository.failingUpdateIDs = [failedID]
+        let offer = catalogOfferFixture(id: "plus", status: .verified)
+        let chatGPT = catalogPresetFixture(
+            offers: [offer],
+            id: "chatgpt",
+            serviceName: CatalogLocalizedText(
+                en: "ChatGPT",
+                zhHans: "ChatGPT"
+            ),
+            matchAliases: ["ChatGPT Plus", "Shared Alias"]
+        )
+        let competing = catalogPresetFixture(
+            offers: [
+                CatalogOffer(
+                    id: "shared",
+                    planName: offer.planName,
+                    price: offer.price,
+                    billingInterval: offer.billingInterval,
+                    market: offer.market,
+                    purchaseChannel: offer.purchaseChannel,
+                    sourceURL: offer.sourceURL,
+                    verifiedOn: offer.verifiedOn,
+                    reviewStatus: .verified
+                ),
+            ],
+            id: "competing",
+            serviceName: CatalogLocalizedText(
+                en: "Competing",
+                zhHans: "竞争者"
+            ),
+            matchAliases: ["Shared Alias"]
+        )
+        let workspace = SubscriptionWorkspace(
+            repository: repository,
+            catalogRepository: StaticCatalogRepository(
+                presets: [chatGPT, competing]
+            )
+        )
+        workspace.loadCatalog(locale: Locale(identifier: "en"))
+
+        let summary = workspace.reconcileCatalogAssociations(
+            locale: Locale(identifier: "en")
+        )
+
+        #expect(summary.normalizedIDs == [successfulID])
+        #expect(summary.unchangedIDs.isEmpty)
+        #expect(summary.ambiguousIDs == [ambiguousID])
+        #expect(summary.failedIDs == [failedID])
+        #expect(summary.commandError == .persistenceFailed)
+        #expect(
+            repository.storedSubscription(id: failedID) == failed
+        )
+        #expect(
+            repository.storedSubscription(id: successfulID)?
+                .serviceIdentity.rawValue == "catalog:chatgpt"
+        )
+    }
+
+    @Test("Reconciliation distinguishes unavailable catalog and storage")
+    @MainActor
+    func reconciliationReportsCommandLevelFailures() {
+        let unavailableCatalogWorkspace = SubscriptionWorkspace(
+            repository: InMemorySubscriptionRepository()
+        )
+
+        let catalogSummary =
+            unavailableCatalogWorkspace.reconcileCatalogAssociations(
+                locale: Locale(identifier: "en")
+            )
+
+        #expect(catalogSummary.commandError == .catalogUnavailable)
+        #expect(
+            unavailableCatalogWorkspace.catalogReconciliationError
+                == .catalogUnavailable
+        )
+
+        let failingRepository = InMemorySubscriptionRepository()
+        failingRepository.failure = .list
+        let storageWorkspace = SubscriptionWorkspace(
+            repository: failingRepository,
+            catalogRepository: StaticCatalogRepository(
+                presets: [
+                    catalogPresetFixture(
+                        offers: [
+                            catalogOfferFixture(
+                                id: "plus",
+                                status: .verified
+                            ),
+                        ]
+                    ),
+                ]
+            )
+        )
+
+        let storageSummary = storageWorkspace
+            .reconcileCatalogAssociations(
+                locale: Locale(identifier: "en")
+            )
+
+        #expect(storageSummary.commandError == .persistenceFailed)
+        #expect(
+            storageWorkspace.catalogReconciliationError
+                == .persistenceFailed
+        )
+    }
 }
 
 private func catalogPresetFixture(
-    offers: [CatalogOffer]
+    offers: [CatalogOffer],
+    id: String = "provider.example",
+    serviceName: CatalogLocalizedText = CatalogLocalizedText(
+        en: "Provider",
+        zhHans: "服务商"
+    ),
+    matchAliases: [String] = []
 ) -> CatalogPreset {
     CatalogPreset(
-        id: "provider.example",
-        serviceName: CatalogLocalizedText(
-            en: "Provider",
-            zhHans: "服务商"
-        ),
+        id: id,
+        serviceName: serviceName,
         category: CatalogLocalizedText(
             en: "Productivity",
             zhHans: "效率"
@@ -3404,6 +3849,7 @@ private func catalogPresetFixture(
         suggestedInterval: .monthly,
         managementURL: URL(string: "https://example.com/account"),
         icon: .productivity,
+        matchAliases: matchAliases,
         offers: offers
     )
 }
@@ -3800,6 +4246,7 @@ private struct PopulatedSubscriptionRepository: SubscriptionRepository {
 private final class InMemorySubscriptionRepository: SubscriptionRepository {
     private var subscriptions: [UUID: Subscription] = [:]
     var failure: RepositoryFailure?
+    var failingUpdateIDs: Set<UUID> = []
     private(set) var updateAttemptCount = 0
     private(set) var deletedIDs: [UUID] = []
 
@@ -3815,7 +4262,7 @@ private final class InMemorySubscriptionRepository: SubscriptionRepository {
 
     func updateSubscription(_ subscription: Subscription) throws {
         updateAttemptCount += 1
-        if failure == .update {
+        if failure == .update || failingUpdateIDs.contains(subscription.id) {
             throw RepositoryFailureError.unavailable
         }
         subscriptions[subscription.id] = subscription

@@ -9,6 +9,7 @@ public enum CatalogValidationField: String, Equatable, Sendable {
     case suggestedInterval
     case managementURL
     case assetProvenance
+    case matchAliases
     case offers
 }
 
@@ -187,6 +188,7 @@ public struct CatalogPreset: Codable, Equatable, Identifiable, Sendable {
     public let icon: CatalogIcon
     public let assetProvenance: CatalogAssetProvenance
     public let legacyPresetIDs: [String]
+    public let matchAliases: [String]
     public let offers: [CatalogOffer]
 
     public init(
@@ -198,6 +200,7 @@ public struct CatalogPreset: Codable, Equatable, Identifiable, Sendable {
         icon: CatalogIcon,
         assetProvenance: CatalogAssetProvenance? = nil,
         legacyPresetIDs: [String] = [],
+        matchAliases: [String] = [],
         offers: [CatalogOffer] = []
     ) {
         self.id = id
@@ -209,6 +212,7 @@ public struct CatalogPreset: Codable, Equatable, Identifiable, Sendable {
         self.assetProvenance = assetProvenance
             ?? .originalSymbol(for: id)
         self.legacyPresetIDs = legacyPresetIDs
+        self.matchAliases = matchAliases
         self.offers = offers
     }
 
@@ -221,6 +225,7 @@ public struct CatalogPreset: Codable, Equatable, Identifiable, Sendable {
         case icon
         case assetProvenance
         case legacyPresetIDs
+        case matchAliases
         case offers
     }
 
@@ -253,6 +258,10 @@ public struct CatalogPreset: Codable, Equatable, Identifiable, Sendable {
                 [String].self,
                 forKey: .legacyPresetIDs
             ) ?? [],
+            matchAliases: try container.decodeIfPresent(
+                [String].self,
+                forKey: .matchAliases
+            ) ?? [],
             offers: try container.decodeIfPresent(
                 [CatalogOffer].self,
                 forKey: .offers
@@ -271,6 +280,9 @@ public struct CatalogPreset: Codable, Equatable, Identifiable, Sendable {
         try container.encode(assetProvenance, forKey: .assetProvenance)
         if !legacyPresetIDs.isEmpty {
             try container.encode(legacyPresetIDs, forKey: .legacyPresetIDs)
+        }
+        if !matchAliases.isEmpty {
+            try container.encode(matchAliases, forKey: .matchAliases)
         }
         if !offers.isEmpty {
             try container.encode(offers, forKey: .offers)
@@ -368,6 +380,19 @@ public struct CatalogSnapshot: Codable, Equatable, Sendable {
                         presetID: identifier,
                         field: .id,
                         message: "legacy identifier is empty or duplicated"
+                    )
+                }
+            }
+            var normalizedAliases = Set<String>()
+            for alias in preset.matchAliases {
+                let normalizedAlias = CatalogOfferMatcher.normalizedText(alias)
+                guard !normalizedAlias.isEmpty,
+                      normalizedAliases.insert(normalizedAlias).inserted
+                else {
+                    throw CatalogLoadError(
+                        presetID: identifier,
+                        field: .matchAliases,
+                        message: "match alias is empty or duplicated"
                     )
                 }
             }

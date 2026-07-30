@@ -243,6 +243,20 @@ final class SubscriptionManagerUITests: XCTestCase {
         XCTAssertEqual(chatGPTLabels.count, 1)
     }
 
+    func testStartupReconcilesLegacyChatGPTBeforePublishingLibrary() {
+        let app = launch(
+            language: "en",
+            locale: "en_US",
+            storeToken: "reconcile-chatgpt-\(UUID().uuidString)",
+            seedsLegacyChatGPTPlus: true
+        )
+
+        let row = app.buttons["subscription.row"].firstMatch
+        XCTAssertTrue(row.waitForExistence(timeout: 5))
+        XCTAssertTrue(row.label.contains("ChatGPT, Plus"))
+        XCTAssertFalse(row.label.contains("ChatGPT Plus,"))
+    }
+
     func testSettingsPersistsSetupDefaultsAfterSkipping() {
         let storeToken = "setup-settings-\(UUID().uuidString)"
         let app = launch(

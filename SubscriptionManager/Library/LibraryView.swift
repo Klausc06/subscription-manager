@@ -10,6 +10,7 @@ struct LibraryView: View {
     }
 
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
+    @Environment(\.locale) private var locale
     let workspace: SubscriptionWorkspace
     @State private var presentedSheet: LibrarySheet?
     @State private var isSetupPresented = false
@@ -189,6 +190,8 @@ struct LibraryView: View {
     }
 
     private func loadInitialState() {
+        workspace.loadCatalog(locale: locale)
+        workspace.reconcileCatalogAssociations(locale: locale)
         workspace.loadLibrary(scope: .current)
         let libraryIsEmpty: Bool
         if case .empty(.current) = workspace.libraryState {
@@ -746,10 +749,10 @@ private struct ScopedLibraryView: View {
                 }
             }
             .task(id: scope) {
-                workspace.loadLibrary(scope: scope)
+                loadLibraryIfNeeded()
             }
             .onAppear {
-                workspace.loadLibrary(scope: scope)
+                loadLibraryIfNeeded()
             }
             .alert(
                 deletionConfirmationTitle,
@@ -1023,6 +1026,20 @@ private struct ScopedLibraryView: View {
     private func dismissDirectActionError() {
         directActionError = nil
         workspace.clearLifecycleActionError()
+    }
+
+    private func loadLibraryIfNeeded() {
+        let loadedScope: SubscriptionLibraryScope? =
+            switch workspace.libraryState {
+        case .loading(let scope),
+             .empty(let scope),
+             .loaded(let scope, _):
+            scope
+        case .failed:
+            nil
+        }
+        guard loadedScope != scope else { return }
+        workspace.loadLibrary(scope: scope)
     }
 }
 

@@ -588,6 +588,8 @@ public final class SubscriptionWorkspace {
     public private(set) var paymentHistory: [SubscriptionHistoryEntry] = []
     public private(set) var catalogState: CatalogState = .notLoaded
     public private(set) var catalogDiagnostics: CatalogDiagnostics?
+    public private(set) var catalogReconciliationError:
+        CatalogAssociationReconciliationError? = nil
     public private(set) var setupState: SetupState = .notLoaded
     public private(set) var exchangeRateStatus: ExchangeRateStatus = .notLoaded
     public private(set) var insightsState: SpendingInsightsState = .notLoaded
@@ -612,6 +614,8 @@ public final class SubscriptionWorkspace {
     private let calendar: Calendar
     private var expectedChargesRequest: ExpectedChargesRequest?
     private var insightsRequest: InsightsRequest?
+    private var upcomingTimelineRequest: UpcomingTimelineRequest?
+    private var calendarProjectionLocale: Locale?
     private var catalogSnapshot: CatalogSnapshot?
     private var catalogLocale = Locale.current
     private var catalogSearchQuery = ""
@@ -1056,6 +1060,100 @@ public final class SubscriptionWorkspace {
         }
     }
 
+    @discardableResult
+    public func reconcileCatalogAssociations(
+        locale: Locale
+    ) -> CatalogAssociationReconciliationSummary {
+        catalogReconciliationError = nil
+        catalogLocale = locale
+        guard let snapshot = matchingCatalogSnapshot() else {
+            catalogReconciliationError = .catalogUnavailable
+            return CatalogAssociationReconciliationSummary(
+                commandError: .catalogUnavailable
+            )
+        }
+
+        let subscriptions: [Subscription]
+        do {
+            subscriptions = try repository.listSubscriptions()
+        } catch {
+            catalogReconciliationError = .persistenceFailed
+            return CatalogAssociationReconciliationSummary(
+                commandError: .persistenceFailed
+            )
+        }
+
+        var normalizedIDs: [UUID] = []
+        var unchangedIDs: [UUID] = []
+        var ambiguousIDs: [UUID] = []
+        var failedIDs: [UUID] = []
+        var normalizedByID: [UUID: Subscription] = [:]
+        let reconciliationDate = now()
+
+        for subscription in subscriptions {
+            switch CatalogOfferMatcher().match(
+                subscription: subscription,
+                in: snapshot,
+                asOf: reconciliationDate
+            ) {
+            case .none:
+                unchangedIDs.append(subscription.id)
+            case .ambiguous:
+                ambiguousIDs.append(subscription.id)
+            case .unique(let candidate):
+                let normalized = normalizedCatalogAssociation(
+                    for: subscription,
+                    candidate: candidate,
+                    locale: locale
+                )
+                guard normalized != subscription else {
+                    unchangedIDs.append(subscription.id)
+                    continue
+                }
+                do {
+                    try repository.updateSubscription(normalized)
+                    normalizedIDs.append(subscription.id)
+                    normalizedByID[subscription.id] = normalized
+                } catch {
+                    failedIDs.append(subscription.id)
+                    catalogReconciliationError = .persistenceFailed
+                }
+            }
+        }
+
+        if !normalizedIDs.isEmpty {
+            markLocalChangesForSync()
+            if case .loaded(let selected, _, _) = detailState,
+               let normalized = normalizedByID[selected.id]
+            {
+                detailState = makeDetail(normalized)
+            }
+            loadLibrary(scope: carriedLibraryScope)
+            if let upcomingTimelineRequest {
+                loadUpcomingTimeline(
+                    from: upcomingTimelineRequest.from,
+                    through: upcomingTimelineRequest.through
+                )
+            }
+            if let calendarProjectionLocale {
+                loadCalendarProjection(locale: calendarProjectionLocale)
+            }
+            reloadInsightsIfNeeded()
+        }
+
+        return CatalogAssociationReconciliationSummary(
+            normalizedIDs: normalizedIDs,
+            unchangedIDs: unchangedIDs,
+            ambiguousIDs: ambiguousIDs,
+            failedIDs: failedIDs,
+            commandError: catalogReconciliationError
+        )
+    }
+
+    public func clearCatalogReconciliationError() {
+        catalogReconciliationError = nil
+    }
+
     public func refreshCatalog() async {
         guard let catalogRepository,
               let catalogUpdateSource,
@@ -1245,13 +1343,17 @@ public final class SubscriptionWorkspace {
             lifecycle: lifecycle,
             isArchived: false
         )
+        let subscriptionToPersist = reconciledCatalogAssociation(
+            for: subscription,
+            locale: catalogLocale
+        )
 
         do {
-            try repository.createSubscription(subscription)
+            try repository.createSubscription(subscriptionToPersist)
             markLocalChangesForSync()
-            detailState = makeDetail(subscription)
+            detailState = makeDetail(subscriptionToPersist)
             loadLibrary()
-            return .created(subscription)
+            return .created(subscriptionToPersist)
         } catch {
             detailState = .failed
             return .persistenceFailed
@@ -1347,9 +1449,13 @@ public final class SubscriptionWorkspace {
                 isArchived: existing.isArchived,
                 pinnedAt: existing.pinnedAt
             )
-            try repository.updateSubscription(edited)
+            let editedToPersist = reconciledCatalogAssociation(
+                for: edited,
+                locale: catalogLocale
+            )
+            try repository.updateSubscription(editedToPersist)
             markLocalChangesForSync()
-            detailState = makeDetail(edited)
+            detailState = makeDetail(editedToPersist)
             loadLibrary()
             let forecastRequest = forecastThrough.map {
                 ExpectedChargesRequest(
@@ -1362,7 +1468,7 @@ public final class SubscriptionWorkspace {
                forecastRequest.subscriptionID == id
             {
                 expectedCharges = makeExpectedCharges(
-                    for: edited,
+                    for: editedToPersist,
                     through: forecastRequest.horizon,
                     maximumCount: forecastRequest.maximumCount
                 )
@@ -1850,6 +1956,10 @@ public final class SubscriptionWorkspace {
     }
 
     public func loadUpcomingTimeline(from: Date, through: Date) {
+        upcomingTimelineRequest = UpcomingTimelineRequest(
+            from: from,
+            through: through
+        )
         do {
             upcomingTimeline = try upcomingRenewals(from: from, through: through)
         } catch {
@@ -1877,6 +1987,7 @@ public final class SubscriptionWorkspace {
     }
 
     public func loadCalendarProjection(locale: Locale) {
+        calendarProjectionLocale = locale
         let horizon = calendar.date(
             byAdding: .month,
             value: currentPreferences.calendarProjectionHorizon.rawValue,
@@ -2194,6 +2305,52 @@ public final class SubscriptionWorkspace {
              .failed(let scope):
             scope
         }
+    }
+
+    private func matchingCatalogSnapshot() -> CatalogSnapshot? {
+        if let catalogSnapshot {
+            return catalogSnapshot
+        }
+        return try? catalogRepository?.loadSnapshot()
+    }
+
+    private func reconciledCatalogAssociation(
+        for subscription: Subscription,
+        locale: Locale
+    ) -> Subscription {
+        guard let snapshot = matchingCatalogSnapshot() else {
+            return subscription
+        }
+        switch CatalogOfferMatcher().match(
+            subscription: subscription,
+            in: snapshot,
+            asOf: now()
+        ) {
+        case .none, .ambiguous:
+            return subscription
+        case .unique(let candidate):
+            return normalizedCatalogAssociation(
+                for: subscription,
+                candidate: candidate,
+                locale: locale
+            )
+        }
+    }
+
+    private func normalizedCatalogAssociation(
+        for subscription: Subscription,
+        candidate: CatalogOfferMatchCandidate,
+        locale: Locale
+    ) -> Subscription {
+        subscription.replacingCatalogAssociation(
+            serviceIdentity: ServiceIdentity(
+                rawValue: "catalog:\(candidate.preset.id)"
+            ),
+            serviceName: candidate.preset.serviceName.value(for: locale),
+            plan: candidate.offer.planName.value(for: locale),
+            category: candidate.preset.category.value(for: locale),
+            managementURL: candidate.preset.managementURL
+        )
     }
 
     private func refreshCatalogState() {
@@ -2947,5 +3104,10 @@ public final class SubscriptionWorkspace {
         let subscriptionID: UUID
         let horizon: Date
         let maximumCount: Int
+    }
+
+    private struct UpcomingTimelineRequest {
+        let from: Date
+        let through: Date
     }
 }

@@ -8,13 +8,14 @@ struct BundledCatalogRepositoryTests {
     @MainActor
     func bundledCatalogExposesVerifiedFirstBatchOffers() throws {
         let snapshot = try BundledCatalogRepository().loadSnapshot()
-        #expect(snapshot.catalogVersion == 4)
+        #expect(snapshot.catalogVersion == 5)
         #expect(snapshot.presets.count == 106)
 
         let chatGPT = try #require(
             snapshot.presets.first(where: { $0.id == "chatgpt" })
         )
         #expect(chatGPT.serviceName.en == "ChatGPT")
+        #expect(chatGPT.matchAliases == ["ChatGPT Plus"])
         #expect(chatGPT.offers.map(\.id) == [
             "go-monthly-us-web",
             "plus-monthly-us-web",

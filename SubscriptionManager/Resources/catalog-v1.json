@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "catalogVersion": 4,
+  "catalogVersion": 5,
   "presets": [
     {
       "id": "spotify",
@@ -145,6 +145,7 @@
       "managementURL": "https://chatgpt.com/",
       "icon": "productivity",
       "legacyPresetIDs": ["chatgpt-plus"],
+      "matchAliases": ["ChatGPT Plus"],
       "assetProvenance": {
         "kind": "originalSymbol",
         "license": "CC0-1.0",

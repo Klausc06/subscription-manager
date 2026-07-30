@@ -199,6 +199,7 @@ private struct MacWindowCommands: Commands {
 }
 
 private struct MacLibraryView: View {
+    @Environment(\.locale) private var locale
     let workspace: SubscriptionWorkspace
     @ObservedObject var router: MacWindowRouter
 
@@ -385,6 +386,8 @@ private struct MacLibraryView: View {
                 .frame(minWidth: 480, minHeight: 460)
         }
         .task {
+            workspace.loadCatalog(locale: locale)
+            workspace.reconcileCatalogAssociations(locale: locale)
             workspace.loadLibrary(scope: scope)
             let libraryIsEmpty: Bool
             if case .empty = workspace.libraryState {

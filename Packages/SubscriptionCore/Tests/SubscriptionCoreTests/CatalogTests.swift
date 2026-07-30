@@ -25,7 +25,44 @@ struct CatalogTests {
             """.utf8)
         )
 
+        #expect(preset.matchAliases.isEmpty)
         #expect(preset.offers.isEmpty)
+    }
+
+    @Test("Catalog rejects empty or normalized duplicate match aliases")
+    func catalogRejectsInvalidMatchAliases() {
+        for aliases in [
+            ["   "],
+            ["ChatGPT Plus", "  chátgpt   PLUS "],
+        ] {
+            let preset = CatalogPreset(
+                id: "chatgpt",
+                serviceName: CatalogLocalizedText(
+                    en: "ChatGPT",
+                    zhHans: "ChatGPT"
+                ),
+                category: CatalogLocalizedText(
+                    en: "Productivity",
+                    zhHans: "效率"
+                ),
+                suggestedInterval: .monthly,
+                managementURL: nil,
+                icon: .productivity,
+                matchAliases: aliases
+            )
+
+            do {
+                _ = try CatalogSnapshot(
+                    schemaVersion: CatalogSnapshot.currentSchemaVersion,
+                    presets: [preset]
+                )
+                Issue.record("Expected invalid aliases to be rejected.")
+            } catch let error as CatalogLoadError {
+                #expect(error.field == .matchAliases)
+            } catch {
+                Issue.record("Expected CatalogLoadError, got \(error)")
+            }
+        }
     }
 
     @Test("Catalog canonicalizes legacy preset identifiers")
@@ -62,7 +99,10 @@ struct CatalogTests {
             verifiedOn: "2026-07-30",
             reviewStatus: .verified
         )
-        let preset = catalogPreset(offers: [offer])
+        let preset = catalogPreset(
+            offers: [offer],
+            matchAliases: ["Example Plus"]
+        )
 
         let decoded = try JSONDecoder().decode(
             CatalogPreset.self,
@@ -70,6 +110,7 @@ struct CatalogTests {
         )
 
         #expect(decoded.offers == [offer])
+        #expect(decoded.matchAliases == ["Example Plus"])
     }
 
     @Test("Catalog rejects duplicate offer identifiers")
@@ -235,7 +276,8 @@ struct CatalogTests {
     }
 
     private func catalogPreset(
-        offers: [CatalogOffer] = []
+        offers: [CatalogOffer] = [],
+        matchAliases: [String] = []
     ) -> CatalogPreset {
         CatalogPreset(
             id: "example",
@@ -244,6 +286,7 @@ struct CatalogTests {
             suggestedInterval: .monthly,
             managementURL: nil,
             icon: .other,
+            matchAliases: matchAliases,
             offers: offers
         )
     }
