@@ -317,6 +317,81 @@ struct PortableExportTests {
             )
         ])
     }
+
+    @Test("Backup replacement refreshes loaded subscription consumers")
+    @MainActor
+    func backupReplacementRefreshesLoadedConsumers() throws {
+        let id = UUID(
+            uuidString: "77777777-2222-3333-4444-555555555555"
+        )!
+        let local = portableSubscription(id: id, name: "Local")
+        let confirmedCharge = ConfirmedCharge(
+            id: UUID(
+                uuidString: "88888888-2222-3333-4444-555555555555"
+            )!,
+            chargedDate: Date(timeIntervalSince1970: 1_706_745_600),
+            amount: Money(minorUnits: 1_999, currency: .usd),
+            sourceScheduledChargeID: ScheduledChargeID(
+                subscriptionID: id,
+                year: 2024,
+                month: 2,
+                day: 1
+            )
+        )
+        let backupVersion = portableSubscription(
+            id: id,
+            name: "Backup",
+            amount: Money(minorUnits: 1_999, currency: .usd),
+            confirmedCharges: [confirmedCharge]
+        )
+        let repository = ExportRepositoryFixture(subscriptions: [local])
+        let importer = ApplyingPortableImportRepository(
+            repository: repository
+        )
+        let workspace = SubscriptionWorkspace(
+            repository: repository,
+            portableBackupImportRepository: importer
+        )
+        let data = try PortableBackupEncoder().encode(
+            PortableBackup(
+                preferences: .default,
+                subscriptions: [backupVersion]
+            )
+        )
+        let preview = try workspace.preparePortableBackupImport(data)
+
+        workspace.loadSubscription(id: id)
+        workspace.loadExpectedCharges(
+            subscriptionID: id,
+            through: .distantFuture,
+            maximumCount: 1
+        )
+        #expect(workspace.expectedCharges?.first?.amount == local.originalAmount)
+        #expect(
+            workspace.paymentHistory.contains(.confirmed(confirmedCharge))
+                == false
+        )
+
+        try workspace.applyPortableBackupImport(
+            preview: preview,
+            selectedAdditionIDs: [],
+            conflictResolutions: [id: .useBackup],
+            preferencesResolution: nil
+        )
+
+        guard case .loaded(let detail, _, _) = workspace.detailState else {
+            Issue.record("Expected refreshed imported detail")
+            return
+        }
+        #expect(detail.serviceName == "Backup")
+        #expect(
+            workspace.expectedCharges?.first?.amount
+                == backupVersion.originalAmount
+        )
+        #expect(
+            workspace.paymentHistory.contains(.confirmed(confirmedCharge))
+        )
+    }
 }
 
 private struct CSVFixtureParser {
@@ -397,19 +472,45 @@ private final class RecordingPortableImportRepository: PortableBackupImportRepos
     }
 }
 
-private func portableSubscription(id: UUID, name: String) -> Subscription {
+@MainActor
+private final class ApplyingPortableImportRepository:
+    PortableBackupImportRepository
+{
+    private let repository: ExportRepositoryFixture
+
+    init(repository: ExportRepositoryFixture) {
+        self.repository = repository
+    }
+
+    func apply(_ merge: PortableBackupMerge) throws {
+        for addition in merge.additions {
+            try repository.createSubscription(addition)
+        }
+        for replacement in merge.replacements {
+            try repository.updateSubscription(replacement)
+        }
+    }
+}
+
+private func portableSubscription(
+    id: UUID,
+    name: String,
+    amount: Money = Money(minorUnits: 999, currency: .usd),
+    confirmedCharges: [ConfirmedCharge] = []
+) -> Subscription {
     Subscription(
         id: id,
         serviceIdentity: ServiceIdentity(rawValue: name.lowercased()),
         serviceName: name,
         plan: "Standard",
         category: "Other",
-        originalAmount: Money(minorUnits: 999, currency: .usd),
+        originalAmount: amount,
         billingCycle: .monthly,
         startDate: Date(timeIntervalSince1970: 1_704_067_200),
         confirmedNextRenewal: Date(timeIntervalSince1970: 1_706_745_600),
         billingTimeZoneIdentifier: "UTC",
         managementURL: nil,
-        notes: ""
+        notes: "",
+        confirmedCharges: confirmedCharges
     )
 }

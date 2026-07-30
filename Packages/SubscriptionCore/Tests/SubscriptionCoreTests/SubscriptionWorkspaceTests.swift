@@ -272,6 +272,209 @@ struct SubscriptionWorkspaceTests {
         #expect(result.map(\.id) == [firstID, thirdID])
     }
 
+    @Test(
+        "Active presentations advance stale renewals before detail and sorting"
+    )
+    @MainActor
+    func activePresentationsAdvanceStaleRenewals() throws {
+        let calendar = utcCalendar()
+        let now = try actionDate(
+            year: 2026,
+            month: 3,
+            day: 1,
+            hour: 12,
+            calendar: calendar
+        )
+        let firstID = UUID(
+            uuidString: "11111111-2222-3333-4444-555555555551"
+        )!
+        let secondID = UUID(
+            uuidString: "11111111-2222-3333-4444-555555555552"
+        )!
+        let firstStart = try actionDate(
+            year: 2026,
+            month: 1,
+            day: 15,
+            hour: 12,
+            calendar: calendar
+        )
+        let secondStart = try actionDate(
+            year: 2026,
+            month: 1,
+            day: 10,
+            hour: 12,
+            calendar: calendar
+        )
+        let staleFirstRenewal = try actionDate(
+            year: 2026,
+            month: 2,
+            day: 15,
+            hour: 12,
+            calendar: calendar
+        )
+        let staleSecondRenewal = try actionDate(
+            year: 2026,
+            month: 2,
+            day: 20,
+            hour: 12,
+            calendar: calendar
+        )
+        let expectedFirstRenewal = try actionDate(
+            year: 2026,
+            month: 3,
+            day: 15,
+            hour: 12,
+            calendar: calendar
+        )
+        let expectedSecondRenewal = try actionDate(
+            year: 2026,
+            month: 3,
+            day: 10,
+            hour: 12,
+            calendar: calendar
+        )
+        let first = makeSubscription(
+            id: firstID,
+            billingSchedule: FixedBillingSchedule(
+                interval: .monthly,
+                renewalAnchor: firstStart,
+                timeZoneIdentifier: calendar.timeZone.identifier
+            ),
+            confirmedNextRenewal: staleFirstRenewal,
+            serviceName: "First"
+        )
+        let second = makeSubscription(
+            id: secondID,
+            billingSchedule: FixedBillingSchedule(
+                interval: .monthly,
+                renewalAnchor: secondStart,
+                timeZoneIdentifier: calendar.timeZone.identifier
+            ),
+            confirmedNextRenewal: staleSecondRenewal,
+            serviceName: "Second"
+        )
+        let repository = InMemorySubscriptionRepository(
+            subscriptions: [first, second]
+        )
+        let workspace = SubscriptionWorkspace(
+            repository: repository,
+            now: { now },
+            calendar: calendar
+        )
+
+        workspace.loadLibrary()
+        guard case .loaded(.current, let summaries) = workspace.libraryState else {
+            Issue.record("Expected a loaded current library.")
+            return
+        }
+        let firstSummary = try #require(
+            summaries.first { $0.id == firstID }
+        )
+        let secondSummary = try #require(
+            summaries.first { $0.id == secondID }
+        )
+        #expect(firstSummary.confirmedNextRenewal == expectedFirstRenewal)
+        #expect(secondSummary.confirmedNextRenewal == expectedSecondRenewal)
+        #expect(
+            SubscriptionTableQuery(
+                sort: .nextRenewal,
+                ascending: true
+            ).apply(to: summaries).map(\.id) == [secondID, firstID]
+        )
+
+        workspace.loadSubscription(id: firstID)
+        guard case .loaded(let detail, _, _) = workspace.detailState else {
+            Issue.record("Expected a loaded detail.")
+            return
+        }
+        #expect(detail.confirmedNextRenewal == expectedFirstRenewal)
+        #expect(
+            repository.storedSubscription(id: firstID)?
+                .confirmedNextRenewal == staleFirstRenewal
+        )
+    }
+
+    @Test(
+        "Active presentations skip today's billing-local occurrence before noon"
+    )
+    @MainActor
+    func activePresentationsSkipCurrentBillingDay() throws {
+        let calendar = actionCalendar()
+        let now = try actionDate(
+            year: 2026,
+            month: 3,
+            day: 15,
+            hour: 8,
+            calendar: calendar
+        )
+        let start = try actionDate(
+            year: 2026,
+            month: 1,
+            day: 15,
+            hour: 12,
+            calendar: calendar
+        )
+        let todayOccurrence = try actionDate(
+            year: 2026,
+            month: 3,
+            day: 15,
+            hour: 12,
+            calendar: calendar
+        )
+        let expectedRenewal = try actionDate(
+            year: 2026,
+            month: 4,
+            day: 15,
+            hour: 12,
+            calendar: calendar
+        )
+        let id = UUID(
+            uuidString: "11111111-2222-3333-4444-555555555553"
+        )!
+        let subscription = makeSubscription(
+            id: id,
+            billingSchedule: FixedBillingSchedule(
+                interval: .monthly,
+                renewalAnchor: start,
+                timeZoneIdentifier: calendar.timeZone.identifier
+            ),
+            confirmedNextRenewal: todayOccurrence
+        )
+        let workspace = SubscriptionWorkspace(
+            repository: InMemorySubscriptionRepository(
+                subscriptions: [subscription]
+            ),
+            now: { now },
+            calendar: calendar
+        )
+
+        workspace.loadLibrary()
+        guard case .loaded(.current, let summaries) = workspace.libraryState,
+              let summary = summaries.first
+        else {
+            Issue.record("Expected a loaded current library.")
+            return
+        }
+        #expect(summary.confirmedNextRenewal == expectedRenewal)
+        #expect(summary.nextExpectedCharge?.scheduledDate == expectedRenewal)
+
+        workspace.loadSubscription(id: id)
+        guard case .loaded(
+            let detail,
+            _,
+            let nextExpectedCharge
+        ) = workspace.detailState else {
+            Issue.record("Expected a loaded detail.")
+            return
+        }
+        #expect(detail.confirmedNextRenewal == expectedRenewal)
+        #expect(nextExpectedCharge?.scheduledDate == expectedRenewal)
+        #expect(
+            workspace.makeWidgetSnapshot()?.nextRenewal?.renewalDate
+                == expectedRenewal
+        )
+    }
+
     @Test("Every table sort keeps pinned subscriptions first by recency")
     func tableQueryKeepsPinnedSummariesFirst() {
         let newestID = UUID(
@@ -2516,7 +2719,7 @@ struct SubscriptionWorkspaceTests {
     }
 
     @Test(
-        "Cancelled and expired subscriptions can reactivate on the current local day",
+        "Cancelled and expired subscriptions can reactivate with a future renewal",
         arguments: [
             LifecycleFixture.cancelledWithAccess,
             LifecycleFixture.expired,
@@ -2615,6 +2818,90 @@ struct SubscriptionWorkspaceTests {
         #expect(summaries.first?.status == .active)
     }
 
+    @Test("Reactivation refreshes every loaded schedule consumer")
+    @MainActor
+    func reactivationRefreshesLoadedConsumers() async throws {
+        let calendar = actionCalendar()
+        let now = try actionDate(
+            year: 2026,
+            month: 7,
+            day: 28,
+            hour: 18,
+            calendar: calendar
+        )
+        let nextRenewal = try actionDate(
+            year: 2026,
+            month: 8,
+            day: 10,
+            hour: 12,
+            calendar: calendar
+        )
+        let through = try actionDate(
+            year: 2026,
+            month: 9,
+            day: 30,
+            hour: 12,
+            calendar: calendar
+        )
+        let subscription = try makeActionSubscription(
+            fixture: .cancelledWithAccess,
+            calendar: calendar
+        )
+        let repository = InMemorySubscriptionRepository(
+            subscriptions: [subscription]
+        )
+        let rateSnapshot = ExchangeRateSnapshot(
+            base: .eur,
+            providerDate: now,
+            fetchedAt: now,
+            source: "fixture",
+            rates: [.eur: 1, .usd: 1.2, .cny: 8.4]
+        )
+        let workspace = SubscriptionWorkspace(
+            repository: repository,
+            exchangeRateCache: InMemoryExchangeRateCache(
+                state: ExchangeRateCacheState(
+                    snapshot: rateSnapshot,
+                    lastAttemptAt: now
+                )
+            ),
+            now: { now },
+            calendar: calendar
+        )
+
+        await workspace.refreshExchangeRates()
+        workspace.loadLibrary()
+        workspace.loadSubscription(id: subscription.id)
+        workspace.loadUpcomingTimeline(from: now, through: through)
+        workspace.loadCalendarProjection(locale: Locale(identifier: "en"))
+        workspace.loadInsights(
+            mode: .expected,
+            from: now,
+            through: through
+        )
+        #expect(workspace.upcomingTimeline.isEmpty)
+        #expect(workspace.calendarProjection.isEmpty)
+        #expect(
+            workspace.insightsState.availableValue?.items.isEmpty == true
+        )
+
+        workspace.reactivate(
+            id: subscription.id,
+            nextRenewal: nextRenewal
+        )
+
+        #expect(workspace.upcomingTimeline.first?.date == nextRenewal)
+        #expect(workspace.calendarProjection.first?.startDate == nextRenewal)
+        #expect(
+            workspace.insightsState.availableValue?.items.first?.date
+                == nextRenewal
+        )
+        #expect(
+            workspace.makeWidgetSnapshot()?.nextRenewal?.renewalDate
+                == nextRenewal
+        )
+    }
+
     @Test("Reactivation before the current billing-local day is rejected")
     @MainActor
     func pastReactivationDayIsRejected() throws {
@@ -2656,6 +2943,63 @@ struct SubscriptionWorkspaceTests {
                 year: 2026,
                 month: 7,
                 day: 27,
+                hour: 23,
+                minute: 59,
+                calendar: calendar
+            )
+        )
+
+        #expect(workspace.lifecycleActionError == .nextRenewalInPast)
+        #expect(
+            repository.storedSubscription(id: subscription.id)
+                == subscription
+        )
+        #expect(repository.updateAttemptCount == 0)
+        #expect(workspace.detailState == detailBefore)
+        #expect(workspace.expectedCharges == forecastBefore)
+        #expect(workspace.libraryState == libraryBefore)
+    }
+
+    @Test("Reactivation on the current billing-local day is rejected")
+    @MainActor
+    func currentDayReactivationIsRejected() throws {
+        let calendar = actionCalendar()
+        let now = try actionDate(
+            year: 2026,
+            month: 7,
+            day: 28,
+            hour: 18,
+            calendar: calendar
+        )
+        let subscription = try makeActionSubscription(
+            fixture: .cancelledWithAccess,
+            calendar: calendar
+        )
+        let repository = InMemorySubscriptionRepository(
+            subscriptions: [subscription]
+        )
+        let workspace = SubscriptionWorkspace(
+            repository: repository,
+            now: { now },
+            calendar: calendar
+        )
+
+        loadActionPresentation(
+            workspace,
+            subscription: subscription,
+            scope: .current,
+            calendar: calendar
+        )
+        let detailBefore = workspace.detailState
+        let forecastBefore = workspace.expectedCharges
+        let libraryBefore = workspace.libraryState
+
+        workspace.reactivate(
+            id: subscription.id,
+            nextRenewal: try actionDate(
+                year: 2026,
+                month: 7,
+                day: 28,
                 hour: 23,
                 minute: 59,
                 calendar: calendar
@@ -2902,12 +3246,28 @@ struct SubscriptionWorkspaceTests {
             Issue.record("Expected refreshed restored detail")
             return
         }
-        #expect(detail == stored)
+        #expect(
+            replacingConfirmedNextRenewal(
+                in: detail,
+                with: stored.confirmedNextRenewal
+            ) == stored
+        )
         #expect(status == fixture.status)
         #expect(
             (nextExpectedCharge != nil)
                 == fixture.isEligibleForExpectedCharges
         )
+        if case .active = fixture {
+            #expect(
+                detail.confirmedNextRenewal
+                    == nextExpectedCharge?.scheduledDate
+            )
+        } else {
+            #expect(
+                detail.confirmedNextRenewal
+                    == stored.confirmedNextRenewal
+            )
+        }
         #expect(
             (workspace.expectedCharges?.isEmpty == false)
                 == fixture.isEligibleForExpectedCharges
@@ -3693,6 +4053,271 @@ struct SubscriptionWorkspaceTests {
         )
     }
 
+    @Test("Editing billing dates refreshes every loaded schedule consumer")
+    @MainActor
+    func editingBillingDatesRefreshesLoadedConsumers() async throws {
+        let calendar = utcCalendar()
+        let now = try actionDate(
+            year: 2026,
+            month: 1,
+            day: 15,
+            hour: 12,
+            calendar: calendar
+        )
+        let oldStart = try actionDate(
+            year: 2025,
+            month: 12,
+            day: 10,
+            hour: 12,
+            calendar: calendar
+        )
+        let oldRenewal = try actionDate(
+            year: 2026,
+            month: 2,
+            day: 10,
+            hour: 12,
+            calendar: calendar
+        )
+        let editedStart = try actionDate(
+            year: 2025,
+            month: 12,
+            day: 20,
+            hour: 12,
+            calendar: calendar
+        )
+        let editedRenewal = try actionDate(
+            year: 2026,
+            month: 1,
+            day: 20,
+            hour: 12,
+            calendar: calendar
+        )
+        let through = try actionDate(
+            year: 2026,
+            month: 3,
+            day: 31,
+            hour: 12,
+            calendar: calendar
+        )
+        let id = UUID(
+            uuidString: "A2000000-0000-0000-0000-000000000048"
+        )!
+        let existing = makeSubscription(
+            id: id,
+            billingSchedule: FixedBillingSchedule(
+                interval: .monthly,
+                renewalAnchor: oldStart,
+                timeZoneIdentifier: calendar.timeZone.identifier
+            ),
+            confirmedNextRenewal: oldRenewal,
+            serviceName: "Schedule Consumer"
+        )
+        let repository = InMemorySubscriptionRepository(
+            subscriptions: [existing]
+        )
+        let rateSnapshot = ExchangeRateSnapshot(
+            base: .eur,
+            providerDate: now,
+            fetchedAt: now,
+            source: "fixture",
+            rates: [.eur: 1, .usd: 1.2, .cny: 8.4]
+        )
+        let workspace = SubscriptionWorkspace(
+            repository: repository,
+            exchangeRateCache: InMemoryExchangeRateCache(
+                state: ExchangeRateCacheState(
+                    snapshot: rateSnapshot,
+                    lastAttemptAt: now
+                )
+            ),
+            now: { now },
+            calendar: calendar
+        )
+
+        await workspace.refreshExchangeRates()
+        workspace.loadLibrary()
+        workspace.loadSubscription(id: id)
+        workspace.loadUpcomingTimeline(
+            from: now.addingTimeInterval(1),
+            through: through
+        )
+        workspace.loadCalendarProjection(locale: Locale(identifier: "en"))
+        workspace.loadInsights(
+            mode: .expected,
+            from: now.addingTimeInterval(1),
+            through: through
+        )
+        #expect(workspace.upcomingTimeline.first?.date == oldRenewal)
+        #expect(
+            workspace.calendarProjection.first?.startDate
+                == oldRenewal
+        )
+        #expect(
+            workspace.insightsState.availableValue?.items.first?.date
+                == oldRenewal
+        )
+
+        workspace.editSubscription(
+            id: id,
+            input: SubscriptionEditInput(
+                serviceName: existing.serviceName,
+                plan: existing.plan,
+                category: existing.category,
+                billingSchedule: FixedBillingSchedule(
+                    interval: .monthly,
+                    renewalAnchor: editedStart,
+                    timeZoneIdentifier: calendar.timeZone.identifier
+                ),
+                startDate: editedStart,
+                confirmedNextRenewal: oldRenewal,
+                managementURL: existing.managementURL,
+                notes: existing.notes
+            )
+        )
+
+        #expect(
+            repository.storedSubscription(id: id)?
+                .confirmedNextRenewal == editedRenewal
+        )
+        #expect(workspace.upcomingTimeline.first?.date == editedRenewal)
+        #expect(
+            workspace.calendarProjection.first?.startDate
+                == editedRenewal
+        )
+        #expect(
+            workspace.insightsState.availableValue?.items.first?.date
+                == editedRenewal
+        )
+        #expect(
+            workspace.makeWidgetSnapshot()?.nextRenewal?.renewalDate
+                == editedRenewal
+        )
+        guard case .loaded(let detail, _, _) = workspace.detailState else {
+            Issue.record("Expected refreshed detail.")
+            return
+        }
+        #expect(detail.confirmedNextRenewal == editedRenewal)
+    }
+
+    @Test("Price changes refresh every loaded amount consumer")
+    @MainActor
+    func priceChangesRefreshLoadedConsumers() async throws {
+        let calendar = utcCalendar()
+        let now = try actionDate(
+            year: 2026,
+            month: 1,
+            day: 15,
+            hour: 12,
+            calendar: calendar
+        )
+        let start = try actionDate(
+            year: 2025,
+            month: 12,
+            day: 10,
+            hour: 12,
+            calendar: calendar
+        )
+        let renewal = try actionDate(
+            year: 2026,
+            month: 2,
+            day: 10,
+            hour: 12,
+            calendar: calendar
+        )
+        let effectiveDate = try actionDate(
+            year: 2026,
+            month: 1,
+            day: 16,
+            hour: 12,
+            calendar: calendar
+        )
+        let through = try actionDate(
+            year: 2026,
+            month: 3,
+            day: 31,
+            hour: 12,
+            calendar: calendar
+        )
+        let originalAmount = Money(minorUnits: 999, currency: .usd)
+        let changedAmount = Money(minorUnits: 1_999, currency: .usd)
+        let id = UUID(
+            uuidString: "A3000000-0000-0000-0000-000000000048"
+        )!
+        let existing = makeSubscription(
+            id: id,
+            billingSchedule: FixedBillingSchedule(
+                interval: .monthly,
+                renewalAnchor: start,
+                timeZoneIdentifier: calendar.timeZone.identifier
+            ),
+            confirmedNextRenewal: renewal,
+            originalAmount: originalAmount,
+            serviceName: "Amount Consumer"
+        )
+        let repository = InMemorySubscriptionRepository(
+            subscriptions: [existing]
+        )
+        let rateSnapshot = ExchangeRateSnapshot(
+            base: .eur,
+            providerDate: now,
+            fetchedAt: now,
+            source: "fixture",
+            rates: [.eur: 1, .usd: 1.2, .cny: 8.4]
+        )
+        let workspace = SubscriptionWorkspace(
+            repository: repository,
+            exchangeRateCache: InMemoryExchangeRateCache(
+                state: ExchangeRateCacheState(
+                    snapshot: rateSnapshot,
+                    lastAttemptAt: now
+                )
+            ),
+            now: { now },
+            calendar: calendar
+        )
+
+        await workspace.refreshExchangeRates()
+        workspace.loadExpectedCharges(
+            subscriptionID: id,
+            through: through,
+            maximumCount: 1
+        )
+        workspace.loadUpcomingTimeline(from: now, through: through)
+        workspace.loadCalendarProjection(locale: Locale(identifier: "en_US"))
+        workspace.loadInsights(
+            mode: .expected,
+            from: now,
+            through: through
+        )
+        #expect(workspace.expectedCharges?.first?.amount == originalAmount)
+        #expect(workspace.upcomingTimeline.first?.amount == originalAmount)
+        #expect(
+            workspace.insightsState.availableValue?
+                .items.first?.originalAmount == originalAmount
+        )
+
+        workspace.recordPriceChange(
+            id: id,
+            effectiveDate: effectiveDate,
+            amount: changedAmount
+        )
+
+        #expect(workspace.expectedCharges?.first?.amount == changedAmount)
+        #expect(workspace.upcomingTimeline.first?.amount == changedAmount)
+        #expect(
+            workspace.calendarProjection.first?.title.contains("19.99")
+                == true
+        )
+        #expect(
+            workspace.insightsState.availableValue?
+                .items.first?.originalAmount == changedAmount
+        )
+        #expect(
+            workspace.makeWidgetSnapshot()?.nextRenewal?
+                .amountDescription?.contains("19.99") == true
+        )
+    }
+
     @Test("Reconciliation reports ambiguity and partial persistence failure")
     @MainActor
     func reconciliationReportsAmbiguityAndFailure() throws {
@@ -4130,7 +4755,7 @@ private struct FailingSubscriptionRepository: SubscriptionRepository {
             year: 2026, month: 7, day: 29, hour: 12, calendar: calendar
         )
         let now = try actionDate(
-            year: 2026, month: 7, day: 29, hour: 14, calendar: calendar
+            year: 2026, month: 7, day: 29, hour: 10, calendar: calendar
         )
         let nextRenewal = try actionDate(
             year: 2026, month: 8, day: 29, hour: 12, calendar: calendar
@@ -4148,7 +4773,7 @@ private struct FailingSubscriptionRepository: SubscriptionRepository {
                 timeZoneIdentifier: calendar.timeZone.identifier
             ),
             startDate: scheduledDate,
-            confirmedNextRenewal: nextRenewal,
+            confirmedNextRenewal: scheduledDate,
             managementURL: nil,
             notes: ""
         )
@@ -4157,6 +4782,15 @@ private struct FailingSubscriptionRepository: SubscriptionRepository {
         )
         let workspace = SubscriptionWorkspace(
             repository: repository, now: { now }, calendar: calendar
+        )
+
+        workspace.loadExpectedCharges(
+            subscriptionID: subscription.id,
+            through: nextRenewal,
+            maximumCount: 1
+        )
+        #expect(
+            workspace.expectedCharges?.first?.scheduledDate == scheduledDate
         )
 
         workspace.confirmCharge(
@@ -4169,6 +4803,9 @@ private struct FailingSubscriptionRepository: SubscriptionRepository {
         #expect(
             repository.storedSubscription(id: subscription.id)?
                 .confirmedCharges.count == 1
+        )
+        #expect(
+            workspace.expectedCharges?.first?.scheduledDate == nextRenewal
         )
         #expect(workspace.paymentHistoryActionError == nil)
     }
@@ -4358,6 +4995,30 @@ private func makeSubscription(
         lifecycle: lifecycle,
         isArchived: isArchived,
         pinnedAt: pinnedAt
+    )
+}
+
+private func replacingConfirmedNextRenewal(
+    in subscription: Subscription,
+    with confirmedNextRenewal: Date
+) -> Subscription {
+    Subscription(
+        id: subscription.id,
+        serviceIdentity: subscription.serviceIdentity,
+        serviceName: subscription.serviceName,
+        plan: subscription.plan,
+        category: subscription.category,
+        originalAmount: subscription.originalAmount,
+        billingSchedule: subscription.billingSchedule,
+        startDate: subscription.startDate,
+        confirmedNextRenewal: confirmedNextRenewal,
+        managementURL: subscription.managementURL,
+        notes: subscription.notes,
+        confirmedCharges: subscription.confirmedCharges,
+        priceChanges: subscription.priceChanges,
+        lifecycle: subscription.lifecycle,
+        isArchived: subscription.isArchived,
+        pinnedAt: subscription.pinnedAt
     )
 }
 

@@ -607,10 +607,10 @@
         "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "取消日期不能晚于今天。" } }
       }
     },
-    "The next renewal cannot be in the past." : {
+    "The next renewal must be after today." : {
       "localizations" : {
-        "en" : { "stringUnit" : { "state" : "translated", "value" : "The next renewal cannot be in the past." } },
-        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "下次续费日期不能早于今天。" } }
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "The next renewal must be after today." } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "下次续费日期必须晚于今天。" } }
       }
     },
     "This action cannot be undone." : {

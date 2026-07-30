@@ -1129,16 +1129,7 @@ public final class SubscriptionWorkspace {
                 detailState = makeDetail(normalized)
             }
             loadLibrary(scope: carriedLibraryScope)
-            if let upcomingTimelineRequest {
-                loadUpcomingTimeline(
-                    from: upcomingTimelineRequest.from,
-                    through: upcomingTimelineRequest.through
-                )
-            }
-            if let calendarProjectionLocale {
-                loadCalendarProjection(locale: calendarProjectionLocale)
-            }
-            reloadInsightsIfNeeded()
+            reloadRequestedConsumers()
         }
 
         return CatalogAssociationReconciliationSummary(
@@ -1353,6 +1344,7 @@ public final class SubscriptionWorkspace {
             markLocalChangesForSync()
             detailState = makeDetail(subscriptionToPersist)
             loadLibrary()
+            reloadRequestedConsumers()
             return .created(subscriptionToPersist)
         } catch {
             detailState = .failed
@@ -1457,23 +1449,14 @@ public final class SubscriptionWorkspace {
             markLocalChangesForSync()
             detailState = makeDetail(editedToPersist)
             loadLibrary()
-            let forecastRequest = forecastThrough.map {
-                ExpectedChargesRequest(
+            if let forecastThrough {
+                expectedChargesRequest = ExpectedChargesRequest(
                     subscriptionID: id,
-                    horizon: $0,
+                    horizon: forecastThrough,
                     maximumCount: .max
                 )
-            } ?? expectedChargesRequest
-            if let forecastRequest,
-               forecastRequest.subscriptionID == id
-            {
-                expectedCharges = makeExpectedCharges(
-                    for: editedToPersist,
-                    through: forecastRequest.horizon,
-                    maximumCount: forecastRequest.maximumCount
-                )
-                expectedChargesRequest = forecastRequest
             }
+            reloadRequestedConsumers()
         } catch {
             detailState = .failed
         }
@@ -1638,6 +1621,7 @@ public final class SubscriptionWorkspace {
             markLocalChangesForSync()
             detailState = makeDetail(updated)
             loadLibrary()
+            reloadRequestedConsumers()
         } catch {
             paymentHistoryActionError = .persistenceFailed
             detailState = .failed
@@ -1700,6 +1684,7 @@ public final class SubscriptionWorkspace {
             markLocalChangesForSync()
             detailState = makeDetail(updated)
             loadLibrary()
+            reloadRequestedConsumers()
         } catch {
             paymentHistoryActionError = .persistenceFailed
             detailState = .failed
@@ -1725,7 +1710,7 @@ public final class SubscriptionWorkspace {
             let localCalendar = billingLocalCalendar(timeZone: timeZone)
             let renewalDay = localCalendar.startOfDay(for: nextRenewal)
             let today = localCalendar.startOfDay(for: now())
-            guard renewalDay >= today else {
+            guard renewalDay > today else {
                 lifecycleActionError = .nextRenewalInPast
                 return
             }
@@ -1851,6 +1836,7 @@ public final class SubscriptionWorkspace {
                 expectedChargesRequest = nil
             }
             loadLibrary(scope: scope)
+            reloadRequestedConsumers()
         } catch {
             lifecycleActionError = .persistenceFailed
         }
@@ -1872,11 +1858,9 @@ public final class SubscriptionWorkspace {
         do {
             let nextRenewal = try repository.listSubscriptions()
                 .compactMap { subscription -> WidgetRenewalSnapshot? in
-                    guard let charge = makeExpectedCharges(
-                        for: subscription,
-                        through: .distantFuture,
-                        maximumCount: 1
-                    ).first else {
+                    guard let charge = makePresentationNextExpectedCharge(
+                        for: subscription
+                    ) else {
                         return nil
                     }
                     return WidgetRenewalSnapshot(
@@ -2061,6 +2045,7 @@ public final class SubscriptionWorkspace {
         markLocalChangesForSync()
         loadLibrary()
         loadSetup(libraryIsEmpty: false)
+        reloadRequestedConsumers()
     }
 
     public func importCalendarProjection(
@@ -2265,22 +2250,33 @@ public final class SubscriptionWorkspace {
         markLocalChangesForSync()
         let scope = carriedLibraryScope
         let refreshedDetailState = makeDetail(subscription)
-        let refreshedExpectedCharges: [ExpectedCharge]? =
-            if let request = expectedChargesRequest,
-               request.subscriptionID == subscription.id
-            {
-                makeExpectedCharges(
-                    for: subscription,
-                    through: request.horizon,
-                    maximumCount: request.maximumCount
-                )
-            } else {
-                expectedCharges
-            }
 
         detailState = refreshedDetailState
-        expectedCharges = refreshedExpectedCharges
         loadLibrary(scope: scope)
+        reloadRequestedConsumers()
+    }
+
+    private func reloadRequestedConsumers() {
+        if case .loaded(let subscription, _, _) = detailState {
+            loadSubscription(id: subscription.id)
+        }
+        if let expectedChargesRequest {
+            loadExpectedCharges(
+                subscriptionID: expectedChargesRequest.subscriptionID,
+                through: expectedChargesRequest.horizon,
+                maximumCount: expectedChargesRequest.maximumCount
+            )
+        }
+        if let upcomingTimelineRequest {
+            loadUpcomingTimeline(
+                from: upcomingTimelineRequest.from,
+                through: upcomingTimelineRequest.through
+            )
+        }
+        if let calendarProjectionLocale {
+            loadCalendarProjection(locale: calendarProjectionLocale)
+        }
+        reloadInsightsIfNeeded()
     }
 
     private func makeLibraryState(
@@ -2623,7 +2619,7 @@ public final class SubscriptionWorkspace {
     ) -> SubscriptionSummary {
         let presentation = makePresentation(for: subscription)
         return SubscriptionSummary(
-            subscription: subscription,
+            subscription: presentation.subscription,
             status: presentation.status,
             nextExpectedCharge: presentation.nextExpectedCharge
         )
@@ -2635,7 +2631,7 @@ public final class SubscriptionWorkspace {
         let presentation = makePresentation(for: subscription)
         paymentHistory = makeHistory(for: subscription)
         return .loaded(
-            subscription: subscription,
+            subscription: presentation.subscription,
             status: presentation.status,
             nextExpectedCharge: presentation.nextExpectedCharge
         )
@@ -2749,6 +2745,7 @@ public final class SubscriptionWorkspace {
     private func makePresentation(
         for subscription: Subscription
     ) -> (
+        subscription: Subscription,
         status: SubscriptionStatus,
         nextExpectedCharge: ExpectedCharge?
     ) {
@@ -2759,12 +2756,75 @@ public final class SubscriptionWorkspace {
             asOf: now(),
             timeZone: timeZone
         )
-        let nextExpectedCharge = makeExpectedCharges(
-            for: subscription,
-            through: .distantFuture,
-            maximumCount: 1
-        ).first
-        return (status, nextExpectedCharge)
+        let nextExpectedCharge = makePresentationNextExpectedCharge(
+            for: subscription
+        )
+        let presentedSubscription =
+            if case .active = subscription.lifecycle,
+               let nextExpectedCharge
+            {
+                subscription.replacingLifecycleFacts(
+                    confirmedNextRenewal:
+                        nextExpectedCharge.scheduledDate
+                )
+            } else {
+                subscription
+            }
+        return (
+            presentedSubscription,
+            status,
+            nextExpectedCharge
+        )
+    }
+
+    private func makePresentationNextExpectedCharge(
+        for subscription: Subscription
+    ) -> ExpectedCharge? {
+        guard isEligibleForExpectedCharges(subscription),
+              let timeZone = TimeZone(
+                  identifier:
+                      subscription.billingSchedule.timeZoneIdentifier
+              )
+        else {
+            return nil
+        }
+        guard case .active = subscription.lifecycle else {
+            return makeExpectedCharges(
+                for: subscription,
+                through: .distantFuture,
+                maximumCount: 1
+            ).first
+        }
+
+        let resolver = BillingDateResolver()
+        var renewal = resolver.nextRenewal(
+            afterStart: subscription.billingSchedule.renewalAnchor,
+            interval: subscription.billingSchedule.interval,
+            asOf: now(),
+            timeZone: timeZone
+        )
+        var localCalendar = calendar
+        localCalendar.timeZone = timeZone
+        for _ in 0 ... subscription.confirmedCharges.count {
+            guard let scheduledDate = renewal else { return nil }
+            let charge = expectedCharge(
+                for: subscription,
+                scheduledDate: scheduledDate,
+                calendar: localCalendar
+            )
+            if !subscription.confirmedCharges.contains(where: {
+                $0.sourceScheduledChargeID == charge.id
+            }) {
+                return charge
+            }
+            renewal = resolver.nextRenewal(
+                afterStart: scheduledDate,
+                interval: subscription.billingSchedule.interval,
+                asOf: scheduledDate,
+                timeZone: timeZone
+            )
+        }
+        return nil
     }
 
     private func isEligibleForExpectedCharges(

@@ -8,6 +8,7 @@ outputs/
 # Xcode
 DerivedData/
 .derived-data/
+.derived-data-*/
 *.xcresult
 *.xcuserstate
 xcuserdata/

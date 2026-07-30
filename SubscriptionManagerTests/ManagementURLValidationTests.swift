@@ -5,6 +5,42 @@ import Testing
 
 @Suite("Subscription lifecycle localization")
 struct SubscriptionLifecycleLocalizationTests {
+    @Test("Reactivation begins on the next billing-local day")
+    func reactivationBeginsOnNextBillingLocalDay() throws {
+        let timeZone = try #require(
+            TimeZone(identifier: "Asia/Shanghai")
+        )
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = timeZone
+        let now = try #require(
+            calendar.date(
+                from: DateComponents(
+                    year: 2026,
+                    month: 7,
+                    day: 30,
+                    hour: 23,
+                    minute: 30
+                )
+            )
+        )
+        let expected = try #require(
+            calendar.date(
+                from: DateComponents(
+                    year: 2026,
+                    month: 7,
+                    day: 31
+                )
+            )
+        )
+
+        #expect(
+            minimumReactivationDate(
+                now: now,
+                timeZone: timeZone
+            ) == expected
+        )
+    }
+
     @Test(
         "Subscription statuses use one production localization mapping",
         arguments: [
@@ -39,7 +75,7 @@ struct SubscriptionLifecycleLocalizationTests {
             ),
             (
                 .nextRenewalInPast,
-                "The next renewal cannot be in the past."
+                "The next renewal must be after today."
             ),
             (
                 .persistenceFailed,

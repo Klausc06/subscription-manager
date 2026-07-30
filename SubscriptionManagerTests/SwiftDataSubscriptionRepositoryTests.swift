@@ -556,8 +556,18 @@ struct SwiftDataSubscriptionRepositoryTests {
                 )
                 return
             }
+            let persisted = try #require(
+                try dependencies.workspace.subscription(
+                    for: subscriptionID
+                )
+            )
+            #expect(persisted.confirmedNextRenewal == nextRenewal)
             dependencies.workspace.loadSubscription(id: subscriptionID)
-            guard case .loaded(let subscription, _, _) =
+            guard case .loaded(
+                let subscription,
+                _,
+                let nextExpectedCharge
+            ) =
                 dependencies.workspace.detailState
             else {
                 Issue.record(
@@ -586,7 +596,10 @@ struct SwiftDataSubscriptionRepositoryTests {
                     )
             )
             #expect(subscription.startDate == startDate)
-            #expect(subscription.confirmedNextRenewal == nextRenewal)
+            #expect(
+                subscription.confirmedNextRenewal
+                    == nextExpectedCharge?.scheduledDate
+            )
             #expect(subscription.managementURL == managementURL)
             #expect(subscription.notes == "Preserve legacy notes")
             #expect(subscription.confirmedCharges == [charge])
