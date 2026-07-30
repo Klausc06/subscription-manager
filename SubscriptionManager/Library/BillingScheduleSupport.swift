@@ -43,99 +43,77 @@ func defaultNextRenewal(
     interval: BillingInterval,
     timeZoneIdentifier: String
 ) -> Date {
-    guard interval.isValid,
-          let calendar = BillingCalendar.calendar(
-              timeZoneIdentifier: timeZoneIdentifier
-          )
-    else {
+    guard let timeZone = TimeZone(identifier: timeZoneIdentifier) else {
         return date
     }
-    let component: Calendar.Component
-    let value: Int
-    switch interval {
-    case .weekly:
-        component = .weekOfYear
-        value = 1
-    case .monthly:
-        component = .month
-        value = 1
-    case .quarterly:
-        component = .month
-        value = 3
-    case .halfYearly:
-        component = .month
-        value = 6
-    case .yearly:
-        component = .year
-        value = 1
-    case .custom(let count, let unit):
-        switch unit {
-        case .day:
-            component = .day
-            value = count
-        case .week:
-            component = .weekOfYear
-            value = count
-        case .month:
-            component = .month
-            value = count
-        case .year:
-            component = .year
-            value = count
-        }
-    }
-    return calendar.date(
-        byAdding: component,
-        value: value,
-        to: date
+    return BillingDateResolver().nextRenewal(
+        afterStart: date,
+        interval: interval,
+        asOf: date,
+        timeZone: timeZone
     ) ?? date
 }
 
-enum BillingDateField {
-    case startDate
-    case renewalAnchor
-    case nextRenewal
+struct BillingDateValues: Equatable {
+    let startDate: Date
+    let nextRenewal: Date
 }
 
 struct BillingDateEditState {
-    private var nextRenewalWasEdited = false
+    private let resolver = BillingDateResolver()
 
-    mutating func recordUserEdit(_ field: BillingDateField) {
-        if field == .nextRenewal {
-            nextRenewalWasEdited = true
-        }
-    }
-
-    func nextRenewal(
-        current: Date,
-        after renewalAnchor: Date,
+    func editingStartDate(
+        _ startDate: Date,
         interval: BillingInterval,
+        asOf: Date,
         timeZoneIdentifier: String
-    ) -> Date {
-        guard !nextRenewalWasEdited else {
-            return current
+    ) -> BillingDateValues? {
+        guard let timeZone = TimeZone(identifier: timeZoneIdentifier),
+              let nextRenewal = resolver.nextRenewal(
+                  afterStart: startDate,
+                  interval: interval,
+                  asOf: asOf,
+                  timeZone: timeZone
+              )
+        else {
+            return nil
         }
-        return defaultNextRenewal(
-            after: renewalAnchor,
-            interval: interval,
-            timeZoneIdentifier: timeZoneIdentifier
+        return BillingDateValues(
+            startDate: startDate,
+            nextRenewal: nextRenewal
         )
     }
 
-    func nextRenewal(
-        current: Date,
-        after renewalAnchor: Date,
-        changingIntervalFrom previousInterval: BillingInterval,
-        to interval: BillingInterval,
+    func editingNextRenewal(
+        _ nextRenewal: Date,
+        interval: BillingInterval,
         timeZoneIdentifier: String
-    ) -> Date {
-        guard previousInterval != interval else {
-            return current
+    ) -> BillingDateValues? {
+        guard let timeZone = TimeZone(identifier: timeZoneIdentifier),
+              let startDate = resolver.previousCycleStart(
+                  before: nextRenewal,
+                  interval: interval,
+                  timeZone: timeZone
+              )
+        else {
+            return nil
         }
-        return nextRenewal(
-            current: current,
-            after: renewalAnchor,
+        return BillingDateValues(
+            startDate: startDate,
+            nextRenewal: nextRenewal
+        )
+    }
+
+    func changingInterval(
+        startDate: Date,
+        interval: BillingInterval,
+        asOf: Date,
+        timeZoneIdentifier: String
+    ) -> BillingDateValues? {
+        editingStartDate(
+            startDate,
             interval: interval,
+            asOf: asOf,
             timeZoneIdentifier: timeZoneIdentifier
         )
     }

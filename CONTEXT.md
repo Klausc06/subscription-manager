@@ -18,12 +18,17 @@
 - **Fixed Billing Schedule**: A positive calendar interval, renewal anchor,
   and billing time zone that deterministically define expected charges.
   _Avoid_: Billing cycle.
-- **Renewal Anchor**: The original local date and time from which every
-  expected charge is derived, so clamped month-end dates never become a new
-  recurrence basis.
+- **Start Date**: A known paid-period start chosen by the person. It may be an
+  old billing occurrence and does not mean the first date the subscription was
+  ever purchased.
+- **Renewal Anchor**: The internal local recurrence basis used to derive
+  expected charges. It is hidden from Add, Edit, and Detail. For an active
+  subscription it equals Start Date.
 - **Confirmed Next Renewal**: The next charge date supplied or verified by the
-  person. It gates the forecast but never replaces the Renewal Anchor.
-  Date-only form input is stored at local noon in the billing time zone.
+  person. Editing an active Start Date derives the first recurrence strictly
+  after today. Editing Next Renewal derives the preceding Start Date and
+  internal Renewal Anchor. Date-only form input is stored at local noon in the
+  billing time zone.
 - **Confirmed Charge**: An immutable record that a past expected charge
   occurred. Editing a Fixed Billing Schedule never rewrites it.
   _Avoid_: Expected charge, transaction.

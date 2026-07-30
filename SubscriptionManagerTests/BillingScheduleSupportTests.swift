@@ -31,60 +31,83 @@ struct BillingScheduleSupportTests {
         #expect(values.customUnit == .day)
     }
 
-    @Test("Start and anchor edits keep automatic next-renewal updates enabled")
-    func startAndAnchorEditsDoNotLockNextRenewal() throws {
-        var editState = BillingDateEditState()
+    @Test("Editing Start Date finds the first renewal after today")
+    func editingStartDateFindsUpcomingRenewal() throws {
+        let editState = BillingDateEditState()
         let calendar = try #require(
             BillingCalendar.calendar(timeZoneIdentifier: "UTC")
         )
-        let anchor = try #require(
+        let start = try #require(
             calendar.date(
                 from: DateComponents(
-                    year: 2026,
-                    month: 1,
+                    year: 2025,
+                    month: 9,
                     day: 15,
                     hour: 12
                 )
             )
         )
-        let staleRenewal = anchor
+        let today = try #require(
+            calendar.date(
+                from: DateComponents(
+                    year: 2026,
+                    month: 7,
+                    day: 30,
+                    hour: 12
+                )
+            )
+        )
 
-        editState.recordUserEdit(.startDate)
-        editState.recordUserEdit(.renewalAnchor)
-        let recalculated = editState.nextRenewal(
-            current: staleRenewal,
-            after: anchor,
+        let dates = editState.editingStartDate(
+            start,
+            interval: .monthly,
+            asOf: today,
+            timeZoneIdentifier: "UTC"
+        )
+
+        #expect(dates?.startDate == start)
+        #expect(
+            calendar.dateComponents(
+                [.year, .month, .day],
+                from: try #require(dates?.nextRenewal)
+            ) == DateComponents(year: 2026, month: 8, day: 15)
+        )
+    }
+
+    @Test("Editing Next Renewal derives one preceding cycle")
+    func editingNextRenewalDerivesStartDate() throws {
+        let editState = BillingDateEditState()
+        let calendar = try #require(
+            BillingCalendar.calendar(timeZoneIdentifier: "UTC")
+        )
+        let renewal = try #require(
+            calendar.date(
+                from: DateComponents(
+                    year: 2026,
+                    month: 2,
+                    day: 28,
+                    hour: 12
+                )
+            )
+        )
+
+        let dates = editState.editingNextRenewal(
+            renewal,
             interval: .monthly,
             timeZoneIdentifier: "UTC"
         )
 
-        #expect(recalculated != staleRenewal)
+        #expect(dates?.nextRenewal == renewal)
         #expect(
             calendar.dateComponents(
                 [.year, .month, .day],
-                from: recalculated
-            ) == DateComponents(year: 2026, month: 2, day: 15)
+                from: try #require(dates?.startDate)
+            ) == DateComponents(year: 2026, month: 1, day: 28)
         )
     }
 
-    @Test("Editing next renewal locks it against offer and anchor changes")
-    func nextRenewalEditLocksAutomaticUpdates() {
-        var editState = BillingDateEditState()
-        let personSelected = Date(timeIntervalSince1970: 1_800_000_000)
-
-        editState.recordUserEdit(.nextRenewal)
-        let preserved = editState.nextRenewal(
-            current: personSelected,
-            after: .distantPast,
-            interval: .yearly,
-            timeZoneIdentifier: "UTC"
-        )
-
-        #expect(preserved == personSelected)
-    }
-
-    @Test("Changing monthly to yearly recalculates an untouched renewal")
-    func monthlyToYearlyRecalculatesUntouchedRenewal() throws {
+    @Test("Changing interval recomputes Next Renewal from Start Date")
+    func intervalChangeRecomputesNextRenewal() throws {
         let editState = BillingDateEditState()
         let calendar = try #require(
             BillingCalendar.calendar(timeZoneIdentifier: "UTC")
@@ -99,28 +122,34 @@ struct BillingScheduleSupportTests {
                 )
             )
         )
-        let monthlyRenewal = try #require(
-            calendar.date(byAdding: .month, value: 1, to: anchor)
+        let today = try #require(
+            calendar.date(
+                from: DateComponents(
+                    year: 2026,
+                    month: 1,
+                    day: 20,
+                    hour: 12
+                )
+            )
         )
 
-        let recalculated = editState.nextRenewal(
-            current: monthlyRenewal,
-            after: anchor,
-            changingIntervalFrom: .monthly,
-            to: .yearly,
+        let dates = editState.changingInterval(
+            startDate: anchor,
+            interval: .yearly,
+            asOf: today,
             timeZoneIdentifier: "UTC"
         )
 
         #expect(
             calendar.dateComponents(
                 [.year, .month, .day],
-                from: recalculated
+                from: try #require(dates?.nextRenewal)
             ) == DateComponents(year: 2027, month: 1, day: 15)
         )
     }
 
-    @Test("Changing monthly to custom uses the selected value and unit")
-    func monthlyToCustomRecalculatesWithValueAndUnit() throws {
+    @Test("Invalid intervals cannot produce linked billing dates")
+    func invalidIntervalCannotProduceLinkedDates() throws {
         let editState = BillingDateEditState()
         let calendar = try #require(
             BillingCalendar.calendar(timeZoneIdentifier: "UTC")
@@ -135,57 +164,15 @@ struct BillingScheduleSupportTests {
                 )
             )
         )
-        let monthlyRenewal = try #require(
-            calendar.date(byAdding: .month, value: 1, to: anchor)
-        )
 
-        let recalculated = editState.nextRenewal(
-            current: monthlyRenewal,
-            after: anchor,
-            changingIntervalFrom: .monthly,
-            to: .custom(value: 3, unit: .week),
+        let dates = editState.editingStartDate(
+            anchor,
+            interval: .custom(value: 0, unit: .month),
+            asOf: anchor,
             timeZoneIdentifier: "UTC"
         )
 
-        #expect(
-            calendar.dateComponents(
-                [.year, .month, .day],
-                from: recalculated
-            ) == DateComponents(year: 2026, month: 2, day: 5)
-        )
-    }
-
-    @Test("Interval changes preserve a person-edited renewal")
-    func intervalChangePreservesPersonEditedRenewal() {
-        var editState = BillingDateEditState()
-        let personSelected = Date(timeIntervalSince1970: 1_800_000_000)
-        editState.recordUserEdit(.nextRenewal)
-
-        let preserved = editState.nextRenewal(
-            current: personSelected,
-            after: .distantPast,
-            changingIntervalFrom: .monthly,
-            to: .custom(value: 3, unit: .week),
-            timeZoneIdentifier: "UTC"
-        )
-
-        #expect(preserved == personSelected)
-    }
-
-    @Test("A semantically unchanged interval does not recalculate")
-    func unchangedIntervalDoesNotRecalculate() {
-        let editState = BillingDateEditState()
-        let current = Date(timeIntervalSince1970: 1_800_000_000)
-
-        let preserved = editState.nextRenewal(
-            current: current,
-            after: .distantPast,
-            changingIntervalFrom: .monthly,
-            to: .monthly,
-            timeZoneIdentifier: "UTC"
-        )
-
-        #expect(preserved == current)
+        #expect(dates == nil)
     }
 
     @Test("Form renewal defaults use Gregorian billing semantics")

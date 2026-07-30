@@ -737,6 +737,110 @@ struct SubscriptionWorkspaceTests {
         #expect(stored.isArchived == false)
     }
 
+    @Test("Workspace persists linked active dates through create and edit")
+    @MainActor
+    func workspacePersistsLinkedActiveDates() throws {
+        let repository = InMemorySubscriptionRepository()
+        let subscriptionID = UUID(
+            uuidString: "AAAAAAAA-BBBB-CCCC-DDDD-FFFFFFFFFFFF"
+        )!
+        let timeZone = try #require(TimeZone(identifier: "UTC"))
+        let calendar = BillingCalendar.calendar(timeZone: timeZone)
+        let resolver = BillingDateResolver()
+        let today = try actionDate(
+            year: 2026,
+            month: 7,
+            day: 30,
+            hour: 12,
+            calendar: calendar
+        )
+        let start = try actionDate(
+            year: 2025,
+            month: 9,
+            day: 15,
+            hour: 12,
+            calendar: calendar
+        )
+        let nextRenewal = try #require(
+            resolver.nextRenewal(
+                afterStart: start,
+                interval: .monthly,
+                asOf: today,
+                timeZone: timeZone
+            )
+        )
+        let workspace = SubscriptionWorkspace(
+            repository: repository,
+            identifierGenerator: { subscriptionID },
+            now: { today },
+            calendar: calendar
+        )
+
+        workspace.createSubscription(
+            SubscriptionCreationInput(
+                serviceName: "Example",
+                plan: "Standard",
+                category: "Other",
+                originalAmount: Money(
+                    minorUnits: 999,
+                    currency: .usd
+                ),
+                billingInterval: .monthly,
+                startDate: start,
+                confirmedNextRenewal: nextRenewal,
+                billingTimeZoneIdentifier: timeZone.identifier,
+                managementURL: nil,
+                notes: ""
+            )
+        )
+
+        let created = try #require(
+            repository.storedSubscription(id: subscriptionID)
+        )
+        #expect(created.startDate == start)
+        #expect(created.billingSchedule.renewalAnchor == start)
+        #expect(created.confirmedNextRenewal == nextRenewal)
+
+        let editedRenewal = try actionDate(
+            year: 2026,
+            month: 10,
+            day: 28,
+            hour: 12,
+            calendar: calendar
+        )
+        let editedStart = try #require(
+            resolver.previousCycleStart(
+                before: editedRenewal,
+                interval: .monthly,
+                timeZone: timeZone
+            )
+        )
+        workspace.editSubscription(
+            id: subscriptionID,
+            input: SubscriptionEditInput(
+                serviceName: created.serviceName,
+                plan: created.plan,
+                category: created.category,
+                billingSchedule: FixedBillingSchedule(
+                    interval: .monthly,
+                    renewalAnchor: editedStart,
+                    timeZoneIdentifier: timeZone.identifier
+                ),
+                startDate: editedStart,
+                confirmedNextRenewal: editedRenewal,
+                managementURL: nil,
+                notes: ""
+            )
+        )
+
+        let edited = try #require(
+            repository.storedSubscription(id: subscriptionID)
+        )
+        #expect(edited.startDate == editedStart)
+        #expect(edited.billingSchedule.renewalAnchor == editedStart)
+        #expect(edited.confirmedNextRenewal == editedRenewal)
+    }
+
     @Test("Catalog search and creation preserve the preset identity")
     @MainActor
     func catalogSearchAndCreationPreservePresetIdentity() throws {

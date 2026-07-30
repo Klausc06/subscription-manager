@@ -4,6 +4,7 @@ import SwiftUI
 
 struct EditSubscriptionView: View {
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.locale) private var locale
 
     let workspace: SubscriptionWorkspace
     let subscription: Subscription
@@ -15,12 +16,12 @@ struct EditSubscriptionView: View {
     @State private var customValueText: String
     @State private var customUnit: BillingIntervalUnit
     @State private var startDate: Date
-    @State private var renewalAnchor: Date
     @State private var confirmedNextRenewal: Date
     @State private var managementURLText: String
     @State private var notes: String
     @State private var managementURLIsInvalid = false
     @State private var saveFailed = false
+    private let billingDateEditState = BillingDateEditState()
 
     init(
         workspace: SubscriptionWorkspace,
@@ -51,12 +52,6 @@ struct EditSubscriptionView: View {
                 subscription.startDate,
                 timeZoneIdentifier: timeZoneIdentifier
             ) ?? subscription.startDate
-        )
-        _renewalAnchor = State(
-            initialValue: normalizedBillingDate(
-                subscription.billingSchedule.renewalAnchor,
-                timeZoneIdentifier: timeZoneIdentifier
-            ) ?? subscription.billingSchedule.renewalAnchor
         )
         _confirmedNextRenewal = State(
             initialValue: normalizedBillingDate(
@@ -90,6 +85,9 @@ struct EditSubscriptionView: View {
         .accessibilityIdentifier("subscription.form")
         .onAppear {
             workspace.beginEditing()
+        }
+        .onChange(of: selectedBillingInterval) { _, interval in
+            updateDatesForInterval(interval)
         }
         .navigationTitle("Edit Subscription")
         #if os(iOS)
@@ -148,26 +146,34 @@ struct EditSubscriptionView: View {
         Section("Billing Dates") {
             DatePicker(
                 "Start Date",
-                selection: $startDate,
+                selection: startDateBinding,
                 displayedComponents: .date
             )
             .accessibilityIdentifier("subscription.form.start-date")
-
-            DatePicker(
-                "Renewal Anchor",
-                selection: $renewalAnchor,
-                displayedComponents: .date
+            .accessibilityValue(
+                formattedBillingDate(
+                    startDate,
+                    timeZoneIdentifier:
+                        subscription.billingSchedule.timeZoneIdentifier,
+                    locale: locale
+                )
             )
-            .accessibilityIdentifier("subscription.form.renewal-anchor")
 
             DatePicker(
                 "Next Renewal",
-                selection: $confirmedNextRenewal,
+                selection: confirmedNextRenewalBinding,
                 displayedComponents: .date
             )
             .accessibilityIdentifier("subscription.form.next-renewal")
+            .accessibilityValue(
+                formattedBillingDate(
+                    confirmedNextRenewal,
+                    timeZoneIdentifier:
+                        subscription.billingSchedule.timeZoneIdentifier,
+                    locale: locale
+                )
+            )
 
-            validationMessage(for: .renewalAnchor)
             validationMessage(for: .confirmedNextRenewal)
         }
         .environment(
@@ -175,6 +181,47 @@ struct EditSubscriptionView: View {
             TimeZone(
                 identifier: subscription.billingSchedule.timeZoneIdentifier
             ) ?? .autoupdatingCurrent
+        )
+    }
+
+    private var startDateBinding: Binding<Date> {
+        Binding(
+            get: { startDate },
+            set: { newValue in
+                startDate = newValue
+                guard linksBillingDates,
+                      let dates = billingDateEditState.editingStartDate(
+                          newValue,
+                          interval: selectedBillingInterval,
+                          asOf: Date(),
+                          timeZoneIdentifier:
+                              subscription.billingSchedule.timeZoneIdentifier
+                      )
+                else {
+                    return
+                }
+                apply(dates)
+            }
+        )
+    }
+
+    private var confirmedNextRenewalBinding: Binding<Date> {
+        Binding(
+            get: { confirmedNextRenewal },
+            set: { newValue in
+                confirmedNextRenewal = newValue
+                guard linksBillingDates,
+                      let dates = billingDateEditState.editingNextRenewal(
+                          newValue,
+                          interval: selectedBillingInterval,
+                          timeZoneIdentifier:
+                              subscription.billingSchedule.timeZoneIdentifier
+                      )
+                else {
+                    return
+                }
+                apply(dates)
+            }
         )
     }
 
@@ -230,10 +277,6 @@ struct EditSubscriptionView: View {
                   startDate,
                   timeZoneIdentifier: timeZoneIdentifier
               ),
-              let normalizedRenewalAnchor = normalizedBillingDate(
-                  renewalAnchor,
-                  timeZoneIdentifier: timeZoneIdentifier
-              ),
               let normalizedNextRenewal = normalizedBillingDate(
                   confirmedNextRenewal,
                   timeZoneIdentifier: timeZoneIdentifier
@@ -255,7 +298,7 @@ struct EditSubscriptionView: View {
                 category: category,
                 billingSchedule: FixedBillingSchedule(
                     interval: interval,
-                    renewalAnchor: normalizedRenewalAnchor,
+                    renewalAnchor: normalizedStartDate,
                     timeZoneIdentifier: timeZoneIdentifier
                 ),
                 startDate: normalizedStartDate,
@@ -274,6 +317,37 @@ struct EditSubscriptionView: View {
         } else {
             saveFailed = true
         }
+    }
+
+    private var linksBillingDates: Bool {
+        subscription.lifecycle == .active
+    }
+
+    private var selectedBillingInterval: BillingInterval {
+        intervalChoice.interval(
+            customValueText: customValueText,
+            customUnit: customUnit
+        )
+    }
+
+    private func updateDatesForInterval(_ interval: BillingInterval) {
+        guard linksBillingDates,
+              let dates = billingDateEditState.changingInterval(
+                  startDate: startDate,
+                  interval: interval,
+                  asOf: Date(),
+                  timeZoneIdentifier:
+                      subscription.billingSchedule.timeZoneIdentifier
+              )
+        else {
+            return
+        }
+        apply(dates)
+    }
+
+    private func apply(_ dates: BillingDateValues) {
+        startDate = dates.startDate
+        confirmedNextRenewal = dates.nextRenewal
     }
 
     private func managementURL(

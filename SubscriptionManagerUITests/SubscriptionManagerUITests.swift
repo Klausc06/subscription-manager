@@ -539,6 +539,9 @@ final class SubscriptionManagerUITests: XCTestCase {
 
         let disclosure = app.buttons["subscription.form.adjust-charge"]
         XCTAssertTrue(disclosure.waitForExistence(timeout: 5))
+        XCTAssertFalse(
+            app.datePickers["subscription.form.renewal-anchor"].exists
+        )
         disclosure.tap()
 
         let billingInterval = app.buttons[
@@ -621,20 +624,25 @@ final class SubscriptionManagerUITests: XCTestCase {
             scrollToExistence(yearlySchedule, in: app, maximumSwipes: 4)
         )
         XCTAssertTrue(yearlySchedule.label.contains("Yearly"))
-        let detailAnchor = app.descendants(matching: .any)[
-            "subscription.detail.renewal-anchor"
+        let detailStartDate = app.descendants(matching: .any)[
+            "subscription.detail.start-date"
         ]
         XCTAssertTrue(
-            scrollToExistence(detailAnchor, in: app, maximumSwipes: 8)
+            scrollToExistence(detailStartDate, in: app, maximumSwipes: 8)
         )
-        let anchorValue = try XCTUnwrap(detailAnchor.value as? String)
-        let anchorDate = date(
-            fromLocalizedValue: anchorValue,
+        XCTAssertFalse(
+            app.descendants(matching: .any)[
+                "subscription.detail.renewal-anchor"
+            ].exists
+        )
+        let startValue = try XCTUnwrap(detailStartDate.value as? String)
+        let startDate = date(
+            fromLocalizedValue: startValue,
             locale: locale,
             calendar: calendar
         )
         let expectedRenewal = try XCTUnwrap(
-            calendar.date(byAdding: .year, value: 1, to: anchorDate)
+            calendar.date(byAdding: .year, value: 1, to: startDate)
         )
         let expectedRenewalValue = localizedDateValue(
             expectedRenewal,
@@ -655,6 +663,91 @@ final class SubscriptionManagerUITests: XCTestCase {
         XCTAssertTrue(
             detailNextRenewal.staticTexts[expectedRenewalValue].exists,
             "Untouched Next Renewal must follow the selected interval."
+        )
+    }
+
+    func testAddFormLinksBillingDatesInBothDirections() throws {
+        let app = launch(
+            language: "en",
+            locale: "en_US",
+            storeToken: "add-linked-dates-\(UUID().uuidString)"
+        )
+        app.buttons["subscription.add"].tap()
+        app.buttons["catalog.add-manually"].tap()
+
+        let nextRenewal = app.datePickers[
+            "subscription.form.next-renewal"
+        ]
+        XCTAssertTrue(
+            scrollToExistence(nextRenewal, in: app, maximumSwipes: 6)
+        )
+        let selectedNextRenewal = selectCompactDateInNextMonth(
+            in: nextRenewal,
+            app: app,
+            day: 10
+        )
+
+        let startDate = app.datePickers["subscription.form.start-date"]
+        for _ in 0 ..< 6 where !startDate.isHittable {
+            app.swipeDown()
+        }
+        XCTAssertTrue(startDate.waitForExistence(timeout: 5))
+        let selectedStartDate = selectedDate(in: startDate)
+        let locale = Locale(identifier: "en_US")
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.locale = locale
+        let nextRenewalDate = date(
+            fromLocalizedValue: selectedNextRenewal,
+            locale: locale,
+            calendar: calendar
+        )
+        let expectedStartDate = try XCTUnwrap(
+            calendar.date(
+                byAdding: .month,
+                value: -1,
+                to: nextRenewalDate
+            )
+        )
+
+        XCTAssertEqual(
+            selectedStartDate,
+            localizedDateValue(
+                expectedStartDate,
+                locale: locale,
+                calendar: calendar
+            )
+        )
+
+        let editedStartDate = selectCompactDateInNextMonth(
+            in: startDate,
+            app: app,
+            day: 12
+        )
+        let editedStart = date(
+            fromLocalizedValue: editedStartDate,
+            locale: locale,
+            calendar: calendar
+        )
+        let expectedNextRenewal = try XCTUnwrap(
+            calendar.date(
+                byAdding: .month,
+                value: 1,
+                to: editedStart
+            )
+        )
+        for _ in 0 ..< 6 where !nextRenewal.isHittable {
+            app.swipeUp()
+        }
+        XCTAssertEqual(
+            selectedDate(in: nextRenewal),
+            localizedDateValue(
+                expectedNextRenewal,
+                locale: locale,
+                calendar: calendar
+            )
+        )
+        XCTAssertFalse(
+            app.datePickers["subscription.form.renewal-anchor"].exists
         )
     }
 
@@ -1144,15 +1237,15 @@ final class SubscriptionManagerUITests: XCTestCase {
         createSubscription(named: "Example Cloud", in: app)
         app.buttons["subscription.row"].firstMatch.tap()
 
-        let renewalAnchor = app.descendants(matching: .any)[
-            "subscription.detail.renewal-anchor"
+        let startDateField = app.descendants(matching: .any)[
+            "subscription.detail.start-date"
         ]
-        if !renewalAnchor.exists {
+        if !startDateField.exists {
             app.swipeUp()
         }
-        XCTAssertTrue(renewalAnchor.waitForExistence(timeout: 5))
-        guard let renewalAnchorValue = renewalAnchor.value as? String else {
-            return XCTFail("Renewal Anchor must expose its localized date.")
+        XCTAssertTrue(startDateField.waitForExistence(timeout: 5))
+        guard let startDateValue = startDateField.value as? String else {
+            return XCTFail("Start Date must expose its localized date.")
         }
 
         app.buttons["subscription.lifecycle.actions"].tap()
@@ -1177,7 +1270,7 @@ final class SubscriptionManagerUITests: XCTestCase {
         var calendar = Calendar(identifier: .gregorian)
         calendar.locale = locale
         let anchorDate = date(
-            fromLocalizedValue: renewalAnchorValue,
+            fromLocalizedValue: startDateValue,
             locale: locale,
             calendar: calendar
         )
@@ -1270,7 +1363,7 @@ final class SubscriptionManagerUITests: XCTestCase {
         )
     }
 
-    func testEditsBillingScheduleAndKeepsItAfterRelaunch() {
+    func testEditsBillingScheduleAndKeepsItAfterRelaunch() throws {
         let storeToken = "edit-\(UUID().uuidString)"
         let app = launch(
             language: "en",
@@ -1291,6 +1384,42 @@ final class SubscriptionManagerUITests: XCTestCase {
         XCTAssertTrue(billingInterval.waitForExistence(timeout: 5))
         billingInterval.tap()
         app.buttons["Yearly"].tap()
+        XCTAssertFalse(
+            app.datePickers["subscription.form.renewal-anchor"].exists
+        )
+        let startDatePicker = app.datePickers[
+            "subscription.form.start-date"
+        ]
+        let nextRenewalPicker = app.datePickers[
+            "subscription.form.next-renewal"
+        ]
+        XCTAssertTrue(
+            scrollToExistence(startDatePicker, in: app, maximumSwipes: 4)
+        )
+        let startValue = selectedDate(in: startDatePicker)
+        XCTAssertTrue(
+            scrollToExistence(nextRenewalPicker, in: app, maximumSwipes: 4)
+        )
+        let nextRenewalValue = selectedDate(in: nextRenewalPicker)
+        let locale = Locale(identifier: "en_US")
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.locale = locale
+        let selectedStart = date(
+            fromLocalizedValue: startValue,
+            locale: locale,
+            calendar: calendar
+        )
+        let expectedNextRenewal = try XCTUnwrap(
+            calendar.date(byAdding: .year, value: 1, to: selectedStart)
+        )
+        XCTAssertEqual(
+            nextRenewalValue,
+            localizedDateValue(
+                expectedNextRenewal,
+                locale: locale,
+                calendar: calendar
+            )
+        )
         app.buttons["subscription.form.save"].tap()
 
         let detailInterval = app.descendants(matching: .any)[
@@ -1309,6 +1438,93 @@ final class SubscriptionManagerUITests: XCTestCase {
         ]
         XCTAssertTrue(relaunchedInterval.waitForExistence(timeout: 5))
         XCTAssertTrue(relaunchedInterval.label.contains("Yearly"))
+    }
+
+    func testEditFormLinksBillingDatesInBothDirections() throws {
+        let app = launch(
+            language: "en",
+            locale: "en_US",
+            storeToken: "edit-linked-dates-\(UUID().uuidString)"
+        )
+        createSubscription(named: "Linked Dates", in: app)
+        app.buttons["subscription.row"].firstMatch.tap()
+        app.buttons["subscription.lifecycle.actions"].tap()
+        app.buttons["subscription.edit"].tap()
+
+        let nextRenewal = app.datePickers[
+            "subscription.form.next-renewal"
+        ]
+        XCTAssertTrue(
+            scrollToExistence(nextRenewal, in: app, maximumSwipes: 6)
+        )
+        let selectedNextRenewal = selectCompactDateInNextMonth(
+            in: nextRenewal,
+            app: app,
+            day: 10
+        )
+
+        let startDate = app.datePickers["subscription.form.start-date"]
+        for _ in 0 ..< 6 where !startDate.isHittable {
+            app.swipeDown()
+        }
+        XCTAssertTrue(startDate.waitForExistence(timeout: 5))
+        let selectedStartDate = selectedDate(in: startDate)
+        let locale = Locale(identifier: "en_US")
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.locale = locale
+        let nextRenewalDate = date(
+            fromLocalizedValue: selectedNextRenewal,
+            locale: locale,
+            calendar: calendar
+        )
+        let expectedStartDate = try XCTUnwrap(
+            calendar.date(
+                byAdding: .month,
+                value: -1,
+                to: nextRenewalDate
+            )
+        )
+
+        XCTAssertEqual(
+            selectedStartDate,
+            localizedDateValue(
+                expectedStartDate,
+                locale: locale,
+                calendar: calendar
+            )
+        )
+
+        let editedStartDate = selectCompactDateInNextMonth(
+            in: startDate,
+            app: app,
+            day: 12
+        )
+        let editedStart = date(
+            fromLocalizedValue: editedStartDate,
+            locale: locale,
+            calendar: calendar
+        )
+        let expectedNextRenewal = try XCTUnwrap(
+            calendar.date(
+                byAdding: .month,
+                value: 1,
+                to: editedStart
+            )
+        )
+        for _ in 0 ..< 6 where !nextRenewal.isHittable {
+            app.swipeUp()
+        }
+        XCTAssertEqual(
+            selectedDate(in: nextRenewal),
+            localizedDateValue(
+                expectedNextRenewal,
+                locale: locale,
+                calendar: calendar
+            )
+        )
+        XCTAssertFalse(
+            app.datePickers["subscription.form.renewal-anchor"].exists
+        )
     }
 
     func testConfirmsChargeAndRecordsPriceHistory() {
@@ -1649,6 +1865,47 @@ final class SubscriptionManagerUITests: XCTestCase {
             selectedValue,
             originalValue,
             "Tapping a distinct calendar day must update the picker."
+        )
+        return selectedValue
+    }
+
+    private func selectCompactDateInNextMonth(
+        in picker: XCUIElement,
+        app: XCUIApplication,
+        day: Int
+    ) -> String {
+        let originalValue = selectedDate(in: picker)
+        picker.tap()
+
+        let nextMonth = app.buttons["DatePicker.NextMonth"]
+        let month = app.buttons["DatePicker.Show"]
+        XCTAssertTrue(nextMonth.waitForExistence(timeout: 5))
+        let originalMonth = month.value as? String
+        nextMonth.tap()
+        if let originalMonth {
+            let monthChanged = NSPredicate(
+                format: "value != %@",
+                originalMonth
+            )
+            let expectation = XCTNSPredicateExpectation(
+                predicate: monthChanged,
+                object: month
+            )
+            XCTAssertEqual(
+                XCTWaiter.wait(for: [expectation], timeout: 3),
+                .completed
+            )
+        }
+
+        let target = app.staticTexts[String(day)].firstMatch
+        XCTAssertTrue(target.waitForExistence(timeout: 5))
+        target.tap()
+
+        let selectedValue = selectedDate(in: picker)
+        XCTAssertNotEqual(
+            selectedValue,
+            originalValue,
+            "Choosing a next-month day must update the compact date picker."
         )
         return selectedValue
     }

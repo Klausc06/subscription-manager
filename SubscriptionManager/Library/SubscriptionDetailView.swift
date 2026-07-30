@@ -378,22 +378,12 @@ private struct SubscriptionDetailForm: View {
                 } label: {
                     Text("Start Date")
                 }
-                LabeledContent {
-                    Text(formattedBillingDate(
-                        subscription.billingSchedule.renewalAnchor,
-                        timeZoneIdentifier:
-                            subscription.billingSchedule.timeZoneIdentifier,
-                        locale: locale
-                    ))
-                } label: {
-                    Text("Renewal Anchor")
-                }
                 .accessibilityIdentifier(
-                    "subscription.detail.renewal-anchor"
+                    "subscription.detail.start-date"
                 )
                 .accessibilityValue(
                     formattedBillingDate(
-                        subscription.billingSchedule.renewalAnchor,
+                        subscription.startDate,
                         timeZoneIdentifier:
                             subscription.billingSchedule.timeZoneIdentifier,
                         locale: locale
