@@ -100,7 +100,9 @@ struct AddSubscriptionIntent: AppIntent {
                 ),
                 billingInterval: interval.billingInterval,
                 startDate: startDate,
-                renewalAnchor: startDate,
+                renewalAnchor: initialStatus.status == .trial
+                    ? nextRenewal
+                    : startDate,
                 confirmedNextRenewal: nextRenewal,
                 managementURL: nil,
                 notes: "",

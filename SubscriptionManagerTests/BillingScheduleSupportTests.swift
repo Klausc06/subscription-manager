@@ -225,4 +225,21 @@ struct BillingScheduleSupportTests {
 
         #expect(renewal == anchor)
     }
+
+    @Test("Trial billing dates use lifecycle-specific labels")
+    func trialBillingDatesUseLifecycleSpecificLabels() {
+        #expect(
+            billingStartDateLabelKey(isTrial: true) == "Trial Start"
+        )
+        #expect(
+            billingNextDateLabelKey(isTrial: true)
+                == "First Paid Charge"
+        )
+        #expect(
+            billingStartDateLabelKey(isTrial: false) == "Start Date"
+        )
+        #expect(
+            billingNextDateLabelKey(isTrial: false) == "Next Renewal"
+        )
+    }
 }

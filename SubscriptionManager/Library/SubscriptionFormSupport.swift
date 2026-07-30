@@ -28,6 +28,14 @@ enum ManagementURLParser {
     }
 }
 
+func billingStartDateLabelKey(isTrial: Bool) -> String {
+    isTrial ? "Trial Start" : "Start Date"
+}
+
+func billingNextDateLabelKey(isTrial: Bool) -> String {
+    isTrial ? "First Paid Charge" : "Next Renewal"
+}
+
 struct ValidationMessage: View {
     let text: LocalizedStringKey
     let identifier: String

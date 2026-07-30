@@ -499,6 +499,12 @@
         "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "已过期" } }
       }
     },
+    "First Paid Charge" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "First Paid Charge" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "首次付费" } }
+      }
+    },
     "Initial Status" : {
       "localizations" : {
         "en" : { "stringUnit" : { "state" : "translated", "value" : "Initial Status" } },
@@ -593,6 +599,12 @@
       "localizations" : {
         "en" : { "stringUnit" : { "state" : "translated", "value" : "Trial" } },
         "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "试用中" } }
+      }
+    },
+    "Trial Start" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Trial Start" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "试用开始" } }
       }
     },
     "Unit" : {

@@ -299,6 +299,13 @@ private struct SubscriptionDetailForm: View {
         )
     }
 
+    private var subscriptionIsTrial: Bool {
+        if case .trial = subscription.lifecycle {
+            return true
+        }
+        return false
+    }
+
     var body: some View {
         Form {
             Section("Service") {
@@ -376,7 +383,11 @@ private struct SubscriptionDetailForm: View {
                         locale: locale
                     ))
                 } label: {
-                    Text("Start Date")
+                    Text(LocalizedStringKey(
+                        billingStartDateLabelKey(
+                            isTrial: subscriptionIsTrial
+                        )
+                    ))
                 }
                 .accessibilityIdentifier(
                     "subscription.detail.start-date"
@@ -397,7 +408,11 @@ private struct SubscriptionDetailForm: View {
                         locale: locale
                     ))
                 } label: {
-                    Text("Next Renewal")
+                    Text(LocalizedStringKey(
+                        billingNextDateLabelKey(
+                            isTrial: subscriptionIsTrial
+                        )
+                    ))
                 }
             }
 

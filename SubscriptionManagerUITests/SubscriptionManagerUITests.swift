@@ -751,6 +751,54 @@ final class SubscriptionManagerUITests: XCTestCase {
         )
     }
 
+    func testTrialFormKeepsTrialStartAndFirstPaidChargeIndependent() {
+        let app = launch(
+            language: "en",
+            locale: "en_US",
+            storeToken: "trial-independent-dates-\(UUID().uuidString)"
+        )
+        app.buttons["subscription.add"].tap()
+        app.buttons["catalog.add-manually"].tap()
+
+        let initialStatus = app.segmentedControls[
+            "subscription.form.initial-status"
+        ]
+        XCTAssertTrue(initialStatus.waitForExistence(timeout: 5))
+        initialStatus.buttons["Trial"].tap()
+
+        let firstPaidCharge = app.datePickers[
+            "subscription.form.next-renewal"
+        ]
+        XCTAssertTrue(
+            scrollToExistence(firstPaidCharge, in: app, maximumSwipes: 6)
+        )
+        XCTAssertTrue(app.staticTexts["First Paid Charge"].exists)
+
+        let trialStart = app.datePickers[
+            "subscription.form.start-date"
+        ]
+        for _ in 0 ..< 6 where !trialStart.isHittable {
+            app.swipeDown()
+        }
+        XCTAssertTrue(trialStart.waitForExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts["Trial Start"].exists)
+        let originalTrialStart = selectedDate(in: trialStart)
+
+        for _ in 0 ..< 6 where !firstPaidCharge.isHittable {
+            app.swipeUp()
+        }
+        _ = selectCompactDateInNextMonth(
+            in: firstPaidCharge,
+            app: app,
+            day: 10
+        )
+
+        for _ in 0 ..< 6 where !trialStart.isHittable {
+            app.swipeDown()
+        }
+        XCTAssertEqual(selectedDate(in: trialStart), originalTrialStart)
+    }
+
     func testCatalogFiltersResetAfterCancelAndSaveReopen() {
         let app = launch(
             language: "en",

@@ -145,7 +145,9 @@ struct EditSubscriptionView: View {
     private var billingDatesSection: some View {
         Section("Billing Dates") {
             DatePicker(
-                "Start Date",
+                LocalizedStringKey(
+                    billingStartDateLabelKey(isTrial: isTrial)
+                ),
                 selection: startDateBinding,
                 displayedComponents: .date
             )
@@ -160,7 +162,9 @@ struct EditSubscriptionView: View {
             )
 
             DatePicker(
-                "Next Renewal",
+                LocalizedStringKey(
+                    billingNextDateLabelKey(isTrial: isTrial)
+                ),
                 selection: confirmedNextRenewalBinding,
                 displayedComponents: .date
             )
@@ -298,7 +302,9 @@ struct EditSubscriptionView: View {
                 category: category,
                 billingSchedule: FixedBillingSchedule(
                     interval: interval,
-                    renewalAnchor: normalizedStartDate,
+                    renewalAnchor: isTrial
+                        ? normalizedNextRenewal
+                        : normalizedStartDate,
                     timeZoneIdentifier: timeZoneIdentifier
                 ),
                 startDate: normalizedStartDate,
@@ -321,6 +327,13 @@ struct EditSubscriptionView: View {
 
     private var linksBillingDates: Bool {
         subscription.lifecycle == .active
+    }
+
+    private var isTrial: Bool {
+        if case .trial = subscription.lifecycle {
+            return true
+        }
+        return false
     }
 
     private var selectedBillingInterval: BillingInterval {

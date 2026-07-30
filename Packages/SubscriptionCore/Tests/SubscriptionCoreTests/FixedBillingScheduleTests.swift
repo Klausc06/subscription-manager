@@ -205,9 +205,9 @@ struct FixedBillingScheduleTests {
         )
     }
 
-    @Test("Creation keeps the next renewal separate from the original anchor")
+    @Test("Active creation resolves the next renewal after today")
     @MainActor
-    func creationKeepsNextRenewalSeparateFromAnchor() throws {
+    func activeCreationResolvesNextRenewalAfterToday() throws {
         let calendar = pinnedCalendar(timeZoneIdentifier: "UTC")
         let anchor = try date(
             year: 2025,
@@ -262,14 +262,20 @@ struct FixedBillingScheduleTests {
         )
 
         let created = try #require(repository.storedSubscription)
+        let resolvedNextRenewal = try date(
+            year: 2025,
+            month: 3,
+            day: 31,
+            hour: 12,
+            calendar: calendar
+        )
         #expect(created.billingSchedule.renewalAnchor == anchor)
-        #expect(created.confirmedNextRenewal == nextRenewal)
+        #expect(created.confirmedNextRenewal == resolvedNextRenewal)
         #expect(
             try localDays(
                 workspace.expectedCharges,
                 calendar: calendar
             ) == [
-                "2025-02-28",
                 "2025-03-31",
             ]
         )

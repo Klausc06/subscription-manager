@@ -156,6 +156,10 @@ struct AddSubscriptionView: View {
         ) { _, interval in
             updateDatesForInterval(interval)
         }
+        .onChange(of: initialStatus) { _, status in
+            guard status == .active else { return }
+            updateDatesForInterval(selectedBillingInterval)
+        }
     }
 
     private var availablePeriods: [String] {
@@ -313,11 +317,6 @@ struct AddSubscriptionView: View {
             .pickerStyle(.segmented)
             .accessibilityIdentifier("subscription.form.initial-status")
 
-            if initialStatus == .trial {
-                Text("Next Renewal is the first paid charge date.")
-                    .font(.footnote)
-                    .foregroundStyle(.secondary)
-            }
         }
     }
 
@@ -382,7 +381,11 @@ struct AddSubscriptionView: View {
     private var billingDatesSection: some View {
         Section("Billing Dates") {
             DatePicker(
-                "Start Date",
+                LocalizedStringKey(
+                    billingStartDateLabelKey(
+                        isTrial: initialStatus == .trial
+                    )
+                ),
                 selection: startDateBinding,
                 displayedComponents: .date
             )
@@ -396,7 +399,11 @@ struct AddSubscriptionView: View {
             )
 
             DatePicker(
-                "Next Renewal",
+                LocalizedStringKey(
+                    billingNextDateLabelKey(
+                        isTrial: initialStatus == .trial
+                    )
+                ),
                 selection: confirmedNextRenewalBinding,
                 displayedComponents: .date
             )
@@ -568,7 +575,9 @@ struct AddSubscriptionView: View {
                 customUnit: customUnit
             ),
             startDate: normalizedStartDate,
-            renewalAnchor: normalizedStartDate,
+            renewalAnchor: initialStatus == .trial
+                ? normalizedNextRenewal
+                : normalizedStartDate,
             confirmedNextRenewal: normalizedNextRenewal,
             billingTimeZoneIdentifier: billingTimeZoneIdentifier,
             managementURL: managementURL(from: managementURLResult),
@@ -590,7 +599,9 @@ struct AddSubscriptionView: View {
                                 ? .official
                                 : .override(selectedBillingInterval),
                         startDate: normalizedStartDate,
-                        renewalAnchor: normalizedStartDate,
+                        renewalAnchor: initialStatus == .trial
+                            ? normalizedNextRenewal
+                            : normalizedStartDate,
                         confirmedNextRenewal: normalizedNextRenewal,
                         billingTimeZoneIdentifier:
                             billingTimeZoneIdentifier,

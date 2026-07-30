@@ -73,6 +73,8 @@ extension Subscription {
     func replacingLifecycleFacts(
         lifecycle: SubscriptionLifecycle? = nil,
         isArchived: Bool? = nil,
+        billingSchedule: FixedBillingSchedule? = nil,
+        startDate: Date? = nil,
         confirmedNextRenewal: Date? = nil
     ) -> Subscription {
         Subscription(
@@ -82,8 +84,8 @@ extension Subscription {
             plan: plan,
             category: category,
             originalAmount: originalAmount,
-            billingSchedule: billingSchedule,
-            startDate: startDate,
+            billingSchedule: billingSchedule ?? self.billingSchedule,
+            startDate: startDate ?? self.startDate,
             confirmedNextRenewal:
                 confirmedNextRenewal ?? self.confirmedNextRenewal,
             managementURL: managementURL,

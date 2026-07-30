@@ -643,6 +643,19 @@ struct SwiftDataSubscriptionRepositoryTests {
                 == .trial(firstPaidChargeAt: trialDate)
         )
         #expect(reloadedTrial?.isArchived == false)
+        let utc = try #require(TimeZone(identifier: "UTC"))
+        #expect(
+            reloadedTrial?.lifecycle.status(
+                asOf: trialDate.addingTimeInterval(-86_400),
+                timeZone: utc
+            ) == .trial
+        )
+        #expect(
+            reloadedTrial?.lifecycle.status(
+                asOf: trialDate,
+                timeZone: utc
+            ) == .active
+        )
         #expect(
             reloadedCancelled?.lifecycle
                 == .cancelled(

@@ -1180,10 +1180,32 @@ public final class SubscriptionWorkspace {
 
         let whitespace = CharacterSet.whitespacesAndNewlines
         let id = identifierGenerator()
+        let confirmedNextRenewal: Date
+        switch input.initialStatus {
+        case .active:
+            guard let timeZone = TimeZone(
+                identifier: input.billingTimeZoneIdentifier
+            ),
+            let resolvedRenewal = BillingDateResolver().nextRenewal(
+                afterStart: input.startDate,
+                interval: input.billingInterval,
+                asOf: now(),
+                timeZone: timeZone
+            ) else {
+                creationValidationErrors[.confirmedNextRenewal] = .required
+                return .validationFailed
+            }
+            confirmedNextRenewal = resolvedRenewal
+        case .trial:
+            confirmedNextRenewal = input.confirmedNextRenewal
+        }
         let lifecycle: SubscriptionLifecycle =
             input.initialStatus == .trial
-                ? .trial(firstPaidChargeAt: input.confirmedNextRenewal)
+                ? .trial(firstPaidChargeAt: confirmedNextRenewal)
                 : .active
+        let renewalAnchor = input.initialStatus == .trial
+            ? confirmedNextRenewal
+            : input.startDate
         let subscription = Subscription(
             id: id,
             serviceIdentity: serviceIdentity(id),
@@ -1193,11 +1215,11 @@ public final class SubscriptionWorkspace {
             originalAmount: originalAmount,
             billingSchedule: FixedBillingSchedule(
                 interval: input.billingInterval,
-                renewalAnchor: input.renewalAnchor,
+                renewalAnchor: renewalAnchor,
                 timeZoneIdentifier: input.billingTimeZoneIdentifier
             ),
             startDate: input.startDate,
-            confirmedNextRenewal: input.confirmedNextRenewal,
+            confirmedNextRenewal: confirmedNextRenewal,
             managementURL: input.managementURL,
             notes: input.notes,
             lifecycle: lifecycle,
@@ -1228,17 +1250,63 @@ public final class SubscriptionWorkspace {
         input: SubscriptionEditInput,
         forecastThrough: Date? = nil
     ) {
-        editingValidationErrors = validate(input)
-        guard editingValidationErrors.isEmpty else {
-            return
-        }
+        editingValidationErrors = [:]
 
         do {
             guard let existing = try repository.subscription(id: id) else {
                 detailState = .notFound
                 return
             }
+            editingValidationErrors = validate(
+                input,
+                lifecycle: existing.lifecycle
+            )
+            guard editingValidationErrors.isEmpty else {
+                return
+            }
             let whitespace = CharacterSet.whitespacesAndNewlines
+            let confirmedNextRenewal: Date
+            switch existing.lifecycle {
+            case .active:
+                guard let timeZone = TimeZone(
+                    identifier:
+                        input.billingSchedule.timeZoneIdentifier
+                ),
+                let resolvedRenewal = BillingDateResolver().nextRenewal(
+                    afterStart: input.startDate,
+                    interval: input.billingSchedule.interval,
+                    asOf: now(),
+                    timeZone: timeZone
+                ) else {
+                    editingValidationErrors[.confirmedNextRenewal] = .required
+                    return
+                }
+                confirmedNextRenewal = resolvedRenewal
+            case .trial, .cancelled:
+                confirmedNextRenewal = input.confirmedNextRenewal
+            }
+            let renewalAnchor = switch existing.lifecycle {
+            case .trial:
+                confirmedNextRenewal
+            case .active:
+                input.startDate
+            case .cancelled:
+                existing.billingSchedule.renewalAnchor
+            }
+            let billingSchedule = FixedBillingSchedule(
+                interval: input.billingSchedule.interval,
+                renewalAnchor: renewalAnchor,
+                timeZoneIdentifier:
+                    input.billingSchedule.timeZoneIdentifier
+            )
+            let lifecycle = switch existing.lifecycle {
+            case .trial:
+                SubscriptionLifecycle.trial(
+                    firstPaidChargeAt: confirmedNextRenewal
+                )
+            case .active, .cancelled:
+                existing.lifecycle
+            }
             let edited = Subscription(
                 id: existing.id,
                 serviceIdentity: existing.serviceIdentity,
@@ -1248,14 +1316,14 @@ public final class SubscriptionWorkspace {
                 plan: input.plan.trimmingCharacters(in: whitespace),
                 category: input.category.trimmingCharacters(in: whitespace),
                 originalAmount: existing.originalAmount,
-                billingSchedule: input.billingSchedule,
+                billingSchedule: billingSchedule,
                 startDate: input.startDate,
-                confirmedNextRenewal: input.confirmedNextRenewal,
+                confirmedNextRenewal: confirmedNextRenewal,
                 managementURL: input.managementURL,
                 notes: input.notes,
                 confirmedCharges: existing.confirmedCharges,
                 priceChanges: existing.priceChanges,
-                lifecycle: existing.lifecycle,
+                lifecycle: lifecycle,
                 isArchived: existing.isArchived
             )
             try repository.updateSubscription(edited)
@@ -1537,6 +1605,11 @@ public final class SubscriptionWorkspace {
             guard let normalizedRenewal = normalizedBillingLocalNoon(
                 nextRenewal,
                 timeZone: timeZone
+            ),
+            let startDate = BillingDateResolver().previousCycleStart(
+                before: normalizedRenewal,
+                interval: existing.billingSchedule.interval,
+                timeZone: timeZone
             ) else {
                 lifecycleActionError = .persistenceFailed
                 return
@@ -1544,6 +1617,13 @@ public final class SubscriptionWorkspace {
 
             let updated = existing.replacingLifecycleFacts(
                 lifecycle: .active,
+                billingSchedule: FixedBillingSchedule(
+                    interval: existing.billingSchedule.interval,
+                    renewalAnchor: startDate,
+                    timeZoneIdentifier:
+                        existing.billingSchedule.timeZoneIdentifier
+                ),
+                startDate: startDate,
                 confirmedNextRenewal: normalizedRenewal
             )
             try repository.updateSubscription(updated)
@@ -1919,11 +1999,17 @@ public final class SubscriptionWorkspace {
         } else {
             errors[.originalAmount] = .required
         }
-        if input.confirmedNextRenewal < input.startDate {
-            errors[.confirmedNextRenewal] = .beforeStartDate
+        if !input.startDate.timeIntervalSinceReferenceDate.isFinite {
+            errors[.billingSchedule] = .required
         }
-        if input.renewalAnchor < input.startDate {
-            errors[.renewalAnchor] = .beforeStartDate
+        if input.initialStatus == .trial {
+            if !input.confirmedNextRenewal
+                .timeIntervalSinceReferenceDate.isFinite
+            {
+                errors[.confirmedNextRenewal] = .required
+            } else if input.confirmedNextRenewal < input.startDate {
+                errors[.confirmedNextRenewal] = .beforeStartDate
+            }
         }
         if !input.billingInterval.isValid {
             errors[.billingSchedule] = .mustBePositive
@@ -1937,7 +2023,8 @@ public final class SubscriptionWorkspace {
     }
 
     private func validate(
-        _ input: SubscriptionEditInput
+        _ input: SubscriptionEditInput,
+        lifecycle: SubscriptionLifecycle
     ) -> [SubscriptionCreationField: SubscriptionCreationValidationError] {
         var errors:
             [SubscriptionCreationField: SubscriptionCreationValidationError]
@@ -1953,11 +2040,36 @@ public final class SubscriptionWorkspace {
         if input.category.trimmingCharacters(in: whitespace).isEmpty {
             errors[.category] = .required
         }
-        if input.billingSchedule.renewalAnchor < input.startDate {
-            errors[.renewalAnchor] = .beforeStartDate
-        }
-        if input.confirmedNextRenewal < input.startDate {
-            errors[.confirmedNextRenewal] = .beforeStartDate
+        switch lifecycle {
+        case .active:
+            break
+        case .trial:
+            if !input.startDate.timeIntervalSinceReferenceDate.isFinite {
+                errors[.billingSchedule] = .required
+            }
+            if !input.confirmedNextRenewal
+                .timeIntervalSinceReferenceDate.isFinite
+            {
+                errors[.confirmedNextRenewal] = .required
+            } else if input.confirmedNextRenewal < input.startDate {
+                errors[.confirmedNextRenewal] = .beforeStartDate
+            }
+        case .cancelled:
+            if !input.startDate.timeIntervalSinceReferenceDate.isFinite
+                || !input.billingSchedule.renewalAnchor
+                    .timeIntervalSinceReferenceDate.isFinite
+            {
+                errors[.billingSchedule] = .required
+            } else if input.billingSchedule.renewalAnchor < input.startDate {
+                errors[.renewalAnchor] = .beforeStartDate
+            }
+            if !input.confirmedNextRenewal
+                .timeIntervalSinceReferenceDate.isFinite
+            {
+                errors[.confirmedNextRenewal] = .required
+            } else if input.confirmedNextRenewal < input.startDate {
+                errors[.confirmedNextRenewal] = .beforeStartDate
+            }
         }
         if !input.billingSchedule.interval.isValid {
             errors[.billingSchedule] = .mustBePositive
