@@ -988,6 +988,195 @@ final class SubscriptionManagerUITests: XCTestCase {
         XCTAssertTrue(firstUnpinnedRow.label.contains("Alpha Service"))
     }
 
+    func testTrailingSwipeRequiresConfirmationBeforePermanentDelete() {
+        let serviceName = "Swipe Delete"
+        let app = launch(
+            language: "en",
+            locale: "en_US",
+            storeToken: "swipe-delete-\(UUID().uuidString)"
+        )
+        createSubscription(named: serviceName, in: app)
+
+        var row = app.buttons.matching(
+            identifier: "subscription.row"
+        )
+        .matching(
+            NSPredicate(format: "label CONTAINS %@", serviceName)
+        )
+        .firstMatch
+        XCTAssertTrue(row.waitForExistence(timeout: 5))
+        revealTrailingActions(on: row)
+        XCTAssertTrue(
+            app.buttons["subscription.delete"].waitForExistence(timeout: 5)
+        )
+        XCTAssertTrue(
+            app.buttons["subscription.archive"].waitForExistence(timeout: 5)
+        )
+
+        app.navigationBars["Subscriptions"].tap()
+        row = app.buttons.matching(
+            identifier: "subscription.row"
+        )
+        .matching(
+            NSPredicate(format: "label CONTAINS %@", serviceName)
+        )
+        .firstMatch
+        triggerFullTrailingSwipe(on: row)
+
+        var confirmation = app.alerts.firstMatch
+        XCTAssertTrue(confirmation.waitForExistence(timeout: 5))
+        XCTAssertTrue(row.exists)
+        XCTAssertTrue(
+            confirmation.staticTexts
+                .matching(
+                    NSPredicate(
+                        format: "label CONTAINS %@",
+                        serviceName
+                    )
+                )
+                .firstMatch
+                .exists
+        )
+        XCTAssertTrue(
+            confirmation.staticTexts
+                .matching(
+                    NSPredicate(format: "label CONTAINS %@", "Standard")
+                )
+                .firstMatch
+                .exists
+        )
+        XCTAssertTrue(
+            confirmation.staticTexts[
+                "This permanently removes its schedule, notes, lifecycle "
+                    + "details, and payment history. This action cannot be "
+                    + "undone."
+            ].exists
+        )
+        let cancel = confirmation.buttons["Cancel"]
+        XCTAssertTrue(cancel.waitForExistence(timeout: 5))
+        cancel.tap()
+        XCTAssertTrue(row.waitForExistence(timeout: 5))
+
+        triggerFullTrailingSwipe(on: row)
+        confirmation = app.alerts.firstMatch
+        XCTAssertTrue(confirmation.waitForExistence(timeout: 5))
+        confirmation.buttons["Delete Permanently"].tap()
+        XCTAssertFalse(row.waitForExistence(timeout: 2))
+    }
+
+    func testArchivedRowsSwipeToRestoreOrConfirmedDelete() {
+        let serviceName = "Swipe Archive"
+        let app = launch(
+            language: "en",
+            locale: "en_US",
+            storeToken: "swipe-archive-\(UUID().uuidString)"
+        )
+        createSubscription(named: serviceName, in: app)
+
+        var row = app.buttons.matching(
+            identifier: "subscription.row"
+        )
+        .matching(
+            NSPredicate(format: "label CONTAINS %@", serviceName)
+        )
+        .firstMatch
+        revealTrailingActions(on: row)
+        let archive = app.buttons["subscription.archive"]
+        XCTAssertTrue(archive.waitForExistence(timeout: 5))
+        archive.tap()
+        XCTAssertFalse(row.waitForExistence(timeout: 2))
+
+        app.buttons["library.archived"].tap()
+        row = app.buttons.matching(
+            identifier: "subscription.row"
+        )
+        .matching(
+            NSPredicate(format: "label CONTAINS %@", serviceName)
+        )
+        .firstMatch
+        XCTAssertTrue(row.waitForExistence(timeout: 5))
+        revealTrailingActions(on: row)
+        XCTAssertTrue(
+            app.buttons["subscription.delete"].waitForExistence(timeout: 5)
+        )
+        let restore = app.buttons["subscription.restore"]
+        XCTAssertTrue(restore.waitForExistence(timeout: 5))
+        XCTAssertFalse(app.buttons["subscription.pin"].exists)
+        restore.tap()
+        XCTAssertFalse(row.waitForExistence(timeout: 2))
+
+        app.navigationBars.buttons["Subscriptions"].tap()
+        XCTAssertTrue(app.staticTexts[serviceName].waitForExistence(timeout: 5))
+
+        row = app.buttons.matching(
+            identifier: "subscription.row"
+        )
+        .matching(
+            NSPredicate(format: "label CONTAINS %@", serviceName)
+        )
+        .firstMatch
+        revealTrailingActions(on: row)
+        app.buttons["subscription.archive"].tap()
+        app.buttons["library.archived"].tap()
+        row = app.buttons.matching(
+            identifier: "subscription.row"
+        )
+        .matching(
+            NSPredicate(format: "label CONTAINS %@", serviceName)
+        )
+        .firstMatch
+        XCTAssertTrue(row.waitForExistence(timeout: 5))
+        triggerFullTrailingSwipe(on: row)
+        let confirmation = app.alerts.firstMatch
+        XCTAssertTrue(confirmation.waitForExistence(timeout: 5))
+        XCTAssertTrue(row.exists)
+        confirmation.buttons["Delete Permanently"].tap()
+        XCTAssertFalse(row.waitForExistence(timeout: 2))
+    }
+
+    func testFailedSwipeActionsKeepTheLibraryRow() {
+        let storeToken = "failed-swipe-\(UUID().uuidString)"
+        let serviceName = "Swipe Failure"
+        let app = launch(
+            language: "en",
+            locale: "en_US",
+            storeToken: storeToken
+        )
+        createSubscription(named: serviceName, in: app)
+        app.terminate()
+
+        let failingApp = launch(
+            language: "en",
+            locale: "en_US",
+            storeToken: storeToken,
+            failsLifecycleMutations: true
+        )
+        let row = failingApp.buttons.matching(
+            identifier: "subscription.row"
+        )
+        .matching(
+            NSPredicate(format: "label CONTAINS %@", serviceName)
+        )
+        .firstMatch
+        XCTAssertTrue(row.waitForExistence(timeout: 5))
+        revealTrailingActions(on: row)
+        failingApp.buttons["subscription.archive"].tap()
+
+        var error = failingApp.alerts["Couldn’t Complete Action"]
+        XCTAssertTrue(error.waitForExistence(timeout: 5))
+        XCTAssertTrue(row.exists)
+        error.buttons["OK"].tap()
+        XCTAssertTrue(error.waitForNonExistence(timeout: 5))
+
+        triggerFullTrailingSwipe(on: row)
+        let confirmation = failingApp.alerts.firstMatch
+        XCTAssertTrue(confirmation.waitForExistence(timeout: 5))
+        confirmation.buttons["Delete Permanently"].tap()
+        error = failingApp.alerts["Couldn’t Complete Action"]
+        XCTAssertTrue(error.waitForExistence(timeout: 5))
+        XCTAssertTrue(row.exists)
+    }
+
     func testSimplifiedChineseLifecycleStatusIsLocalized() {
         let app = launch(
             language: "zh-Hans",
@@ -1144,7 +1333,11 @@ final class SubscriptionManagerUITests: XCTestCase {
                 .exists
         )
         XCTAssertTrue(
-            confirmation.staticTexts["This action cannot be undone."].exists
+            confirmation.staticTexts[
+                "This permanently removes its schedule, notes, lifecycle "
+                    + "details, and payment history. This action cannot be "
+                    + "undone."
+            ].exists
         )
         confirmation.buttons["Delete Permanently"].tap()
 
@@ -2047,6 +2240,36 @@ final class SubscriptionManagerUITests: XCTestCase {
                 }
                 return $0.frame.minY < $1.frame.minY
             }
+    }
+
+    private func revealTrailingActions(on row: XCUIElement) {
+        let start = row.coordinate(
+            withNormalizedOffset: CGVector(dx: 0.85, dy: 0.5)
+        )
+        let end = row.coordinate(
+            withNormalizedOffset: CGVector(dx: 0.35, dy: 0.5)
+        )
+        start.press(
+            forDuration: 0.1,
+            thenDragTo: end,
+            withVelocity: .slow,
+            thenHoldForDuration: 0
+        )
+    }
+
+    private func triggerFullTrailingSwipe(on row: XCUIElement) {
+        let start = row.coordinate(
+            withNormalizedOffset: CGVector(dx: 0.95, dy: 0.5)
+        )
+        let end = row.coordinate(
+            withNormalizedOffset: CGVector(dx: 0.02, dy: 0.5)
+        )
+        start.press(
+            forDuration: 0.05,
+            thenDragTo: end,
+            withVelocity: .fast,
+            thenHoldForDuration: 0
+        )
     }
 }
 

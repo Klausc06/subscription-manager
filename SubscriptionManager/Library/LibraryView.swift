@@ -723,6 +723,9 @@ private struct ScopedLibraryView: View {
     let onAddSubscription: () -> Void
     let onPreferences: () -> Void
     @State private var pinActionFailed = false
+    @State private var subscriptionPendingDeletion: SubscriptionSummary?
+    @State private var directActionError:
+        SubscriptionLifecycleActionError?
 
     var body: some View {
         libraryContent
@@ -749,6 +752,38 @@ private struct ScopedLibraryView: View {
                 workspace.loadLibrary(scope: scope)
             }
             .alert(
+                deletionConfirmationTitle,
+                isPresented: Binding(
+                    get: {
+                        subscriptionPendingDeletion != nil
+                    },
+                    set: { isPresented in
+                        if !isPresented {
+                            subscriptionPendingDeletion = nil
+                        }
+                    }
+                ),
+                presenting: subscriptionPendingDeletion
+            ) { subscription in
+                Button("Delete Permanently", role: .destructive) {
+                    subscriptionPendingDeletion = nil
+                    performDirectAction {
+                        workspace.deletePermanently(id: subscription.id)
+                    }
+                }
+                Button("Cancel", role: .cancel) {
+                    subscriptionPendingDeletion = nil
+                }
+            } message: { _ in
+                Text(
+                    LocalizedStringKey(
+                        "This permanently removes its schedule, notes, "
+                            + "lifecycle details, and payment history. This "
+                            + "action cannot be undone."
+                    )
+                )
+            }
+            .alert(
                 "Couldn’t Update Pin",
                 isPresented: $pinActionFailed
             ) {
@@ -757,6 +792,17 @@ private struct ScopedLibraryView: View {
                 }
             } message: {
                 Text("The subscription stayed unchanged. Try again.")
+            }
+            .alert(
+                "Couldn’t Complete Action",
+                isPresented: directActionErrorIsPresented,
+                presenting: directActionError
+            ) { _ in
+                Button("OK") {
+                    dismissDirectActionError()
+                }
+            } message: { error in
+                Text(lifecycleActionErrorText(error))
             }
     }
 
@@ -880,8 +926,19 @@ private struct ScopedLibraryView: View {
                             : "subscription.unpin"
                     )
                 }
+                .swipeActions(
+                    edge: .trailing,
+                    allowsFullSwipe: true
+                ) {
+                    trailingActions(for: subscription)
+                }
         } else {
-            row
+            row.swipeActions(
+                edge: .trailing,
+                allowsFullSwipe: true
+            ) {
+                trailingActions(for: subscription)
+            }
         }
         #else
         row
@@ -895,6 +952,77 @@ private struct ScopedLibraryView: View {
             pinned: subscription.pinnedAt == nil
         )
         pinActionFailed = workspace.lifecycleActionError != nil
+    }
+
+    @ViewBuilder
+    private func trailingActions(
+        for subscription: SubscriptionSummary
+    ) -> some View {
+        Button(role: .destructive) {
+            beginDirectAction()
+            subscriptionPendingDeletion = subscription
+        } label: {
+            Label("Delete", systemImage: "trash")
+        }
+        .accessibilityIdentifier("subscription.delete")
+
+        if scope == .current {
+            Button {
+                performDirectAction {
+                    workspace.archive(id: subscription.id)
+                }
+            } label: {
+                Label("Archive", systemImage: "archivebox")
+            }
+            .tint(.blue)
+            .accessibilityIdentifier("subscription.archive")
+        } else {
+            Button {
+                performDirectAction {
+                    workspace.restore(id: subscription.id)
+                }
+            } label: {
+                Label("Restore", systemImage: "arrow.uturn.backward")
+            }
+            .tint(.blue)
+            .accessibilityIdentifier("subscription.restore")
+        }
+    }
+
+    private var deletionConfirmationTitle: LocalizedStringKey {
+        guard let subscriptionPendingDeletion else {
+            return "Permanently Delete"
+        }
+        return "Permanently Delete “\(subscriptionPendingDeletion.serviceName)” (\(subscriptionPendingDeletion.plan))?"
+    }
+
+    private var directActionErrorIsPresented: Binding<Bool> {
+        Binding(
+            get: {
+                directActionError != nil
+            },
+            set: { isPresented in
+                if !isPresented {
+                    dismissDirectActionError()
+                }
+            }
+        )
+    }
+
+    private func beginDirectAction() {
+        directActionError = nil
+        workspace.clearLifecycleActionError()
+    }
+
+    private func performDirectAction(_ action: () -> Void) {
+        beginDirectAction()
+        action()
+        directActionError = workspace.lifecycleActionError
+    }
+
+    private func dismissDirectActionError() {
+        directActionError = nil
+        workspace.clearLifecycleActionError()
     }
 }
 

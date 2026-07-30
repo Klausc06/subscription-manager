@@ -105,7 +105,6 @@ targets:
     platform: auto
     supportedDestinations:
       - iOS
-      - macOS
     sources:
       - path: SubscriptionManagerUITests
     dependencies:

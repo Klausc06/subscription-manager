@@ -187,7 +187,13 @@ struct SubscriptionDetailView: View {
                     subscriptionPendingDeletion = nil
                 }
             } message: { _ in
-                Text("This action cannot be undone.")
+                Text(
+                    LocalizedStringKey(
+                        "This permanently removes its schedule, notes, "
+                            + "lifecycle details, and payment history. This "
+                            + "action cannot be undone."
+                    )
+                )
             }
             .alert(
                 "Couldn’t Complete Action",
@@ -252,7 +258,7 @@ struct SubscriptionDetailView: View {
         guard let subscriptionPendingDeletion else {
             return "Permanently Delete"
         }
-        return "Permanently Delete “\(subscriptionPendingDeletion.serviceName)”?"
+        return "Permanently Delete “\(subscriptionPendingDeletion.serviceName)” (\(subscriptionPendingDeletion.plan))?"
     }
 
     private var directActionErrorIsPresented: Binding<Bool> {

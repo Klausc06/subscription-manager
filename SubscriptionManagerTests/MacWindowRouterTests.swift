@@ -1,8 +1,36 @@
+import Foundation
 import SubscriptionCore
 import Testing
 @testable import SubscriptionManager
 
 struct MacWindowRouterTests {
+    #if os(macOS)
+    @Test("A Mac command only matches its focused window")
+    func commandTargetsOnlyFocusedWindow() {
+        let focusedWindow = UUID()
+        let otherWindow = UUID()
+
+        #expect(
+            MacWindowCommandTarget.matches(
+                notificationObject: focusedWindow,
+                targetID: focusedWindow
+            )
+        )
+        #expect(
+            !MacWindowCommandTarget.matches(
+                notificationObject: focusedWindow,
+                targetID: otherWindow
+            )
+        )
+        #expect(
+            !MacWindowCommandTarget.matches(
+                notificationObject: nil,
+                targetID: focusedWindow
+            )
+        )
+    }
+    #endif
+
     @Test("Quick Add remains pending until the recreated window consumes it")
     @MainActor
     func quickAddRouteIsRetainedUntilConsumed() {

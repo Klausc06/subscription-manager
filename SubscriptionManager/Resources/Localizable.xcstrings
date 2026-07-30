@@ -499,6 +499,12 @@
         "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "永久删除" } }
       }
     },
+    "Delete" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Delete" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "删除" } }
+      }
+    },
     "Expired" : {
       "localizations" : {
         "en" : { "stringUnit" : { "state" : "translated", "value" : "Expired" } },
@@ -559,6 +565,12 @@
         "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "永久删除“%@”？" } }
       }
     },
+    "Permanently Delete “%@” (%@)?" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Permanently Delete “%1$@” (%2$@)?" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "永久删除“%1$@”（%2$@）？" } }
+      }
+    },
     "Reactivate" : {
       "localizations" : {
         "en" : { "stringUnit" : { "state" : "translated", "value" : "Reactivate" } },
@@ -605,6 +617,12 @@
       "localizations" : {
         "en" : { "stringUnit" : { "state" : "translated", "value" : "This action cannot be undone." } },
         "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "此操作无法撤销。" } }
+      }
+    },
+    "This permanently removes its schedule, notes, lifecycle details, and payment history. This action cannot be undone." : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "This permanently removes its schedule, notes, lifecycle details, and payment history. This action cannot be undone." } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "这会永久删除该订阅的账单计划、备注、生命周期信息和付款历史。此操作无法撤销。" } }
       }
     },
     "The subscription stayed unchanged. Try again." : {

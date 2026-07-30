@@ -106,32 +106,95 @@ enum MacWindowCommand {
     static let add = Notification.Name("MacWindowCommand.add")
     static let edit = Notification.Name("MacWindowCommand.edit")
     static let archive = Notification.Name("MacWindowCommand.archive")
+    static let restore = Notification.Name("MacWindowCommand.restore")
+    static let delete = Notification.Name("MacWindowCommand.delete")
     static let search = Notification.Name("MacWindowCommand.search")
     static let settings = Notification.Name("MacWindowCommand.settings")
 }
 
+private struct MacSubscriptionCommandContext: Equatable {
+    let targetID: UUID
+    let scope: SubscriptionLibraryScope
+    let selectionCount: Int
+
+    var canEdit: Bool {
+        selectionCount == 1
+    }
+
+    var canArchive: Bool {
+        scope == .current && selectionCount > 0
+    }
+
+    var canRestore: Bool {
+        scope == .archived && selectionCount > 0
+    }
+
+    var canDelete: Bool {
+        selectionCount == 1
+    }
+}
+
+private struct MacSubscriptionCommandContextKey: FocusedValueKey {
+    typealias Value = MacSubscriptionCommandContext
+}
+
+private extension FocusedValues {
+    var subscriptionCommandContext: MacSubscriptionCommandContext? {
+        get { self[MacSubscriptionCommandContextKey.self] }
+        set { self[MacSubscriptionCommandContextKey.self] = newValue }
+    }
+}
+
+struct MacWindowCommandTarget {
+    static func matches(
+        notificationObject: Any?,
+        targetID: UUID
+    ) -> Bool {
+        notificationObject as? UUID == targetID
+    }
+}
+
 private struct MacWindowCommands: Commands {
+    @FocusedValue(\.subscriptionCommandContext)
+    private var subscriptionCommandContext
+
     var body: some Commands {
         CommandGroup(after: .newItem) {
             Button("Add Subscription") { post(MacWindowCommand.add) }
                 .keyboardShortcut("n", modifiers: [.command])
+                .disabled(subscriptionCommandContext == nil)
         }
         CommandMenu("Subscription") {
             Button("Edit") { post(MacWindowCommand.edit) }
                 .keyboardShortcut("e", modifiers: [.command])
+                .disabled(subscriptionCommandContext?.canEdit != true)
             Button("Archive") { post(MacWindowCommand.archive) }
                 .keyboardShortcut("a", modifiers: [.command, .option])
+                .disabled(subscriptionCommandContext?.canArchive != true)
+            Button("Restore") { post(MacWindowCommand.restore) }
+                .keyboardShortcut("r", modifiers: [.command, .option])
+                .disabled(subscriptionCommandContext?.canRestore != true)
+            Divider()
+            Button("Delete", role: .destructive) {
+                post(MacWindowCommand.delete)
+            }
+            .disabled(subscriptionCommandContext?.canDelete != true)
         }
         CommandGroup(after: .toolbar) {
             Button("Search Subscriptions") { post(MacWindowCommand.search) }
                 .keyboardShortcut("f", modifiers: [.command])
+                .disabled(subscriptionCommandContext == nil)
             Button("Settings") { post(MacWindowCommand.settings) }
                 .keyboardShortcut(",", modifiers: [.command])
+                .disabled(subscriptionCommandContext == nil)
         }
     }
 
     private func post(_ name: Notification.Name) {
-        NotificationCenter.default.post(name: name, object: nil)
+        guard let targetID = subscriptionCommandContext?.targetID else {
+            return
+        }
+        NotificationCenter.default.post(name: name, object: targetID)
     }
 }
 
@@ -148,6 +211,10 @@ private struct MacLibraryView: View {
     @State private var editingSubscription: Subscription?
     @State private var isPreferencesPresented = false
     @State private var pinActionFailed = false
+    @State private var subscriptionPendingDeletion: SubscriptionSummary?
+    @State private var directActionError:
+        SubscriptionLifecycleActionError?
+    @State private var commandTargetID = UUID()
     @FocusState private var isSearchFocused: Bool
 
     var body: some View {
@@ -187,25 +254,42 @@ private struct MacLibraryView: View {
                             }
                         }
 
-                        Button("Archive", systemImage: "archivebox") {
-                            archiveSelection()
-                        }
-                        .disabled(scope != .current || selection.isEmpty)
-
-                        if selectedSubscriptionsArePinned {
-                            Button("Unpin", systemImage: "pin.slash") {
-                                pinSelection(pinned: false)
+                        if scope == .current {
+                            Button("Archive", systemImage: "archivebox") {
+                                archiveSelection()
                             }
-                            .disabled(
-                                scope != .current || selection.isEmpty
-                            )
+                            .disabled(selection.isEmpty)
                         } else {
-                            Button("Pin", systemImage: "pin") {
-                                pinSelection(pinned: true)
+                            Button(
+                                "Restore",
+                                systemImage: "arrow.uturn.backward"
+                            ) {
+                                restoreSelection()
                             }
-                            .disabled(
-                                scope != .current || selection.isEmpty
-                            )
+                            .disabled(selection.isEmpty)
+                        }
+
+                        Button(
+                            "Delete",
+                            systemImage: "trash",
+                            role: .destructive
+                        ) {
+                            beginDeletingSelection()
+                        }
+                        .disabled(selection.count != 1)
+
+                        if scope == .current {
+                            if selectedSubscriptionsArePinned {
+                                Button("Unpin", systemImage: "pin.slash") {
+                                    pinSelection(pinned: false)
+                                }
+                                .disabled(selection.isEmpty)
+                            } else {
+                                Button("Pin", systemImage: "pin") {
+                                    pinSelection(pinned: true)
+                                }
+                                .disabled(selection.isEmpty)
+                            }
                         }
                     }
                 }
@@ -213,6 +297,49 @@ private struct MacLibraryView: View {
             detailContent
         }
         .navigationSplitViewStyle(.balanced)
+        .focusedSceneValue(
+            \.subscriptionCommandContext,
+            MacSubscriptionCommandContext(
+                targetID: commandTargetID,
+                scope: scope,
+                selectionCount: selection.count
+            )
+        )
+        .alert(
+            deletionConfirmationTitle,
+            isPresented: Binding(
+                get: {
+                    subscriptionPendingDeletion != nil
+                },
+                set: { isPresented in
+                    if !isPresented {
+                        subscriptionPendingDeletion = nil
+                    }
+                }
+            ),
+            presenting: subscriptionPendingDeletion
+        ) { subscription in
+            Button("Delete Permanently", role: .destructive) {
+                subscriptionPendingDeletion = nil
+                performDirectAction {
+                    workspace.deletePermanently(id: subscription.id)
+                }
+                if directActionError == nil {
+                    selection.remove(subscription.id)
+                }
+            }
+            Button("Cancel", role: .cancel) {
+                subscriptionPendingDeletion = nil
+            }
+        } message: { _ in
+            Text(
+                LocalizedStringKey(
+                    "This permanently removes its schedule, notes, "
+                        + "lifecycle details, and payment history. This "
+                        + "action cannot be undone."
+                )
+            )
+        }
         .alert(
             "Couldn’t Update Pin",
             isPresented: $pinActionFailed
@@ -222,6 +349,17 @@ private struct MacLibraryView: View {
             }
         } message: {
             Text("The subscription stayed unchanged. Try again.")
+        }
+        .alert(
+            "Couldn’t Complete Action",
+            isPresented: directActionErrorIsPresented,
+            presenting: directActionError
+        ) { _ in
+            Button("OK") {
+                dismissDirectActionError()
+            }
+        } message: { error in
+            Text(lifecycleActionErrorText(error))
         }
         .sheet(isPresented: Binding(
             get: { addPresentation.isPresented },
@@ -261,19 +399,32 @@ private struct MacLibraryView: View {
             selection.removeAll()
             workspace.loadLibrary(scope: scope)
         }
-        .onReceive(NotificationCenter.default.publisher(for: MacWindowCommand.add)) { _ in
+        .onReceive(NotificationCenter.default.publisher(for: MacWindowCommand.add)) { notification in
+            guard handlesCommand(notification) else { return }
             addPresentation.present(from: .command, scope: scope)
         }
-        .onReceive(NotificationCenter.default.publisher(for: MacWindowCommand.edit)) { _ in
+        .onReceive(NotificationCenter.default.publisher(for: MacWindowCommand.edit)) { notification in
+            guard handlesCommand(notification) else { return }
             beginEditingSelection()
         }
-        .onReceive(NotificationCenter.default.publisher(for: MacWindowCommand.archive)) { _ in
+        .onReceive(NotificationCenter.default.publisher(for: MacWindowCommand.archive)) { notification in
+            guard handlesCommand(notification) else { return }
             archiveSelection()
         }
-        .onReceive(NotificationCenter.default.publisher(for: MacWindowCommand.search)) { _ in
+        .onReceive(NotificationCenter.default.publisher(for: MacWindowCommand.restore)) { notification in
+            guard handlesCommand(notification) else { return }
+            restoreSelection()
+        }
+        .onReceive(NotificationCenter.default.publisher(for: MacWindowCommand.delete)) { notification in
+            guard handlesCommand(notification) else { return }
+            beginDeletingSelection()
+        }
+        .onReceive(NotificationCenter.default.publisher(for: MacWindowCommand.search)) { notification in
+            guard handlesCommand(notification) else { return }
             isSearchFocused = true
         }
-        .onReceive(NotificationCenter.default.publisher(for: MacWindowCommand.settings)) { _ in
+        .onReceive(NotificationCenter.default.publisher(for: MacWindowCommand.settings)) { notification in
+            guard handlesCommand(notification) else { return }
             isPreferencesPresented = true
         }
         .onChange(of: router.destination) { _, _ in
@@ -311,6 +462,30 @@ private struct MacLibraryView: View {
                                         )
                                     }
                                 }
+                                Divider()
+                                Button("Archive", systemImage: "archivebox") {
+                                    updateLifecycle(id: summary.id) {
+                                        workspace.archive(id: summary.id)
+                                    }
+                                }
+                            } else {
+                                Button(
+                                    "Restore",
+                                    systemImage: "arrow.uturn.backward"
+                                ) {
+                                    updateLifecycle(id: summary.id) {
+                                        workspace.restore(id: summary.id)
+                                    }
+                                }
+                            }
+                            Divider()
+                            Button(
+                                "Delete",
+                                systemImage: "trash",
+                                role: .destructive
+                            ) {
+                                beginDirectAction()
+                                subscriptionPendingDeletion = summary
                             }
                         }
                 }
@@ -394,9 +569,12 @@ private struct MacLibraryView: View {
 
     private func archiveSelection() {
         guard scope == .current else { return }
-        selection.forEach(workspace.archive)
-        workspace.loadLibrary(scope: scope)
-        selection.removeAll()
+        updateSelection(using: workspace.archive)
+    }
+
+    private func restoreSelection() {
+        guard scope == .archived else { return }
+        updateSelection(using: workspace.restore)
     }
 
     private func pinSelection(pinned: Bool) {
@@ -414,6 +592,88 @@ private struct MacLibraryView: View {
         workspace.clearLifecycleActionError()
         workspace.setPinned(id: id, pinned: pinned)
         pinActionFailed = workspace.lifecycleActionError != nil
+    }
+
+    private var deletionConfirmationTitle: LocalizedStringKey {
+        guard let subscriptionPendingDeletion else {
+            return "Permanently Delete"
+        }
+        return "Permanently Delete “\(subscriptionPendingDeletion.serviceName)” (\(subscriptionPendingDeletion.plan))?"
+    }
+
+    private var directActionErrorIsPresented: Binding<Bool> {
+        Binding(
+            get: {
+                directActionError != nil
+            },
+            set: { isPresented in
+                if !isPresented {
+                    dismissDirectActionError()
+                }
+            }
+        )
+    }
+
+    private func beginDeletingSelection() {
+        guard selection.count == 1,
+              let selectedID = selection.first,
+              let subscription = visibleSummaries.first(where: {
+                  $0.id == selectedID
+              })
+        else { return }
+        beginDirectAction()
+        subscriptionPendingDeletion = subscription
+    }
+
+    private func updateSelection(
+        using action: (UUID) -> Void
+    ) {
+        var failedIDs: Set<UUID> = []
+        var capturedError: SubscriptionLifecycleActionError?
+        selection.forEach { id in
+            workspace.clearLifecycleActionError()
+            action(id)
+            if let error = workspace.lifecycleActionError {
+                failedIDs.insert(id)
+                capturedError = capturedError ?? error
+            }
+        }
+        directActionError = capturedError
+        workspace.loadLibrary(scope: scope)
+        selection = failedIDs
+    }
+
+    private func updateLifecycle(
+        id: UUID,
+        action: () -> Void
+    ) {
+        performDirectAction(action)
+        if directActionError == nil {
+            selection.remove(id)
+        }
+    }
+
+    private func beginDirectAction() {
+        directActionError = nil
+        workspace.clearLifecycleActionError()
+    }
+
+    private func performDirectAction(_ action: () -> Void) {
+        beginDirectAction()
+        action()
+        directActionError = workspace.lifecycleActionError
+    }
+
+    private func dismissDirectActionError() {
+        directActionError = nil
+        workspace.clearLifecycleActionError()
+    }
+
+    private func handlesCommand(_ notification: Notification) -> Bool {
+        MacWindowCommandTarget.matches(
+            notificationObject: notification.object,
+            targetID: commandTargetID
+        )
     }
 
     private func beginEditingSelection() {
