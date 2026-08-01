@@ -5,6 +5,15 @@
 **Scope:** Requirements and research questions only; no implementation is
 authorized by this document.
 
+**Paired decision and execution documents:**
+
+- `docs/research/2026-08-01-round-2-synthesis.md` resolves researched design
+  choices and records which catalog claims remain open.
+- `docs/superpowers/plans/2026-08-01-direct-editor-atomic-edit.md` implements
+  Batch A and maps its tasks back to the requirement IDs in this document.
+- `docs/research/2026-08-01-round-2-manifest-validation.md` is the evidence
+  gate; it may block catalog breadth without blocking approved UX work.
+
 ## Product Rule
 
 Each item in this document separates four things:
