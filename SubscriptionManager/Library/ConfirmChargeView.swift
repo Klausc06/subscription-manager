@@ -13,16 +13,15 @@ struct ConfirmChargeView: View {
     @State private var currency: Currency
     @State private var error: PaymentHistoryActionError?
 
-    init(workspace: SubscriptionWorkspace, subscription: Subscription) {
+    init(
+        workspace: SubscriptionWorkspace,
+        subscription: Subscription,
+        expectedOccurrence: ExpectedCharge
+    ) {
         self.workspace = workspace
         self.subscription = subscription
-        let expected = workspace.paymentHistory.compactMap { entry -> ExpectedCharge? in
-            if case .expected(let charge) = entry { return charge }
-            return nil
-        }.first
-        let date = expected?.scheduledDate ?? subscription.confirmedNextRenewal
-        let amount = expected?.amount
-            ?? subscription.amount(onBillingDay: date)
+        let date = expectedOccurrence.scheduledDate
+        let amount = expectedOccurrence.amount
         _scheduledDate = State(initialValue: date)
         _chargedDate = State(initialValue: date)
         _amountText = State(initialValue: editableMoneyText(

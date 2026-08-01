@@ -335,8 +335,15 @@ private struct UpcomingView: View {
 
     let workspace: SubscriptionWorkspace
     @State private var dateRange: DateRange = .next30Days
+    @State private var confirmationPresentation:
+        UpcomingConfirmationPresentation?
 
     var body: some View {
+        let subscriptionsByID = Dictionary(
+            uniqueKeysWithValues: ((try? workspace.subscriptions()) ?? []).map {
+                ($0.id, $0)
+            }
+        )
         NavigationStack {
             List {
                 Section {
@@ -360,14 +367,39 @@ private struct UpcomingView: View {
                     .accessibilityIdentifier("upcoming.empty-state")
                 } else {
                     ForEach(workspace.upcomingTimeline) { item in
-                        NavigationLink(value: item.subscriptionID) {
-                            UpcomingTimelineRow(item: item)
-                        }
-                        .accessibilityIdentifier(
-                            item.kind == .expected
-                                ? "upcoming.row.expected"
-                                : "upcoming.row.confirmed"
+                        let confirmation = confirmationContext(
+                            for: item,
+                            subscriptionsByID: subscriptionsByID
                         )
+                        HStack(spacing: 8) {
+                            NavigationLink(value: item.subscriptionID) {
+                                UpcomingTimelineRow(item: item)
+                            }
+                            .accessibilityIdentifier(
+                                item.kind == .expected
+                                    ? "upcoming.row.expected"
+                                    : "upcoming.row.confirmed"
+                            )
+
+                            if let confirmation {
+                                Button {
+                                    confirmationPresentation = confirmation
+                                } label: {
+                                    Label(
+                                        "Confirm Charge",
+                                        systemImage: "checkmark.circle"
+                                    )
+                                    .labelStyle(.iconOnly)
+                                }
+                                .buttonStyle(.borderless)
+                                .accessibilityLabel(
+                                    "Confirm Charge, \(item.serviceName)"
+                                )
+                                .accessibilityIdentifier(
+                                    "upcoming.expected.confirm"
+                                )
+                            }
+                        }
                     }
                 }
             }
@@ -376,6 +408,15 @@ private struct UpcomingView: View {
                 SubscriptionDetailView(
                     workspace: workspace,
                     subscriptionID: subscriptionID
+                )
+            }
+        }
+        .sheet(item: $confirmationPresentation) { presentation in
+            NavigationStack {
+                ConfirmChargeView(
+                    workspace: workspace,
+                    subscription: presentation.subscription,
+                    expectedOccurrence: presentation.expectedOccurrence
                 )
             }
         }
@@ -401,6 +442,72 @@ private struct UpcomingView: View {
 
     private func loadTimeline() {
         workspace.loadUpcomingTimeline(from: rangeStart, through: rangeEnd)
+    }
+
+    private func confirmationContext(
+        for item: UpcomingTimelineItem,
+        subscriptionsByID: [UUID: Subscription]
+    ) -> UpcomingConfirmationPresentation? {
+        guard item.kind == .expected,
+              let subscription = subscriptionsByID[item.subscriptionID]
+        else {
+            return nil
+        }
+        let timeZone = billingTimeZone(
+            identifier: subscription.billingSchedule.timeZoneIdentifier
+        )
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = timeZone
+        let components = calendar.dateComponents(
+            [.year, .month, .day],
+            from: item.date
+        )
+        guard let year = components.year,
+              let month = components.month,
+              let day = components.day
+        else {
+            return nil
+        }
+        let expectedOccurrence = ExpectedCharge(
+            id: ScheduledChargeID(
+                subscriptionID: subscription.id,
+                year: year,
+                month: month,
+                day: day
+            ),
+            subscriptionID: subscription.id,
+            scheduledDate: item.date,
+            amount: item.amount
+        )
+        let confirmedIDs = Set(
+            subscription.confirmedCharges.compactMap(
+                \.sourceScheduledChargeID
+            )
+        )
+        guard ConfirmChargeEligibility.isEligible(
+            expectedOccurrence: expectedOccurrence,
+            confirmedIDs: confirmedIDs,
+            now: Date(),
+            billingTimeZone: timeZone
+        ) else {
+            return nil
+        }
+        return UpcomingConfirmationPresentation(
+            subscription: subscription,
+            expectedOccurrence: expectedOccurrence
+        )
+    }
+}
+
+private struct UpcomingConfirmationPresentation: Identifiable {
+    let subscription: Subscription
+    let expectedOccurrence: ExpectedCharge
+
+    var id: String {
+        let occurrenceID = expectedOccurrence.id
+        return "\(occurrenceID.subscriptionID.uuidString)-"
+            + "\(occurrenceID.year)-\(occurrenceID.month)-"
+            + "\(occurrenceID.day)"
     }
 }
 

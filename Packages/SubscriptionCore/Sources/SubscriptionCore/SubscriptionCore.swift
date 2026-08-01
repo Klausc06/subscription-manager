@@ -1454,24 +1454,25 @@ public final class SubscriptionWorkspace {
         createSubscription(input)
     }
 
+    @discardableResult
     public func editSubscription(
         id: UUID,
         input: SubscriptionEditInput,
         forecastThrough: Date? = nil
-    ) {
+    ) -> Bool {
         editingValidationErrors = [:]
 
         do {
             guard let existing = try repository.subscription(id: id) else {
                 detailState = .notFound
-                return
+                return false
             }
             editingValidationErrors = validate(
                 input,
                 lifecycle: existing.lifecycle
             )
             guard editingValidationErrors.isEmpty else {
-                return
+                return false
             }
             let whitespace = CharacterSet.whitespacesAndNewlines
             guard let timeZone = TimeZone(
@@ -1482,7 +1483,7 @@ public final class SubscriptionWorkspace {
                 timeZone: timeZone
             ) else {
                 editingValidationErrors[.billingSchedule] = .required
-                return
+                return false
             }
             let localCalendar = billingLocalCalendar(timeZone: timeZone)
             let confirmedNextRenewal: Date
@@ -1504,7 +1505,7 @@ public final class SubscriptionWorkspace {
                     timeZone: timeZone
                 ) else {
                     editingValidationErrors[.confirmedNextRenewal] = .required
-                    return
+                    return false
                 }
                 confirmedNextRenewal = normalizedRenewal
                 renewalAnchor = normalizedStartDate
@@ -1514,7 +1515,7 @@ public final class SubscriptionWorkspace {
                     timeZone: timeZone
                 ) else {
                     editingValidationErrors[.confirmedNextRenewal] = .required
-                    return
+                    return false
                 }
                 confirmedNextRenewal = normalizedRenewal
                 renewalAnchor = switch existing.lifecycle {
@@ -1581,8 +1582,9 @@ public final class SubscriptionWorkspace {
                 )
             }
             reloadRequestedConsumers()
+            return true
         } catch {
-            detailState = .failed
+            return false
         }
     }
 
@@ -1748,7 +1750,6 @@ public final class SubscriptionWorkspace {
             reloadRequestedConsumers()
         } catch {
             paymentHistoryActionError = .persistenceFailed
-            detailState = .failed
         }
     }
 
@@ -2580,7 +2581,7 @@ public final class SubscriptionWorkspace {
 
         var renewalCalendar = calendar
         renewalCalendar.timeZone = timeZone
-        let currentDate = now()
+        let currentDate = renewalCalendar.startOfDay(for: now())
         let firstForecastDate = max(
             currentDate,
             subscription.confirmedNextRenewal

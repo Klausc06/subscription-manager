@@ -26,6 +26,9 @@ struct EditSubscriptionView: View {
 
     let workspace: SubscriptionWorkspace
     let subscription: Subscription
+    let onRecordCancellation: () -> Void
+    let onReactivate: () -> Void
+    let onConfirmCharge: (ExpectedCharge) -> Void
 
     @State private var draft: SubscriptionDraft
     @State private var dateTaskPresentation: EditDateTaskPresentation?
@@ -37,11 +40,17 @@ struct EditSubscriptionView: View {
         workspace: SubscriptionWorkspace,
         subscription: Subscription,
         locale: Locale = .current,
-        now: Date = Date()
+        now: Date = Date(),
+        onRecordCancellation: @escaping () -> Void = {},
+        onReactivate: @escaping () -> Void = {},
+        onConfirmCharge: @escaping (ExpectedCharge) -> Void = { _ in }
     ) {
         self.workspace = workspace
         self.subscription = subscription
         self.now = now
+        self.onRecordCancellation = onRecordCancellation
+        self.onReactivate = onReactivate
+        self.onConfirmCharge = onConfirmCharge
         _draft = State(
             initialValue: SubscriptionDraft.editing(
                 subscription: subscription,
@@ -62,6 +71,9 @@ struct EditSubscriptionView: View {
                 showsValidation: didAttemptSave,
                 onEditDate: beginDateTask
             )
+
+            paymentHistorySection
+            lifecycleSection
 
             if saveFailed {
                 Section {
@@ -102,6 +114,98 @@ struct EditSubscriptionView: View {
         }
     }
 
+    @ViewBuilder
+    private var paymentHistorySection: some View {
+        if !workspace.paymentHistory.isEmpty {
+            Section("Payment History") {
+                ForEach(
+                    Array(workspace.paymentHistory.enumerated()),
+                    id: \.offset
+                ) { _, entry in
+                    EditorPaymentHistoryRow(
+                        entry: entry,
+                        timeZoneIdentifier:
+                            currentSubscription.billingSchedule
+                                .timeZoneIdentifier,
+                        locale: locale,
+                        canConfirm: canConfirm,
+                        onConfirm: onConfirmCharge
+                    )
+                }
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var lifecycleSection: some View {
+        Section {
+            if currentSubscription.isArchived {
+                LabeledContent("Status", value: String(localized: "Archived"))
+                    .accessibilityIdentifier(
+                        "subscription.editor.status"
+                    )
+            } else {
+                switch editorStatus {
+                case .trial, .active:
+                    Button(
+                        "Record Cancellation",
+                        systemImage: "xmark.circle",
+                        action: onRecordCancellation
+                    )
+                    .accessibilityIdentifier(
+                        "subscription.lifecycle.record-cancellation"
+                    )
+
+                case .cancelledWithAccess, .expired:
+                    Button(
+                        "Reactivate",
+                        systemImage: "arrow.clockwise",
+                        action: onReactivate
+                    )
+                    .accessibilityIdentifier(
+                        "subscription.lifecycle.reactivate"
+                    )
+
+                case nil:
+                    EmptyView()
+                }
+            }
+        } header: {
+            Text("Lifecycle")
+                .accessibilityIdentifier("subscription.lifecycle.section")
+        }
+    }
+
+    private var currentSubscription: Subscription {
+        guard case .loaded(
+            let loadedSubscription,
+            _,
+            _
+        ) = workspace.detailState,
+        loadedSubscription.id == subscription.id
+        else {
+            return subscription
+        }
+        return loadedSubscription
+    }
+
+    private func canConfirm(_ expectedOccurrence: ExpectedCharge) -> Bool {
+        let confirmedIDs = Set(
+            currentSubscription.confirmedCharges.compactMap(
+                \.sourceScheduledChargeID
+            )
+        )
+        return ConfirmChargeEligibility.isEligible(
+            expectedOccurrence: expectedOccurrence,
+            confirmedIDs: confirmedIDs,
+            now: now,
+            billingTimeZone: billingTimeZone(
+                identifier: currentSubscription.billingSchedule
+                    .timeZoneIdentifier
+            )
+        )
+    }
+
     private var editorStatus: SubscriptionStatus? {
         guard case .loaded(
             let loadedSubscription,
@@ -112,6 +216,7 @@ struct EditSubscriptionView: View {
         else {
             return nil
         }
+        guard !loadedSubscription.isArchived else { return nil }
         return status
     }
 
@@ -148,9 +253,13 @@ struct EditSubscriptionView: View {
 
         // This is the one ordinary-edit persistence command. Do not retry or
         // issue a second update while waiting for the stored aggregate below.
-        workspace.editSubscription(id: subscription.id, input: input)
+        let didSave = workspace.editSubscription(
+            id: subscription.id,
+            input: input
+        )
 
-        guard workspace.editingValidationErrors.isEmpty,
+        guard didSave,
+              workspace.editingValidationErrors.isEmpty,
               case .loaded(let savedSubscription, _, _) = workspace.detailState,
               savedSubscription.id == subscription.id
         else {
@@ -161,6 +270,93 @@ struct EditSubscriptionView: View {
             return
         }
 
+        #if os(macOS)
+        draft = SubscriptionDraft.editing(
+            subscription: savedSubscription,
+            locale: locale
+        )
+        didAttemptSave = false
+        workspace.beginEditing()
+        #else
         dismiss()
+        #endif
+    }
+}
+
+private struct EditorPaymentHistoryRow: View {
+    let entry: SubscriptionHistoryEntry
+    let timeZoneIdentifier: String
+    let locale: Locale
+    let canConfirm: (ExpectedCharge) -> Bool
+    let onConfirm: (ExpectedCharge) -> Void
+
+    var body: some View {
+        switch entry {
+        case .expected(let charge):
+            HStack(spacing: 12) {
+                historyDescription(
+                    title: "Expected Charge",
+                    date: charge.scheduledDate,
+                    amount: charge.amount
+                )
+
+                if canConfirm(charge) {
+                    Button {
+                        onConfirm(charge)
+                    } label: {
+                        Label(
+                            "Confirm Charge",
+                            systemImage: "checkmark.circle"
+                        )
+                    }
+                    .buttonStyle(.borderless)
+                    .accessibilityIdentifier(
+                        "subscription.history.expected.confirm"
+                    )
+                }
+            }
+            .accessibilityElement(children: .contain)
+            .accessibilityIdentifier("subscription.history.expected")
+
+        case .confirmed(let charge):
+            historyDescription(
+                title: "Confirmed Payment",
+                date: charge.chargedDate,
+                amount: charge.amount
+            )
+            .accessibilityIdentifier("subscription.history.confirmed")
+
+        case .priceChange(let change):
+            historyDescription(
+                title: "Price Change",
+                date: change.effectiveDate,
+                amount: change.amount
+            )
+            .accessibilityIdentifier("subscription.history.price-change")
+        }
+    }
+
+    private func historyDescription(
+        title: LocalizedStringKey,
+        date: Date,
+        amount: Money
+    ) -> some View {
+        HStack(spacing: 12) {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title)
+                Text(
+                    formattedBillingDate(
+                        date,
+                        timeZoneIdentifier: timeZoneIdentifier,
+                        locale: locale
+                    )
+                )
+                .font(.footnote)
+                .foregroundStyle(.secondary)
+            }
+            Spacer(minLength: 12)
+            Text(formattedMoney(amount))
+        }
+        .accessibilityElement(children: .combine)
     }
 }

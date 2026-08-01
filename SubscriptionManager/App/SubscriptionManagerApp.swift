@@ -209,7 +209,6 @@ private struct MacLibraryView: View {
     @State private var ascending = true
     @State private var selection: Set<UUID> = []
     @State private var addPresentation = MacAddPresentationState()
-    @State private var editingSubscription: Subscription?
     @State private var isPreferencesPresented = false
     @State private var pinActionFailed = false
     @State private var subscriptionPendingDeletion: SubscriptionSummary?
@@ -375,10 +374,6 @@ private struct MacLibraryView: View {
                     workspace.loadLibrary(scope: completedScope)
                 }
             }
-                .frame(minWidth: 520, minHeight: 560)
-        }
-        .sheet(item: $editingSubscription) { subscription in
-            EditSubscriptionView(workspace: workspace, subscription: subscription)
                 .frame(minWidth: 520, minHeight: 560)
         }
         .sheet(isPresented: $isPreferencesPresented) {
@@ -682,11 +677,7 @@ private struct MacLibraryView: View {
     private func beginEditingSelection() {
         guard selection.count == 1, let id = selection.first else { return }
         workspace.loadSubscription(id: id)
-        guard case .loaded(let subscription, _, _) = workspace.detailState else {
-            return
-        }
         workspace.beginEditing()
-        editingSubscription = subscription
     }
 
     private func applyPendingRoute() {

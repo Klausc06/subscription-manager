@@ -814,6 +814,58 @@ struct SubscriptionWorkspaceTests {
         ])
     }
 
+    @Test("Upcoming keeps a due-today charge visible after its normalized billing time")
+    @MainActor
+    func upcomingKeepsDueTodayVisibleAfterBillingTime() throws {
+        let calendar = utcCalendar()
+        let today = try #require(calendar.date(from: DateComponents(
+            year: 2026,
+            month: 8,
+            day: 1
+        )))
+        let dueToday = try #require(calendar.date(bySettingHour: 12,
+                                                 minute: 0,
+                                                 second: 0,
+                                                 of: today))
+        let now = try #require(calendar.date(bySettingHour: 18,
+                                            minute: 0,
+                                            second: 0,
+                                            of: today))
+        let subscriptionID = UUID(
+            uuidString: "D0DEC0DE-0000-4000-8000-000000000001"
+        )!
+        let workspace = SubscriptionWorkspace(
+            repository: InMemorySubscriptionRepository(subscriptions: [
+                makeSubscription(
+                    id: subscriptionID,
+                    billingSchedule: FixedBillingSchedule(
+                        interval: .monthly,
+                        renewalAnchor: dueToday,
+                        timeZoneIdentifier: "UTC"
+                    ),
+                    confirmedNextRenewal: dueToday
+                ),
+            ]),
+            now: { now }
+        )
+
+        workspace.loadUpcomingTimeline(
+            from: today,
+            through: try #require(calendar.date(
+                byAdding: .day,
+                value: 1,
+                to: today
+            ))
+        )
+
+        let occurrence = try #require(
+            workspace.upcomingTimeline.first(where: {
+                $0.subscriptionID == subscriptionID && $0.kind == .expected
+            })
+        )
+        #expect(occurrence.date == dueToday)
+    }
+
     @Test("A valid newer catalog becomes active without mutating subscriptions")
     @MainActor
     func newerCatalogActivatesWithoutMutatingSubscriptions() async throws {
@@ -4892,8 +4944,9 @@ struct SubscriptionWorkspaceTests {
         let widgetBefore = workspace.makeWidgetSnapshot()
         let syncBefore = workspace.syncStatus
         let historyBefore = workspace.paymentHistory
+        let detailBefore = workspace.detailState
 
-        workspace.editSubscription(
+        let didSave = workspace.editSubscription(
             id: id,
             input: SubscriptionEditInput(
                 serviceName: "Edited Failure Service",
@@ -4918,7 +4971,8 @@ struct SubscriptionWorkspaceTests {
         #expect(workspace.makeWidgetSnapshot() == widgetBefore)
         #expect(workspace.syncStatus == syncBefore)
         #expect(workspace.paymentHistory == historyBefore)
-        #expect(workspace.detailState == .failed)
+        #expect(workspace.detailState == detailBefore)
+        #expect(!didSave)
     }
 
     @Test("Active edit validates the supplied renewal day and normalizes derived dates")
@@ -5976,6 +6030,61 @@ private struct FailingSubscriptionRepository: SubscriptionRepository {
             workspace.expectedCharges?.first?.scheduledDate == nextRenewal
         )
         #expect(workspace.paymentHistoryActionError == nil)
+    }
+
+    @Test("A failed charge confirmation preserves the loaded presentation")
+    @MainActor
+    func failedChargeConfirmationPreservesLoadedPresentation() throws {
+        let calendar = actionCalendar()
+        let now = try actionDate(
+            year: 2026,
+            month: 7,
+            day: 29,
+            hour: 12,
+            calendar: calendar
+        )
+        let subscription = try makeActionSubscription(
+            fixture: .active,
+            calendar: calendar
+        )
+        let repository = InMemorySubscriptionRepository(
+            subscriptions: [subscription]
+        )
+        let workspace = SubscriptionWorkspace(
+            repository: repository,
+            now: { now },
+            calendar: calendar
+        )
+        loadActionPresentation(
+            workspace,
+            subscription: subscription,
+            scope: .current,
+            calendar: calendar
+        )
+
+        let detailBefore = workspace.detailState
+        let historyBefore = workspace.paymentHistory
+        let expectedChargesBefore = workspace.expectedCharges
+        repository.failure = .update
+
+        let scheduledDate = try actionDate(
+            year: 2026,
+            month: 7,
+            day: 28,
+            hour: 12,
+            calendar: calendar
+        )
+        workspace.confirmCharge(
+            id: subscription.id,
+            scheduledDate: scheduledDate,
+            chargedDate: scheduledDate,
+            amount: subscription.originalAmount
+        )
+
+        #expect(workspace.paymentHistoryActionError == .persistenceFailed)
+        #expect(workspace.detailState == detailBefore)
+        #expect(workspace.paymentHistory == historyBefore)
+        #expect(workspace.expectedCharges == expectedChargesBefore)
     }
 
     @Test("Price changes apply on their effective billing day without rewriting facts")

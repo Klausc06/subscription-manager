@@ -78,10 +78,16 @@ struct AppDependencies {
             && effectiveArguments.contains(
                 "--ui-testing-seed-legacy-chatgpt-plus"
             )
+        let seedsTask6OccurrenceFixture =
+            effectiveArguments.contains("--ui-testing")
+            && effectiveArguments.contains(
+                "--ui-testing-seed-task6-occurrence-fixture"
+            )
 
         return make(
             failsLifecycleMutations: failsLifecycleMutations,
             seedsLegacyChatGPTPlus: seedsLegacyChatGPTPlus,
+            seedsTask6OccurrenceFixture: seedsTask6OccurrenceFixture,
             allowsExchangeRateNetworking: !effectiveArguments.contains("--ui-testing"),
             allowsCalendarImport: selection == .production,
             widgetSnapshotPublisher: selection == .production
@@ -152,6 +158,7 @@ struct AppDependencies {
     static func make(
         failsLifecycleMutations: Bool = false,
         seedsLegacyChatGPTPlus: Bool = false,
+        seedsTask6OccurrenceFixture: Bool = false,
         allowsExchangeRateNetworking: Bool = true,
         allowsCalendarImport: Bool = false,
         widgetSnapshotPublisher: (any WidgetSnapshotPublishing)? = nil,
@@ -168,6 +175,12 @@ struct AppDependencies {
             )
             if seedsLegacyChatGPTPlus {
                 try seedLegacyChatGPTPlusSubscription(
+                    repository: repository,
+                    preferencesRepository: preferencesRepository
+                )
+            }
+            if seedsTask6OccurrenceFixture {
+                try seedTask6OccurrenceFixture(
                     repository: repository,
                     preferencesRepository: preferencesRepository
                 )
@@ -295,6 +308,175 @@ struct AppDependencies {
                     notes: ""
                 )
             )
+        }
+        try preferencesRepository.savePreferences(.default)
+    }
+
+    private static func seedTask6OccurrenceFixture(
+        repository: SwiftDataSubscriptionRepository,
+        preferencesRepository: SwiftDataUserPreferencesRepository
+    ) throws {
+        let now = Date()
+        let fixtureTimeZone = TimeZone(identifier: "UTC")!
+        var calendar = BillingCalendar.calendar(timeZone: fixtureTimeZone)
+        calendar.locale = Locale(identifier: "en_US_POSIX")
+        let today = calendar.startOfDay(for: now)
+
+        func date(
+            monthsFromToday: Int,
+            hour: Int = 12
+        ) -> Date {
+            let shifted = calendar.date(
+                byAdding: .month,
+                value: monthsFromToday,
+                to: today
+            ) ?? today
+            return calendar.date(
+                bySettingHour: hour,
+                minute: 0,
+                second: 0,
+                of: shifted
+            ) ?? shifted
+        }
+
+        func scheduledID(
+            subscriptionID: UUID,
+            scheduledDate: Date
+        ) -> ScheduledChargeID {
+            let components = calendar.dateComponents(
+                [.year, .month, .day],
+                from: scheduledDate
+            )
+            return ScheduledChargeID(
+                subscriptionID: subscriptionID,
+                year: components.year!,
+                month: components.month!,
+                day: components.day!
+            )
+        }
+
+        func fixtureSubscription(
+            id: UUID,
+            serviceName: String,
+            interval: BillingInterval,
+            anchor: Date,
+            startDate: Date,
+            confirmedCharges: [ConfirmedCharge] = []
+        ) -> Subscription {
+            Subscription(
+                id: id,
+                serviceIdentity: ServiceIdentity(
+                    rawValue: "manual:\(id.uuidString.lowercased())"
+                ),
+                serviceName: serviceName,
+                plan: "Fixture Plan",
+                category: "Testing",
+                originalAmount: Money(
+                    minorUnits: 3_000,
+                    currency: .usd
+                ),
+                billingSchedule: FixedBillingSchedule(
+                    interval: interval,
+                    renewalAnchor: anchor,
+                    timeZoneIdentifier: fixtureTimeZone.identifier
+                ),
+                startDate: startDate,
+                confirmedNextRenewal: anchor,
+                managementURL: nil,
+                notes: "",
+                confirmedCharges: confirmedCharges
+            )
+        }
+
+        let directID = UUID(
+            uuidString: "C0DEC0DE-0000-4000-8000-000000000061"
+        )!
+        let archivedID = UUID(
+            uuidString: "C0DEC0DE-0000-4000-8000-000000000062"
+        )!
+        let dueTodayID = UUID(
+            uuidString: "C0DEC0DE-0000-4000-8000-000000000063"
+        )!
+        let overdueID = UUID(
+            uuidString: "C0DEC0DE-0000-4000-8000-000000000064"
+        )!
+        let futureID = UUID(
+            uuidString: "C0DEC0DE-0000-4000-8000-000000000065"
+        )!
+        let confirmedID = UUID(
+            uuidString: "C0DEC0DE-0000-4000-8000-000000000066"
+        )!
+
+        let dueToday = date(monthsFromToday: 0)
+        let overdue = date(monthsFromToday: -2)
+        let future = date(monthsFromToday: 1)
+        let confirmedOccurrence = date(monthsFromToday: 0)
+        let fixtures = [
+            fixtureSubscription(
+                id: directID,
+                serviceName: "Direct Editor Fixture",
+                interval: .monthly,
+                anchor: date(monthsFromToday: 1),
+                startDate: date(monthsFromToday: -1)
+            ),
+            fixtureSubscription(
+                id: archivedID,
+                serviceName: "Archived Editor Fixture",
+                interval: .monthly,
+                anchor: date(monthsFromToday: 1),
+                startDate: date(monthsFromToday: -1)
+            ),
+            fixtureSubscription(
+                id: dueTodayID,
+                serviceName: "Due Today Fixture",
+                interval: .quarterly,
+                anchor: dueToday,
+                startDate: dueToday
+            ),
+            fixtureSubscription(
+                id: overdueID,
+                serviceName: "Overdue Quarterly Fixture",
+                interval: .quarterly,
+                anchor: overdue,
+                startDate: overdue
+            ),
+            fixtureSubscription(
+                id: futureID,
+                serviceName: "Future Quarterly Fixture",
+                interval: .quarterly,
+                anchor: future,
+                startDate: future
+            ),
+            fixtureSubscription(
+                id: confirmedID,
+                serviceName: "Confirmed Quarterly Fixture",
+                interval: .quarterly,
+                anchor: confirmedOccurrence,
+                startDate: confirmedOccurrence,
+                confirmedCharges: [
+                    ConfirmedCharge(
+                        id: UUID(
+                            uuidString:
+                                "C0DEC0DE-0000-4000-8000-000000000067"
+                        )!,
+                        chargedDate: now,
+                        amount: Money(
+                            minorUnits: 3_000,
+                            currency: .usd
+                        ),
+                        sourceScheduledChargeID: scheduledID(
+                            subscriptionID: confirmedID,
+                            scheduledDate: confirmedOccurrence
+                        )
+                    )
+                ]
+            ),
+        ]
+        let existingIDs = Set(
+            try repository.listSubscriptions().map(\.id)
+        )
+        for fixture in fixtures where !existingIDs.contains(fixture.id) {
+            try repository.createSubscription(fixture)
         }
         try preferencesRepository.savePreferences(.default)
     }
