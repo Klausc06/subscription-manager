@@ -1,10 +1,84 @@
 import Foundation
 import SubscriptionCore
+import SwiftUI
 import Testing
 @testable import SubscriptionManager
 
 @Suite("Subscription draft")
 struct SubscriptionDraftTests {
+    @Test("Shared editor views expose direct draft bindings")
+    @MainActor
+    func sharedEditorViewsExposeDirectDraftBindings() {
+        var draft = SubscriptionDraft.manual(
+            now: Date(timeIntervalSinceReferenceDate: 0),
+            timeZoneIdentifier: "UTC"
+        )
+        let binding = Binding<SubscriptionDraft>(
+            get: { draft },
+            set: { draft = $0 }
+        )
+        let sections = SubscriptionEditorSections(
+            draft: binding,
+            status: nil,
+            nextExpectedCharge: nil,
+            onEditDate: { _ in }
+        )
+        let dateTask = BillingDateTaskView(
+            draft: binding,
+            source: .startDate,
+            now: Date(timeIntervalSinceReferenceDate: 0)
+        )
+
+        _ = sections.body
+        _ = dateTask.body
+    }
+
+    @Test("Interval bindings preserve optional and custom draft values")
+    @MainActor
+    func intervalBindingsPreserveOptionalAndCustomValues() throws {
+        let now = try date(year: 2026, month: 7, day: 30, hour: 12)
+        var draft = SubscriptionDraft.manual(
+            now: now,
+            timeZoneIdentifier: "UTC"
+        )
+        let binding = Binding<SubscriptionDraft>(
+            get: { draft },
+            set: { draft = $0 }
+        )
+        let interval = subscriptionBillingIntervalBinding(binding, asOf: now)
+
+        #expect(interval.wrappedValue == nil)
+        interval.wrappedValue = "custom"
+        #expect(draft.customIntervalValueText.isEmpty)
+        #expect(draft.billingInterval == .custom(value: 0, unit: .day))
+        #expect(draft.validation.contains(.billingInterval))
+
+        let value = subscriptionCustomIntervalValueBinding(binding, asOf: now)
+        value.wrappedValue = "3"
+        #expect(draft.customIntervalValueText == "3")
+        #expect(draft.billingInterval == .custom(value: 3, unit: .day))
+
+        let unit = subscriptionCustomIntervalUnitBinding(binding, asOf: now)
+        unit.wrappedValue = BillingIntervalUnit.week.rawValue
+        #expect(draft.billingInterval == .custom(value: 3, unit: .week))
+
+        value.wrappedValue = ""
+        #expect(draft.customIntervalValueText.isEmpty)
+        #expect(draft.billingInterval == .custom(value: 0, unit: .week))
+        #expect(draft.validation.contains(.billingInterval))
+
+        configureActive(&draft)
+        let start = try date(year: 2026, month: 1, day: 15, hour: 12)
+        let selectedStart = draft.selectStartDate(start, asOf: now)
+        #expect(selectedStart)
+        let renewalBeforeCadenceChange = draft.confirmedNextRenewal
+        interval.wrappedValue = BillingInterval.yearly.rawValue
+
+        #expect(draft.billingInterval == .yearly)
+        #expect(draft.dateSource == .startDate)
+        #expect(draft.confirmedNextRenewal != renewalBeforeCadenceChange)
+    }
+
     @Test("Manual drafts leave optional facts and date acceptance empty")
     func manualDraftStartsUnselected() throws {
         let now = try date(year: 2026, month: 7, day: 30, hour: 12)
