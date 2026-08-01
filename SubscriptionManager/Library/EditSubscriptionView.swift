@@ -300,6 +300,9 @@ struct EditSubscriptionView: View {
                 serviceName: serviceName,
                 plan: plan,
                 category: category,
+                amount: subscription.amount(
+                    onBillingDay: subscription.confirmedNextRenewal
+                ),
                 billingSchedule: FixedBillingSchedule(
                     interval: interval,
                     renewalAnchor: isTrial

@@ -434,6 +434,7 @@ public struct SubscriptionEditInput: Equatable, Sendable {
     public let serviceName: String
     public let plan: String
     public let category: String
+    public let amount: Money
     public let billingSchedule: FixedBillingSchedule
     public let startDate: Date
     public let confirmedNextRenewal: Date
@@ -444,6 +445,7 @@ public struct SubscriptionEditInput: Equatable, Sendable {
         serviceName: String,
         plan: String,
         category: String,
+        amount: Money,
         billingSchedule: FixedBillingSchedule,
         startDate: Date,
         confirmedNextRenewal: Date? = nil,
@@ -453,36 +455,13 @@ public struct SubscriptionEditInput: Equatable, Sendable {
         self.serviceName = serviceName
         self.plan = plan
         self.category = category
+        self.amount = amount
         self.billingSchedule = billingSchedule
         self.startDate = startDate
         self.confirmedNextRenewal =
             confirmedNextRenewal ?? billingSchedule.renewalAnchor
         self.managementURL = managementURL
         self.notes = notes
-    }
-
-    @available(*, deprecated, message: "Use recordPriceChange to change money")
-    public init(
-        serviceName: String,
-        plan: String,
-        category: String,
-        originalAmount _: Money?,
-        billingSchedule: FixedBillingSchedule,
-        startDate: Date,
-        confirmedNextRenewal: Date? = nil,
-        managementURL: URL?,
-        notes: String
-    ) {
-        self.init(
-            serviceName: serviceName,
-            plan: plan,
-            category: category,
-            billingSchedule: billingSchedule,
-            startDate: startDate,
-            confirmedNextRenewal: confirmedNextRenewal,
-            managementURL: managementURL,
-            notes: notes
-        )
     }
 
     public init(
@@ -493,6 +472,9 @@ public struct SubscriptionEditInput: Equatable, Sendable {
             serviceName: subscription.serviceName,
             plan: subscription.plan,
             category: subscription.category,
+            amount: subscription.amount(
+                onBillingDay: subscription.confirmedNextRenewal
+            ),
             billingSchedule: billingSchedule,
             startDate: subscription.startDate,
             confirmedNextRenewal: subscription.confirmedNextRenewal,
@@ -1481,33 +1463,57 @@ public final class SubscriptionWorkspace {
                 return
             }
             let whitespace = CharacterSet.whitespacesAndNewlines
+            guard let timeZone = TimeZone(
+                identifier: input.billingSchedule.timeZoneIdentifier
+            ),
+            let normalizedStartDate = normalizedBillingLocalNoon(
+                input.startDate,
+                timeZone: timeZone
+            ) else {
+                editingValidationErrors[.billingSchedule] = .required
+                return
+            }
+            let localCalendar = billingLocalCalendar(timeZone: timeZone)
             let confirmedNextRenewal: Date
+            let renewalAnchor: Date
             switch existing.lifecycle {
             case .active:
-                guard let timeZone = TimeZone(
-                    identifier:
-                        input.billingSchedule.timeZoneIdentifier
-                ),
-                let resolvedRenewal = BillingDateResolver().nextRenewal(
+                guard let resolvedRenewal = BillingDateResolver().nextRenewal(
                     afterStart: input.startDate,
                     interval: input.billingSchedule.interval,
                     asOf: now(),
+                    timeZone: timeZone
+                ),
+                localCalendar.isDate(
+                    resolvedRenewal,
+                    inSameDayAs: input.confirmedNextRenewal
+                ),
+                let normalizedRenewal = normalizedBillingLocalNoon(
+                    resolvedRenewal,
                     timeZone: timeZone
                 ) else {
                     editingValidationErrors[.confirmedNextRenewal] = .required
                     return
                 }
-                confirmedNextRenewal = resolvedRenewal
+                confirmedNextRenewal = normalizedRenewal
+                renewalAnchor = normalizedStartDate
             case .trial, .cancelled:
-                confirmedNextRenewal = input.confirmedNextRenewal
-            }
-            let renewalAnchor = switch existing.lifecycle {
-            case .trial:
-                confirmedNextRenewal
-            case .active:
-                input.startDate
-            case .cancelled:
-                existing.billingSchedule.renewalAnchor
+                guard let normalizedRenewal = normalizedBillingLocalNoon(
+                    input.confirmedNextRenewal,
+                    timeZone: timeZone
+                ) else {
+                    editingValidationErrors[.confirmedNextRenewal] = .required
+                    return
+                }
+                confirmedNextRenewal = normalizedRenewal
+                renewalAnchor = switch existing.lifecycle {
+                case .trial:
+                    normalizedRenewal
+                case .cancelled:
+                    existing.billingSchedule.renewalAnchor
+                case .active:
+                    normalizedStartDate
+                }
             }
             let billingSchedule = FixedBillingSchedule(
                 interval: input.billingSchedule.interval,
@@ -1533,12 +1539,17 @@ public final class SubscriptionWorkspace {
                 category: input.category.trimmingCharacters(in: whitespace),
                 originalAmount: existing.originalAmount,
                 billingSchedule: billingSchedule,
-                startDate: input.startDate,
+                startDate: normalizedStartDate,
                 confirmedNextRenewal: confirmedNextRenewal,
                 managementURL: input.managementURL,
                 notes: input.notes,
                 confirmedCharges: existing.confirmedCharges,
-                priceChanges: existing.priceChanges,
+                priceChanges: editedPriceChanges(
+                    for: existing,
+                    amount: input.amount,
+                    confirmedNextRenewal: confirmedNextRenewal,
+                    calendar: localCalendar
+                ),
                 lifecycle: lifecycle,
                 isArchived: existing.isArchived,
                 pinnedAt: existing.pinnedAt
@@ -2285,9 +2296,19 @@ public final class SubscriptionWorkspace {
         if input.category.trimmingCharacters(in: whitespace).isEmpty {
             errors[.category] = .required
         }
+        if input.amount.minorUnits <= 0 {
+            errors[.originalAmount] = .mustBePositive
+        }
         switch lifecycle {
         case .active:
-            break
+            if !input.startDate.timeIntervalSinceReferenceDate.isFinite {
+                errors[.billingSchedule] = .required
+            }
+            if !input.confirmedNextRenewal
+                .timeIntervalSinceReferenceDate.isFinite
+            {
+                errors[.confirmedNextRenewal] = .required
+            }
         case .trial:
             if !input.startDate.timeIntervalSinceReferenceDate.isFinite {
                 errors[.billingSchedule] = .required
@@ -2325,6 +2346,44 @@ public final class SubscriptionWorkspace {
         }
 
         return errors
+    }
+
+    private func editedPriceChanges(
+        for existing: Subscription,
+        amount: Money,
+        confirmedNextRenewal: Date,
+        calendar: Calendar
+    ) -> [PriceChange] {
+        let currentAmount = existing.amount(
+            onBillingDay: confirmedNextRenewal
+        )
+        guard amount != currentAmount else {
+            return existing.priceChanges
+        }
+
+        if let index = existing.priceChanges.firstIndex(where: {
+            calendar.isDate(
+                $0.effectiveDate,
+                inSameDayAs: confirmedNextRenewal
+            )
+        }) {
+            var corrected = existing.priceChanges
+            let existingChange = corrected[index]
+            corrected[index] = PriceChange(
+                id: existingChange.id,
+                effectiveDate: confirmedNextRenewal,
+                amount: amount
+            )
+            return corrected
+        }
+
+        return existing.priceChanges + [
+            PriceChange(
+                id: identifierGenerator(),
+                effectiveDate: confirmedNextRenewal,
+                amount: amount
+            ),
+        ]
     }
 
     private func billingTimeZone(

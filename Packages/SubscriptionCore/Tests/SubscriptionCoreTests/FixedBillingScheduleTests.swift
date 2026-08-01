@@ -52,15 +52,34 @@ struct FixedBillingScheduleTests {
         )
 
         let input = SubscriptionEditInput(
-            subscription: subscription,
+            serviceName: subscription.serviceName,
+            plan: subscription.plan,
+            category: subscription.category,
+            amount: subscription.amount(
+                onBillingDay: subscription.confirmedNextRenewal
+            ),
             billingSchedule: FixedBillingSchedule(
                 interval: .monthly,
                 renewalAnchor: replacementAnchor,
                 timeZoneIdentifier: "UTC"
-            )
+            ),
+            startDate: subscription.startDate,
+            confirmedNextRenewal: subscription.confirmedNextRenewal,
+            managementURL: subscription.managementURL,
+            notes: subscription.notes
         )
 
         #expect(input.confirmedNextRenewal == confirmedNextRenewal)
+        let derivedInput = SubscriptionEditInput(
+            subscription: subscription,
+            billingSchedule: input.billingSchedule
+        )
+        #expect(
+            derivedInput.amount
+                == subscription.amount(
+                    onBillingDay: subscription.confirmedNextRenewal
+                )
+        )
     }
 
     @Test("The production renewal calendar is Gregorian and locale-stable")
@@ -493,8 +512,17 @@ struct FixedBillingScheduleTests {
         workspace.editSubscription(
             id: subscription.id,
             input: SubscriptionEditInput(
-                subscription: subscription,
-                billingSchedule: invalidSchedule
+                serviceName: subscription.serviceName,
+                plan: subscription.plan,
+                category: subscription.category,
+                amount: subscription.amount(
+                    onBillingDay: subscription.confirmedNextRenewal
+                ),
+                billingSchedule: invalidSchedule,
+                startDate: subscription.startDate,
+                confirmedNextRenewal: subscription.confirmedNextRenewal,
+                managementURL: subscription.managementURL,
+                notes: subscription.notes
             )
         )
 
@@ -531,12 +559,21 @@ struct FixedBillingScheduleTests {
         workspace.editSubscription(
             id: subscription.id,
             input: SubscriptionEditInput(
-                subscription: subscription,
+                serviceName: subscription.serviceName,
+                plan: subscription.plan,
+                category: subscription.category,
+                amount: subscription.amount(
+                    onBillingDay: subscription.confirmedNextRenewal
+                ),
                 billingSchedule: FixedBillingSchedule(
                     interval: .custom(value: 0, unit: .day),
                     renewalAnchor: anchor,
                     timeZoneIdentifier: "UTC"
-                )
+                ),
+                startDate: subscription.startDate,
+                confirmedNextRenewal: subscription.confirmedNextRenewal,
+                managementURL: subscription.managementURL,
+                notes: subscription.notes
             )
         )
         #expect(!workspace.editingValidationErrors.isEmpty)
@@ -611,12 +648,21 @@ struct FixedBillingScheduleTests {
         workspace.editSubscription(
             id: subscription.id,
             input: SubscriptionEditInput(
-                subscription: subscription,
+                serviceName: subscription.serviceName,
+                plan: subscription.plan,
+                category: subscription.category,
+                amount: subscription.amount(
+                    onBillingDay: subscription.confirmedNextRenewal
+                ),
                 billingSchedule: FixedBillingSchedule(
                     interval: .weekly,
                     renewalAnchor: newAnchor,
                     timeZoneIdentifier: "UTC"
-                )
+                ),
+                startDate: subscription.startDate,
+                confirmedNextRenewal: newAnchor,
+                managementURL: subscription.managementURL,
+                notes: subscription.notes
             )
         )
 
@@ -685,12 +731,27 @@ struct FixedBillingScheduleTests {
         workspace.editSubscription(
             id: subscription.id,
             input: SubscriptionEditInput(
-                subscription: subscription,
+                serviceName: subscription.serviceName,
+                plan: subscription.plan,
+                category: subscription.category,
+                amount: subscription.amount(
+                    onBillingDay: subscription.confirmedNextRenewal
+                ),
                 billingSchedule: FixedBillingSchedule(
                     interval: .weekly,
-                    renewalAnchor: anchor,
+                    renewalAnchor: try date(
+                        year: 2025,
+                        month: 8,
+                        day: 10,
+                        hour: 5,
+                        calendar: calendar
+                    ),
                     timeZoneIdentifier: "UTC"
-                )
+                ),
+                startDate: subscription.startDate,
+                confirmedNextRenewal: subscription.confirmedNextRenewal,
+                managementURL: subscription.managementURL,
+                notes: subscription.notes
             )
         )
 
@@ -698,6 +759,7 @@ struct FixedBillingScheduleTests {
         #expect(edited.lifecycle == lifecycle)
         #expect(edited.isArchived == true)
         #expect(edited.confirmedCharges == [confirmedCharge])
+        #expect(edited.billingSchedule.renewalAnchor == anchor)
     }
 }
 

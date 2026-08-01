@@ -1096,6 +1096,9 @@ struct SubscriptionWorkspaceTests {
                 serviceName: created.serviceName,
                 plan: created.plan,
                 category: created.category,
+                amount: created.amount(
+                    onBillingDay: created.confirmedNextRenewal
+                ),
                 billingSchedule: FixedBillingSchedule(
                     interval: .monthly,
                     renewalAnchor: editedStart,
@@ -1268,13 +1271,14 @@ struct SubscriptionWorkspaceTests {
                 serviceName: "Example",
                 plan: "Standard",
                 category: "Other",
+                amount: Money(minorUnits: 999, currency: .usd),
                 billingSchedule: FixedBillingSchedule(
                     interval: .yearly,
                     renewalAnchor: conflictingRenewal,
                     timeZoneIdentifier: timeZone.identifier
                 ),
                 startDate: editedStart,
-                confirmedNextRenewal: conflictingRenewal,
+                confirmedNextRenewal: expectedRenewal,
                 managementURL: nil,
                 notes: ""
             )
@@ -1693,6 +1697,7 @@ struct SubscriptionWorkspaceTests {
                 serviceName: "Example",
                 plan: "Trial",
                 category: "Other",
+                amount: Money(minorUnits: 999, currency: .usd),
                 billingSchedule: FixedBillingSchedule(
                     interval: .yearly,
                     renewalAnchor: editedTrialStart,
@@ -1780,6 +1785,7 @@ struct SubscriptionWorkspaceTests {
                 serviceName: "Example",
                 plan: "Trial",
                 category: "Other",
+                amount: Money(minorUnits: 999, currency: .usd),
                 billingSchedule: FixedBillingSchedule(
                     interval: .monthly,
                     renewalAnchor: originalFirstPaidCharge,
@@ -1901,6 +1907,7 @@ struct SubscriptionWorkspaceTests {
                 serviceName: "Example",
                 plan: "Trial",
                 category: "Other",
+                amount: Money(minorUnits: 999, currency: .usd),
                 billingSchedule: FixedBillingSchedule(
                     interval: .monthly,
                     renewalAnchor: firstPaidCharge,
@@ -3844,6 +3851,9 @@ struct SubscriptionWorkspaceTests {
                 serviceName: "ChatGPT Plus",
                 plan: "Ignored Plan",
                 category: "Ignored Category",
+                amount: existing.amount(
+                    onBillingDay: existing.confirmedNextRenewal
+                ),
                 billingSchedule: existing.billingSchedule,
                 startDate: existing.startDate,
                 confirmedNextRenewal: existing.confirmedNextRenewal,
@@ -4163,13 +4173,16 @@ struct SubscriptionWorkspaceTests {
                 serviceName: existing.serviceName,
                 plan: existing.plan,
                 category: existing.category,
+                amount: existing.amount(
+                    onBillingDay: existing.confirmedNextRenewal
+                ),
                 billingSchedule: FixedBillingSchedule(
                     interval: .monthly,
                     renewalAnchor: editedStart,
                     timeZoneIdentifier: calendar.timeZone.identifier
                 ),
                 startDate: editedStart,
-                confirmedNextRenewal: oldRenewal,
+                confirmedNextRenewal: editedRenewal,
                 managementURL: existing.managementURL,
                 notes: existing.notes
             )
@@ -4197,6 +4210,603 @@ struct SubscriptionWorkspaceTests {
             return
         }
         #expect(detail.confirmedNextRenewal == editedRenewal)
+    }
+
+    @Test("Ordinary edits correct effective amount and metadata atomically")
+    @MainActor
+    func editAtomicallyCorrectsEffectiveAmount() async throws {
+        let calendar = actionCalendar()
+        let timeZoneIdentifier = calendar.timeZone.identifier
+        let now = try actionDate(
+            year: 2026,
+            month: 7,
+            day: 15,
+            hour: 18,
+            calendar: calendar
+        )
+        let startDate = try actionDate(
+            year: 2026,
+            month: 7,
+            day: 1,
+            hour: 4,
+            calendar: calendar
+        )
+        let confirmedNextRenewal = try actionDate(
+            year: 2026,
+            month: 8,
+            day: 1,
+            hour: 20,
+            calendar: calendar
+        )
+        let existingChangeID = UUID(
+            uuidString: "A4000000-0000-0000-0000-000000000048"
+        )!
+        let id = UUID(
+            uuidString: "A4000000-0000-0000-0000-000000000049"
+        )!
+        let existing = Subscription(
+            id: id,
+            serviceIdentity: ServiceIdentity(rawValue: "manual:\(id)"),
+            serviceName: "Original Service",
+            plan: "Original Plan",
+            category: "Other",
+            originalAmount: Money(minorUnits: 999, currency: .usd),
+            billingSchedule: FixedBillingSchedule(
+                interval: .monthly,
+                renewalAnchor: startDate,
+                timeZoneIdentifier: timeZoneIdentifier
+            ),
+            startDate: startDate,
+            confirmedNextRenewal: confirmedNextRenewal,
+            managementURL: nil,
+            notes: "Original notes",
+            priceChanges: [
+                PriceChange(
+                    id: existingChangeID,
+                    effectiveDate: try actionDate(
+                        year: 2026,
+                        month: 8,
+                        day: 1,
+                        hour: 2,
+                        calendar: calendar
+                    ),
+                    amount: Money(minorUnits: 1_299, currency: .usd)
+                ),
+            ]
+        )
+        let repository = InMemorySubscriptionRepository(
+            subscriptions: [existing]
+        )
+        let preset = catalogPresetFixture(
+            offers: [
+                catalogOfferFixture(
+                    id: "edited-monthly",
+                    status: .verified,
+                    price: Money(minorUnits: 6_800, currency: .cny)
+                ),
+            ],
+            id: "edited.example",
+            serviceName: CatalogLocalizedText(
+                en: "Edited Service",
+                zhHans: "Edited Service"
+            )
+        )
+        let rateSnapshot = ExchangeRateSnapshot(
+            base: .eur,
+            providerDate: now,
+            fetchedAt: now,
+            source: "fixture",
+            rates: [.eur: 1, .usd: 1.2, .cny: 8.4]
+        )
+        let workspace = SubscriptionWorkspace(
+            repository: repository,
+            catalogRepository: StaticCatalogRepository(presets: [preset]),
+            exchangeRateCache: InMemoryExchangeRateCache(
+                state: ExchangeRateCacheState(
+                    snapshot: rateSnapshot,
+                    lastAttemptAt: now
+                )
+            ),
+            syncMonitor: SyncMonitorFixture(result: .current),
+            now: { now },
+            calendar: calendar
+        )
+
+        workspace.loadCatalog(locale: Locale(identifier: "en"))
+        await workspace.refreshSyncStatus()
+        await workspace.refreshExchangeRates()
+        workspace.loadLibrary()
+        workspace.loadSubscription(id: id)
+        let horizon = try actionDate(
+            year: 2026,
+            month: 10,
+            day: 1,
+            hour: 12,
+            calendar: calendar
+        )
+        workspace.loadExpectedCharges(
+            subscriptionID: id,
+            through: horizon,
+            maximumCount: 2
+        )
+        workspace.loadUpcomingTimeline(from: now, through: horizon)
+        workspace.loadCalendarProjection(locale: Locale(identifier: "en"))
+        workspace.loadInsights(mode: .expected, from: now, through: horizon)
+
+        let inputStartDate = try actionDate(
+            year: 2026,
+            month: 7,
+            day: 1,
+            hour: 6,
+            calendar: calendar
+        )
+        workspace.editSubscription(
+            id: id,
+            input: SubscriptionEditInput(
+                serviceName: "Edited Service",
+                plan: "Edited Plan",
+                category: "Edited Category",
+                amount: Money(minorUnits: 6_800, currency: .cny),
+                billingSchedule: FixedBillingSchedule(
+                    interval: .monthly,
+                    renewalAnchor: inputStartDate,
+                    timeZoneIdentifier: timeZoneIdentifier
+                ),
+                startDate: inputStartDate,
+                confirmedNextRenewal: confirmedNextRenewal,
+                managementURL: nil,
+                notes: "Edited notes"
+            )
+        )
+
+        let stored = try #require(repository.storedSubscription(id: id))
+        let normalizedRenewal = try actionDate(
+            year: 2026,
+            month: 8,
+            day: 1,
+            hour: 12,
+            calendar: calendar
+        )
+        let normalizedStart = try actionDate(
+            year: 2026,
+            month: 7,
+            day: 1,
+            hour: 12,
+            calendar: calendar
+        )
+        #expect(stored.id == id)
+        #expect(stored.originalAmount == Money(minorUnits: 999, currency: .usd))
+        #expect(stored.serviceName == "Edited Service")
+        #expect(stored.serviceIdentity.rawValue == "catalog:edited.example")
+        #expect(stored.confirmedNextRenewal == normalizedRenewal)
+        #expect(stored.startDate == normalizedStart)
+        #expect(stored.billingSchedule.renewalAnchor == normalizedStart)
+        #expect(stored.priceChanges.count == 1)
+        #expect(stored.priceChanges[0].id == existingChangeID)
+        #expect(stored.priceChanges[0].effectiveDate == normalizedRenewal)
+        #expect(
+            stored.priceChanges[0].amount
+                == Money(minorUnits: 6_800, currency: .cny)
+        )
+        #expect(repository.updateAttemptCount == 1)
+
+        guard case .loaded(.current, let summaries) = workspace.libraryState,
+              let summary = summaries.first
+        else {
+            Issue.record("Expected the edited subscription in the library.")
+            return
+        }
+        #expect(summary.amount == Money(minorUnits: 6_800, currency: .cny))
+        #expect(workspace.expectedCharges?.first?.amount == summary.amount)
+        #expect(workspace.upcomingTimeline.first?.amount == summary.amount)
+        #expect(
+            workspace.insightsState.availableValue?.items.first?.originalAmount
+                == summary.amount
+        )
+        #expect(workspace.calendarProjection.first?.startDate == normalizedRenewal)
+        #expect(workspace.makeWidgetSnapshot()?.nextRenewal?.serviceName == "Edited Service")
+        #expect(workspace.syncStatus == .synchronizing)
+    }
+
+    @Test("A failed ordinary edit does not partially record price history")
+    @MainActor
+    func editFailureDoesNotPartiallyRecordPrice() async throws {
+        let calendar = actionCalendar()
+        let now = try actionDate(
+            year: 2026,
+            month: 7,
+            day: 15,
+            hour: 18,
+            calendar: calendar
+        )
+        let startDate = try actionDate(
+            year: 2026,
+            month: 7,
+            day: 1,
+            hour: 12,
+            calendar: calendar
+        )
+        let renewal = try actionDate(
+            year: 2026,
+            month: 8,
+            day: 1,
+            hour: 12,
+            calendar: calendar
+        )
+        let id = UUID(
+            uuidString: "A5000000-0000-0000-0000-000000000049"
+        )!
+        let existing = Subscription(
+            id: id,
+            serviceIdentity: ServiceIdentity(rawValue: "manual:\(id)"),
+            serviceName: "Failure Service",
+            plan: "Standard",
+            category: "Other",
+            originalAmount: Money(minorUnits: 999, currency: .usd),
+            billingSchedule: FixedBillingSchedule(
+                interval: .monthly,
+                renewalAnchor: startDate,
+                timeZoneIdentifier: calendar.timeZone.identifier
+            ),
+            startDate: startDate,
+            confirmedNextRenewal: renewal,
+            managementURL: nil,
+            notes: "Before",
+            priceChanges: [
+                PriceChange(
+                    id: UUID(
+                        uuidString: "A5000000-0000-0000-0000-000000000048"
+                    )!,
+                    effectiveDate: renewal,
+                    amount: Money(minorUnits: 1_299, currency: .usd)
+                ),
+            ]
+        )
+        let repository = InMemorySubscriptionRepository(
+            subscriptions: [existing]
+        )
+        repository.failure = .update
+        let rateSnapshot = ExchangeRateSnapshot(
+            base: .eur,
+            providerDate: now,
+            fetchedAt: now,
+            source: "fixture",
+            rates: [.eur: 1, .usd: 1.2]
+        )
+        let workspace = SubscriptionWorkspace(
+            repository: repository,
+            exchangeRateCache: InMemoryExchangeRateCache(
+                state: ExchangeRateCacheState(
+                    snapshot: rateSnapshot,
+                    lastAttemptAt: now
+                )
+            ),
+            syncMonitor: SyncMonitorFixture(result: .current),
+            now: { now },
+            calendar: calendar
+        )
+
+        await workspace.refreshSyncStatus()
+        await workspace.refreshExchangeRates()
+        let horizon = try actionDate(
+            year: 2026,
+            month: 10,
+            day: 1,
+            hour: 12,
+            calendar: calendar
+        )
+        workspace.loadLibrary()
+        workspace.loadSubscription(id: id)
+        workspace.loadExpectedCharges(
+            subscriptionID: id,
+            through: horizon,
+            maximumCount: 2
+        )
+        workspace.loadUpcomingTimeline(from: now, through: horizon)
+        workspace.loadCalendarProjection(locale: Locale(identifier: "en"))
+        workspace.loadInsights(mode: .expected, from: now, through: horizon)
+
+        let libraryBefore = workspace.libraryState
+        let expectedBefore = workspace.expectedCharges
+        let upcomingBefore = workspace.upcomingTimeline
+        let calendarBefore = workspace.calendarProjection
+        let insightsBefore = workspace.insightsState
+        let widgetBefore = workspace.makeWidgetSnapshot()
+        let syncBefore = workspace.syncStatus
+        let historyBefore = workspace.paymentHistory
+
+        workspace.editSubscription(
+            id: id,
+            input: SubscriptionEditInput(
+                serviceName: "Edited Failure Service",
+                plan: "Changed",
+                category: "Changed",
+                amount: Money(minorUnits: 6_800, currency: .cny),
+                billingSchedule: existing.billingSchedule,
+                startDate: existing.startDate,
+                confirmedNextRenewal: existing.confirmedNextRenewal,
+                managementURL: nil,
+                notes: "After"
+            )
+        )
+
+        #expect(repository.updateAttemptCount == 1)
+        #expect(repository.storedSubscription(id: id) == existing)
+        #expect(workspace.libraryState == libraryBefore)
+        #expect(workspace.expectedCharges == expectedBefore)
+        #expect(workspace.upcomingTimeline == upcomingBefore)
+        #expect(workspace.calendarProjection == calendarBefore)
+        #expect(workspace.insightsState == insightsBefore)
+        #expect(workspace.makeWidgetSnapshot() == widgetBefore)
+        #expect(workspace.syncStatus == syncBefore)
+        #expect(workspace.paymentHistory == historyBefore)
+        #expect(workspace.detailState == .failed)
+    }
+
+    @Test("Active edit validates the supplied renewal day and normalizes derived dates")
+    @MainActor
+    func activeEditValidatesRenewalDayAndNormalizesDerivedDates() throws {
+        let calendar = actionCalendar()
+        let now = try actionDate(
+            year: 2026,
+            month: 7,
+            day: 15,
+            hour: 18,
+            calendar: calendar
+        )
+        let startDate = try actionDate(
+            year: 2026,
+            month: 6,
+            day: 1,
+            hour: 12,
+            calendar: calendar
+        )
+        let renewal = try actionDate(
+            year: 2026,
+            month: 7,
+            day: 1,
+            hour: 12,
+            calendar: calendar
+        )
+        let id = UUID(
+            uuidString: "A6000000-0000-0000-0000-000000000049"
+        )!
+        let existing = makeSubscription(
+            id: id,
+            billingSchedule: FixedBillingSchedule(
+                interval: .monthly,
+                renewalAnchor: startDate,
+                timeZoneIdentifier: calendar.timeZone.identifier
+            ),
+            confirmedNextRenewal: renewal
+        )
+        let repository = InMemorySubscriptionRepository(
+            subscriptions: [existing]
+        )
+        let workspace = SubscriptionWorkspace(
+            repository: repository,
+            now: { now },
+            calendar: calendar
+        )
+        let amount = existing.amount(onBillingDay: existing.confirmedNextRenewal)
+
+        workspace.editSubscription(
+            id: id,
+            input: SubscriptionEditInput(
+                serviceName: existing.serviceName,
+                plan: existing.plan,
+                category: existing.category,
+                amount: amount,
+                billingSchedule: existing.billingSchedule,
+                startDate: startDate,
+                confirmedNextRenewal: try actionDate(
+                    year: 2026,
+                    month: 9,
+                    day: 2,
+                    hour: 12,
+                    calendar: calendar
+                ),
+                managementURL: nil,
+                notes: existing.notes
+            )
+        )
+        #expect(repository.updateAttemptCount == 0)
+        #expect(repository.storedSubscription(id: id) == existing)
+        #expect(
+            workspace.editingValidationErrors[.confirmedNextRenewal]
+                == .required
+        )
+
+        let selectedRenewal = try actionDate(
+            year: 2026,
+            month: 8,
+            day: 1,
+            hour: 21,
+            calendar: calendar
+        )
+        let selectedStart = try #require(
+            BillingDateResolver().previousCycleStart(
+                before: selectedRenewal,
+                interval: .monthly,
+                timeZone: calendar.timeZone
+            )
+        )
+        workspace.editSubscription(
+            id: id,
+            input: SubscriptionEditInput(
+                serviceName: existing.serviceName,
+                plan: existing.plan,
+                category: existing.category,
+                amount: amount,
+                billingSchedule: FixedBillingSchedule(
+                    interval: .monthly,
+                    renewalAnchor: selectedStart,
+                    timeZoneIdentifier: calendar.timeZone.identifier
+                ),
+                startDate: selectedStart,
+                confirmedNextRenewal: selectedRenewal,
+                managementURL: nil,
+                notes: existing.notes
+            )
+        )
+
+        let stored = try #require(repository.storedSubscription(id: id))
+        let expectedStart = try actionDate(
+            year: 2026,
+            month: 7,
+            day: 1,
+            hour: 12,
+            calendar: calendar
+        )
+        let expectedRenewal = try actionDate(
+            year: 2026,
+            month: 8,
+            day: 1,
+            hour: 12,
+            calendar: calendar
+        )
+        #expect(repository.updateAttemptCount == 1)
+        #expect(stored.startDate == expectedStart)
+        #expect(stored.billingSchedule.renewalAnchor == expectedStart)
+        #expect(stored.confirmedNextRenewal == expectedRenewal)
+    }
+
+    @Test("An ordinary edit rejects a non-positive amount without updating")
+    @MainActor
+    func editRejectsInvalidAmountWithoutUpdating() throws {
+        let calendar = utcCalendar()
+        let subscription = makeSubscription(
+            id: UUID(uuidString: "A7000000-0000-0000-0000-000000000049")!,
+            billingSchedule: FixedBillingSchedule(
+                interval: .monthly,
+                renewalAnchor: Date(timeIntervalSince1970: 1_767_225_600),
+                timeZoneIdentifier: "UTC"
+            )
+        )
+        let repository = InMemorySubscriptionRepository(
+            subscriptions: [subscription]
+        )
+        let workspace = SubscriptionWorkspace(
+            repository: repository,
+            calendar: calendar
+        )
+
+        workspace.editSubscription(
+            id: subscription.id,
+            input: SubscriptionEditInput(
+                serviceName: subscription.serviceName,
+                plan: subscription.plan,
+                category: subscription.category,
+                amount: Money(minorUnits: 0, currency: .usd),
+                billingSchedule: subscription.billingSchedule,
+                startDate: subscription.startDate,
+                confirmedNextRenewal: subscription.confirmedNextRenewal,
+                managementURL: subscription.managementURL,
+                notes: subscription.notes
+            )
+        )
+
+        #expect(repository.updateAttemptCount == 0)
+        #expect(repository.storedSubscription(id: subscription.id) == subscription)
+        #expect(workspace.editingValidationErrors[.originalAmount] == .mustBePositive)
+    }
+
+    @Test("An unchanged amount preserves the complete price history")
+    @MainActor
+    func editUnchangedAmountPreservesPriceHistory() throws {
+        let calendar = utcCalendar()
+        let id = UUID(
+            uuidString: "A8000000-0000-0000-0000-000000000049"
+        )!
+        let renewal = try actionDate(
+            year: 2026,
+            month: 8,
+            day: 1,
+            hour: 12,
+            calendar: calendar
+        )
+        let first = PriceChange(
+            id: UUID(uuidString: "A8000000-0000-0000-0000-000000000048")!,
+            effectiveDate: try actionDate(
+                year: 2026,
+                month: 7,
+                day: 1,
+                hour: 12,
+                calendar: calendar
+            ),
+            amount: Money(minorUnits: 1_099, currency: .usd)
+        )
+        let second = PriceChange(
+            id: UUID(uuidString: "A8000000-0000-0000-0000-000000000047")!,
+            effectiveDate: renewal,
+            amount: Money(minorUnits: 1_299, currency: .usd)
+        )
+        let existing = Subscription(
+            id: id,
+            serviceIdentity: ServiceIdentity(rawValue: "manual:\(id)"),
+            serviceName: "History Service",
+            plan: "Standard",
+            category: "Other",
+            originalAmount: Money(minorUnits: 999, currency: .usd),
+            billingSchedule: FixedBillingSchedule(
+                interval: .monthly,
+                renewalAnchor: try actionDate(
+                    year: 2026,
+                    month: 7,
+                    day: 1,
+                    hour: 12,
+                    calendar: calendar
+                ),
+                timeZoneIdentifier: calendar.timeZone.identifier
+            ),
+            startDate: try actionDate(
+                year: 2026,
+                month: 7,
+                day: 1,
+                hour: 12,
+                calendar: calendar
+            ),
+            confirmedNextRenewal: renewal,
+            managementURL: nil,
+            notes: "Before",
+            priceChanges: [first, second]
+        )
+        let repository = InMemorySubscriptionRepository(
+            subscriptions: [existing]
+        )
+        let workspace = SubscriptionWorkspace(
+            repository: repository,
+            now: {
+                try! actionDate(
+                    year: 2026,
+                    month: 7,
+                    day: 15,
+                    hour: 12,
+                    calendar: calendar
+                )
+            },
+            calendar: calendar
+        )
+        workspace.editSubscription(
+            id: id,
+            input: SubscriptionEditInput(
+                serviceName: "History Service",
+                plan: "Changed Metadata",
+                category: "Other",
+                amount: Money(minorUnits: 1_299, currency: .usd),
+                billingSchedule: existing.billingSchedule,
+                startDate: existing.startDate,
+                confirmedNextRenewal: existing.confirmedNextRenewal,
+                managementURL: nil,
+                notes: "After"
+            )
+        )
+
+        let stored = try #require(repository.storedSubscription(id: id))
+        #expect(stored.priceChanges == [first, second])
+        #expect(stored.originalAmount == existing.originalAmount)
+        #expect(stored.plan == "Changed Metadata")
+        #expect(repository.updateAttemptCount == 1)
     }
 
     @Test("Price changes refresh every loaded amount consumer")
