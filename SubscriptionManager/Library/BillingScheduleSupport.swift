@@ -20,6 +20,13 @@ func normalizedBillingDate(
     return calendar.date(from: components)
 }
 
+func effectiveEditAmount(
+    for subscription: Subscription,
+    onBillingDay date: Date
+) -> Money {
+    subscription.amount(onBillingDay: date)
+}
+
 func billingTimeZone(identifier: String) -> TimeZone {
     TimeZone(identifier: identifier) ?? .autoupdatingCurrent
 }

@@ -242,4 +242,55 @@ struct BillingScheduleSupportTests {
             billingNextDateLabelKey(isTrial: false) == "Next Renewal"
         )
     }
+
+    @Test("Edit amounts use the target normalized renewal day")
+    func editAmountUsesTargetNormalizedRenewal() throws {
+        let currentRenewal = try #require(
+            normalizedBillingDate(
+                Date(timeIntervalSince1970: 1_754_073_600),
+                timeZoneIdentifier: "UTC"
+            )
+        )
+        let targetRenewal = try #require(
+            normalizedBillingDate(
+                Date(timeIntervalSince1970: 1_756_665_600),
+                timeZoneIdentifier: "UTC"
+            )
+        )
+        let subscription = Subscription(
+            id: UUID(uuidString: "B0000000-0000-0000-0000-000000000001")!,
+            serviceIdentity: ServiceIdentity(
+                rawValue: "manual:B0000000-0000-0000-0000-000000000001"
+            ),
+            serviceName: "Target Amount Service",
+            plan: "Monthly",
+            category: "Other",
+            originalAmount: Money(minorUnits: 999, currency: .usd),
+            billingSchedule: FixedBillingSchedule(
+                interval: .monthly,
+                renewalAnchor: currentRenewal,
+                timeZoneIdentifier: "UTC"
+            ),
+            startDate: currentRenewal,
+            confirmedNextRenewal: currentRenewal,
+            managementURL: nil,
+            notes: "",
+            priceChanges: [
+                PriceChange(
+                    id: UUID(
+                        uuidString: "B0000000-0000-0000-0000-000000000002"
+                    )!,
+                    effectiveDate: targetRenewal,
+                    amount: Money(minorUnits: 1_499, currency: .usd)
+                ),
+            ]
+        )
+
+        #expect(
+            effectiveEditAmount(
+                for: subscription,
+                onBillingDay: targetRenewal
+            ) == Money(minorUnits: 1_499, currency: .usd)
+        )
+    }
 }

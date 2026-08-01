@@ -4809,6 +4809,131 @@ struct SubscriptionWorkspaceTests {
         #expect(repository.updateAttemptCount == 1)
     }
 
+    @Test("Editing an amount replaces the deterministic same-day winner")
+    @MainActor
+    func editReplacesDeterministicSameDayPriceChangeWinner() throws {
+        let calendar = utcCalendar()
+        let id = UUID(
+            uuidString: "A9000000-0000-0000-0000-000000000049"
+        )!
+        let startDate = try actionDate(
+            year: 2026,
+            month: 7,
+            day: 1,
+            hour: 12,
+            calendar: calendar
+        )
+        let renewal = try actionDate(
+            year: 2026,
+            month: 8,
+            day: 1,
+            hour: 12,
+            calendar: calendar
+        )
+        let lowerID = UUID(
+            uuidString: "00000000-0000-0000-0000-000000000001"
+        )!
+        let higherID = UUID(
+            uuidString: "00000000-0000-0000-0000-000000000002"
+        )!
+        let lower = PriceChange(
+            id: lowerID,
+            effectiveDate: try actionDate(
+                year: 2026,
+                month: 8,
+                day: 1,
+                hour: 2,
+                calendar: calendar
+            ),
+            amount: Money(minorUnits: 1_100, currency: .usd)
+        )
+        let higher = PriceChange(
+            id: higherID,
+            effectiveDate: try actionDate(
+                year: 2026,
+                month: 8,
+                day: 1,
+                hour: 22,
+                calendar: calendar
+            ),
+            amount: Money(minorUnits: 1_200, currency: .usd)
+        )
+        let importedHistory = PriceChange(
+            id: UUID(
+                uuidString: "00000000-0000-0000-0000-000000000003"
+            )!,
+            effectiveDate: try actionDate(
+                year: 2026,
+                month: 7,
+                day: 10,
+                hour: 12,
+                calendar: calendar
+            ),
+            amount: Money(minorUnits: 1_050, currency: .usd)
+        )
+        let existing = Subscription(
+            id: id,
+            serviceIdentity: ServiceIdentity(rawValue: "manual:\(id)"),
+            serviceName: "Imported History Service",
+            plan: "Standard",
+            category: "Other",
+            originalAmount: Money(minorUnits: 999, currency: .usd),
+            billingSchedule: FixedBillingSchedule(
+                interval: .monthly,
+                renewalAnchor: startDate,
+                timeZoneIdentifier: calendar.timeZone.identifier
+            ),
+            startDate: startDate,
+            confirmedNextRenewal: renewal,
+            managementURL: nil,
+            notes: "Before",
+            priceChanges: [lower, higher, importedHistory]
+        )
+        let repository = InMemorySubscriptionRepository(
+            subscriptions: [existing]
+        )
+        let workspace = SubscriptionWorkspace(
+            repository: repository,
+            now: {
+                try! actionDate(
+                    year: 2026,
+                    month: 7,
+                    day: 15,
+                    hour: 12,
+                    calendar: calendar
+                )
+            },
+            calendar: calendar
+        )
+        let editedAmount = Money(minorUnits: 1_500, currency: .usd)
+
+        workspace.editSubscription(
+            id: id,
+            input: SubscriptionEditInput(
+                serviceName: existing.serviceName,
+                plan: existing.plan,
+                category: existing.category,
+                amount: editedAmount,
+                billingSchedule: existing.billingSchedule,
+                startDate: startDate,
+                confirmedNextRenewal: renewal,
+                managementURL: nil,
+                notes: "After"
+            )
+        )
+
+        let stored = try #require(repository.storedSubscription(id: id))
+        let expectedWinner = PriceChange(
+            id: higherID,
+            effectiveDate: renewal,
+            amount: editedAmount
+        )
+        #expect(stored.priceChanges[0] == lower)
+        #expect(stored.priceChanges[1] == expectedWinner)
+        #expect(stored.priceChanges[2] == importedHistory)
+        #expect(stored.amount(onBillingDay: renewal) == editedAmount)
+    }
+
     @Test("Price changes refresh every loaded amount consumer")
     @MainActor
     func priceChangesRefreshLoadedConsumers() async throws {

@@ -2361,12 +2361,19 @@ public final class SubscriptionWorkspace {
             return existing.priceChanges
         }
 
-        if let index = existing.priceChanges.firstIndex(where: {
-            calendar.isDate(
-                $0.effectiveDate,
-                inSameDayAs: confirmedNextRenewal
-            )
-        }) {
+        let sameDayWinnerIndex = existing.priceChanges.indices
+            .filter {
+                calendar.isDate(
+                    existing.priceChanges[$0].effectiveDate,
+                    inSameDayAs: confirmedNextRenewal
+                )
+            }
+            .max {
+                existing.priceChanges[$0].id.uuidString
+                    < existing.priceChanges[$1].id.uuidString
+            }
+
+        if let index = sameDayWinnerIndex {
             var corrected = existing.priceChanges
             let existingChange = corrected[index]
             corrected[index] = PriceChange(
