@@ -227,6 +227,47 @@ struct SubscriptionDomainTests {
         ))
     }
 
+    @Test("Legacy subscription summaries decode without an effective amount")
+    func legacySubscriptionSummaryDecodesWithoutAmount() throws {
+        let start = try actionDate(
+            year: 2026,
+            month: 1,
+            day: 10,
+            hour: 12,
+            calendar: utcCalendar()
+        )
+        let subscription = makeSubscription(
+            originalAmount: Money(minorUnits: 999, currency: .usd),
+            startDate: start,
+            priceChanges: []
+        )
+        let summary = SubscriptionSummary(
+            subscription: subscription,
+            status: .active,
+            nextExpectedCharge: nil
+        )
+        let encoded = try JSONEncoder().encode(summary)
+        let current = try JSONDecoder().decode(
+            SubscriptionSummary.self,
+            from: encoded
+        )
+        #expect(current == summary)
+
+        var legacyObject = try #require(
+            JSONSerialization.jsonObject(with: encoded) as? [String: Any]
+        )
+        legacyObject["amount"] = nil
+        let legacyData = try JSONSerialization.data(
+            withJSONObject: legacyObject
+        )
+        let legacy = try JSONDecoder().decode(
+            SubscriptionSummary.self,
+            from: legacyData
+        )
+        #expect(legacy.originalAmount == summary.originalAmount)
+        #expect(legacy.amount == summary.originalAmount)
+    }
+
     private func makeSubscription(
         originalAmount: Money,
         startDate: Date,

@@ -21,15 +21,15 @@ struct ConfirmChargeView: View {
             return nil
         }.first
         let date = expected?.scheduledDate ?? subscription.confirmedNextRenewal
+        let amount = expected?.amount
+            ?? subscription.amount(onBillingDay: date)
         _scheduledDate = State(initialValue: date)
         _chargedDate = State(initialValue: date)
         _amountText = State(initialValue: editableMoneyText(
-            expected?.amount ?? subscription.originalAmount,
+            amount,
             locale: .current
         ))
-        _currency = State(initialValue:
-            (expected?.amount ?? subscription.originalAmount).currency
-        )
+        _currency = State(initialValue: amount.currency)
     }
 
     var body: some View {
