@@ -158,6 +158,64 @@ struct SubscriptionDraftTests {
         #expect(draft.acceptedDateSources == [.startDate])
     }
 
+    @Test("Custom intervals preserve their value and unit through inputs")
+    func customIntervalRoundTripsThroughCreationAndEditing() throws {
+        let now = try date(year: 2026, month: 7, day: 30, hour: 12)
+        let pickedStart = try date(year: 2026, month: 8, day: 1, hour: 18)
+        let expectedStart = try date(year: 2026, month: 8, day: 1, hour: 12)
+        let expectedRenewal = try date(year: 2026, month: 8, day: 22, hour: 12)
+        let interval = BillingInterval.custom(value: 3, unit: .week)
+        var draft = SubscriptionDraft.manual(now: now, timeZoneIdentifier: "UTC")
+        draft.serviceName = "Custom Service"
+        draft.amountText = "12.00"
+        draft.currency = .usd
+        let changedInterval = draft.changeBillingInterval(interval, asOf: now)
+        #expect(changedInterval)
+
+        let selectedStart = draft.selectStartDate(pickedStart, asOf: now)
+        #expect(selectedStart)
+        #expect(draft.billingInterval == interval)
+        #expect(draft.customIntervalValueText == "3")
+        #expect(draft.customIntervalUnit == .week)
+
+        let creation = try #require(
+            draft.makeCreationInput(locale: Locale(identifier: "en_US"))
+        )
+        #expect(creation.billingInterval == interval)
+        #expect(creation.startDate == expectedStart)
+        #expect(creation.confirmedNextRenewal == expectedRenewal)
+        #expect(creation.renewalAnchor == expectedStart)
+
+        let subscription = Subscription(
+            id: UUID(uuidString: "CCCCCCCC-DDDD-EEEE-FFFF-000000000000")!,
+            serviceIdentity: ServiceIdentity(rawValue: "manual:custom"),
+            serviceName: "Custom Service",
+            plan: "",
+            category: "",
+            originalAmount: Money(minorUnits: 1_200, currency: .usd),
+            billingSchedule: FixedBillingSchedule(
+                interval: interval,
+                renewalAnchor: expectedStart,
+                timeZoneIdentifier: "UTC"
+            ),
+            startDate: expectedStart,
+            confirmedNextRenewal: expectedRenewal,
+            managementURL: nil,
+            notes: ""
+        )
+        let edit = SubscriptionDraft.editing(
+            subscription: subscription,
+            locale: Locale(identifier: "en_US")
+        )
+        #expect(edit.customIntervalValueText == "3")
+        #expect(edit.customIntervalUnit == .week)
+        let editInput = try #require(
+            edit.makeEditInput(locale: Locale(identifier: "en_US"))
+        )
+        #expect(editInput.billingSchedule.interval == interval)
+        #expect(editInput.billingSchedule.renewalAnchor == expectedStart)
+    }
+
     @Test("Trial date selectors keep Trial Start and First Paid Charge independent")
     func trialDatesRemainIndependent() throws {
         let now = try date(year: 2026, month: 7, day: 30, hour: 12)
@@ -220,11 +278,16 @@ struct SubscriptionDraftTests {
         )
         let originalStart = draft.startDate
         let originalRenewal = draft.confirmedNextRenewal
+        let originalAnchor = subscription.billingSchedule.renewalAnchor
         let changedInterval = draft.changeBillingInterval(.yearly, asOf: accessUntil)
         #expect(changedInterval)
         #expect(draft.startDate == originalStart)
         #expect(draft.confirmedNextRenewal == originalRenewal)
-        #expect(draft.makeEditInput(locale: Locale(identifier: "en_US")) != nil)
+        let editInput = try #require(
+            draft.makeEditInput(locale: Locale(identifier: "en_US"))
+        )
+        #expect(editInput.billingSchedule.interval == .yearly)
+        #expect(editInput.billingSchedule.renewalAnchor == originalAnchor)
     }
 
     @Test("Only a verified offer adopts plan, price, currency, interval, and offer identity")
@@ -330,6 +393,7 @@ struct SubscriptionDraftTests {
         #expect(editInput.amount == Money(minorUnits: 999, currency: .usd))
         #expect(editInput.startDate == start)
         #expect(editInput.confirmedNextRenewal == renewal)
+        #expect(editInput.billingSchedule.renewalAnchor == start)
     }
 
     @Test("Invalid selector values return false and leave the draft unchanged")
@@ -397,6 +461,7 @@ struct SubscriptionDraftTests {
         let now = try date(year: 2026, month: 7, day: 30, hour: 12)
         let start = try date(year: 2026, month: 8, day: 15, hour: 18)
         let expectedStart = try date(year: 2026, month: 8, day: 15, hour: 12)
+        let expectedRenewal = try date(year: 2026, month: 9, day: 15, hour: 12)
         var draft = SubscriptionDraft.manual(now: now, timeZoneIdentifier: "UTC")
         draft.serviceName = "  Example Service  "
         draft.plan = "  Pro  "
@@ -417,12 +482,186 @@ struct SubscriptionDraftTests {
         #expect(input.billingInterval == .monthly)
         #expect(input.startDate == expectedStart)
         #expect(input.renewalAnchor == expectedStart)
+        #expect(input.confirmedNextRenewal == expectedRenewal)
         #expect(input.managementURL == URL(string: "https://example.com/account"))
         #expect(draft.requiredBillingSchedule() == FixedBillingSchedule(
             interval: .monthly,
             renewalAnchor: expectedStart,
             timeZoneIdentifier: "UTC"
         ))
+    }
+
+    @Test("Creation and edit inputs normalize every billing date to local noon")
+    func inputDatesNormalizeToBillingLocalNoon() throws {
+        let timeZoneIdentifier = "Asia/Shanghai"
+        let now = try date(
+            year: 2026,
+            month: 7,
+            day: 30,
+            hour: 4,
+            timeZoneIdentifier: timeZoneIdentifier
+        )
+        let start = try date(
+            year: 2026,
+            month: 8,
+            day: 1,
+            hour: 3,
+            timeZoneIdentifier: timeZoneIdentifier
+        )
+        let renewal = try date(
+            year: 2026,
+            month: 8,
+            day: 15,
+            hour: 22,
+            timeZoneIdentifier: timeZoneIdentifier
+        )
+        let expectedStart = try date(
+            year: 2026,
+            month: 8,
+            day: 1,
+            hour: 12,
+            timeZoneIdentifier: timeZoneIdentifier
+        )
+        let expectedRenewal = try date(
+            year: 2026,
+            month: 8,
+            day: 15,
+            hour: 12,
+            timeZoneIdentifier: timeZoneIdentifier
+        )
+        var creation = SubscriptionDraft.manual(
+            now: now,
+            timeZoneIdentifier: timeZoneIdentifier
+        )
+        creation.serviceName = "Noon Service"
+        creation.amountText = "9.99"
+        creation.currency = .usd
+        creation.billingInterval = .monthly
+        creation.startDate = start
+        creation.confirmedNextRenewal = renewal
+        creation.dateSource = .startDate
+        creation.acceptedDateSources = [.startDate]
+
+        let creationInput = try #require(
+            creation.makeCreationInput(locale: Locale(identifier: "en_US"))
+        )
+        #expect(creationInput.startDate == expectedStart)
+        #expect(creationInput.confirmedNextRenewal == expectedRenewal)
+        #expect(creationInput.renewalAnchor == expectedStart)
+
+        let subscription = Subscription(
+            id: UUID(uuidString: "DDDDDDDD-EEEE-FFFF-0000-111111111111")!,
+            serviceIdentity: ServiceIdentity(rawValue: "manual:noon"),
+            serviceName: "Noon Service",
+            plan: "",
+            category: "",
+            originalAmount: Money(minorUnits: 999, currency: .usd),
+            billingSchedule: FixedBillingSchedule(
+                interval: .monthly,
+                renewalAnchor: start,
+                timeZoneIdentifier: timeZoneIdentifier
+            ),
+            startDate: start,
+            confirmedNextRenewal: renewal,
+            managementURL: nil,
+            notes: ""
+        )
+        let edit = SubscriptionDraft.editing(
+            subscription: subscription,
+            locale: Locale(identifier: "en_US")
+        )
+        let editInput = try #require(
+            edit.makeEditInput(locale: Locale(identifier: "en_US"))
+        )
+        #expect(editInput.startDate == expectedStart)
+        #expect(editInput.confirmedNextRenewal == expectedRenewal)
+        #expect(editInput.billingSchedule.renewalAnchor == expectedStart)
+    }
+
+    @Test("Corrupted dates and time zones block both input builders")
+    func corruptedStateBlocksCreationAndEditInputs() throws {
+        let now = try date(year: 2026, month: 7, day: 30, hour: 12)
+        let start = try date(year: 2026, month: 8, day: 1, hour: 12)
+        let renewal = try date(year: 2026, month: 8, day: 15, hour: 12)
+
+        var creation = SubscriptionDraft.manual(now: now, timeZoneIdentifier: "UTC")
+        creation.serviceName = "Corrupted Service"
+        creation.amountText = "9.99"
+        creation.currency = .usd
+        creation.billingInterval = .monthly
+        creation.startDate = start
+        creation.confirmedNextRenewal = renewal
+        creation.acceptedDateSources = [.startDate]
+
+        creation.billingTimeZoneIdentifier = "Not/A_TimeZone"
+        #expect(creation.validation.contains(.billingInterval))
+        #expect(creation.makeCreationInput(locale: Locale(identifier: "en_US")) == nil)
+
+        creation.billingTimeZoneIdentifier = "UTC"
+        creation.startDate = Date(timeIntervalSinceReferenceDate: .nan)
+        #expect(creation.validation.contains(.billingDate))
+        #expect(creation.makeCreationInput(locale: Locale(identifier: "en_US")) == nil)
+
+        let subscription = Subscription(
+            id: UUID(uuidString: "EEEEEEEE-FFFF-0000-1111-222222222222")!,
+            serviceIdentity: ServiceIdentity(rawValue: "manual:corrupted"),
+            serviceName: "Corrupted Service",
+            plan: "",
+            category: "",
+            originalAmount: Money(minorUnits: 999, currency: .usd),
+            billingSchedule: FixedBillingSchedule(
+                interval: .monthly,
+                renewalAnchor: start,
+                timeZoneIdentifier: "UTC"
+            ),
+            startDate: start,
+            confirmedNextRenewal: renewal,
+            managementURL: nil,
+            notes: ""
+        )
+        var edit = SubscriptionDraft.editing(
+            subscription: subscription,
+            locale: Locale(identifier: "en_US")
+        )
+        edit.billingTimeZoneIdentifier = "Not/A_TimeZone"
+        #expect(edit.validation.contains(.billingInterval))
+        #expect(edit.makeEditInput(locale: Locale(identifier: "en_US")) == nil)
+
+        edit.billingTimeZoneIdentifier = "UTC"
+        edit.confirmedNextRenewal = Date(timeIntervalSinceReferenceDate: .infinity)
+        #expect(edit.validation.contains(.billingDate))
+        #expect(edit.makeEditInput(locale: Locale(identifier: "en_US")) == nil)
+    }
+
+    @Test("Trial creation keeps First Paid Charge as its renewal anchor")
+    func trialCreationUsesFirstPaidChargeAnchor() throws {
+        let now = try date(year: 2026, month: 7, day: 30, hour: 12)
+        let trialStart = try date(year: 2026, month: 8, day: 1, hour: 18)
+        let firstPaidCharge = try date(year: 2026, month: 8, day: 15, hour: 21)
+        let expectedStart = try date(year: 2026, month: 8, day: 1, hour: 12)
+        let expectedFirstPaidCharge = try date(year: 2026, month: 8, day: 15, hour: 12)
+        var draft = SubscriptionDraft.manual(now: now, timeZoneIdentifier: "UTC")
+        draft.mode = .creating(.trial)
+        draft.serviceName = "Trial Service"
+        draft.amountText = "9.99"
+        draft.currency = .usd
+        draft.billingInterval = .monthly
+
+        let selectedStart = draft.selectStartDate(trialStart, asOf: now)
+        let selectedFirstPaidCharge = draft.selectNextRenewal(
+            firstPaidCharge,
+            asOf: now
+        )
+        #expect(selectedStart)
+        #expect(selectedFirstPaidCharge)
+
+        let input = try #require(
+            draft.makeCreationInput(locale: Locale(identifier: "en_US"))
+        )
+        #expect(input.initialStatus == .trial)
+        #expect(input.startDate == expectedStart)
+        #expect(input.confirmedNextRenewal == expectedFirstPaidCharge)
+        #expect(input.renewalAnchor == expectedFirstPaidCharge)
     }
 
     private func configureActive(_ draft: inout SubscriptionDraft) {
@@ -471,9 +710,10 @@ struct SubscriptionDraftTests {
         month: Int,
         day: Int,
         hour: Int,
-        minute: Int = 0
+        minute: Int = 0,
+        timeZoneIdentifier: String = "UTC"
     ) throws -> Date {
-        let timeZone = try #require(TimeZone(identifier: "UTC"))
+        let timeZone = try #require(TimeZone(identifier: timeZoneIdentifier))
         var calendar = BillingCalendar.calendar(timeZone: timeZone)
         return try #require(
             calendar.date(

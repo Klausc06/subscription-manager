@@ -318,7 +318,11 @@ struct SubscriptionDraft: Equatable {
         guard case .creating(let initialStatus) = mode,
               validation(for: locale).isEmpty,
               let amount = parsedAmount(locale: locale),
-              let schedule = requiredBillingSchedule()
+              let schedule = requiredBillingSchedule(),
+              let normalizedAnchor = normalizedBillingDate(
+                  schedule.renewalAnchor,
+                  timeZoneIdentifier: billingTimeZoneIdentifier
+              )
         else {
             return nil
         }
@@ -333,7 +337,7 @@ struct SubscriptionDraft: Equatable {
                 startDate,
                 timeZoneIdentifier: billingTimeZoneIdentifier
             ) ?? startDate,
-            renewalAnchor: schedule.renewalAnchor,
+            renewalAnchor: normalizedAnchor,
             confirmedNextRenewal: normalizedBillingDate(
                 confirmedNextRenewal,
                 timeZoneIdentifier: billingTimeZoneIdentifier
