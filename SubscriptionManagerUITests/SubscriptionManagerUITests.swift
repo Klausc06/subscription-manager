@@ -82,23 +82,7 @@ final class SubscriptionManagerUITests: XCTestCase {
 
     func testUpcomingExpectedChargeOpensItsSubscriptionDetail() {
         let app = launch(language: "en", locale: "en_US")
-
-        app.buttons["subscription.add"].tap()
-        XCTAssertTrue(
-            app.buttons["catalog.add-manually"].waitForExistence(timeout: 5)
-        )
-        app.buttons["catalog.add-manually"].tap()
-        let serviceName = app.textFields["subscription.form.service-name"]
-        XCTAssertTrue(serviceName.waitForExistence(timeout: 5))
-        serviceName.tap()
-        serviceName.typeText("Upcoming Example")
-        app.textFields["subscription.form.plan"].tap()
-        app.textFields["subscription.form.plan"].typeText("Monthly")
-        app.textFields["subscription.form.category"].tap()
-        app.textFields["subscription.form.category"].typeText("Other")
-        app.textFields["subscription.form.amount"].tap()
-        app.textFields["subscription.form.amount"].typeText("9.99")
-        app.buttons["subscription.form.save"].tap()
+        createSubscription(named: "Upcoming Example", in: app)
 
         topLevelTab("Upcoming", in: app).tap()
         let ninetyDays = app.buttons["Next 90 Days"]
@@ -170,6 +154,10 @@ final class SubscriptionManagerUITests: XCTestCase {
             app.buttons["subscription.form.offer-plan"]
                 .waitForExistence(timeout: 5)
         )
+        acceptEditorDate(
+            identifier: "subscription.editor.start-date",
+            in: app
+        )
         app.buttons["subscription.form.save"].tap()
 
         XCTAssertTrue(app.buttons["setup.actions"].waitForExistence(timeout: 5))
@@ -199,6 +187,10 @@ final class SubscriptionManagerUITests: XCTestCase {
         XCTAssertTrue(
             app.buttons["subscription.form.offer-plan"]
                 .waitForExistence(timeout: 5)
+        )
+        acceptEditorDate(
+            identifier: "subscription.editor.start-date",
+            in: app
         )
         app.buttons["subscription.form.save"].tap()
         XCTAssertTrue(app.buttons["setup.actions"].waitForExistence(timeout: 5))
@@ -336,31 +328,17 @@ final class SubscriptionManagerUITests: XCTestCase {
             storeToken: storeToken
         )
 
-        XCTAssertTrue(
-            app.buttons["subscription.add"].waitForExistence(timeout: 5)
+        openManualAdd(in: app)
+        fillRequiredEditorFacts(
+            serviceName: "Example Video",
+            amount: "12.34",
+            in: app
         )
-        app.buttons["subscription.add"].tap()
-        XCTAssertTrue(
-            app.buttons["catalog.add-manually"].waitForExistence(timeout: 5)
+        fillOptionalEditorDetails(
+            plan: "Standard",
+            category: "Entertainment",
+            in: app
         )
-        app.buttons["catalog.add-manually"].tap()
-
-        let serviceName = app.textFields["subscription.form.service-name"]
-        XCTAssertTrue(serviceName.waitForExistence(timeout: 5))
-        serviceName.tap()
-        serviceName.typeText("Example Video")
-
-        let plan = app.textFields["subscription.form.plan"]
-        plan.tap()
-        plan.typeText("Standard")
-
-        let category = app.textFields["subscription.form.category"]
-        category.tap()
-        category.typeText("Entertainment")
-
-        let amount = app.textFields["subscription.form.amount"]
-        amount.tap()
-        amount.typeText("12.34")
 
         app.buttons["subscription.form.save"].tap()
 
@@ -401,6 +379,409 @@ final class SubscriptionManagerUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["Next Expected Charge"].exists)
     }
 
+    func testManualAddAllowsEmptyPlanAndCategory() {
+        let serviceName = "Minimum Facts \(UUID().uuidString.prefix(8))"
+        let app = launch(
+            language: "en",
+            locale: "en_US",
+            storeToken: "minimum-facts-\(UUID().uuidString)"
+        )
+
+        openManualAdd(in: app)
+        fillRequiredEditorFacts(
+            serviceName: serviceName,
+            amount: "7.50",
+            in: app
+        )
+        app.buttons["subscription.form.save"].tap()
+
+        XCTAssertTrue(
+            app.staticTexts[serviceName].waitForExistence(timeout: 5),
+            "Plan, category, management URL, and notes must remain optional."
+        )
+    }
+
+    func testManualAddRequiresFiveMinimumFacts() {
+        let app = launch(
+            language: "en",
+            locale: "en_US",
+            storeToken: "required-facts-\(UUID().uuidString)"
+        )
+
+        openManualAdd(in: app)
+        app.buttons["subscription.form.save"].tap()
+
+        for identifier in [
+            "subscription.validation.service-name",
+            "subscription.validation.amount",
+            "subscription.validation.currency",
+            "subscription.validation.billing-interval",
+            "subscription.validation.billing-date",
+        ] {
+            XCTAssertTrue(
+                scrollToExistence(
+                    app.descendants(matching: .any)[identifier],
+                    in: app,
+                    maximumSwipes: 8
+                ),
+                "Missing required fact must expose \(identifier)."
+            )
+        }
+        XCTAssertTrue(
+            app.descendants(matching: .any)["subscription.form"].exists
+        )
+    }
+
+    func testEditPriceWritesHistoryAutomatically() {
+        let app = launch(
+            language: "en",
+            locale: "en_US",
+            storeToken: "atomic-edit-price-\(UUID().uuidString)"
+        )
+        createSubscription(named: "Atomic Price", in: app)
+        openFirstSubscriptionEditor(in: app)
+
+        let amount = app.textFields["subscription.editor.amount"]
+        XCTAssertTrue(amount.waitForExistence(timeout: 5))
+        amount.tap(withNumberOfTaps: 3, numberOfTouches: 1)
+        amount.typeText("14.99")
+        app.buttons["subscription.form.save"].tap()
+
+        XCTAssertTrue(
+            scrollToExistence(
+                app.descendants(matching: .any)[
+                    "subscription.history.price-change"
+                ],
+                in: app,
+                maximumSwipes: 8
+            ),
+            "Ordinary Save must record the effective price change atomically."
+        )
+    }
+
+    func testDateTaskHasExplicitDoneAndCancel() {
+        let app = launch(
+            language: "en",
+            locale: "en_US",
+            storeToken: "date-task-\(UUID().uuidString)"
+        )
+        createSubscription(named: "Date Task", in: app)
+        openFirstSubscriptionEditor(in: app)
+
+        let startDate = app.buttons["subscription.editor.start-date"]
+        let nextRenewal = app.buttons["subscription.editor.next-renewal"]
+        XCTAssertTrue(scrollToHittable(startDate, in: app, maximumSwipes: 6))
+        let originalStart = accessibilityValue(of: startDate)
+        let originalRenewal = accessibilityValue(of: nextRenewal)
+
+        startDate.tap()
+        let picker = app.datePickers["subscription.date-task.picker"]
+        XCTAssertTrue(picker.waitForExistence(timeout: 5))
+        _ = selectDateTaskInNextMonth(in: picker, app: app, day: 10)
+        XCTAssertTrue(app.buttons["subscription.date-task.done"].exists)
+        XCTAssertTrue(app.buttons["subscription.date-task.cancel"].exists)
+        app.buttons["subscription.date-task.cancel"].tap()
+
+        XCTAssertEqual(accessibilityValue(of: startDate), originalStart)
+        XCTAssertEqual(accessibilityValue(of: nextRenewal), originalRenewal)
+
+        startDate.tap()
+        let committedPicker = app.datePickers["subscription.date-task.picker"]
+        XCTAssertTrue(committedPicker.waitForExistence(timeout: 5))
+        _ = selectDateTaskInNextMonth(
+            in: committedPicker,
+            app: app,
+            day: 11
+        )
+        XCTAssertTrue(
+            app.descendants(matching: .any)[
+                "subscription.date-task.source-value"
+            ].exists
+        )
+        XCTAssertTrue(
+            app.descendants(matching: .any)[
+                "subscription.date-task.counterpart-value"
+            ].exists
+        )
+        app.buttons["subscription.date-task.done"].tap()
+
+        let completedStart = accessibilityValue(of: startDate)
+        let completedRenewal = accessibilityValue(of: nextRenewal)
+        XCTAssertNotEqual(completedStart, originalStart)
+        XCTAssertNotEqual(completedRenewal, originalRenewal)
+
+        // A later edit that is cancelled must not roll back the previously
+        // completed Start Date task.
+        startDate.tap()
+        let reopenedStartPicker = app.datePickers[
+            "subscription.date-task.picker"
+        ]
+        XCTAssertTrue(reopenedStartPicker.waitForExistence(timeout: 5))
+        _ = selectDateTaskInNextMonth(
+            in: reopenedStartPicker,
+            app: app,
+            day: 12
+        )
+        app.buttons["subscription.date-task.cancel"].tap()
+        XCTAssertEqual(accessibilityValue(of: startDate), completedStart)
+        XCTAssertEqual(accessibilityValue(of: nextRenewal), completedRenewal)
+
+        // Repeat the same transaction contract for Next Renewal: Cancel is a
+        // real no-op, while Done publishes the paired date to the editor.
+        nextRenewal.tap()
+        let renewalPicker = app.datePickers["subscription.date-task.picker"]
+        XCTAssertTrue(renewalPicker.waitForExistence(timeout: 5))
+        _ = selectDateTaskInNextMonth(
+            in: renewalPicker,
+            app: app,
+            day: 13
+        )
+        app.buttons["subscription.date-task.cancel"].tap()
+        XCTAssertEqual(accessibilityValue(of: nextRenewal), completedRenewal)
+
+        nextRenewal.tap()
+        let committedRenewalPicker = app.datePickers[
+            "subscription.date-task.picker"
+        ]
+        XCTAssertTrue(committedRenewalPicker.waitForExistence(timeout: 5))
+        _ = selectDateTaskInNextMonth(
+            in: committedRenewalPicker,
+            app: app,
+            day: 14
+        )
+        app.buttons["subscription.date-task.done"].tap()
+
+        let completedNextStart = accessibilityValue(of: startDate)
+        let completedNextRenewal = accessibilityValue(of: nextRenewal)
+        XCTAssertNotEqual(completedNextRenewal, completedRenewal)
+
+        nextRenewal.tap()
+        let reopenedRenewalPicker = app.datePickers[
+            "subscription.date-task.picker"
+        ]
+        XCTAssertTrue(reopenedRenewalPicker.waitForExistence(timeout: 5))
+        _ = selectDateTaskInNextMonth(
+            in: reopenedRenewalPicker,
+            app: app,
+            day: 15
+        )
+        app.buttons["subscription.date-task.cancel"].tap()
+        XCTAssertEqual(accessibilityValue(of: startDate), completedNextStart)
+        XCTAssertEqual(
+            accessibilityValue(of: nextRenewal),
+            completedNextRenewal
+        )
+        XCTAssertTrue(
+            app.descendants(matching: .any)["subscription.form"].exists,
+            "Done commits only to the editor draft; it must not save or dismiss."
+        )
+    }
+
+    func testTrialDateTaskDoneAndCancelPreserveIndependentDates() {
+        let app = launch(
+            language: "en",
+            locale: "en_US",
+            storeToken: "trial-date-task-\(UUID().uuidString)"
+        )
+        createSubscription(
+            named: "Trial Date Task",
+            statusButton: "Trial",
+            in: app
+        )
+        openFirstSubscriptionEditor(in: app)
+
+        let trialStart = app.buttons["subscription.editor.start-date"]
+        let firstPaidCharge = app.buttons["subscription.editor.next-renewal"]
+        XCTAssertTrue(scrollToHittable(trialStart, in: app, maximumSwipes: 6))
+        let originalStart = accessibilityValue(of: trialStart)
+        let originalCharge = accessibilityValue(of: firstPaidCharge)
+
+        trialStart.tap()
+        let startPicker = app.datePickers["subscription.date-task.picker"]
+        XCTAssertTrue(startPicker.waitForExistence(timeout: 5))
+        _ = selectDateTaskInNextMonth(in: startPicker, app: app, day: 15)
+        XCTAssertTrue(app.buttons["subscription.date-task.cancel"].exists)
+        app.buttons["subscription.date-task.cancel"].tap()
+        XCTAssertEqual(accessibilityValue(of: trialStart), originalStart)
+        XCTAssertEqual(accessibilityValue(of: firstPaidCharge), originalCharge)
+
+        trialStart.tap()
+        let committedStartPicker = app.datePickers[
+            "subscription.date-task.picker"
+        ]
+        XCTAssertTrue(committedStartPicker.waitForExistence(timeout: 5))
+        _ = selectDateTaskInNextMonth(
+            in: committedStartPicker,
+            app: app,
+            day: 17
+        )
+        app.buttons["subscription.date-task.done"].tap()
+        let committedStart = accessibilityValue(of: trialStart)
+        XCTAssertNotEqual(committedStart, originalStart)
+        XCTAssertEqual(accessibilityValue(of: firstPaidCharge), originalCharge)
+
+        trialStart.tap()
+        let reopenedStartPicker = app.datePickers[
+            "subscription.date-task.picker"
+        ]
+        XCTAssertTrue(reopenedStartPicker.waitForExistence(timeout: 5))
+        _ = selectDateTaskInNextMonth(
+            in: reopenedStartPicker,
+            app: app,
+            day: 18
+        )
+        app.buttons["subscription.date-task.cancel"].tap()
+        XCTAssertEqual(accessibilityValue(of: trialStart), committedStart)
+        XCTAssertEqual(accessibilityValue(of: firstPaidCharge), originalCharge)
+
+        XCTAssertTrue(
+            scrollToHittable(firstPaidCharge, in: app, maximumSwipes: 6)
+        )
+        firstPaidCharge.tap()
+        let chargePicker = app.datePickers["subscription.date-task.picker"]
+        XCTAssertTrue(chargePicker.waitForExistence(timeout: 5))
+        _ = selectDateTaskInNextMonth(in: chargePicker, app: app, day: 16)
+        XCTAssertTrue(app.buttons["subscription.date-task.cancel"].exists)
+        app.buttons["subscription.date-task.cancel"].tap()
+        XCTAssertEqual(accessibilityValue(of: trialStart), committedStart)
+        XCTAssertEqual(accessibilityValue(of: firstPaidCharge), originalCharge)
+
+        firstPaidCharge.tap()
+        let committedChargePicker = app.datePickers[
+            "subscription.date-task.picker"
+        ]
+        XCTAssertTrue(committedChargePicker.waitForExistence(timeout: 5))
+        _ = selectDateTaskInNextMonth(
+            in: committedChargePicker,
+            app: app,
+            day: 19
+        )
+        app.buttons["subscription.date-task.done"].tap()
+        let committedCharge = accessibilityValue(of: firstPaidCharge)
+        XCTAssertEqual(accessibilityValue(of: trialStart), committedStart)
+        XCTAssertNotEqual(committedCharge, originalCharge)
+
+        firstPaidCharge.tap()
+        let reopenedChargePicker = app.datePickers[
+            "subscription.date-task.picker"
+        ]
+        XCTAssertTrue(reopenedChargePicker.waitForExistence(timeout: 5))
+        _ = selectDateTaskInNextMonth(
+            in: reopenedChargePicker,
+            app: app,
+            day: 20
+        )
+        app.buttons["subscription.date-task.cancel"].tap()
+        XCTAssertEqual(accessibilityValue(of: trialStart), committedStart)
+        XCTAssertEqual(accessibilityValue(of: firstPaidCharge), committedCharge)
+    }
+
+    func testVerifiedOfferKeepsEvidencedDefaultsUntilExplicitOverride() {
+        let app = launch(
+            language: "en",
+            locale: "en_US",
+            storeToken: "verified-defaults-\(UUID().uuidString)"
+        )
+        app.buttons["subscription.add"].tap()
+        let chatGPT = app.buttons["catalog.preset.chatgpt"]
+        XCTAssertTrue(scrollToExistence(chatGPT, in: app))
+        chatGPT.tap()
+
+        let plan = app.buttons["subscription.form.offer-plan"]
+        XCTAssertTrue(plan.waitForExistence(timeout: 5))
+        plan.tap()
+        app.buttons["Pro (5x)"].tap()
+
+        let amount = app.textFields["subscription.editor.amount"]
+        let currency = app.buttons["subscription.editor.currency"]
+        let interval = app.buttons["subscription.editor.billing-interval"]
+        XCTAssertTrue(scrollToHittable(amount, in: app, maximumSwipes: 8))
+        XCTAssertTrue((amount.value as? String)?.contains("100") == true)
+        XCTAssertTrue(currency.label.contains("USD"))
+
+        XCTAssertTrue(scrollToHittable(interval, in: app, maximumSwipes: 8))
+        XCTAssertTrue(interval.label.contains("Monthly"))
+        interval.tap()
+        app.buttons["Yearly"].tap()
+
+        acceptEditorDate(
+            identifier: "subscription.editor.start-date",
+            in: app
+        )
+        XCTAssertTrue(scrollBackToHittable(amount, in: app, maximumSwipes: 8))
+        amount.tap(withNumberOfTaps: 3, numberOfTouches: 1)
+        amount.typeText("101")
+        app.buttons["subscription.form.save"].tap()
+
+        app.terminate()
+        app.launch()
+        let row = app.buttons["subscription.row"].firstMatch
+        XCTAssertTrue(row.waitForExistence(timeout: 5))
+        row.tap()
+        openCurrentDetailEditor(in: app)
+
+        let reloadedAmount = app.textFields["subscription.editor.amount"]
+        XCTAssertTrue(scrollToHittable(reloadedAmount, in: app, maximumSwipes: 8))
+        XCTAssertTrue((reloadedAmount.value as? String)?.contains("101") == true)
+        let reloadedInterval = app.buttons["subscription.editor.billing-interval"]
+        XCTAssertTrue(scrollToHittable(reloadedInterval, in: app, maximumSwipes: 8))
+        XCTAssertTrue(reloadedInterval.label.contains("Yearly"))
+        XCTAssertTrue(
+            app.descendants(matching: .any)[
+                "subscription.editor.user-adjusted-price"
+            ].waitForExistence(timeout: 5)
+        )
+        XCTAssertTrue(
+            app.descendants(matching: .any)[
+                "subscription.editor.user-adjusted-schedule"
+            ].waitForExistence(timeout: 5)
+        )
+    }
+
+    func testCatalogRenameClearsStaleIdentityWhilePriceOverrideRetainsIt() {
+        let app = launch(
+            language: "en",
+            locale: "en_US",
+            storeToken: "catalog-edit-identity-\(UUID().uuidString)"
+        )
+        app.buttons["subscription.add"].tap()
+        let chatGPT = app.buttons["catalog.preset.chatgpt"]
+        XCTAssertTrue(scrollToExistence(chatGPT, in: app))
+        chatGPT.tap()
+        acceptEditorDate(
+            identifier: "subscription.editor.start-date",
+            in: app
+        )
+        app.buttons["subscription.form.save"].tap()
+
+        openFirstSubscriptionEditor(in: app)
+        let amount = app.textFields["subscription.editor.amount"]
+        XCTAssertTrue(amount.waitForExistence(timeout: 5))
+        amount.tap(withNumberOfTaps: 3, numberOfTouches: 1)
+        amount.typeText("9")
+        app.buttons["subscription.form.save"].tap()
+
+        openCurrentDetailEditor(in: app)
+        let retainedName = app.textFields["subscription.editor.service-name"]
+        XCTAssertEqual(retainedName.value as? String, "ChatGPT")
+        XCTAssertTrue(
+            (app.textFields["subscription.editor.amount"].value as? String)?
+                .contains("9") == true
+        )
+
+        retainedName.tap(withNumberOfTaps: 3, numberOfTouches: 1)
+        retainedName.typeText("Personal AI")
+        app.buttons["subscription.form.save"].tap()
+        openCurrentDetailEditor(in: app)
+        XCTAssertEqual(
+            app.textFields["subscription.editor.service-name"].value as? String,
+            "Personal AI"
+        )
+        // Exact identity transitions are asserted through the public Workspace
+        // seam in SubscriptionWorkspaceTests; this scenario proves the UI
+        // sends price-only and rename edits through the same atomic Save path.
+    }
+
     func testCreatesSubscriptionFromOfficialCatalogOffer() {
         let app = launch(
             language: "en",
@@ -433,6 +814,10 @@ final class SubscriptionManagerUITests: XCTestCase {
         XCTAssertTrue(planPicker.waitForExistence(timeout: 5))
         planPicker.tap()
         app.buttons["Pro (5x)"].tap()
+        acceptEditorDate(
+            identifier: "subscription.editor.start-date",
+            in: app
+        )
         app.buttons["subscription.form.save"].tap()
 
         let row = app.buttons["subscription.row"].firstMatch
@@ -480,22 +865,29 @@ final class SubscriptionManagerUITests: XCTestCase {
             app.staticTexts["subscription.form.offer-provenance"]
                 .label.contains("US")
         )
-        XCTAssertFalse(app.textFields["subscription.form.service-name"].exists)
-        XCTAssertFalse(app.textFields["subscription.form.plan"].exists)
-        XCTAssertFalse(app.textFields["subscription.form.amount"].exists)
 
-        let adjustCharge = app.buttons["subscription.form.adjust-charge"]
-        XCTAssertTrue(adjustCharge.exists)
-        adjustCharge.tap()
-        let amount = app.textFields["subscription.form.amount"]
+        // Verified metadata is controlled by the selected official offer. The
+        // user may choose another offer in the dedicated picker, but should
+        // not see a second free-text Service/Plan source that Save would later
+        // overwrite from the catalog.
+        XCTAssertFalse(app.textFields["subscription.editor.service-name"].exists)
+        XCTAssertFalse(app.textFields["subscription.editor.plan"].exists)
         XCTAssertTrue(
-            scrollToExistence(amount, in: app, maximumSwipes: 4)
+            app.buttons["subscription.form.offer-plan"].label
+                .contains("Pro (5x)")
         )
-        XCTAssertTrue(
-            app.buttons["subscription.form.billing-interval"].exists
-        )
-        XCTAssertFalse(app.textFields["subscription.form.service-name"].exists)
-        XCTAssertFalse(app.textFields["subscription.form.plan"].exists)
+
+        let amount = app.textFields["subscription.editor.amount"]
+        XCTAssertTrue(scrollToExistence(amount, in: app, maximumSwipes: 8))
+        XCTAssertTrue((amount.value as? String)?.contains("100") == true)
+
+        let currency = app.buttons["subscription.editor.currency"]
+        XCTAssertTrue(scrollToExistence(currency, in: app, maximumSwipes: 8))
+        XCTAssertTrue(currency.label.contains("USD"))
+
+        let interval = app.buttons["subscription.editor.billing-interval"]
+        XCTAssertTrue(scrollToExistence(interval, in: app, maximumSwipes: 8))
+        XCTAssertTrue(interval.label.contains("Monthly"))
 
         let source = app.links["subscription.form.offer-source"]
         XCTAssertTrue(
@@ -503,34 +895,27 @@ final class SubscriptionManagerUITests: XCTestCase {
         )
     }
 
-    func testActualChargeDisclosureSummarizesAndRevealsValidation() {
+    func testOfficialOfferAmountValidationIsInline() {
         let app = launch(
             language: "en",
             locale: "en_US",
-            storeToken: "catalog-disclosure-\(UUID().uuidString)"
+            storeToken: "catalog-inline-amount-\(UUID().uuidString)"
         )
         app.buttons["subscription.add"].tap()
         let chatGPT = app.buttons["catalog.preset.chatgpt"]
         XCTAssertTrue(scrollToExistence(chatGPT, in: app))
         chatGPT.tap()
 
-        let disclosure = app.buttons["subscription.form.adjust-charge"]
-        XCTAssertTrue(disclosure.waitForExistence(timeout: 5))
-        XCTAssertTrue(
-            (disclosure.value as? String)?.contains("$8") == true
-        )
-        XCTAssertTrue(
-            (disclosure.value as? String)?.contains("USD") == true
-        )
-        disclosure.tap()
-
-        let amount = app.textFields["subscription.form.amount"]
-        XCTAssertTrue(scrollToExistence(amount, in: app, maximumSwipes: 4))
+        let amount = app.textFields["subscription.editor.amount"]
+        XCTAssertTrue(scrollToHittable(amount, in: app, maximumSwipes: 8))
         amount.tap(withNumberOfTaps: 3, numberOfTouches: 1)
         amount.typeText("0")
         XCTAssertEqual(amount.value as? String, "0")
-        disclosure.tap()
-        XCTAssertFalse(amount.exists)
+
+        acceptEditorDate(
+            identifier: "subscription.editor.start-date",
+            in: app
+        )
 
         app.buttons["subscription.form.save"].tap()
 
@@ -540,50 +925,36 @@ final class SubscriptionManagerUITests: XCTestCase {
         )
     }
 
-    func testOfficialOfferBillingErrorReopensAdjustmentDisclosure() {
+    func testOfficialOfferBillingErrorStaysInline() {
         let app = launch(
             language: "en",
             locale: "en_US",
-            storeToken: "catalog-interval-\(UUID().uuidString)"
+            storeToken: "catalog-inline-interval-\(UUID().uuidString)"
         )
         app.buttons["subscription.add"].tap()
         let chatGPT = app.buttons["catalog.preset.chatgpt"]
         XCTAssertTrue(scrollToExistence(chatGPT, in: app))
         chatGPT.tap()
 
-        let disclosure = app.buttons["subscription.form.adjust-charge"]
-        XCTAssertTrue(disclosure.waitForExistence(timeout: 5))
-        XCTAssertFalse(
-            app.datePickers["subscription.form.renewal-anchor"].exists
+        acceptEditorDate(
+            identifier: "subscription.editor.start-date",
+            in: app
         )
-        disclosure.tap()
 
-        let billingInterval = app.buttons[
-            "subscription.form.billing-interval"
-        ]
+        let billingInterval = app.buttons["subscription.editor.billing-interval"]
         XCTAssertTrue(
-            scrollToExistence(billingInterval, in: app, maximumSwipes: 4)
+            scrollToHittable(billingInterval, in: app, maximumSwipes: 8)
         )
         billingInterval.tap()
         app.buttons["Custom"].tap()
 
-        let customValue = app.textFields[
-            "subscription.form.custom-interval-value"
-        ]
+        let customValue = app.textFields["subscription.editor.custom-interval-value"]
         XCTAssertTrue(customValue.waitForExistence(timeout: 5))
         customValue.tap()
         customValue.typeText("0")
-        let customUnit = app.buttons[
-            "subscription.form.custom-interval-unit"
-        ]
+        let customUnit = app.buttons["subscription.editor.custom-interval-unit"]
         customUnit.tap()
         app.buttons["Weeks"].tap()
-        for _ in 0 ..< 4 where !disclosure.exists {
-            app.swipeDown()
-        }
-        XCTAssertTrue(disclosure.exists)
-        disclosure.tap()
-        XCTAssertFalse(customValue.exists)
 
         app.buttons["subscription.form.save"].tap()
 
@@ -592,11 +963,11 @@ final class SubscriptionManagerUITests: XCTestCase {
         )
         XCTAssertEqual(customValue.value as? String, "0")
         XCTAssertTrue(
-            app.buttons["subscription.form.custom-interval-unit"]
+            app.buttons["subscription.editor.custom-interval-unit"]
                 .label.contains("Weeks")
         )
         XCTAssertTrue(
-            app.staticTexts["subscription.validation.billing-schedule"]
+            app.staticTexts["subscription.validation.billing-interval"]
                 .exists
         )
     }
@@ -615,14 +986,14 @@ final class SubscriptionManagerUITests: XCTestCase {
         XCTAssertTrue(scrollToExistence(chatGPT, in: app))
         chatGPT.tap()
 
-        let disclosure = app.buttons["subscription.form.adjust-charge"]
-        XCTAssertTrue(disclosure.waitForExistence(timeout: 5))
-        disclosure.tap()
-        let billingInterval = app.buttons[
-            "subscription.form.billing-interval"
-        ]
+        acceptEditorDate(
+            identifier: "subscription.editor.start-date",
+            in: app
+        )
+
+        let billingInterval = app.buttons["subscription.editor.billing-interval"]
         XCTAssertTrue(
-            scrollToExistence(billingInterval, in: app, maximumSwipes: 4)
+            scrollToHittable(billingInterval, in: app, maximumSwipes: 8)
         )
         billingInterval.tap()
         app.buttons["Yearly"].tap()
@@ -686,27 +1057,31 @@ final class SubscriptionManagerUITests: XCTestCase {
             locale: "en_US",
             storeToken: "add-linked-dates-\(UUID().uuidString)"
         )
-        app.buttons["subscription.add"].tap()
-        app.buttons["catalog.add-manually"].tap()
-
-        let nextRenewal = app.datePickers[
-            "subscription.form.next-renewal"
-        ]
-        XCTAssertTrue(
-            scrollToExistence(nextRenewal, in: app, maximumSwipes: 6)
+        openManualAdd(in: app)
+        fillRequiredEditorFacts(
+            serviceName: "Linked Dates",
+            amount: "9.99",
+            in: app
         )
-        let selectedNextRenewal = selectCompactDateInNextMonth(
-            in: nextRenewal,
+
+        let nextRenewal = app.buttons["subscription.editor.next-renewal"]
+        XCTAssertTrue(scrollToHittable(nextRenewal, in: app, maximumSwipes: 6))
+        let initialStartDate = accessibilityValue(
+            of: app.buttons["subscription.editor.start-date"]
+        )
+        nextRenewal.tap()
+        let nextPicker = app.datePickers["subscription.date-task.picker"]
+        XCTAssertTrue(nextPicker.waitForExistence(timeout: 5))
+        let selectedNextRenewal = selectDateTaskInNextMonth(
+            in: nextPicker,
             app: app,
             day: 10
         )
+        app.buttons["subscription.date-task.done"].tap()
 
-        let startDate = app.datePickers["subscription.form.start-date"]
-        for _ in 0 ..< 6 where !startDate.isHittable {
-            app.swipeDown()
-        }
-        XCTAssertTrue(startDate.waitForExistence(timeout: 5))
-        let selectedStartDate = selectedDate(in: startDate)
+        let startDate = app.buttons["subscription.editor.start-date"]
+        XCTAssertTrue(scrollToHittable(startDate, in: app, maximumSwipes: 6))
+        let selectedStartDate = accessibilityValue(of: startDate)
         let locale = Locale(identifier: "en_US")
         var calendar = Calendar(identifier: .gregorian)
         calendar.locale = locale
@@ -731,12 +1106,17 @@ final class SubscriptionManagerUITests: XCTestCase {
                 calendar: calendar
             )
         )
+        XCTAssertNotEqual(selectedStartDate, initialStartDate)
 
-        let editedStartDate = selectCompactDateInNextMonth(
-            in: startDate,
+        startDate.tap()
+        let startPicker = app.datePickers["subscription.date-task.picker"]
+        XCTAssertTrue(startPicker.waitForExistence(timeout: 5))
+        let editedStartDate = selectDateTaskInNextMonth(
+            in: startPicker,
             app: app,
             day: 12
         )
+        app.buttons["subscription.date-task.done"].tap()
         let editedStart = date(
             fromLocalizedValue: editedStartDate,
             locale: locale,
@@ -749,19 +1129,14 @@ final class SubscriptionManagerUITests: XCTestCase {
                 to: editedStart
             )
         )
-        for _ in 0 ..< 6 where !nextRenewal.isHittable {
-            app.swipeUp()
-        }
+        XCTAssertTrue(scrollToHittable(nextRenewal, in: app, maximumSwipes: 6))
         XCTAssertEqual(
-            selectedDate(in: nextRenewal),
+            accessibilityValue(of: nextRenewal),
             localizedDateValue(
                 expectedNextRenewal,
                 locale: locale,
                 calendar: calendar
             )
-        )
-        XCTAssertFalse(
-            app.datePickers["subscription.form.renewal-anchor"].exists
         )
     }
 
@@ -771,46 +1146,43 @@ final class SubscriptionManagerUITests: XCTestCase {
             locale: "en_US",
             storeToken: "trial-independent-dates-\(UUID().uuidString)"
         )
-        app.buttons["subscription.add"].tap()
-        app.buttons["catalog.add-manually"].tap()
-
-        let initialStatus = app.segmentedControls[
-            "subscription.form.initial-status"
-        ]
+        openManualAdd(in: app)
+        let initialStatus = app.segmentedControls["subscription.form.initial-status"]
         XCTAssertTrue(initialStatus.waitForExistence(timeout: 5))
         initialStatus.buttons["Trial"].tap()
-
-        let firstPaidCharge = app.datePickers[
-            "subscription.form.next-renewal"
-        ]
-        XCTAssertTrue(
-            scrollToExistence(firstPaidCharge, in: app, maximumSwipes: 6)
+        fillRequiredEditorFacts(
+            serviceName: "Trial Dates",
+            amount: "9.99",
+            in: app
         )
+        let firstPaidCharge = app.buttons["subscription.editor.next-renewal"]
+        XCTAssertTrue(scrollToHittable(firstPaidCharge, in: app, maximumSwipes: 6))
         XCTAssertTrue(app.staticTexts["First Paid Charge"].exists)
+        acceptEditorDate(
+            identifier: "subscription.editor.next-renewal",
+            in: app
+        )
 
-        let trialStart = app.datePickers[
-            "subscription.form.start-date"
-        ]
-        for _ in 0 ..< 6 where !trialStart.isHittable {
-            app.swipeDown()
-        }
-        XCTAssertTrue(trialStart.waitForExistence(timeout: 5))
+        let trialStart = app.buttons["subscription.editor.start-date"]
+        XCTAssertTrue(scrollToHittable(trialStart, in: app, maximumSwipes: 6))
         XCTAssertTrue(app.staticTexts["Trial Start"].exists)
-        let originalTrialStart = selectedDate(in: trialStart)
+        let originalTrialStart = accessibilityValue(of: trialStart)
 
-        for _ in 0 ..< 6 where !firstPaidCharge.isHittable {
-            app.swipeUp()
-        }
-        _ = selectCompactDateInNextMonth(
-            in: firstPaidCharge,
+        XCTAssertTrue(
+            scrollToHittable(firstPaidCharge, in: app, maximumSwipes: 6)
+        )
+        firstPaidCharge.tap()
+        let chargePicker = app.datePickers["subscription.date-task.picker"]
+        XCTAssertTrue(chargePicker.waitForExistence(timeout: 5))
+        _ = selectDateTaskInNextMonth(
+            in: chargePicker,
             app: app,
             day: 10
         )
+        app.buttons["subscription.date-task.done"].tap()
 
-        for _ in 0 ..< 6 where !trialStart.isHittable {
-            app.swipeDown()
-        }
-        XCTAssertEqual(selectedDate(in: trialStart), originalTrialStart)
+        XCTAssertTrue(scrollToHittable(trialStart, in: app, maximumSwipes: 6))
+        XCTAssertEqual(accessibilityValue(of: trialStart), originalTrialStart)
     }
 
     func testCatalogFiltersResetAfterCancelAndSaveReopen() {
@@ -850,6 +1222,10 @@ final class SubscriptionManagerUITests: XCTestCase {
         reopenedSearch.tap()
         reopenedSearch.typeText("ChatGPT")
         app.buttons["catalog.preset.chatgpt"].tap()
+        acceptEditorDate(
+            identifier: "subscription.editor.start-date",
+            in: app
+        )
         app.buttons["subscription.form.save"].tap()
         XCTAssertTrue(
             app.buttons["subscription.row"].firstMatch
@@ -1630,20 +2006,13 @@ final class SubscriptionManagerUITests: XCTestCase {
         )
         app.buttons["catalog.add-manually"].tap()
 
-        let serviceName = app.textFields["subscription.form.service-name"]
+        let serviceName = app.textFields["subscription.editor.service-name"]
         XCTAssertTrue(serviceName.waitForExistence(timeout: 5))
         serviceName.tap()
         serviceName.typeText("Example Music")
 
-        let plan = app.textFields["subscription.form.plan"]
-        plan.tap()
-        plan.typeText("Individual")
-
-        let category = app.textFields["subscription.form.category"]
-        category.tap()
-        category.typeText("Music")
-
-        let amount = app.textFields["subscription.form.amount"]
+        let amount = app.textFields["subscription.editor.amount"]
+        XCTAssertTrue(scrollToHittable(amount, in: app, maximumSwipes: 6))
         amount.tap()
         amount.typeText("twelve")
 
@@ -1668,36 +2037,22 @@ final class SubscriptionManagerUITests: XCTestCase {
             storeToken: storeToken
         )
         createSubscription(named: "Example News", in: app)
-        app.buttons["subscription.row"].firstMatch.tap()
+        openFirstSubscriptionEditor(in: app)
 
-        app.buttons["subscription.lifecycle.actions"].tap()
-        let editButton = app.buttons["subscription.edit"]
-        XCTAssertTrue(editButton.waitForExistence(timeout: 5))
-        editButton.tap()
-
-        let billingInterval = app.buttons[
-            "subscription.form.billing-interval"
-        ]
+        let billingInterval = app.buttons["subscription.editor.billing-interval"]
         XCTAssertTrue(billingInterval.waitForExistence(timeout: 5))
         billingInterval.tap()
         app.buttons["Yearly"].tap()
-        XCTAssertFalse(
-            app.datePickers["subscription.form.renewal-anchor"].exists
-        )
-        let startDatePicker = app.datePickers[
-            "subscription.form.start-date"
-        ]
-        let nextRenewalPicker = app.datePickers[
-            "subscription.form.next-renewal"
-        ]
+        let startDateButton = app.buttons["subscription.editor.start-date"]
+        let nextRenewalButton = app.buttons["subscription.editor.next-renewal"]
         XCTAssertTrue(
-            scrollToExistence(startDatePicker, in: app, maximumSwipes: 4)
+            scrollToExistence(startDateButton, in: app, maximumSwipes: 6)
         )
-        let startValue = selectedDate(in: startDatePicker)
+        let startValue = accessibilityValue(of: startDateButton)
         XCTAssertTrue(
-            scrollToExistence(nextRenewalPicker, in: app, maximumSwipes: 4)
+            scrollToExistence(nextRenewalButton, in: app, maximumSwipes: 6)
         )
-        let nextRenewalValue = selectedDate(in: nextRenewalPicker)
+        let nextRenewalValue = accessibilityValue(of: nextRenewalButton)
         let locale = Locale(identifier: "en_US")
         var calendar = Calendar(identifier: .gregorian)
         calendar.locale = locale
@@ -1744,28 +2099,23 @@ final class SubscriptionManagerUITests: XCTestCase {
             storeToken: "edit-linked-dates-\(UUID().uuidString)"
         )
         createSubscription(named: "Linked Dates", in: app)
-        app.buttons["subscription.row"].firstMatch.tap()
-        app.buttons["subscription.lifecycle.actions"].tap()
-        app.buttons["subscription.edit"].tap()
+        openFirstSubscriptionEditor(in: app)
 
-        let nextRenewal = app.datePickers[
-            "subscription.form.next-renewal"
-        ]
-        XCTAssertTrue(
-            scrollToExistence(nextRenewal, in: app, maximumSwipes: 6)
-        )
-        let selectedNextRenewal = selectCompactDateInNextMonth(
-            in: nextRenewal,
+        let nextRenewal = app.buttons["subscription.editor.next-renewal"]
+        XCTAssertTrue(scrollToHittable(nextRenewal, in: app, maximumSwipes: 6))
+        nextRenewal.tap()
+        let nextPicker = app.datePickers["subscription.date-task.picker"]
+        XCTAssertTrue(nextPicker.waitForExistence(timeout: 5))
+        let selectedNextRenewal = selectDateTaskInNextMonth(
+            in: nextPicker,
             app: app,
             day: 10
         )
+        app.buttons["subscription.date-task.done"].tap()
 
-        let startDate = app.datePickers["subscription.form.start-date"]
-        for _ in 0 ..< 6 where !startDate.isHittable {
-            app.swipeDown()
-        }
-        XCTAssertTrue(startDate.waitForExistence(timeout: 5))
-        let selectedStartDate = selectedDate(in: startDate)
+        let startDate = app.buttons["subscription.editor.start-date"]
+        XCTAssertTrue(scrollToHittable(startDate, in: app, maximumSwipes: 6))
+        let selectedStartDate = accessibilityValue(of: startDate)
         let locale = Locale(identifier: "en_US")
         var calendar = Calendar(identifier: .gregorian)
         calendar.locale = locale
@@ -1791,11 +2141,15 @@ final class SubscriptionManagerUITests: XCTestCase {
             )
         )
 
-        let editedStartDate = selectCompactDateInNextMonth(
-            in: startDate,
+        startDate.tap()
+        let startPicker = app.datePickers["subscription.date-task.picker"]
+        XCTAssertTrue(startPicker.waitForExistence(timeout: 5))
+        let editedStartDate = selectDateTaskInNextMonth(
+            in: startPicker,
             app: app,
             day: 12
         )
+        app.buttons["subscription.date-task.done"].tap()
         let editedStart = date(
             fromLocalizedValue: editedStartDate,
             locale: locale,
@@ -1808,19 +2162,14 @@ final class SubscriptionManagerUITests: XCTestCase {
                 to: editedStart
             )
         )
-        for _ in 0 ..< 6 where !nextRenewal.isHittable {
-            app.swipeUp()
-        }
+        XCTAssertTrue(scrollToHittable(nextRenewal, in: app, maximumSwipes: 6))
         XCTAssertEqual(
-            selectedDate(in: nextRenewal),
+            accessibilityValue(of: nextRenewal),
             localizedDateValue(
                 expectedNextRenewal,
                 locale: locale,
                 calendar: calendar
             )
-        )
-        XCTAssertFalse(
-            app.datePickers["subscription.form.renewal-anchor"].exists
         )
     }
 
@@ -1860,26 +2209,20 @@ final class SubscriptionManagerUITests: XCTestCase {
     func testInvalidCustomIntervalIsExplainedInline() {
         let app = launch(language: "en", locale: "en_US")
         createSubscription(named: "Example Fitness", in: app)
-        app.buttons["subscription.row"].firstMatch.tap()
-        app.buttons["subscription.lifecycle.actions"].tap()
-        app.buttons["subscription.edit"].tap()
+        openFirstSubscriptionEditor(in: app)
 
-        let billingInterval = app.buttons[
-            "subscription.form.billing-interval"
-        ]
+        let billingInterval = app.buttons["subscription.editor.billing-interval"]
         XCTAssertTrue(billingInterval.waitForExistence(timeout: 5))
         billingInterval.tap()
         app.buttons["Custom"].tap()
-        let customValue = app.textFields[
-            "subscription.form.custom-interval-value"
-        ]
+        let customValue = app.textFields["subscription.editor.custom-interval-value"]
         XCTAssertTrue(customValue.waitForExistence(timeout: 5))
         customValue.tap()
         customValue.typeText("0")
         app.buttons["subscription.form.save"].tap()
 
         XCTAssertTrue(
-            app.staticTexts["subscription.validation.billing-schedule"]
+            app.staticTexts["subscription.validation.billing-interval"]
                 .waitForExistence(timeout: 5)
         )
         XCTAssertTrue(
@@ -1901,7 +2244,7 @@ final class SubscriptionManagerUITests: XCTestCase {
 
         XCTAssertTrue(app.navigationBars["添加订阅"].waitForExistence(timeout: 5))
         XCTAssertTrue(app.staticTexts["服务"].exists)
-        XCTAssertTrue(app.staticTexts["订阅信息"].exists)
+        XCTAssertTrue(app.staticTexts["价格"].exists)
         XCTAssertTrue(app.staticTexts["账单计划"].exists)
         app.swipeUp()
         XCTAssertTrue(app.textFields["订阅管理网址"].exists)
@@ -1910,12 +2253,112 @@ final class SubscriptionManagerUITests: XCTestCase {
                 "打开服务商的账单、续订或取消订阅页面；本应用不会替你取消订阅。"
             ].exists
         )
-        let billingInterval = app.buttons[
-            "subscription.form.billing-interval"
-        ]
+        let billingInterval = app.buttons["subscription.editor.billing-interval"]
         XCTAssertTrue(billingInterval.exists)
-        XCTAssertTrue(billingInterval.label.contains("每月"))
+        XCTAssertTrue(billingInterval.label.contains("选择账单周期"))
+        let currency = app.buttons["subscription.editor.currency"]
+        XCTAssertTrue(currency.exists)
+        XCTAssertTrue(currency.label.contains("选择货币"))
         XCTAssertTrue(app.buttons["保存"].exists)
+    }
+
+    private func openManualAdd(in app: XCUIApplication) {
+        XCTAssertTrue(
+            app.buttons["subscription.add"].waitForExistence(timeout: 5)
+        )
+        app.buttons["subscription.add"].tap()
+        let addManually = app.buttons["catalog.add-manually"]
+        XCTAssertTrue(addManually.waitForExistence(timeout: 5))
+        addManually.tap()
+        XCTAssertTrue(
+            app.descendants(matching: .any)["subscription.form"]
+                .waitForExistence(timeout: 5)
+        )
+    }
+
+    private func fillRequiredEditorFacts(
+        serviceName: String,
+        amount amountValue: String,
+        in app: XCUIApplication
+    ) {
+        let serviceNameField = app.textFields[
+            "subscription.editor.service-name"
+        ]
+        XCTAssertTrue(serviceNameField.waitForExistence(timeout: 5))
+        serviceNameField.tap()
+        serviceNameField.typeText(serviceName)
+
+        let amount = app.textFields["subscription.editor.amount"]
+        XCTAssertTrue(scrollToExistence(amount, in: app, maximumSwipes: 3))
+        amount.tap()
+        amount.typeText(amountValue)
+
+        let currency = app.buttons["subscription.editor.currency"]
+        XCTAssertTrue(scrollToExistence(currency, in: app, maximumSwipes: 3))
+        currency.tap()
+        XCTAssertTrue(app.buttons["USD"].waitForExistence(timeout: 5))
+        app.buttons["USD"].tap()
+
+        let interval = app.buttons["subscription.editor.billing-interval"]
+        XCTAssertTrue(scrollToExistence(interval, in: app, maximumSwipes: 6))
+        interval.tap()
+        XCTAssertTrue(app.buttons["Monthly"].waitForExistence(timeout: 5))
+        app.buttons["Monthly"].tap()
+
+        acceptEditorDate(
+            identifier: "subscription.editor.start-date",
+            in: app
+        )
+    }
+
+    private func acceptEditorDate(
+        identifier: String,
+        in app: XCUIApplication
+    ) {
+        let date = app.buttons[identifier]
+        XCTAssertTrue(scrollToHittable(date, in: app, maximumSwipes: 6))
+        date.tap()
+        let picker = app.datePickers["subscription.date-task.picker"]
+        XCTAssertTrue(picker.waitForExistence(timeout: 5))
+        let done = app.buttons["subscription.date-task.done"]
+        XCTAssertTrue(done.waitForExistence(timeout: 5))
+        done.tap()
+    }
+
+    private func fillOptionalEditorDetails(
+        plan planValue: String,
+        category categoryValue: String,
+        in app: XCUIApplication
+    ) {
+        let plan = app.textFields["subscription.editor.plan"]
+        XCTAssertTrue(scrollToHittable(plan, in: app, maximumSwipes: 8))
+        plan.tap()
+        plan.typeText(planValue)
+
+        let category = app.textFields["subscription.editor.category"]
+        XCTAssertTrue(scrollToHittable(category, in: app, maximumSwipes: 8))
+        category.tap()
+        category.typeText(categoryValue)
+    }
+
+    private func openFirstSubscriptionEditor(in app: XCUIApplication) {
+        let row = app.buttons["subscription.row"].firstMatch
+        XCTAssertTrue(row.waitForExistence(timeout: 5))
+        row.tap()
+        openCurrentDetailEditor(in: app)
+    }
+
+    private func openCurrentDetailEditor(in app: XCUIApplication) {
+        let actions = app.buttons["subscription.lifecycle.actions"]
+        XCTAssertTrue(actions.waitForExistence(timeout: 5))
+        actions.tap()
+        let edit = app.buttons["subscription.edit"]
+        XCTAssertTrue(edit.waitForExistence(timeout: 5))
+        edit.tap()
+        XCTAssertTrue(
+            app.textFields["subscription.editor.service-name"]
+                .waitForExistence(timeout: 5)
+        )
     }
 
     private func createSubscription(
@@ -1924,27 +2367,7 @@ final class SubscriptionManagerUITests: XCTestCase {
         statusButton: String? = nil,
         in app: XCUIApplication
     ) {
-        XCTAssertTrue(
-            app.buttons["subscription.add"].waitForExistence(timeout: 5)
-        )
-        app.buttons["subscription.add"].tap()
-        XCTAssertTrue(
-            app.buttons["catalog.add-manually"].waitForExistence(timeout: 5)
-        )
-        app.buttons["catalog.add-manually"].tap()
-
-        let serviceName = app.textFields["subscription.form.service-name"]
-        XCTAssertTrue(serviceName.waitForExistence(timeout: 5))
-        serviceName.tap()
-        serviceName.typeText(serviceNameValue)
-
-        let plan = app.textFields["subscription.form.plan"]
-        plan.tap()
-        plan.typeText(planValue)
-
-        let category = app.textFields["subscription.form.category"]
-        category.tap()
-        category.typeText("Other")
+        openManualAdd(in: app)
 
         if let statusButton {
             let initialStatus = app.segmentedControls[
@@ -1954,9 +2377,22 @@ final class SubscriptionManagerUITests: XCTestCase {
             initialStatus.buttons[statusButton].tap()
         }
 
-        let amount = app.textFields["subscription.form.amount"]
-        amount.tap()
-        amount.typeText("9.99")
+        fillRequiredEditorFacts(
+            serviceName: serviceNameValue,
+            amount: "9.99",
+            in: app
+        )
+        if statusButton != nil {
+            acceptEditorDate(
+                identifier: "subscription.editor.next-renewal",
+                in: app
+            )
+        }
+
+        let plan = app.textFields["subscription.editor.plan"]
+        XCTAssertTrue(scrollToHittable(plan, in: app, maximumSwipes: 8))
+        plan.tap()
+        plan.typeText(planValue)
 
         let form = app.descendants(matching: .any)["subscription.form"]
         app.buttons["subscription.form.save"].tap()
@@ -1979,6 +2415,34 @@ final class SubscriptionManagerUITests: XCTestCase {
             app.swipeUp()
         }
         return element.exists
+    }
+
+    private func scrollToHittable(
+        _ element: XCUIElement,
+        in app: XCUIApplication,
+        maximumSwipes: Int = 20
+    ) -> Bool {
+        for _ in 0 ..< maximumSwipes {
+            if element.exists, element.isHittable {
+                return true
+            }
+            app.swipeUp()
+        }
+        return element.exists && element.isHittable
+    }
+
+    private func scrollBackToHittable(
+        _ element: XCUIElement,
+        in app: XCUIApplication,
+        maximumSwipes: Int = 20
+    ) -> Bool {
+        for _ in 0 ..< maximumSwipes {
+            if element.exists, element.isHittable {
+                return true
+            }
+            app.swipeDown()
+        }
+        return element.exists && element.isHittable
     }
 
     private func topLevelTab(
@@ -2164,6 +2628,85 @@ final class SubscriptionManagerUITests: XCTestCase {
             "Tapping a distinct calendar day must update the picker."
         )
         return selectedValue
+    }
+
+    private func selectDateTaskInNextMonth(
+        in picker: XCUIElement,
+        app: XCUIApplication,
+        day: Int
+    ) -> String {
+        let sourceValue = app.descendants(matching: .any)[
+            "subscription.date-task.source-value"
+        ]
+        XCTAssertTrue(sourceValue.waitForExistence(timeout: 5))
+        let originalValue = accessibilityValue(of: sourceValue)
+        let month = picker.buttons["DatePicker.Show"]
+        let nextMonth = picker.buttons["DatePicker.NextMonth"]
+        guard let originalMonth = month.value as? String else {
+            XCTFail("Date task must expose its visible calendar month.")
+            return originalValue
+        }
+        nextMonth.tap()
+        let monthChanged = XCTNSPredicateExpectation(
+            predicate: NSPredicate(format: "value != %@", originalMonth),
+            object: month
+        )
+        XCTAssertEqual(
+            XCTWaiter.wait(for: [monthChanged], timeout: 3),
+            .completed
+        )
+
+        let monthFormatter = DateFormatter()
+        monthFormatter.locale = Locale(identifier: "en_US")
+        monthFormatter.dateFormat = "MMMM yyyy"
+        guard let visibleMonth = month.value as? String,
+              let monthDate = monthFormatter.date(from: visibleMonth)
+        else {
+            XCTFail("Couldn’t parse the visible date-task month.")
+            return originalValue
+        }
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.locale = monthFormatter.locale
+        let validRange = calendar.range(of: .day, in: .month, for: monthDate)
+        let targetDay = min(max(day, validRange?.lowerBound ?? 1),
+                            (validRange?.upperBound ?? 2) - 1)
+        var components = calendar.dateComponents(
+            [.year, .month],
+            from: monthDate
+        )
+        components.day = targetDay
+        guard let targetDate = calendar.date(from: components) else {
+            XCTFail("Couldn’t create a target date in the visible month.")
+            return originalValue
+        }
+        let dayFormatter = DateFormatter()
+        dayFormatter.locale = monthFormatter.locale
+        dayFormatter.dateFormat = "EEEE, MMMM d"
+        let target = picker.buttons[dayFormatter.string(from: targetDate)]
+        XCTAssertTrue(target.waitForExistence(timeout: 5))
+        target.tap()
+        let selectedValue = accessibilityValue(of: sourceValue)
+        XCTAssertNotEqual(
+            selectedValue,
+            originalValue,
+            "Changing the graphical date must refresh the task summary."
+        )
+        return selectedValue
+    }
+
+    private func accessibilityValue(of element: XCUIElement) -> String {
+        let value: String
+        if let elementValue = element.value as? String,
+           !elementValue.isEmpty
+        {
+            value = elementValue
+        } else {
+            value = element.label
+        }
+        for suffix in [", Source", ", Derived"] where value.hasSuffix(suffix) {
+            return String(value.dropLast(suffix.count))
+        }
+        return value
     }
 
     private func selectCompactDateInNextMonth(

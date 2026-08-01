@@ -140,6 +140,170 @@ struct CatalogOfferMatcherTests {
         )
     }
 
+    @Test("Catalog adjustments are derived from the unique verified plan")
+    func derivesCatalogOfferAdjustmentsWithoutStoredFlags() throws {
+        let preset = makePreset(offers: [makeOffer()])
+        let snapshot = try makeSnapshot(presets: [preset])
+        let matcher = CatalogOfferMatcher()
+        let identity = ServiceIdentity(rawValue: "catalog:chatgpt")
+
+        #expect(
+            matcher.adjustment(
+                for: makeSubscription(
+                    serviceIdentity: identity,
+                    plan: "Plus"
+                ),
+                in: snapshot,
+                onBillingDay: referenceDate
+            ) == CatalogOfferAdjustment(
+                isPriceAdjusted: false,
+                isScheduleAdjusted: false
+            )
+        )
+        #expect(
+            matcher.adjustment(
+                for: makeSubscription(
+                    serviceIdentity: identity,
+                    plan: "Plus",
+                    amount: 2_100
+                ),
+                in: snapshot,
+                onBillingDay: referenceDate
+            ) == CatalogOfferAdjustment(
+                isPriceAdjusted: true,
+                isScheduleAdjusted: false
+            )
+        )
+        #expect(
+            matcher.adjustment(
+                for: makeSubscription(
+                    serviceIdentity: identity,
+                    plan: "Plus",
+                    interval: .yearly
+                ),
+                in: snapshot,
+                onBillingDay: referenceDate
+            ) == CatalogOfferAdjustment(
+                isPriceAdjusted: false,
+                isScheduleAdjusted: true
+            )
+        )
+    }
+
+    @Test("Catalog adjustment stays unknown when the reference offer ties")
+    func rejectsAmbiguousCatalogAdjustmentReference() throws {
+        let preset = makePreset(
+            offers: [
+                makeOffer(id: "plus-monthly-web"),
+                makeOffer(id: "plus-monthly-ios"),
+            ]
+        )
+
+        #expect(
+            CatalogOfferMatcher().adjustment(
+                for: makeSubscription(
+                    serviceIdentity: ServiceIdentity(
+                        rawValue: "catalog:chatgpt"
+                    ),
+                    plan: "Plus"
+                ),
+                in: try makeSnapshot(presets: [preset]),
+                onBillingDay: referenceDate
+            ) == nil
+        )
+    }
+
+    @Test("Conflicting same-plan offer facts stay unknown")
+    func rejectsConflictingSamePlanOfferFacts() throws {
+        let snapshot = try makeSnapshot(
+            presets: [
+                makePreset(
+                    offers: [
+                        makeOffer(
+                            id: "plus-monthly",
+                            price: 1_200,
+                            interval: .monthly
+                        ),
+                        makeOffer(
+                            id: "plus-yearly",
+                            price: 12_000,
+                            interval: .yearly
+                        ),
+                    ]
+                ),
+            ]
+        )
+
+        #expect(
+            CatalogOfferMatcher().adjustment(
+                for: makeSubscription(
+                    serviceIdentity: ServiceIdentity(
+                        rawValue: "catalog:chatgpt"
+                    ),
+                    plan: "Plus",
+                    amount: 1_200,
+                    interval: .yearly
+                ),
+                in: snapshot,
+                onBillingDay: referenceDate
+            ) == nil
+        )
+        #expect(
+            CatalogOfferMatcher().adjustment(
+                for: makeSubscription(
+                    serviceIdentity: ServiceIdentity(
+                        rawValue: "catalog:chatgpt"
+                    ),
+                    plan: "Plus",
+                    amount: 12_000,
+                    interval: .monthly
+                ),
+                in: snapshot,
+                onBillingDay: referenceDate
+            ) == nil
+        )
+    }
+
+    @Test("A unique same-plan price derives a custom schedule adjustment")
+    func derivesCustomScheduleAdjustmentAcrossSamePlanCadences() throws {
+        let snapshot = try makeSnapshot(
+            presets: [
+                makePreset(
+                    offers: [
+                        makeOffer(
+                            id: "plus-monthly",
+                            price: 1_200,
+                            interval: .monthly
+                        ),
+                        makeOffer(
+                            id: "plus-yearly",
+                            price: 12_000,
+                            interval: .yearly
+                        ),
+                    ]
+                ),
+            ]
+        )
+
+        #expect(
+            CatalogOfferMatcher().adjustment(
+                for: makeSubscription(
+                    serviceIdentity: ServiceIdentity(
+                        rawValue: "catalog:chatgpt"
+                    ),
+                    plan: "Plus",
+                    amount: 1_200,
+                    interval: .custom(value: 2, unit: .month)
+                ),
+                in: snapshot,
+                onBillingDay: referenceDate
+            ) == CatalogOfferAdjustment(
+                isPriceAdjusted: false,
+                isScheduleAdjusted: true
+            )
+        )
+    }
+
     @Test("The matcher rejects partial fuzzy and legacy-ID text")
     func rejectsUnlistedTextVariants() throws {
         let preset = makePreset(
@@ -281,13 +445,14 @@ struct CatalogOfferMatcherTests {
     private func makeOffer(
         id: String = "plus-monthly",
         price: Int64 = 2_000,
+        interval: BillingInterval = .monthly,
         reviewStatus: CatalogOfferReviewStatus = .verified
     ) -> CatalogOffer {
         CatalogOffer(
             id: id,
             planName: CatalogLocalizedText(en: "Plus", zhHans: "Plus"),
             price: Money(minorUnits: price, currency: .usd),
-            billingInterval: .monthly,
+            billingInterval: interval,
             market: "US",
             purchaseChannel: .web,
             sourceURL: URL(string: "https://example.com/pricing")!,
@@ -301,6 +466,7 @@ struct CatalogOfferMatcherTests {
             rawValue: "manual:10000000-0000-0000-0000-000000000000"
         ),
         serviceName: String = "ChatGPT",
+        plan: String = "User Entered",
         amount: Int64 = 2_000,
         currency: Currency = .usd,
         interval: BillingInterval = .monthly,
@@ -313,7 +479,7 @@ struct CatalogOfferMatcherTests {
             )!,
             serviceIdentity: serviceIdentity,
             serviceName: serviceName,
-            plan: "User Entered",
+            plan: plan,
             category: "Other",
             originalAmount: Money(
                 minorUnits: amount,

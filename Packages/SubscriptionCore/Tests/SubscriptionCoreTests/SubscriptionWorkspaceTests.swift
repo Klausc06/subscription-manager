@@ -3976,6 +3976,282 @@ struct SubscriptionWorkspaceTests {
         #expect(edited.pinnedAt == pinnedAt)
     }
 
+    @Test("Renaming a catalog subscription clears its stale identity atomically")
+    @MainActor
+    func catalogRenameClearsStaleIdentityDuringAtomicEdit() throws {
+        let id = UUID(
+            uuidString: "91000000-0000-0000-0000-000000000047"
+        )!
+        let existing = makeSubscription(
+            id: id,
+            serviceIdentity: ServiceIdentity(rawValue: "catalog:chatgpt"),
+            originalAmount: Money(minorUnits: 2_000, currency: .usd),
+            serviceName: "ChatGPT",
+            plan: "Plus"
+        )
+        let preset = catalogPresetFixture(
+            offers: [catalogOfferFixture(id: "plus", status: .verified)],
+            id: "chatgpt",
+            serviceName: CatalogLocalizedText(
+                en: "ChatGPT",
+                zhHans: "ChatGPT"
+            ),
+            matchAliases: ["ChatGPT Plus"]
+        )
+        let repository = InMemorySubscriptionRepository(
+            subscriptions: [existing]
+        )
+        let workspace = SubscriptionWorkspace(
+            repository: repository,
+            catalogRepository: StaticCatalogRepository(presets: [preset]),
+            now: { Date(timeIntervalSince1970: 1_769_731_200) }
+        )
+        workspace.loadCatalog(locale: Locale(identifier: "en"))
+
+        workspace.editSubscription(
+            id: id,
+            input: SubscriptionEditInput(
+                serviceName: "Renamed Service",
+                plan: existing.plan,
+                category: existing.category,
+                amount: existing.amount(
+                    onBillingDay: existing.confirmedNextRenewal
+                ),
+                billingSchedule: existing.billingSchedule,
+                startDate: existing.startDate,
+                confirmedNextRenewal: existing.confirmedNextRenewal,
+                managementURL: existing.managementURL,
+                notes: existing.notes
+            )
+        )
+
+        let edited = try #require(repository.storedSubscription(id: id))
+        #expect(
+            edited.serviceIdentity
+                == ServiceIdentity(rawValue: "manual:\(id.uuidString)")
+        )
+        #expect(edited.serviceName == "Renamed Service")
+        #expect(repository.updateAttemptCount == 1)
+    }
+
+    @Test("A price-only catalog override retains catalog identity atomically")
+    @MainActor
+    func catalogPriceOnlyOverrideRetainsIdentityDuringAtomicEdit() throws {
+        let id = UUID(
+            uuidString: "92000000-0000-0000-0000-000000000047"
+        )!
+        let existing = makeSubscription(
+            id: id,
+            serviceIdentity: ServiceIdentity(rawValue: "catalog:chatgpt"),
+            originalAmount: Money(minorUnits: 2_000, currency: .usd),
+            serviceName: "ChatGPT",
+            plan: "Plus"
+        )
+        let preset = catalogPresetFixture(
+            offers: [catalogOfferFixture(id: "plus", status: .verified)],
+            id: "chatgpt",
+            serviceName: CatalogLocalizedText(
+                en: "ChatGPT",
+                zhHans: "ChatGPT"
+            )
+        )
+        let repository = InMemorySubscriptionRepository(
+            subscriptions: [existing]
+        )
+        let workspace = SubscriptionWorkspace(
+            repository: repository,
+            catalogRepository: StaticCatalogRepository(presets: [preset]),
+            now: { Date(timeIntervalSince1970: 1_769_731_200) }
+        )
+        workspace.loadCatalog(locale: Locale(identifier: "en"))
+
+        workspace.editSubscription(
+            id: id,
+            input: SubscriptionEditInput(
+                serviceName: existing.serviceName,
+                plan: existing.plan,
+                category: existing.category,
+                amount: Money(minorUnits: 3_000, currency: .usd),
+                billingSchedule: existing.billingSchedule,
+                startDate: existing.startDate,
+                confirmedNextRenewal: existing.confirmedNextRenewal,
+                managementURL: existing.managementURL,
+                notes: existing.notes
+            )
+        )
+
+        let edited = try #require(repository.storedSubscription(id: id))
+        #expect(
+            edited.serviceIdentity
+                == ServiceIdentity(rawValue: "catalog:chatgpt")
+        )
+        #expect(
+            edited.amount(onBillingDay: edited.confirmedNextRenewal)
+                == Money(minorUnits: 3_000, currency: .usd)
+        )
+        #expect(
+            workspace.catalogOfferAdjustment(for: edited)
+                == CatalogOfferAdjustment(
+                    isPriceAdjusted: true,
+                    isScheduleAdjusted: false
+                )
+        )
+        #expect(repository.updateAttemptCount == 1)
+    }
+
+    @Test("An interval-only catalog override retains catalog identity atomically")
+    @MainActor
+    func catalogIntervalOnlyOverrideRetainsIdentityDuringAtomicEdit() throws {
+        let calendar = utcCalendar()
+        let now = try actionDate(
+            year: 2026,
+            month: 7,
+            day: 15,
+            hour: 18,
+            calendar: calendar
+        )
+        let startDate = try actionDate(
+            year: 2026,
+            month: 7,
+            day: 1,
+            hour: 12,
+            calendar: calendar
+        )
+        let yearlyRenewal = try actionDate(
+            year: 2027,
+            month: 7,
+            day: 1,
+            hour: 12,
+            calendar: calendar
+        )
+        let id = UUID(
+            uuidString: "93000000-0000-0000-0000-000000000047"
+        )!
+        let existing = makeSubscription(
+            id: id,
+            serviceIdentity: ServiceIdentity(rawValue: "catalog:chatgpt"),
+            billingSchedule: FixedBillingSchedule(
+                interval: .monthly,
+                renewalAnchor: startDate,
+                timeZoneIdentifier: "UTC"
+            ),
+            confirmedNextRenewal: try actionDate(
+                year: 2026,
+                month: 8,
+                day: 1,
+                hour: 12,
+                calendar: calendar
+            ),
+            originalAmount: Money(minorUnits: 2_000, currency: .usd),
+            serviceName: "ChatGPT",
+            plan: "Plus"
+        )
+        let preset = catalogPresetFixture(
+            offers: [catalogOfferFixture(id: "plus", status: .verified)],
+            id: "chatgpt",
+            serviceName: CatalogLocalizedText(
+                en: "ChatGPT",
+                zhHans: "ChatGPT"
+            )
+        )
+        let repository = InMemorySubscriptionRepository(
+            subscriptions: [existing]
+        )
+        let workspace = SubscriptionWorkspace(
+            repository: repository,
+            catalogRepository: StaticCatalogRepository(presets: [preset]),
+            now: { now },
+            calendar: calendar
+        )
+        workspace.loadCatalog(locale: Locale(identifier: "en"))
+
+        workspace.editSubscription(
+            id: id,
+            input: SubscriptionEditInput(
+                serviceName: existing.serviceName,
+                plan: existing.plan,
+                category: existing.category,
+                amount: existing.amount(
+                    onBillingDay: existing.confirmedNextRenewal
+                ),
+                billingSchedule: FixedBillingSchedule(
+                    interval: .yearly,
+                    renewalAnchor: startDate,
+                    timeZoneIdentifier: "UTC"
+                ),
+                startDate: startDate,
+                confirmedNextRenewal: yearlyRenewal,
+                managementURL: existing.managementURL,
+                notes: existing.notes
+            )
+        )
+
+        let edited = try #require(repository.storedSubscription(id: id))
+        #expect(
+            edited.serviceIdentity
+                == ServiceIdentity(rawValue: "catalog:chatgpt")
+        )
+        #expect(
+            edited.billingSchedule.interval == BillingInterval.yearly
+        )
+        #expect(
+            workspace.catalogOfferAdjustment(for: edited)
+                == CatalogOfferAdjustment(
+                    isPriceAdjusted: false,
+                    isScheduleAdjusted: true
+                )
+        )
+        #expect(repository.updateAttemptCount == 1)
+    }
+
+    @Test("An empty catalog does not clear a catalog identity on edit")
+    @MainActor
+    func catalogEditWithEmptyCatalogRetainsIdentity() throws {
+        let id = UUID(
+            uuidString: "94000000-0000-0000-0000-000000000047"
+        )!
+        let existing = makeSubscription(
+            id: id,
+            serviceIdentity: ServiceIdentity(rawValue: "catalog:chatgpt"),
+            originalAmount: Money(minorUnits: 2_000, currency: .usd),
+            serviceName: "ChatGPT"
+        )
+        let repository = InMemorySubscriptionRepository(
+            subscriptions: [existing]
+        )
+        let workspace = SubscriptionWorkspace(
+            repository: repository,
+            catalogRepository: StaticCatalogRepository(presets: []),
+            now: { Date(timeIntervalSince1970: 1_769_731_200) }
+        )
+        workspace.loadCatalog(locale: Locale(identifier: "en"))
+
+        workspace.editSubscription(
+            id: id,
+            input: SubscriptionEditInput(
+                serviceName: existing.serviceName,
+                plan: existing.plan,
+                category: existing.category,
+                amount: existing.amount(
+                    onBillingDay: existing.confirmedNextRenewal
+                ),
+                billingSchedule: existing.billingSchedule,
+                startDate: existing.startDate,
+                confirmedNextRenewal: existing.confirmedNextRenewal,
+                managementURL: existing.managementURL,
+                notes: "Edited while catalog unavailable"
+            )
+        )
+
+        let edited = try #require(repository.storedSubscription(id: id))
+        #expect(
+            edited.serviceIdentity
+                == ServiceIdentity(rawValue: "catalog:chatgpt")
+        )
+        #expect(edited.notes == "Edited while catalog unavailable")
+        #expect(repository.updateAttemptCount == 1)
+    }
+
     @Test(
         "Explicit reconciliation preserves every non-catalog fact and is idempotent"
     )
@@ -5853,6 +6129,7 @@ private func makeSubscription(
     lifecycle: SubscriptionLifecycle = .active,
     isArchived: Bool = false,
     pinnedAt: Date? = nil,
+    serviceIdentity: ServiceIdentity? = nil,
     billingSchedule: FixedBillingSchedule? = nil,
     confirmedNextRenewal: Date? = nil,
     confirmedCharges: [ConfirmedCharge] = [],
@@ -5873,7 +6150,8 @@ private func makeSubscription(
         ?? Date(timeIntervalSince1970: 1_769_904_000)
     return Subscription(
         id: id,
-        serviceIdentity: ServiceIdentity(rawValue: "manual:\(id.uuidString)"),
+        serviceIdentity: serviceIdentity
+            ?? ServiceIdentity(rawValue: "manual:\(id.uuidString)"),
         serviceName: serviceName,
         plan: plan,
         category: category,

@@ -715,6 +715,18 @@
         "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "试用开始" } }
       }
     },
+    "User-adjusted price" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "User-adjusted price" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "用户调整后的价格" } }
+      }
+    },
+    "User-adjusted schedule" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "User-adjusted schedule" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "用户调整后的账单周期" } }
+      }
+    },
     "Unpin" : {
       "localizations" : {
         "en" : { "stringUnit" : { "state" : "translated", "value" : "Unpin" } },

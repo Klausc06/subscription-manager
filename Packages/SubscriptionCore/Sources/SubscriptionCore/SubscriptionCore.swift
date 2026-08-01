@@ -1146,6 +1146,17 @@ public final class SubscriptionWorkspace {
         }
     }
 
+    public func catalogOfferAdjustment(
+        for subscription: Subscription
+    ) -> CatalogOfferAdjustment? {
+        guard let snapshot = matchingCatalogSnapshot() else { return nil }
+        return CatalogOfferMatcher().adjustment(
+            for: subscription,
+            in: snapshot,
+            onBillingDay: subscription.confirmedNextRenewal
+        )
+    }
+
     @discardableResult
     public func reconcileCatalogAssociations(
         locale: Locale
@@ -2473,12 +2484,38 @@ public final class SubscriptionWorkspace {
         guard let snapshot = matchingCatalogSnapshot() else {
             return subscription
         }
-        switch CatalogOfferMatcher().match(
+        let matcher = CatalogOfferMatcher()
+        let serviceNameMatch = matcher.matchesCatalogServiceName(
+            subscription: subscription,
+            in: snapshot
+        )
+        let hasCatalogIdentity = subscription.serviceIdentity.rawValue
+            .hasPrefix("catalog:")
+        guard !hasCatalogIdentity || serviceNameMatch != nil
+        else {
+            return subscription
+        }
+        switch matcher.match(
             subscription: subscription,
             in: snapshot,
             onBillingDay: subscription.confirmedNextRenewal
         ) {
-        case .none, .ambiguous:
+        case .none:
+            guard hasCatalogIdentity,
+                  serviceNameMatch == false
+            else {
+                return subscription
+            }
+            return subscription.replacingCatalogAssociation(
+                serviceIdentity: ServiceIdentity(
+                    rawValue: "manual:\(subscription.id.uuidString)"
+                ),
+                serviceName: subscription.serviceName,
+                plan: subscription.plan,
+                category: subscription.category,
+                managementURL: subscription.managementURL
+            )
+        case .ambiguous:
             return subscription
         case .unique(let candidate):
             return normalizedCatalogAssociation(

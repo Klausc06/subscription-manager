@@ -13,7 +13,28 @@ struct SubscriptionEditorSections: View {
     @Binding var draft: SubscriptionDraft
     let status: SubscriptionStatus?
     let nextExpectedCharge: ExpectedCharge?
+    let catalogOfferAdjustment: CatalogOfferAdjustment?
+    let locksCatalogMetadata: Bool
+    let showsValidation: Bool
     let onEditDate: (SubscriptionDraft.DateSource) -> Void
+
+    init(
+        draft: Binding<SubscriptionDraft>,
+        status: SubscriptionStatus?,
+        nextExpectedCharge: ExpectedCharge?,
+        catalogOfferAdjustment: CatalogOfferAdjustment? = nil,
+        locksCatalogMetadata: Bool = false,
+        showsValidation: Bool = true,
+        onEditDate: @escaping (SubscriptionDraft.DateSource) -> Void
+    ) {
+        self._draft = draft
+        self.status = status
+        self.nextExpectedCharge = nextExpectedCharge
+        self.catalogOfferAdjustment = catalogOfferAdjustment
+        self.locksCatalogMetadata = locksCatalogMetadata
+        self.showsValidation = showsValidation
+        self.onEditDate = onEditDate
+    }
 
     @ViewBuilder
     var body: some View {
@@ -27,11 +48,20 @@ struct SubscriptionEditorSections: View {
 
     private var serviceSection: some View {
         Section("Service") {
-            TextField("Service Name", text: $draft.serviceName)
-                .textContentType(.organizationName)
-                .accessibilityIdentifier("subscription.editor.service-name")
+            if locksCatalogMetadata {
+                LabeledContent("Service Name", value: draft.serviceName)
+                    .accessibilityIdentifier(
+                        "subscription.editor.service-name"
+                    )
+            } else {
+                TextField("Service Name", text: $draft.serviceName)
+                    .textContentType(.organizationName)
+                    .accessibilityIdentifier(
+                        "subscription.editor.service-name"
+                    )
+            }
 
-            if draft.validation.contains(.serviceName) {
+            if showsValidation, draft.validation.contains(.serviceName) {
                 ValidationMessage(
                     "This field is required.",
                     identifier: "subscription.validation.service-name"
@@ -46,11 +76,9 @@ struct SubscriptionEditorSections: View {
                 .subscriptionDecimalKeyboard()
                 .accessibilityIdentifier("subscription.editor.amount")
 
-            if draft.validation.contains(.amount) {
+            if showsValidation, draft.validation.contains(.amount) {
                 ValidationMessage(
-                    draft.amountText.trimmingCharacters(
-                        in: .whitespacesAndNewlines
-                    ).isEmpty ? "Enter a price." : "Enter an amount greater than zero.",
+                    amountValidationText,
                     identifier: "subscription.validation.amount"
                 )
             }
@@ -63,11 +91,20 @@ struct SubscriptionEditorSections: View {
             }
             .accessibilityIdentifier("subscription.editor.currency")
 
-            if draft.validation.contains(.currency) {
+            if showsValidation, draft.validation.contains(.currency) {
                 ValidationMessage(
                     "Select Currency",
                     identifier: "subscription.validation.currency"
                 )
+            }
+
+            if catalogOfferAdjustment?.isPriceAdjusted == true {
+                Text("User-adjusted price")
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+                    .accessibilityIdentifier(
+                        "subscription.editor.user-adjusted-price"
+                    )
             }
 
         }
@@ -108,11 +145,20 @@ struct SubscriptionEditorSections: View {
                 .accessibilityIdentifier("subscription.editor.custom-interval-unit")
             }
 
-            if draft.validation.contains(.billingInterval) {
+            if showsValidation, draft.validation.contains(.billingInterval) {
                 ValidationMessage(
                     billingIntervalValidationText,
                     identifier: "subscription.validation.billing-interval"
                 )
+            }
+
+            if catalogOfferAdjustment?.isScheduleAdjusted == true {
+                Text("User-adjusted schedule")
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+                    .accessibilityIdentifier(
+                        "subscription.editor.user-adjusted-schedule"
+                    )
             }
         }
     }
@@ -122,7 +168,7 @@ struct SubscriptionEditorSections: View {
             dateEditorRow(for: .startDate)
             dateEditorRow(for: .nextRenewal)
 
-            if draft.validation.contains(.billingDate) {
+            if showsValidation, draft.validation.contains(.billingDate) {
                 ValidationMessage(
                     "Choose a billing date.",
                     identifier: "subscription.validation.billing-date"
@@ -164,8 +210,25 @@ struct SubscriptionEditorSections: View {
     }
 
     private var additionalDetailsSection: some View {
-        Section {
-            DisclosureGroup("Additional Details") {
+        Section("Additional Details") {
+            if locksCatalogMetadata {
+                LabeledContent("Category", value: draft.category)
+                    .accessibilityIdentifier("subscription.editor.category")
+
+                if !draft.managementURLText.isEmpty,
+                   let managementURL = URL(
+                    string: draft.managementURLText
+                   )
+                {
+                    Link(
+                        "Subscription Management URL",
+                        destination: managementURL
+                    )
+                    .accessibilityIdentifier(
+                        "subscription.editor.management-url"
+                    )
+                }
+            } else {
                 TextField("Plan", text: $draft.plan)
                     .accessibilityIdentifier("subscription.editor.plan")
 
@@ -178,20 +241,29 @@ struct SubscriptionEditorSections: View {
                 )
                 .textContentType(.URL)
                 .subscriptionURLKeyboard()
-                .accessibilityIdentifier("subscription.editor.management-url")
+                .accessibilityIdentifier(
+                    "subscription.editor.management-url"
+                )
 
-                if draft.validation.contains(.managementURL) {
+                if showsValidation,
+                   draft.validation.contains(.managementURL)
+                {
                     ValidationMessage(
                         "Enter a complete HTTP or HTTPS URL.",
                         identifier: "subscription.validation.management-url"
                     )
                 }
-
-                TextField("Notes", text: $draft.notes, axis: .vertical)
-                    .lineLimit(3 ... 8)
-                    .accessibilityIdentifier("subscription.editor.notes")
             }
-            .accessibilityIdentifier("subscription.editor.additional-details")
+
+            Text(
+                "Open the provider's billing, renewal, or cancellation page; this app will not cancel the subscription for you."
+            )
+            .font(.footnote)
+            .foregroundStyle(.secondary)
+
+            TextField("Notes", text: $draft.notes, axis: .vertical)
+                .lineLimit(3 ... 8)
+                .accessibilityIdentifier("subscription.editor.notes")
         }
     }
 
@@ -213,23 +285,43 @@ struct SubscriptionEditorSections: View {
         return "Select Billing Interval"
     }
 
+    private var amountValidationText: LocalizedStringKey {
+        if draft.amountText.trimmingCharacters(
+            in: .whitespacesAndNewlines
+        ).isEmpty {
+            return "Enter a price."
+        }
+        if draft.parsedAmount(locale: locale) == nil {
+            return "Enter a valid amount."
+        }
+        return "Enter an amount greater than zero."
+    }
+
     private func dateEditorRow(
         for source: SubscriptionDraft.DateSource
     ) -> some View {
-        Button {
+        let title = LocalizedStringKey(labelKey(for: source))
+        let value = formattedBillingDate(
+            date(for: source),
+            timeZoneIdentifier: draft.billingTimeZoneIdentifier,
+            locale: locale
+        )
+        return Button {
             onEditDate(source)
         } label: {
-            LabeledContent(
-                LocalizedStringKey(labelKey(for: source)),
-                value: formattedBillingDate(
-                    date(for: source),
-                    timeZoneIdentifier: draft.billingTimeZoneIdentifier,
-                    locale: locale
-                )
-            )
+            HStack {
+                Text(title)
+                Spacer(minLength: 12)
+                Text(value)
+                    .foregroundStyle(.secondary)
+                    .multilineTextAlignment(.trailing)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
         .accessibilityIdentifier(identifier(for: source))
+        .accessibilityLabel(Text(title))
         .accessibilityValue(dateAccessibilityValue(for: source))
     }
 

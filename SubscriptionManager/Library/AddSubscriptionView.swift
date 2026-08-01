@@ -2,6 +2,22 @@ import Foundation
 import SubscriptionCore
 import SwiftUI
 
+private struct DateTaskSelection: Identifiable {
+    let source: SubscriptionDraft.DateSource
+
+    var id: String {
+        switch source {
+        case .startDate:
+            "start-date"
+        case .nextRenewal:
+            "next-renewal"
+        }
+    }
+}
+
+/// The Add shell owns navigation/task chrome while the editable values live in
+/// one `SubscriptionDraft`. Catalog selection is intentionally kept here: it
+/// is task UI state, not a second copy of any editable value.
 struct AddSubscriptionView: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.locale) private var locale
@@ -11,29 +27,14 @@ struct AddSubscriptionView: View {
     private let catalogPresetID: String?
     private let onSuccessfulSave: (() -> Void)?
     private let showsCancellationAction: Bool
-    private let billingTimeZoneIdentifier: String
+    private let now: Date
 
-    @State private var serviceName = ""
-    @State private var plan = ""
-    @State private var category = ""
-    @State private var initialStatus: SubscriptionInitialStatus = .active
-    @State private var amountText = ""
-    @State private var currency: Currency = .usd
-    @State private var intervalChoice: BillingIntervalChoice = .monthly
-    @State private var customValueText = ""
-    @State private var customUnit: BillingIntervalUnit = .day
-    @State private var startDate = Date()
-    @State private var confirmedNextRenewal =
-        Calendar.current.date(byAdding: .month, value: 1, to: Date()) ?? Date()
-    @State private var managementURLText = ""
-    @State private var notes = ""
-    @State private var amountInputIsInvalid = false
-    @State private var managementURLIsInvalid = false
-    @State private var saveFailed = false
+    @State private var draft: SubscriptionDraft
     @State private var selectedOfferID: String?
-    @State private var selectedPeriodRawValue = BillingInterval.monthly.rawValue
-    @State private var adjustsActualCharge = false
-    private let billingDateEditState = BillingDateEditState()
+    @State private var selectedPeriodRawValue: String
+    @State private var dateTaskSelection: DateTaskSelection?
+    @State private var didAttemptSave = false
+    @State private var saveFailed = false
 
     init(
         workspace: SubscriptionWorkspace,
@@ -47,56 +48,32 @@ struct AddSubscriptionView: View {
         self.onSuccessfulSave = onSuccessfulSave
         self.showsCancellationAction = showsCancellationAction
 
-        let locale = Locale.current
+        let initialDate = Date()
         let timeZoneIdentifier = TimeZone.autoupdatingCurrent.identifier
-        billingTimeZoneIdentifier = timeZoneIdentifier
+        now = initialDate
+
         let defaultOffer = preset.flatMap {
             CatalogOfferSelection.defaultOffer(in: $0)
         }
-        let interval = defaultOffer?.billingInterval
-            ?? preset?.suggestedInterval
-            ?? .monthly
-        let intervalFormValues = BillingIntervalFormValues(
-            interval: interval
-        )
-        let initialDate = Date()
-        _serviceName = State(
-            initialValue: preset?.serviceName.value(for: locale) ?? ""
-        )
-        _plan = State(
-            initialValue: defaultOffer?.planName.value(for: locale) ?? ""
-        )
-        _category = State(
-            initialValue: preset?.category.value(for: locale) ?? ""
-        )
-        _amountText = State(
-            initialValue: defaultOffer.map {
-                editableMoneyText($0.price, locale: locale)
-            } ?? ""
-        )
-        _currency = State(initialValue: defaultOffer?.price.currency ?? .usd)
-        _intervalChoice = State(
-            initialValue: intervalFormValues.choice
-        )
-        _customValueText = State(
-            initialValue: intervalFormValues.customValueText
-        )
-        _customUnit = State(initialValue: intervalFormValues.customUnit)
-        _startDate = State(initialValue: initialDate)
-        _confirmedNextRenewal = State(
-            initialValue: defaultNextRenewal(
-                after: initialDate,
-                interval: interval,
+        let initialDraft: SubscriptionDraft
+        if let preset {
+            initialDraft = SubscriptionDraft.catalog(
+                preset: preset,
+                offer: defaultOffer,
+                now: initialDate,
+                locale: .current,
                 timeZoneIdentifier: timeZoneIdentifier
             )
-        )
-        _managementURLText = State(
-            initialValue: preset?.managementURL?.absoluteString ?? ""
-        )
+        } else {
+            initialDraft = SubscriptionDraft.manual(
+                now: initialDate,
+                timeZoneIdentifier: timeZoneIdentifier
+            )
+        }
+        _draft = State(initialValue: initialDraft)
         _selectedOfferID = State(initialValue: defaultOffer?.id)
         _selectedPeriodRawValue = State(
             initialValue: defaultOffer?.billingInterval.rawValue
-                ?? preset?.suggestedInterval.rawValue
                 ?? BillingInterval.monthly.rawValue
         )
     }
@@ -104,14 +81,15 @@ struct AddSubscriptionView: View {
     var body: some View {
         Form {
             officialOfferSection
-            serviceSection
-            subscriptionSection
-            if !hasVerifiedOffers {
-                priceSection
-                billingScheduleSection
-            }
-            billingDatesSection
-            optionalSection
+            initialStatusSection
+            SubscriptionEditorSections(
+                draft: $draft,
+                status: nil,
+                nextExpectedCharge: nil,
+                locksCatalogMetadata: hasVerifiedOffers,
+                showsValidation: didAttemptSave,
+                onEditDate: beginDateTask
+            )
 
             if saveFailed {
                 Section {
@@ -151,14 +129,14 @@ struct AddSubscriptionView: View {
         .onChange(of: selectedOfferID) { _, _ in
             applySelectedOffer()
         }
-        .onChange(
-            of: selectedBillingInterval
-        ) { _, interval in
-            updateDatesForInterval(interval)
-        }
-        .onChange(of: initialStatus) { _, status in
-            guard status == .active else { return }
-            updateDatesForInterval(selectedBillingInterval)
+        .sheet(item: $dateTaskSelection) { selection in
+            NavigationStack {
+                BillingDateTaskView(
+                    draft: $draft,
+                    source: selection.source,
+                    now: now
+                )
+            }
         }
     }
 
@@ -204,9 +182,7 @@ struct AddSubscriptionView: View {
                             .tag(rawValue)
                         }
                     }
-                    .accessibilityIdentifier(
-                        "subscription.form.offer-period"
-                    )
+                    .accessibilityIdentifier("subscription.form.offer-period")
                 } else if let selectedOffer {
                     LabeledContent(
                         "Billing Period",
@@ -232,9 +208,7 @@ struct AddSubscriptionView: View {
                         "Official Price",
                         value: formattedMoney(selectedOffer.price)
                     )
-                    .accessibilityIdentifier(
-                        "subscription.form.selected-price"
-                    )
+                    .accessibilityIdentifier("subscription.form.selected-price")
 
                     Text(
                         "\(selectedOffer.market) · "
@@ -244,461 +218,153 @@ struct AddSubscriptionView: View {
                     )
                     .font(.footnote)
                     .foregroundStyle(.secondary)
-                    .accessibilityIdentifier(
-                        "subscription.form.offer-provenance"
-                    )
+                    .accessibilityIdentifier("subscription.form.offer-provenance")
                 }
 
-                DisclosureGroup(
-                    isExpanded: $adjustsActualCharge
-                ) {
-                    actualChargeFields
-                    BillingScheduleFields(
-                        intervalChoice: $intervalChoice,
-                        customValueText: $customValueText,
-                        customUnit: $customUnit,
-                        validationError:
-                            workspace.creationValidationErrors[
-                                .billingSchedule
-                            ]
+                if let selectedOffer {
+                    Link(
+                        "Official Pricing Source",
+                        destination: selectedOffer.sourceURL
                     )
-                } label: {
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text("Adjust Actual Charge")
-                            .accessibilityIdentifier(
-                                "subscription.form.adjust-charge"
-                            )
-                        if !adjustsActualCharge {
-                            Text(offerAdjustmentSummary)
-                                .font(.footnote)
-                                .foregroundStyle(.secondary)
-                        }
-                    }
-                    .accessibilityValue(offerAdjustmentSummary)
+                    .accessibilityIdentifier("subscription.form.offer-source")
+
+                    Text(
+                        "Official prices may vary by region, tax, and storefront."
+                    )
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
                 }
             }
         }
     }
 
-    @ViewBuilder
-    private var serviceSection: some View {
-        Section("Service") {
-            if hasVerifiedOffers {
-                LabeledContent("Service", value: serviceName)
-                LabeledContent("Category", value: category)
-            } else {
-                TextField("Service Name", text: $serviceName)
-                    .textContentType(.organizationName)
-                    .accessibilityIdentifier(
-                        "subscription.form.service-name"
-                    )
-                validationMessage(for: .serviceName)
-            }
-        }
-    }
-
-    @ViewBuilder
-    private var subscriptionSection: some View {
+    private var initialStatusSection: some View {
         Section("Subscription Details") {
-            if !hasVerifiedOffers {
-                TextField("Plan", text: $plan)
-                    .accessibilityIdentifier("subscription.form.plan")
-                validationMessage(for: .plan)
-
-                TextField("Category", text: $category)
-                    .accessibilityIdentifier("subscription.form.category")
-                validationMessage(for: .category)
-            }
-
-            Picker("Initial Status", selection: $initialStatus) {
+            Picker("Initial Status", selection: initialStatusBinding) {
                 Text("Active").tag(SubscriptionInitialStatus.active)
                 Text("Trial").tag(SubscriptionInitialStatus.trial)
             }
             .pickerStyle(.segmented)
             .accessibilityIdentifier("subscription.form.initial-status")
-
         }
     }
 
-    private var priceSection: some View {
-        Section("Price") {
-            actualChargeFields
-        }
-    }
-
-    @ViewBuilder
-    private var actualChargeFields: some View {
-        TextField("Amount", text: $amountText)
-            .subscriptionDecimalKeyboard()
-            .accessibilityIdentifier("subscription.form.amount")
-
-        Picker("Currency", selection: $currency) {
-            ForEach(Currency.allCases, id: \.rawValue) { currency in
-                Text(currency.rawValue).tag(currency)
-            }
-        }
-        .pickerStyle(.segmented)
-        .accessibilityIdentifier("subscription.form.currency")
-
-        if amountInputIsInvalid {
-            ValidationMessage(
-                "Enter a valid amount.",
-                identifier: "subscription.validation.amount"
-            )
-        } else {
-            validationMessage(for: .originalAmount)
-        }
-    }
-
-    private var actualChargeSummary: String {
-        let amount = MoneyTextParser.parse(
-            amountText,
-            currency: currency,
-            locale: locale
-        )
-        let value = amount.map(formattedMoney)
-            ?? amountText.trimmingCharacters(in: .whitespacesAndNewlines)
-        return "\(value) · \(currency.rawValue)"
-    }
-
-    private var offerAdjustmentSummary: String {
-        "\(actualChargeSummary) · "
-            + localizedBillingInterval(selectedBillingInterval)
-    }
-
-    private var billingScheduleSection: some View {
-        Section("Billing Schedule") {
-            BillingScheduleFields(
-                intervalChoice: $intervalChoice,
-                customValueText: $customValueText,
-                customUnit: $customUnit,
-                validationError:
-                    workspace.creationValidationErrors[.billingSchedule]
-            )
-        }
-    }
-
-    private var billingDatesSection: some View {
-        Section("Billing Dates") {
-            DatePicker(
-                LocalizedStringKey(
-                    billingStartDateLabelKey(
-                        isTrial: initialStatus == .trial
-                    )
-                ),
-                selection: startDateBinding,
-                displayedComponents: .date
-            )
-            .accessibilityIdentifier("subscription.form.start-date")
-            .accessibilityValue(
-                formattedBillingDate(
-                    startDate,
-                    timeZoneIdentifier: billingTimeZoneIdentifier,
-                    locale: locale
-                )
-            )
-
-            DatePicker(
-                LocalizedStringKey(
-                    billingNextDateLabelKey(
-                        isTrial: initialStatus == .trial
-                    )
-                ),
-                selection: confirmedNextRenewalBinding,
-                displayedComponents: .date
-            )
-            .accessibilityIdentifier("subscription.form.next-renewal")
-            .accessibilityValue(
-                formattedBillingDate(
-                    confirmedNextRenewal,
-                    timeZoneIdentifier: billingTimeZoneIdentifier,
-                    locale: locale
-                )
-            )
-
-            validationMessage(for: .confirmedNextRenewal)
-        }
-    }
-
-    private var optionalSection: some View {
-        Section("Optional") {
-            if let selectedOffer {
-                Link(
-                    "Official Pricing Source",
-                    destination: selectedOffer.sourceURL
-                )
-                .accessibilityIdentifier(
-                    "subscription.form.offer-source"
-                )
-
-                Text(
-                    "Official prices may vary by region, tax, and storefront."
-                )
-                .font(.footnote)
-                .foregroundStyle(.secondary)
-            }
-
-            if hasVerifiedOffers {
-                if let managementURL = catalogPreset?.managementURL {
-                    Link(
-                        "Subscription Management URL",
-                        destination: managementURL
-                    )
-                    .accessibilityIdentifier(
-                        "subscription.form.management-url"
-                    )
-                }
-            } else {
-                TextField(
-                    "Subscription Management URL",
-                    text: $managementURLText
-                )
-                .textContentType(.URL)
-                .subscriptionURLKeyboard()
-                .accessibilityIdentifier(
-                    "subscription.form.management-url"
-                )
-            }
-
-            Text(
-                "Open the provider's billing, renewal, or cancellation page; this app will not cancel the subscription for you."
-            )
-            .font(.footnote)
-            .foregroundStyle(.secondary)
-
-            if !hasVerifiedOffers, managementURLIsInvalid {
-                ValidationMessage(
-                    "Enter a complete HTTP or HTTPS URL.",
-                    identifier: "subscription.validation.management-url"
-                )
-            }
-
-            TextField("Notes", text: $notes, axis: .vertical)
-                .lineLimit(3 ... 8)
-                .accessibilityIdentifier("subscription.form.notes")
-        }
-    }
-
-    private var startDateBinding: Binding<Date> {
+    private var initialStatusBinding: Binding<SubscriptionInitialStatus> {
         Binding(
-            get: { startDate },
-            set: { newValue in
-                startDate = newValue
-                guard initialStatus == .active,
-                      let dates = billingDateEditState.editingStartDate(
-                          newValue,
-                          interval: selectedBillingInterval,
-                          asOf: Date(),
-                          timeZoneIdentifier: billingTimeZoneIdentifier
-                      )
-                else {
-                    return
+            get: {
+                if case .creating(let status) = draft.mode {
+                    return status
                 }
-                apply(dates)
+                return .active
+            },
+            set: { status in
+                if case .creating(let currentStatus) = draft.mode,
+                   currentStatus != status
+                {
+                    // Active dates have a source/derived relationship while
+                    // Trial dates are independent facts. Never carry date
+                    // acceptance evidence across that semantic boundary.
+                    draft.acceptedDateSources = []
+                    draft.dateSource = .startDate
+                }
+                draft.mode = .creating(status)
             }
         )
     }
 
-    private var confirmedNextRenewalBinding: Binding<Date> {
-        Binding(
-            get: { confirmedNextRenewal },
-            set: { newValue in
-                confirmedNextRenewal = newValue
-                guard initialStatus == .active,
-                      let dates = billingDateEditState.editingNextRenewal(
-                          newValue,
-                          interval: selectedBillingInterval,
-                          timeZoneIdentifier: billingTimeZoneIdentifier
-                      )
-                else {
-                    return
-                }
-                apply(dates)
-            }
-        )
-    }
-
-    @ViewBuilder
-    private func validationMessage(
-        for field: SubscriptionCreationField
-    ) -> some View {
-        if let error = workspace.creationValidationErrors[field] {
-            ValidationMessage(
-                field == .billingSchedule
-                    ? billingScheduleValidationText(for: error)
-                    : validationText(for: error, field: field),
-                identifier: "subscription.validation.\(field.identifier)"
-            )
-        }
+    private func beginDateTask(_ source: SubscriptionDraft.DateSource) {
+        dateTaskSelection = DateTaskSelection(source: source)
     }
 
     private func save() {
-        let amount = MoneyTextParser.parse(
-            amountText,
-            currency: currency,
-            locale: .current
-        )
-        amountInputIsInvalid = amount == nil
-        if hasVerifiedOffers, amountInputIsInvalid {
-            adjustsActualCharge = true
-        }
-        let managementURLResult = ManagementURLParser.parse(managementURLText)
-        managementURLIsInvalid = managementURLResult == .invalid
+        didAttemptSave = true
         saveFailed = false
 
-        guard !managementURLIsInvalid else {
-            return
-        }
-        guard !amountInputIsInvalid else {
-            return
-        }
-        guard let normalizedStartDate = normalizedBillingDate(
-                  startDate,
-                  timeZoneIdentifier: billingTimeZoneIdentifier
-              ),
-              let normalizedNextRenewal = normalizedBillingDate(
-                  confirmedNextRenewal,
-                  timeZoneIdentifier: billingTimeZoneIdentifier
-              )
-        else {
-            saveFailed = true
+        // This is the single validation/input construction seam for Add. It
+        // also guarantees malformed optional URL text and unaccepted dates do
+        // not reach any Workspace creation branch.
+        guard let input = draft.makeCreationInput(locale: locale) else {
             return
         }
 
-        let input = SubscriptionCreationInput(
-            serviceName: serviceName,
-            plan: plan,
-            category: category,
-            originalAmount: amount,
-            billingInterval: intervalChoice.interval(
-                customValueText: customValueText,
-                customUnit: customUnit
-            ),
-            startDate: normalizedStartDate,
-            renewalAnchor: initialStatus == .trial
-                ? normalizedNextRenewal
-                : normalizedStartDate,
-            confirmedNextRenewal: normalizedNextRenewal,
-            billingTimeZoneIdentifier: billingTimeZoneIdentifier,
-            managementURL: managementURL(from: managementURLResult),
-            notes: notes,
-            initialStatus: initialStatus
-        )
         let wasCreated: Bool
-        if let catalogPresetID, let selectedOffer {
+        if let catalogPresetID, hasVerifiedOffers, let selectedOffer {
             let result = workspace.createCatalogSubscription(
                 presetID: catalogPresetID,
                 command: .verifiedOffer(
                     CatalogOfferSubscriptionInput(
                         offerID: selectedOffer.id,
                         actualChargeOverride:
-                            amount == selectedOffer.price ? nil : amount,
+                            input.originalAmount == selectedOffer.price
+                                ? nil
+                                : input.originalAmount,
                         billingIntervalSelection:
-                            selectedBillingInterval
+                            input.billingInterval
                                 == selectedOffer.billingInterval
                                 ? .official
-                                : .override(selectedBillingInterval),
-                        startDate: normalizedStartDate,
-                        renewalAnchor: initialStatus == .trial
-                            ? normalizedNextRenewal
-                            : normalizedStartDate,
-                        confirmedNextRenewal: normalizedNextRenewal,
+                                : .override(input.billingInterval),
+                        startDate: input.startDate,
+                        renewalAnchor: input.renewalAnchor,
+                        confirmedNextRenewal: input.confirmedNextRenewal,
                         billingTimeZoneIdentifier:
-                            billingTimeZoneIdentifier,
-                        notes: notes,
-                        initialStatus: initialStatus
+                            input.billingTimeZoneIdentifier,
+                        notes: input.notes,
+                        initialStatus: input.initialStatus
                     )
                 )
             )
-            if case .created = result {
-                wasCreated = true
-            } else {
-                wasCreated = false
-            }
+            wasCreated = if case .created = result { true } else { false }
         } else if let catalogPresetID {
+            // A service-only preset carries identity evidence only. Its
+            // suggested interval is intentionally not adopted by the draft.
             let result = workspace.createCatalogSubscription(
                 presetID: catalogPresetID,
                 command: .legacy(input)
             )
-            if case .created = result {
-                wasCreated = true
-            } else {
-                wasCreated = false
-            }
+            wasCreated = if case .created = result { true } else { false }
         } else {
             let result = workspace.createSubscription(input)
-            if case .created = result {
-                wasCreated = true
-            } else {
-                wasCreated = false
-            }
+            wasCreated = if case .created = result { true } else { false }
         }
 
-        guard workspace.creationValidationErrors.isEmpty, wasCreated else {
-            if hasVerifiedOffers,
-               workspace.creationValidationErrors[.originalAmount] != nil
-                || workspace.creationValidationErrors[
-                    .billingSchedule
-                ] != nil
-            {
-                adjustsActualCharge = true
-            }
-            saveFailed = workspace.creationValidationErrors.isEmpty
+        guard wasCreated, workspace.creationValidationErrors.isEmpty else {
+            saveFailed = true
             return
         }
 
-        if let onSuccessfulSave {
-            onSuccessfulSave()
-        }
+        onSuccessfulSave?()
         dismiss()
     }
 
     private func applySelectedOffer() {
         guard let offer = selectedOffer else { return }
-        plan = offer.planName.value(for: locale)
-        amountText = editableMoneyText(offer.price, locale: locale)
-        currency = offer.price.currency
-        let intervalFormValues = BillingIntervalFormValues(
-            interval: offer.billingInterval
-        )
-        intervalChoice = intervalFormValues.choice
-        customValueText = intervalFormValues.customValueText
-        customUnit = intervalFormValues.customUnit
-        updateDatesForInterval(offer.billingInterval)
+        draft.plan = offer.planName.value(for: locale)
+        draft.amountText = editableMoneyText(offer.price, locale: locale)
+        draft.currency = offer.price.currency
+        draft.catalogOfferID = offer.id
+        applyBillingInterval(offer.billingInterval)
     }
 
-    private func updateDatesForInterval(_ interval: BillingInterval) {
-        guard initialStatus == .active,
-              let dates = billingDateEditState.changingInterval(
-                  startDate: startDate,
-                  interval: interval,
-                  asOf: Date(),
-                  timeZoneIdentifier: billingTimeZoneIdentifier
-              )
-        else {
+    private func applyBillingInterval(_ interval: BillingInterval) {
+        switch interval {
+        case .custom(let value, let unit):
+            draft.customIntervalValueText = String(value)
+            draft.customIntervalUnit = unit
+        default:
+            draft.customIntervalValueText = ""
+            draft.customIntervalUnit = .day
+        }
+
+        // Choosing a verified offer is evidence for its price/cadence, not for
+        // either billing date. Keep manual/offer placeholders unaccepted until
+        // the person completes a date task. Once a date is accepted, use the
+        // draft operation so the linked date follows the selected interval.
+        guard !draft.acceptedDateSources.isEmpty else {
+            draft.billingInterval = interval
             return
         }
-        apply(dates)
-    }
-
-    private func apply(_ dates: BillingDateValues) {
-        startDate = dates.startDate
-        confirmedNextRenewal = dates.nextRenewal
-    }
-
-    private var selectedBillingInterval: BillingInterval {
-        intervalChoice.interval(
-            customValueText: customValueText,
-            customUnit: customUnit
-        )
-    }
-
-    private func managementURL(
-        from result: ManagementURLParseResult
-    ) -> URL? {
-        guard case .valid(let url) = result else {
-            return nil
+        if !draft.changeBillingInterval(interval, asOf: now) {
+            draft.billingInterval = interval
         }
-        return url
     }
 }
