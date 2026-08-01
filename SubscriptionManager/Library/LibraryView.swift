@@ -898,7 +898,7 @@ private struct ScopedLibraryView: View {
         }
         .accessibilityLabel(
             "\(subscription.serviceName), \(subscription.plan), "
-                + "\(formattedMoney(subscription.originalAmount)), "
+                + "\(formattedMoney(subscription.amount)), "
                 + localizedSubscriptionStatus(subscription.status)
         )
         .accessibilityIdentifier("subscription.row")

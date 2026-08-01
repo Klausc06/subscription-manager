@@ -19,7 +19,7 @@ struct SubscriptionRow: View {
                     .font(.headline)
                 SubscriptionStatusBadge(status: subscription.status)
                 Spacer()
-                Text(formattedMoney(subscription.originalAmount))
+                Text(formattedMoney(subscription.amount))
                     .font(.headline)
                     .accessibilityIdentifier("subscription.row.amount")
             }

@@ -113,6 +113,29 @@ public struct Subscription: Codable, Equatable, Identifiable, Sendable {
         billingSchedule.interval
     }
 
+    /// Returns the amount due for the billing-local calendar day containing
+    /// `date`, applying the latest applicable price change.
+    public func amount(onBillingDay date: Date) -> Money {
+        let timeZone = TimeZone(
+            identifier: billingSchedule.timeZoneIdentifier
+        ) ?? .gmt
+        let calendar = billingLocalCalendar(timeZone: timeZone)
+        let billingDay = calendar.startOfDay(for: date)
+        return priceChanges
+            .filter {
+                calendar.startOfDay(for: $0.effectiveDate) <= billingDay
+            }
+            .max { left, right in
+                let leftDay = calendar.startOfDay(for: left.effectiveDate)
+                let rightDay = calendar.startOfDay(for: right.effectiveDate)
+                if leftDay == rightDay {
+                    return left.id.uuidString < right.id.uuidString
+                }
+                return leftDay < rightDay
+            }?
+            .amount ?? originalAmount
+    }
+
     public init(
         id: UUID,
         serviceIdentity: ServiceIdentity,
@@ -201,6 +224,7 @@ public struct SubscriptionSummary: Codable, Equatable, Identifiable, Sendable {
     public let plan: String
     public let category: String
     public let originalAmount: Money
+    public let amount: Money
     public let billingSchedule: FixedBillingSchedule
     public let confirmedNextRenewal: Date
     public let status: SubscriptionStatus
@@ -218,6 +242,10 @@ public struct SubscriptionSummary: Codable, Equatable, Identifiable, Sendable {
         plan = subscription.plan
         category = subscription.category
         originalAmount = subscription.originalAmount
+        amount = nextExpectedCharge?.amount
+            ?? subscription.amount(
+                onBillingDay: subscription.confirmedNextRenewal
+            )
         billingSchedule = subscription.billingSchedule
         confirmedNextRenewal = subscription.confirmedNextRenewal
         self.status = status
@@ -516,14 +544,14 @@ public struct SubscriptionTableQuery: Equatable, Sendable {
         case .nextRenewal:
             return lhs.confirmedNextRenewal.compare(rhs.confirmedNextRenewal)
         case .amount:
-            let currencyOrder = lhs.originalAmount.currency.rawValue
-                .localizedCompare(rhs.originalAmount.currency.rawValue)
+            let currencyOrder = lhs.amount.currency.rawValue
+                .localizedCompare(rhs.amount.currency.rawValue)
             if currencyOrder != .orderedSame {
                 return currencyOrder
-            } else if lhs.originalAmount.minorUnits == rhs.originalAmount.minorUnits {
+            } else if lhs.amount.minorUnits == rhs.amount.minorUnits {
                 return .orderedSame
             } else {
-                return lhs.originalAmount.minorUnits < rhs.originalAmount.minorUnits
+                return lhs.amount.minorUnits < rhs.amount.minorUnits
                     ? .orderedAscending
                     : .orderedDescending
             }
@@ -822,7 +850,11 @@ public final class SubscriptionWorkspace {
         }
 
         let subscriptions = (try? repository.listSubscriptions()) ?? []
-        let quotes = Set(subscriptions.map(\.originalAmount.currency))
+        let quotes = Set(
+            subscriptions.map {
+                $0.amount(onBillingDay: $0.confirmedNextRenewal).currency
+            }
+        )
             .union([currentPreferences.primaryCurrency])
             .subtracting([.eur])
         let attemptedAt = now()
@@ -1088,13 +1120,11 @@ public final class SubscriptionWorkspace {
         var ambiguousIDs: [UUID] = []
         var failedIDs: [UUID] = []
         var normalizedByID: [UUID: Subscription] = [:]
-        let reconciliationDate = now()
-
         for subscription in subscriptions {
             switch CatalogOfferMatcher().match(
                 subscription: subscription,
                 in: snapshot,
-                asOf: reconciliationDate
+                onBillingDay: subscription.confirmedNextRenewal
             ) {
             case .none:
                 unchangedIDs.append(subscription.id)
@@ -2320,7 +2350,7 @@ public final class SubscriptionWorkspace {
         switch CatalogOfferMatcher().match(
             subscription: subscription,
             in: snapshot,
-            asOf: now()
+            onBillingDay: subscription.confirmedNextRenewal
         ) {
         case .none, .ambiguous:
             return subscription
@@ -2567,13 +2597,7 @@ public final class SubscriptionWorkspace {
             month: components.month ?? 0,
             day: components.day ?? 0
         )
-        let scheduledDay = calendar.startOfDay(for: scheduledDate)
-        let amount = subscription.priceChanges
-            .filter {
-                calendar.startOfDay(for: $0.effectiveDate) <= scheduledDay
-            }
-            .max { $0.effectiveDate < $1.effectiveDate }?
-            .amount ?? subscription.originalAmount
+        let amount = subscription.amount(onBillingDay: scheduledDate)
         return ExpectedCharge(
             id: id,
             subscriptionID: subscription.id,

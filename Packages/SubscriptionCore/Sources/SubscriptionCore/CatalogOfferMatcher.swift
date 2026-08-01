@@ -63,14 +63,11 @@ public struct CatalogOfferMatcher: Sendable {
     public func match(
         subscription: Subscription,
         in snapshot: CatalogSnapshot,
-        asOf reconciliationDate: Date
+        onBillingDay: Date
     ) -> CatalogOfferMatch {
         let serviceName = Self.normalizedText(subscription.serviceName)
         guard !serviceName.isEmpty else { return .none }
-        let effectiveAmount = effectiveAmount(
-            for: subscription,
-            asOf: reconciliationDate
-        )
+        let effectiveAmount = subscription.amount(onBillingDay: onBillingDay)
         let identifiedPresetID = canonicalCatalogPresetID(
             for: subscription.serviceIdentity,
             in: snapshot
@@ -135,27 +132,4 @@ public struct CatalogOfferMatcher: Sendable {
         return snapshot.canonicalPresetID(for: storedPresetID)
     }
 
-    private func effectiveAmount(
-        for subscription: Subscription,
-        asOf reconciliationDate: Date
-    ) -> Money {
-        var calendar = Calendar(identifier: .gregorian)
-        calendar.locale = Locale(identifier: "en_US_POSIX")
-        calendar.timeZone = TimeZone(
-            identifier: subscription.billingSchedule.timeZoneIdentifier
-        ) ?? TimeZone(secondsFromGMT: 0)!
-        let reconciliationDay = calendar.startOfDay(for: reconciliationDate)
-        return subscription.priceChanges
-            .filter {
-                calendar.startOfDay(for: $0.effectiveDate)
-                    <= reconciliationDay
-            }
-            .max { left, right in
-                if left.effectiveDate != right.effectiveDate {
-                    return left.effectiveDate < right.effectiveDate
-                }
-                return left.id.uuidString < right.id.uuidString
-            }?
-            .amount ?? subscription.originalAmount
-    }
 }

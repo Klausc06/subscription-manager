@@ -4257,6 +4257,20 @@ struct SubscriptionWorkspaceTests {
         let repository = InMemorySubscriptionRepository(
             subscriptions: [existing]
         )
+        let catalogPreset = catalogPresetFixture(
+            offers: [
+                catalogOfferFixture(
+                    id: "amount-consumer",
+                    status: .verified,
+                    price: changedAmount
+                ),
+            ],
+            id: "amount-consumer",
+            serviceName: CatalogLocalizedText(
+                en: "Amount Consumer",
+                zhHans: "Amount Consumer"
+            )
+        )
         let rateSnapshot = ExchangeRateSnapshot(
             base: .eur,
             providerDate: now,
@@ -4266,6 +4280,9 @@ struct SubscriptionWorkspaceTests {
         )
         let workspace = SubscriptionWorkspace(
             repository: repository,
+            catalogRepository: StaticCatalogRepository(
+                presets: [catalogPreset]
+            ),
             exchangeRateCache: InMemoryExchangeRateCache(
                 state: ExchangeRateCacheState(
                     snapshot: rateSnapshot,
@@ -4289,6 +4306,19 @@ struct SubscriptionWorkspaceTests {
             from: now,
             through: through
         )
+        workspace.loadLibrary()
+        guard case .loaded(.current, let summaries) = workspace.libraryState,
+              let summary = summaries.first
+        else {
+            Issue.record("Expected the current library summary to load.")
+            return
+        }
+        #expect(summary.amount == originalAmount)
+        #expect(summary.originalAmount == originalAmount)
+        #expect(
+            SubscriptionTableQuery(sort: .amount).apply(to: summaries)
+                .first?.amount == originalAmount
+        )
         #expect(workspace.expectedCharges?.first?.amount == originalAmount)
         #expect(workspace.upcomingTimeline.first?.amount == originalAmount)
         #expect(
@@ -4300,6 +4330,30 @@ struct SubscriptionWorkspaceTests {
             id: id,
             effectiveDate: effectiveDate,
             amount: changedAmount
+        )
+
+        guard case .loaded(.current, let refreshedSummaries) = workspace.libraryState,
+              let refreshedSummary = refreshedSummaries.first
+        else {
+            Issue.record("Expected the refreshed current library summary.")
+            return
+        }
+        #expect(refreshedSummary.amount == changedAmount)
+        #expect(refreshedSummary.originalAmount == originalAmount)
+        #expect(
+            SubscriptionTableQuery(sort: .amount).apply(to: refreshedSummaries)
+                .first?.amount == changedAmount
+        )
+        #expect(repository.storedSubscription(id: id)?.originalAmount == originalAmount)
+
+        let catalogSummary = workspace.reconcileCatalogAssociations(
+            locale: Locale(identifier: "en")
+        )
+        #expect(catalogSummary.normalizedIDs == [id])
+        #expect(
+            repository.storedSubscription(id: id)?.amount(
+                onBillingDay: renewal
+            ) == changedAmount
         )
 
         #expect(workspace.expectedCharges?.first?.amount == changedAmount)
@@ -4481,12 +4535,13 @@ private func catalogPresetFixture(
 
 private func catalogOfferFixture(
     id: String,
-    status: CatalogOfferReviewStatus
+    status: CatalogOfferReviewStatus,
+    price: Money = Money(minorUnits: 2_000, currency: .usd)
 ) -> CatalogOffer {
     CatalogOffer(
         id: id,
         planName: CatalogLocalizedText(en: "Plus", zhHans: "Plus"),
-        price: Money(minorUnits: 2_000, currency: .usd),
+        price: price,
         billingInterval: .monthly,
         market: "US",
         purchaseChannel: .web,

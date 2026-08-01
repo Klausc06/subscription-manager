@@ -18,7 +18,7 @@ struct CatalogOfferMatcherTests {
         let result = CatalogOfferMatcher().match(
             subscription: subscription,
             in: snapshot,
-            asOf: referenceDate
+            onBillingDay: referenceDate
         )
 
         #expect(
@@ -53,7 +53,7 @@ struct CatalogOfferMatcherTests {
         let result = CatalogOfferMatcher().match(
             subscription: subscription,
             in: try makeSnapshot(presets: [intended, competing]),
-            asOf: referenceDate
+            onBillingDay: referenceDate
         )
 
         #expect(
@@ -84,7 +84,7 @@ struct CatalogOfferMatcherTests {
             CatalogOfferMatcher().match(
                 subscription: subscription,
                 in: try makeSnapshot(presets: [preset]),
-                asOf: referenceDate
+                onBillingDay: referenceDate
             ) == .none
         )
     }
@@ -105,7 +105,7 @@ struct CatalogOfferMatcherTests {
             CatalogOfferMatcher().match(
                 subscription: makeSubscription(),
                 in: snapshot,
-                asOf: referenceDate
+                onBillingDay: referenceDate
             ) == .none
         )
     }
@@ -121,21 +121,21 @@ struct CatalogOfferMatcherTests {
             matcher.match(
                 subscription: makeSubscription(amount: 1_999),
                 in: snapshot,
-                asOf: referenceDate
+                onBillingDay: referenceDate
             ) == .none
         )
         #expect(
             matcher.match(
                 subscription: makeSubscription(currency: .cny),
                 in: snapshot,
-                asOf: referenceDate
+                onBillingDay: referenceDate
             ) == .none
         )
         #expect(
             matcher.match(
                 subscription: makeSubscription(interval: .yearly),
                 in: snapshot,
-                asOf: referenceDate
+                onBillingDay: referenceDate
             ) == .none
         )
     }
@@ -155,7 +155,7 @@ struct CatalogOfferMatcherTests {
                 matcher.match(
                     subscription: makeSubscription(serviceName: name),
                     in: snapshot,
-                    asOf: referenceDate
+                    onBillingDay: referenceDate
                 ) == .none
             )
         }
@@ -180,7 +180,7 @@ struct CatalogOfferMatcherTests {
                     serviceName: "ChatGPT Plus"
                 ),
                 in: try makeSnapshot(presets: [first, second]),
-                asOf: referenceDate
+                onBillingDay: referenceDate
             ) == .ambiguous
         )
     }
@@ -200,6 +200,7 @@ struct CatalogOfferMatcherTests {
         )!
         let subscription = makeSubscription(
             amount: 1_000,
+            confirmedNextRenewal: future,
             priceChanges: [
                 PriceChange(
                     id: UUID(
@@ -221,9 +222,9 @@ struct CatalogOfferMatcherTests {
         let result = CatalogOfferMatcher().match(
             subscription: subscription,
             in: try makeSnapshot(
-                presets: [makePreset(offers: [makeOffer()])]
+                presets: [makePreset(offers: [makeOffer(price: 3_000)])]
             ),
-            asOf: referenceDate
+            onBillingDay: subscription.confirmedNextRenewal
         )
 
         guard case .unique = result else {
@@ -279,12 +280,13 @@ struct CatalogOfferMatcherTests {
 
     private func makeOffer(
         id: String = "plus-monthly",
+        price: Int64 = 2_000,
         reviewStatus: CatalogOfferReviewStatus = .verified
     ) -> CatalogOffer {
         CatalogOffer(
             id: id,
             planName: CatalogLocalizedText(en: "Plus", zhHans: "Plus"),
-            price: Money(minorUnits: 2_000, currency: .usd),
+            price: Money(minorUnits: price, currency: .usd),
             billingInterval: .monthly,
             market: "US",
             purchaseChannel: .web,
@@ -302,6 +304,7 @@ struct CatalogOfferMatcherTests {
         amount: Int64 = 2_000,
         currency: Currency = .usd,
         interval: BillingInterval = .monthly,
+        confirmedNextRenewal: Date? = nil,
         priceChanges: [PriceChange] = []
     ) -> Subscription {
         Subscription(
@@ -318,7 +321,7 @@ struct CatalogOfferMatcherTests {
             ),
             billingCycle: interval,
             startDate: referenceDate,
-            confirmedNextRenewal: referenceDate,
+            confirmedNextRenewal: confirmedNextRenewal ?? referenceDate,
             billingTimeZoneIdentifier: "UTC",
             managementURL: nil,
             notes: "",

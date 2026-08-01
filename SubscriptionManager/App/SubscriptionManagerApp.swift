@@ -502,7 +502,7 @@ private struct MacLibraryView: View {
                     Text(summary.confirmedNextRenewal, format: .dateTime.year().month().day())
                 }
                 TableColumn("Amount") { summary in
-                    Text(formattedMoney(summary.originalAmount))
+                    Text(formattedMoney(summary.amount))
                 }
             }
             .accessibilityIdentifier("mac.library.table")
