@@ -199,7 +199,11 @@ configuration to select.
   `SubscriptionDomainTests.swift` using literal UTC dates: before the first
   change returns USD 9.99; the effective day returns USD 14.99; after a second
   change returns CNY 68; an unsorted `priceChanges` array still chooses the
-  latest applicable local day.
+  latest applicable local day. Add an imported-history edge case with two
+  changes at different wall-clock times on the same billing-local day; select
+  deterministically by UUID because production commands reject duplicates but
+  imported legacy data can still contain them. Add an invalid stored TimeZone
+  case proving the resolver fails deterministically to GMT.
 
 ```swift
 @Test("Effective amount follows billing-local price history")
@@ -252,8 +256,9 @@ Expected: compile failure because `Subscription.amount(onBillingDay:)` does
 not exist.
 
 - [ ] **Step 3: Implement the single resolver.** Add this public method to
-  `Subscription`; compare billing-local start-of-day values and use effective
-  date plus UUID as the deterministic tie-breaker.
+  `Subscription`; compare billing-local start-of-day values and use local day
+  plus UUID as the deterministic tie-breaker. Two timestamps on the same local
+  day are one effective billing day.
 
 ```swift
 public func amount(onBillingDay date: Date) -> Money {
@@ -267,10 +272,12 @@ public func amount(onBillingDay date: Date) -> Money {
             calendar.startOfDay(for: $0.effectiveDate) <= billingDay
         }
         .max {
-            if $0.effectiveDate == $1.effectiveDate {
+            let leftDay = calendar.startOfDay(for: $0.effectiveDate)
+            let rightDay = calendar.startOfDay(for: $1.effectiveDate)
+            if leftDay == rightDay {
                 return $0.id.uuidString < $1.id.uuidString
             }
-            return $0.effectiveDate < $1.effectiveDate
+            return leftDay < rightDay
         }?
         .amount ?? originalAmount
 }
