@@ -2242,12 +2242,6 @@ public final class SubscriptionWorkspace {
         if input.serviceName.trimmingCharacters(in: whitespace).isEmpty {
             errors[.serviceName] = .required
         }
-        if input.plan.trimmingCharacters(in: whitespace).isEmpty {
-            errors[.plan] = .required
-        }
-        if input.category.trimmingCharacters(in: whitespace).isEmpty {
-            errors[.category] = .required
-        }
         if let originalAmount = input.originalAmount {
             if originalAmount.minorUnits <= 0 {
                 errors[.originalAmount] = .mustBePositive
@@ -2289,12 +2283,6 @@ public final class SubscriptionWorkspace {
 
         if input.serviceName.trimmingCharacters(in: whitespace).isEmpty {
             errors[.serviceName] = .required
-        }
-        if input.plan.trimmingCharacters(in: whitespace).isEmpty {
-            errors[.plan] = .required
-        }
-        if input.category.trimmingCharacters(in: whitespace).isEmpty {
-            errors[.category] = .required
         }
         if input.amount.minorUnits <= 0 {
             errors[.originalAmount] = .mustBePositive

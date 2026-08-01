@@ -62,9 +62,11 @@
 		D5FE413ECB49E303A5EE9F07 /* catalog-v1.json in Resources */ = {isa = PBXBuildFile; fileRef = 1DB077A74E0C9E4C7BB81F81 /* catalog-v1.json */; };
 		DEC01EB4E532BAC0F3359C00 /* PortableRestoreView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3D462734DE864FE8B34F0EFE /* PortableRestoreView.swift */; };
 		E3EC37D5EF593651F866C788 /* SubscriptionRow.swift in Sources */ = {isa = PBXBuildFile; fileRef = F24364E7E6897202F27AAE1B /* SubscriptionRow.swift */; };
+		E7A1C7B8D4B34FA8A9C4D301 /* SubscriptionDraft.swift in Sources */ = {isa = PBXBuildFile; fileRef = E7A1C7B8D4B34FA8A9C4D302 /* SubscriptionDraft.swift */; };
 		F227D20F28F63E3A1A7D0681 /* SubscriptionManagerUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4C522F69323C0F092E76973D /* SubscriptionManagerUITests.swift */; };
 		F67C63EB88D910146E613A1A /* ManagementURLValidationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A40A43B15F2DC8026034E7B6 /* ManagementURLValidationTests.swift */; };
 		FE9D2A03AAAF24FCBDC2CEA0 /* AppDependenciesTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 178B2F8071F3AA4EEB4EF445 /* AppDependenciesTests.swift */; };
+		E7A1C7B8D4B34FA8A9C4D303 /* SubscriptionDraftTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E7A1C7B8D4B34FA8A9C4D304 /* SubscriptionDraftTests.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -164,6 +166,8 @@
 		CF73BE31E7CBFDDF0AED3F4F /* CATALOG_METADATA_LICENSE.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = CATALOG_METADATA_LICENSE.md; sourceTree = "<group>"; };
 		DBD964E5A45925EC35E3893B /* CatalogOfferSelectionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CatalogOfferSelectionTests.swift; sourceTree = "<group>"; };
 		E06ED39F4F3A5F168380926E /* GitHubCatalogUpdateSource.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GitHubCatalogUpdateSource.swift; sourceTree = "<group>"; };
+		E7A1C7B8D4B34FA8A9C4D302 /* SubscriptionDraft.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SubscriptionDraft.swift; sourceTree = "<group>"; };
+		E7A1C7B8D4B34FA8A9C4D304 /* SubscriptionDraftTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SubscriptionDraftTests.swift; sourceTree = "<group>"; };
 		E8E32D343532C15910A82133 /* BundledCatalogRepositoryTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BundledCatalogRepositoryTests.swift; sourceTree = "<group>"; };
 		F24364E7E6897202F27AAE1B /* SubscriptionRow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SubscriptionRow.swift; sourceTree = "<group>"; };
 		F6158744F9B1B175056E79CA /* BundledCatalogRepository.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BundledCatalogRepository.swift; sourceTree = "<group>"; };
@@ -293,6 +297,7 @@
 				53CF076D96FF1C31ED7EC2A2 /* RecordCancellationView.swift */,
 				6D7EF077DB4CCAEF72B8D27F /* RecordPriceChangeView.swift */,
 				6F7965D45867F28DAFB96A5D /* SubscriptionDetailView.swift */,
+				E7A1C7B8D4B34FA8A9C4D302 /* SubscriptionDraft.swift */,
 				2CAE4BF38A7217C53E4C047F /* SubscriptionFormSupport.swift */,
 				4C0A8035198E253EFD0921C9 /* SubscriptionLifecycleSupport.swift */,
 				F24364E7E6897202F27AAE1B /* SubscriptionRow.swift */,
@@ -332,6 +337,7 @@
 				3220F13255F0E1FBFAE282B1 /* MacWindowRouterTests.swift */,
 				A40A43B15F2DC8026034E7B6 /* ManagementURLValidationTests.swift */,
 				1D994A995E43724CEF005FA7 /* MoneyFormattingTests.swift */,
+				E7A1C7B8D4B34FA8A9C4D304 /* SubscriptionDraftTests.swift */,
 				4BB3CC1FBA7074325EA61DC3 /* SubscriptionIntentServiceTests.swift */,
 				3ED395A87C6661BAAA9E98BB /* SubscriptionLookupTests.swift */,
 				6F44B60853F624BFCF8B2F53 /* SwiftDataSubscriptionRepositoryTests.swift */,
@@ -563,6 +569,7 @@
 				CD2F7E3555106B7275202D40 /* RecordPriceChangeView.swift in Sources */,
 				7C34EDA2D016C0D45A4E6D05 /* SubscriptionAppEntity.swift in Sources */,
 				4C12D90EEC1CC642D35E22A2 /* SubscriptionDetailView.swift in Sources */,
+				E7A1C7B8D4B34FA8A9C4D301 /* SubscriptionDraft.swift in Sources */,
 				71D3C438264BA1B8C68FE357 /* SubscriptionFormSupport.swift in Sources */,
 				0E185A93103BA6D997423247 /* SubscriptionIntentService.swift in Sources */,
 				44CD78EEA1938E991A1C14E0 /* SubscriptionIntents.swift in Sources */,
@@ -597,6 +604,7 @@
 				289E4CBB05784C2181F2A79F /* MacWindowRouterTests.swift in Sources */,
 				F67C63EB88D910146E613A1A /* ManagementURLValidationTests.swift in Sources */,
 				CD2E291B88ADA438114AEA63 /* MoneyFormattingTests.swift in Sources */,
+				E7A1C7B8D4B34FA8A9C4D303 /* SubscriptionDraftTests.swift in Sources */,
 				8EA7BB43625DAD67A72EDBA4 /* SubscriptionIntentServiceTests.swift in Sources */,
 				07BD717C844F32E7282360A2 /* SubscriptionLookupTests.swift in Sources */,
 				C90E83DF13A2B2073C083FBF /* SwiftDataSubscriptionRepositoryTests.swift in Sources */,

@@ -2045,6 +2045,110 @@ struct SubscriptionWorkspaceTests {
         #expect(workspace.libraryState == .empty(.current))
     }
 
+    @Test("Creation allows empty optional metadata")
+    @MainActor
+    func creationAllowsEmptyOptionalMetadata() throws {
+        let repository = InMemorySubscriptionRepository()
+        let workspace = SubscriptionWorkspace(
+            repository: repository,
+            now: { Date(timeIntervalSince1970: 1_769_904_000) }
+        )
+        let startDate = Date(timeIntervalSince1970: 1_767_225_600)
+
+        let result = workspace.createSubscription(
+            SubscriptionCreationInput(
+                serviceName: "Example",
+                plan: "",
+                category: "\n",
+                originalAmount: Money(minorUnits: 999, currency: .usd),
+                billingInterval: .monthly,
+                startDate: startDate,
+                confirmedNextRenewal: startDate,
+                billingTimeZoneIdentifier: "UTC",
+                managementURL: nil,
+                notes: ""
+            )
+        )
+
+        guard case .created(let created) = result else {
+            Issue.record("Expected creation to accept optional metadata.")
+            return
+        }
+        #expect(created.plan.isEmpty)
+        #expect(created.category.isEmpty)
+        #expect(workspace.creationValidationErrors.isEmpty)
+    }
+
+    @Test("Editing allows empty optional metadata")
+    @MainActor
+    func editingAllowsEmptyOptionalMetadata() throws {
+        let calendar = utcCalendar()
+        let now = try actionDate(
+            year: 2026,
+            month: 7,
+            day: 30,
+            hour: 12,
+            calendar: calendar
+        )
+        let startDate = try actionDate(
+            year: 2026,
+            month: 1,
+            day: 15,
+            hour: 12,
+            calendar: calendar
+        )
+        let nextRenewal = try actionDate(
+            year: 2026,
+            month: 8,
+            day: 15,
+            hour: 12,
+            calendar: calendar
+        )
+        let existing = makeSubscription(
+            id: UUID(uuidString: "AAAAAAAA-BBBB-CCCC-DDDD-EEEEEEEEEEEE")!,
+            billingSchedule: FixedBillingSchedule(
+                interval: .monthly,
+                renewalAnchor: startDate,
+                timeZoneIdentifier: "UTC"
+            ),
+            confirmedNextRenewal: nextRenewal
+        )
+        let repository = InMemorySubscriptionRepository(
+            subscriptions: [existing]
+        )
+        let workspace = SubscriptionWorkspace(
+            repository: repository,
+            now: { now },
+            calendar: calendar
+        )
+
+        workspace.editSubscription(
+            id: existing.id,
+            input: SubscriptionEditInput(
+                serviceName: existing.serviceName,
+                plan: "",
+                category: "\t",
+                amount: existing.amount(
+                    onBillingDay: existing.confirmedNextRenewal
+                ),
+                billingSchedule: existing.billingSchedule,
+                startDate: existing.startDate,
+                confirmedNextRenewal: existing.confirmedNextRenewal,
+                managementURL: nil,
+                notes: existing.notes
+            )
+        )
+
+        #expect(workspace.editingValidationErrors.isEmpty)
+        #expect(
+            repository.storedSubscription(id: existing.id)?.plan.isEmpty == true
+        )
+        #expect(
+            repository.storedSubscription(id: existing.id)?.category.isEmpty
+                == true
+        )
+    }
+
     @Test("Incomplete monthly input exposes field errors without creating a record")
     @MainActor
     func incompleteMonthlyInputExposesFieldErrors() {
@@ -2068,8 +2172,6 @@ struct SubscriptionWorkspaceTests {
         #expect(
             workspace.creationValidationErrors == [
                 .serviceName: .required,
-                .plan: .required,
-                .category: .required,
                 .originalAmount: .required,
             ]
         )
