@@ -697,7 +697,7 @@ git commit -m "feat(editor): share subscription draft and validation"
 - Create: `SubscriptionManager/Library/BillingDateTaskView.swift`
 - Modify: `SubscriptionManager/Library/SubscriptionFormSupport.swift`
 - Modify: `SubscriptionManager/Resources/Localizable.xcstrings`
-- Modify: `SubscriptionManagerTests/SubscriptionDraftTests.swift` (value-operation coverage only)
+- Modify: `SubscriptionManagerTests/SubscriptionDraftTests.swift` (retain Task 3 value-operation regression; add shared-view contract test)
 - Modify: `SubscriptionManager.xcodeproj/project.pbxproj`
 
 The Edit-driven UI acceptance test remains in Task 5, after the Add/Edit
@@ -712,18 +712,21 @@ shells exist; Task 4 must not add or commit `SubscriptionManagerUITests`.
   accessibility IDs under `subscription.editor.*` and
   `subscription.date-task.*`.
 
-- [ ] **Step 1: Add failing draft value-operation coverage.** Extend
-  `SubscriptionDraftTests` with explicit UTC and Asia/Shanghai fixtures for
-  Start Date -> derived Next Renewal, Next Renewal -> preceding Start Date,
-  interval re-derivation, and independent Trial Start/First Paid Charge
-  updates. Cover month-end and leap-year boundaries, invalid TimeZone and
-  non-finite Date rejection, optional metadata, malformed nonempty URL,
-  service-name/amount/currency/interval/date requirements, locale parsing,
-  exact minor-unit rounding, and positive amount validation. The
-  Edit-driven UI scenario `testDateTaskHasExplicitDoneAndCancel` is added in
-  Task 5 once the Add/Edit shells can host the date task.
+- [ ] **Step 1: Add the app-unit shared-view contract test.** Keep the
+  already-green Task 3 `SubscriptionDraftTests` value-operation suite as
+  regression coverage; do not duplicate its UTC/Asia/Shanghai, date-source,
+  interval, validation, or locale cases. Add one small `@Test` in that already
+  wired file that constructs `SubscriptionEditorSections` with a draft
+  `Binding`, status/charge optionals, and an `onEditDate` closure, then
+  constructs `BillingDateTaskView` with the same binding, a `DateSource`, and
+  injected `now`. Touch their `body` values so the test is an API/initializer
+  compile contract. If the implementation exposes a pure binding adapter or
+  date-task transaction helper, assert its initial snapshot, Done write-back,
+  and Cancel no-write behavior here as well. The Edit-driven UI scenario
+  `testDateTaskHasExplicitDoneAndCancel` is added in Task 5 once the Add/Edit
+  shells can host the date task.
 
-- [ ] **Step 2: Verify red.** Run the app unit/value-operation target:
+- [ ] **Step 2: Verify the shared-view red gate.** Run the app unit target:
 
 ```bash
 xcodebuild test -project SubscriptionManager.xcodeproj \
@@ -734,9 +737,10 @@ xcodebuild test -project SubscriptionManager.xcodeproj \
   -only-testing:SubscriptionManagerTests
 ```
 
-Expected: failure from the newly added draft value-operation assertions before
-the shared sections/date-task implementation is complete. No UI test is
-introduced or selected in this task.
+Expected: compile failure such as `cannot find 'SubscriptionEditorSections' in
+scope` and `cannot find 'BillingDateTaskView' in scope` from the new contract
+test. No UI test is introduced or selected in this task; the date-task UI
+RED+green cycle belongs to Task 5 after the Add/Edit shells exist.
 
 - [ ] **Step 3: Build semantic shared sections.** The parent Add/Edit surface
   owns the only `Form`; `SubscriptionEditorSections.body` emits sibling native
