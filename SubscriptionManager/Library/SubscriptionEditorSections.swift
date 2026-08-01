@@ -271,9 +271,11 @@ struct SubscriptionEditorSections: View {
             locale: locale
         )
         guard isActive else { return value }
-        let role = draft.dateSource == source
-            ? String(localized: "Source")
-            : String(localized: "Derived")
+        let role = billingDateRoleText(
+            source: source,
+            selectedSource: draft.dateSource,
+            locale: locale
+        )
         return value + ", " + role
     }
 

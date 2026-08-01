@@ -1,6 +1,93 @@
 import Foundation
 import SwiftUI
 
+/// Value-only transaction state for a date task. Applying a date mutates only
+/// the working copy; callers must commit the returned draft explicitly.
+struct BillingDateTaskState: Equatable {
+    let source: SubscriptionDraft.DateSource
+    let now: Date
+    private(set) var workingDraft: SubscriptionDraft
+    private(set) var selectedDate: Date
+    private(set) var didApplySelection = false
+
+    init(
+        draft: SubscriptionDraft,
+        source: SubscriptionDraft.DateSource,
+        now: Date
+    ) {
+        self.source = source
+        self.now = now
+        self.workingDraft = draft
+        self.selectedDate = source == .startDate
+            ? draft.startDate
+            : draft.confirmedNextRenewal
+    }
+
+    @discardableResult
+    mutating func applySelection(_ newDate: Date) -> Bool {
+        var candidate = workingDraft
+        let applied: Bool
+        switch source {
+        case .startDate:
+            applied = candidate.selectStartDate(newDate, asOf: now)
+        case .nextRenewal:
+            applied = candidate.selectNextRenewal(newDate, asOf: now)
+        }
+        guard applied else { return false }
+
+        workingDraft = candidate
+        selectedDate = date(for: source, in: candidate)
+        didApplySelection = true
+        return true
+    }
+
+    mutating func commit() -> SubscriptionDraft? {
+        if !didApplySelection {
+            guard applySelection(selectedDate) else { return nil }
+        }
+        return workingDraft
+    }
+
+    private func date(
+        for source: SubscriptionDraft.DateSource,
+        in draft: SubscriptionDraft
+    ) -> Date {
+        switch source {
+        case .startDate:
+            draft.startDate
+        case .nextRenewal:
+            draft.confirmedNextRenewal
+        }
+    }
+}
+
+func billingDateRoleText(
+    source: SubscriptionDraft.DateSource,
+    selectedSource: SubscriptionDraft.DateSource,
+    locale: Locale
+) -> String {
+    if source == selectedSource {
+        return String(
+            localized: LocalizedStringResource(
+                "Source",
+                defaultValue: "Source",
+                table: "Localizable",
+                locale: locale,
+                bundle: .main
+            )
+        )
+    }
+    return String(
+        localized: LocalizedStringResource(
+            "Derived",
+            defaultValue: "Derived",
+            table: "Localizable",
+            locale: locale,
+            bundle: .main
+        )
+    )
+}
+
 /// A transactional date editor. The parent draft is written only after the
 /// user taps Done; Cancel leaves the parent binding untouched.
 struct BillingDateTaskView: View {
@@ -11,9 +98,7 @@ struct BillingDateTaskView: View {
     let source: SubscriptionDraft.DateSource
     let now: Date
 
-    @State private var workingDraft: SubscriptionDraft
-    @State private var selectedDate: Date
-    @State private var didApplySelection = false
+    @State private var taskState: BillingDateTaskState
 
     init(
         draft: Binding<SubscriptionDraft>,
@@ -24,11 +109,12 @@ struct BillingDateTaskView: View {
         self.source = source
         self.now = now
         let snapshot = draft.wrappedValue
-        self._workingDraft = State(initialValue: snapshot)
-        self._selectedDate = State(
-            initialValue: source == .startDate
-                ? snapshot.startDate
-                : snapshot.confirmedNextRenewal
+        self._taskState = State(
+            initialValue: BillingDateTaskState(
+                draft: snapshot,
+                source: source,
+                now: now
+            )
         )
     }
 
@@ -50,7 +136,7 @@ struct BillingDateTaskView: View {
                     value: formattedBillingDate(
                         date(for: source),
                         timeZoneIdentifier:
-                            workingDraft.billingTimeZoneIdentifier,
+                            taskState.workingDraft.billingTimeZoneIdentifier,
                         locale: locale
                     )
                 )
@@ -62,7 +148,7 @@ struct BillingDateTaskView: View {
                     value: formattedBillingDate(
                         date(for: counterpart),
                         timeZoneIdentifier:
-                            workingDraft.billingTimeZoneIdentifier,
+                            taskState.workingDraft.billingTimeZoneIdentifier,
                         locale: locale
                     )
                 )
@@ -75,7 +161,7 @@ struct BillingDateTaskView: View {
         .environment(
             \.timeZone,
             billingTimeZone(
-                identifier: workingDraft.billingTimeZoneIdentifier
+                identifier: taskState.workingDraft.billingTimeZoneIdentifier
             )
         )
         .navigationTitle(LocalizedStringKey(sourceTitle))
@@ -91,8 +177,10 @@ struct BillingDateTaskView: View {
             }
             ToolbarItem(placement: .confirmationAction) {
                 Button("Done") {
-                    applySelectionAtLeastOnce()
-                    draft = workingDraft
+                    guard let committedDraft = taskState.commit() else {
+                        return
+                    }
+                    draft = committedDraft
                     dismiss()
                 }
                 .accessibilityIdentifier("subscription.date-task.done")
@@ -102,38 +190,19 @@ struct BillingDateTaskView: View {
 
     private var selectedDateBinding: Binding<Date> {
         Binding(
-            get: { selectedDate },
+            get: { taskState.selectedDate },
             set: { newValue in
-                selectedDate = newValue
-                applySelection(newValue)
+                _ = taskState.applySelection(newValue)
             }
         )
-    }
-
-    private func applySelectionAtLeastOnce() {
-        guard !didApplySelection else { return }
-        applySelection(selectedDate)
-    }
-
-    private func applySelection(_ newDate: Date) {
-        didApplySelection = true
-        let applied: Bool
-        switch source {
-        case .startDate:
-            applied = workingDraft.selectStartDate(newDate, asOf: now)
-        case .nextRenewal:
-            applied = workingDraft.selectNextRenewal(newDate, asOf: now)
-        }
-        guard applied else { return }
-        selectedDate = date(for: source)
     }
 
     private func date(for source: SubscriptionDraft.DateSource) -> Date {
         switch source {
         case .startDate:
-            workingDraft.startDate
+            taskState.workingDraft.startDate
         case .nextRenewal:
-            workingDraft.confirmedNextRenewal
+            taskState.workingDraft.confirmedNextRenewal
         }
     }
 
@@ -165,7 +234,7 @@ struct BillingDateTaskView: View {
     }
 
     private var isTrial: Bool {
-        switch workingDraft.mode {
+        switch taskState.workingDraft.mode {
         case .creating(.trial), .editing(.trial):
             true
         default:
@@ -174,7 +243,7 @@ struct BillingDateTaskView: View {
     }
 
     private var isActive: Bool {
-        switch workingDraft.mode {
+        switch taskState.workingDraft.mode {
         case .creating(.active), .editing(.active):
             true
         default:
@@ -187,13 +256,15 @@ struct BillingDateTaskView: View {
     ) -> String {
         let value = formattedBillingDate(
             date(for: source),
-            timeZoneIdentifier: workingDraft.billingTimeZoneIdentifier,
+            timeZoneIdentifier: taskState.workingDraft.billingTimeZoneIdentifier,
             locale: locale
         )
         guard isActive else { return value }
-        let role = workingDraft.dateSource == source
-            ? String(localized: "Source")
-            : String(localized: "Derived")
+        let role = billingDateRoleText(
+            source: source,
+            selectedSource: taskState.workingDraft.dateSource,
+            locale: locale
+        )
         return value + ", " + role
     }
 }

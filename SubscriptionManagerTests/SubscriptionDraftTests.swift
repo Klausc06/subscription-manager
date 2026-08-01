@@ -29,8 +29,223 @@ struct SubscriptionDraftTests {
             now: Date(timeIntervalSinceReferenceDate: 0)
         )
 
-        _ = sections.body
-        _ = dateTask.body
+        _ = sections
+        _ = dateTask
+    }
+
+    @Test("Selecting custom preserves whitespace while parsing its value")
+    @MainActor
+    func customIntervalSelectionTrimsStoredText() throws {
+        let now = try date(year: 2026, month: 7, day: 30, hour: 12)
+        var draft = SubscriptionDraft.manual(
+            now: now,
+            timeZoneIdentifier: "UTC"
+        )
+        draft.customIntervalValueText = " 3 "
+        let binding = Binding<SubscriptionDraft>(
+            get: { draft },
+            set: { draft = $0 }
+        )
+        let interval = subscriptionBillingIntervalBinding(binding, asOf: now)
+
+        interval.wrappedValue = "custom"
+
+        #expect(draft.customIntervalValueText == " 3 ")
+        #expect(draft.billingInterval == .custom(value: 3, unit: .day))
+    }
+
+    @Test("Billing date role labels honor their requested locale")
+    func billingDateRoleLabelsHonorLocale() {
+        let zhHans = Locale(identifier: "zh-Hans")
+        let english = Locale(identifier: "en")
+
+        #expect(
+            billingDateRoleText(
+                source: .startDate,
+                selectedSource: .startDate,
+                locale: zhHans
+            ) == "来源"
+        )
+        #expect(
+            billingDateRoleText(
+                source: .nextRenewal,
+                selectedSource: .startDate,
+                locale: zhHans
+            ) == "推导"
+        )
+        #expect(
+            billingDateRoleText(
+                source: .startDate,
+                selectedSource: .startDate,
+                locale: english
+            ) == "Source"
+        )
+        #expect(
+            billingDateRoleText(
+                source: .nextRenewal,
+                selectedSource: .startDate,
+                locale: english
+            ) == "Derived"
+        )
+    }
+
+    @Test("Date task state commits active source and derived counterpart")
+    func dateTaskStateCommitsActiveSource() throws {
+        let now = try date(year: 2026, month: 7, day: 30, hour: 12)
+        let selectedStart = try date(year: 2026, month: 1, day: 15, hour: 12)
+        var draft = SubscriptionDraft.manual(
+            now: now,
+            timeZoneIdentifier: "UTC"
+        )
+        configureActive(&draft)
+        let original = draft
+        var state = BillingDateTaskState(
+            draft: draft,
+            source: .startDate,
+            now: now
+        )
+
+        #expect(state.workingDraft == original)
+        let selected = state.applySelection(selectedStart)
+        #expect(selected)
+        #expect(draft == original)
+        #expect(state.workingDraft.startDate != original.startDate)
+        #expect(state.workingDraft.confirmedNextRenewal != original.confirmedNextRenewal)
+
+        let committedValue = state.commit()
+        let committed = try #require(committedValue)
+        #expect(committed == state.workingDraft)
+        #expect(committed.dateSource == .startDate)
+    }
+
+    @Test("Date task state commits an initial active renewal and derives start")
+    func dateTaskStateCommitsInitialRenewal() throws {
+        let now = try date(year: 2026, month: 7, day: 30, hour: 12)
+        var draft = SubscriptionDraft.manual(
+            now: now,
+            timeZoneIdentifier: "UTC"
+        )
+        configureActive(&draft)
+        var state = BillingDateTaskState(
+            draft: draft,
+            source: .nextRenewal,
+            now: now
+        )
+
+        let committedValue = state.commit()
+        let committed = try #require(committedValue)
+
+        #expect(state.didApplySelection)
+        #expect(committed.dateSource == .nextRenewal)
+        #expect(committed.startDate != draft.startDate)
+    }
+
+    @Test("Date task state keeps trial sources independent")
+    func dateTaskStateKeepsTrialSourcesIndependent() throws {
+        let now = try date(year: 2026, month: 7, day: 30, hour: 12)
+        let selectedStart = try date(year: 2026, month: 7, day: 1, hour: 19)
+        let selectedRenewal = try date(year: 2026, month: 8, day: 15, hour: 19)
+        var draft = SubscriptionDraft.manual(
+            now: now,
+            timeZoneIdentifier: "UTC"
+        )
+        draft.mode = .creating(.trial)
+        draft.billingInterval = .monthly
+        let originalRenewal = draft.confirmedNextRenewal
+        var startState = BillingDateTaskState(
+            draft: draft,
+            source: .startDate,
+            now: now
+        )
+        let startSelected = startState.applySelection(selectedStart)
+        #expect(startSelected)
+        #expect(startState.workingDraft.confirmedNextRenewal == originalRenewal)
+
+        var renewalState = BillingDateTaskState(
+            draft: draft,
+            source: .nextRenewal,
+            now: now
+        )
+        let renewalSelected = renewalState.applySelection(selectedRenewal)
+        #expect(renewalSelected)
+        #expect(renewalState.workingDraft.startDate == draft.startDate)
+    }
+
+    @Test("Date task state leaves cancelled dates independent")
+    func dateTaskStateLeavesCancelledDatesIndependent() throws {
+        let start = try date(year: 2025, month: 9, day: 15, hour: 12)
+        let renewal = try date(year: 2025, month: 10, day: 15, hour: 12)
+        let cancelledAt = try date(year: 2026, month: 1, day: 10, hour: 12)
+        let accessUntil = try date(year: 2026, month: 2, day: 10, hour: 12)
+        let subscription = Subscription(
+            id: UUID(uuidString: "CCCCCCCC-DDDD-EEEE-FFFF-000000000000")!,
+            serviceIdentity: ServiceIdentity(rawValue: "manual:cancelled-task"),
+            serviceName: "Cancelled Task Service",
+            plan: "",
+            category: "",
+            originalAmount: Money(minorUnits: 999, currency: .usd),
+            billingSchedule: FixedBillingSchedule(
+                interval: .monthly,
+                renewalAnchor: start,
+                timeZoneIdentifier: "UTC"
+            ),
+            startDate: start,
+            confirmedNextRenewal: renewal,
+            managementURL: nil,
+            notes: "",
+            lifecycle: .cancelled(cancelledAt: cancelledAt, accessUntil: accessUntil)
+        )
+        let draft = SubscriptionDraft.editing(
+            subscription: subscription,
+            locale: Locale(identifier: "en_US")
+        )
+        let originalStart = draft.startDate
+        let originalRenewal = draft.confirmedNextRenewal
+
+        var startState = BillingDateTaskState(
+            draft: draft,
+            source: .startDate,
+            now: accessUntil
+        )
+        let startSelected = startState.applySelection(
+            try date(year: 2025, month: 8, day: 15, hour: 12)
+        )
+        #expect(startSelected)
+        #expect(startState.workingDraft.confirmedNextRenewal == originalRenewal)
+
+        var renewalState = BillingDateTaskState(
+            draft: draft,
+            source: .nextRenewal,
+            now: accessUntil
+        )
+        let renewalSelected = renewalState.applySelection(
+            try date(year: 2025, month: 11, day: 15, hour: 12)
+        )
+        #expect(renewalSelected)
+        #expect(renewalState.workingDraft.startDate == originalStart)
+    }
+
+    @Test("Date task state does not commit failed selections")
+    func dateTaskStateRejectsFailedSelection() {
+        let now = Date(timeIntervalSinceReferenceDate: 0)
+        let draft = SubscriptionDraft.manual(
+            now: now,
+            timeZoneIdentifier: "UTC"
+        )
+        var state = BillingDateTaskState(
+            draft: draft,
+            source: .startDate,
+            now: now
+        )
+        let original = state.workingDraft
+
+        let selected = state.applySelection(now)
+        #expect(!selected)
+        #expect(!state.didApplySelection)
+        #expect(state.workingDraft == original)
+        let committed = state.commit()
+        #expect(committed == nil)
+        #expect(!state.didApplySelection)
     }
 
     @Test("Interval bindings preserve optional and custom draft values")

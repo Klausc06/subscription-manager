@@ -174,7 +174,10 @@ func subscriptionBillingIntervalBinding(
             }
 
             if rawValue == "custom" {
-                let value = Int(updated.customIntervalValueText) ?? 0
+                let value = Int(
+                    updated.customIntervalValueText
+                        .trimmingCharacters(in: .whitespacesAndNewlines)
+                ) ?? 0
                 applyEditorInterval(
                     .custom(value: value, unit: updated.customIntervalUnit),
                     to: &updated,
