@@ -74,6 +74,57 @@ public struct UpcomingTimelineItem: Equatable, Identifiable, Sendable {
     }
 }
 
+public struct UpcomingCalendarDay: Equatable, Identifiable, Sendable {
+    public let date: Date
+    public let items: [UpcomingTimelineItem]
+
+    public var id: Date { date }
+
+    public init(date: Date, items: [UpcomingTimelineItem]) {
+        self.date = date
+        self.items = items
+    }
+}
+
+/// A presentation-ready month slice of an existing Upcoming timeline. This
+/// groups already-resolved charge facts; it does not query persistence or
+/// generate billing recurrences.
+public struct UpcomingCalendarProjection: Equatable, Sendable {
+    public let monthStart: Date
+    public let days: [UpcomingCalendarDay]
+
+    public init(
+        monthContaining date: Date,
+        items: [UpcomingTimelineItem],
+        calendar: Calendar
+    ) {
+        guard let monthInterval = calendar.dateInterval(of: .month, for: date)
+        else {
+            monthStart = calendar.startOfDay(for: date)
+            days = []
+            return
+        }
+
+        monthStart = monthInterval.start
+        let grouped = Dictionary(grouping: items.filter {
+            monthInterval.contains($0.date)
+        }) { item in
+            calendar.startOfDay(for: item.date)
+        }
+        days = grouped
+            .map { date, items in
+                UpcomingCalendarDay(
+                    date: date,
+                    items: items.sorted { lhs, rhs in
+                        if lhs.date != rhs.date { return lhs.date < rhs.date }
+                        return lhs.id < rhs.id
+                    }
+                )
+            }
+            .sorted { $0.date < $1.date }
+    }
+}
+
 public enum SubscriptionHistoryEntry: Equatable, Sendable {
     case expected(ExpectedCharge)
     case confirmed(ConfirmedCharge)
@@ -1144,6 +1195,14 @@ public final class SubscriptionWorkspace {
             catalogSnapshot = nil
             catalogState = .failed
         }
+    }
+
+    public func catalogMatches(
+        query: String,
+        locale: Locale
+    ) -> [CatalogPreset] {
+        let snapshot = catalogSnapshot ?? (try? catalogRepository?.loadSnapshot())
+        return snapshot?.search(query: query, locale: locale) ?? []
     }
 
     public func catalogOfferAdjustment(
@@ -2635,10 +2694,10 @@ public final class SubscriptionWorkspace {
 
         let expectedItems = makeExpectedCharges(
             for: subscription,
+            from: from,
             through: through,
             maximumCount: .max
         )
-        .filter { $0.scheduledDate >= from }
         .map { charge in
             UpcomingTimelineItem(
                 id: "expected:\(charge.id.subscriptionID.uuidString)-"
@@ -2663,6 +2722,74 @@ public final class SubscriptionWorkspace {
                 )
             }
         return expectedItems + confirmedItems
+    }
+
+    private func makeExpectedCharges(
+        for subscription: Subscription,
+        from: Date,
+        through: Date,
+        maximumCount: Int
+    ) -> [ExpectedCharge] {
+        guard from <= through,
+              maximumCount > 0,
+              isEligibleForExpectedCharges(subscription),
+              subscription.billingSchedule.interval.isValid,
+              let timeZone = TimeZone(
+                  identifier: subscription.billingSchedule.timeZoneIdentifier
+              )
+        else {
+            return []
+        }
+
+        var renewalCalendar = calendar
+        renewalCalendar.timeZone = timeZone
+        let requestedStart = max(
+            renewalCalendar.startOfDay(for: from),
+            subscription.startDate
+        )
+        let currentBillingDay = renewalCalendar.startOfDay(for: now())
+        // Historical month queries may surface an unconfirmed occurrence;
+        // ranges containing today or the future remain forward-looking.
+        let firstForecastDate = through < currentBillingDay
+            ? requestedStart
+            : max(
+                requestedStart,
+                max(currentBillingDay, subscription.confirmedNextRenewal)
+            )
+        var charges: [ExpectedCharge] = []
+        var occurrenceIndex = estimatedOccurrenceIndex(
+            for: subscription.billingSchedule,
+            onOrAfter: firstForecastDate,
+            calendar: renewalCalendar
+        )
+
+        while charges.count < maximumCount {
+            guard let scheduledDate = scheduledDate(
+                for: subscription.billingSchedule,
+                occurrenceIndex: occurrenceIndex,
+                calendar: renewalCalendar
+            ) else {
+                break
+            }
+            if scheduledDate > through {
+                break
+            }
+            if scheduledDate >= firstForecastDate {
+                let charge = expectedCharge(
+                    for: subscription,
+                    scheduledDate: scheduledDate,
+                    calendar: renewalCalendar
+                )
+                if !subscription.confirmedCharges.contains(where: {
+                    $0.sourceScheduledChargeID == charge.id
+                }) {
+                    charges.append(charge)
+                }
+            }
+            occurrenceIndex += 1
+        }
+
+        return charges
     }
 
     private func makeCalendarProjectionEvents(

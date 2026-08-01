@@ -23,13 +23,12 @@ struct AddSubscriptionView: View {
     @Environment(\.locale) private var locale
 
     let workspace: SubscriptionWorkspace
-    private let catalogPreset: CatalogPreset?
-    private let catalogPresetID: String?
     private let onSuccessfulSave: (() -> Void)?
     private let showsCancellationAction: Bool
     private let now: Date
 
     @State private var draft: SubscriptionDraft
+    @State private var selectedCatalogPreset: CatalogPreset?
     @State private var selectedOfferID: String?
     @State private var selectedPeriodRawValue: String
     @State private var dateTaskSelection: DateTaskSelection?
@@ -43,8 +42,6 @@ struct AddSubscriptionView: View {
         onSuccessfulSave: (() -> Void)? = nil
     ) {
         self.workspace = workspace
-        catalogPreset = preset
-        catalogPresetID = preset?.id
         self.onSuccessfulSave = onSuccessfulSave
         self.showsCancellationAction = showsCancellationAction
 
@@ -71,6 +68,7 @@ struct AddSubscriptionView: View {
             )
         }
         _draft = State(initialValue: initialDraft)
+        _selectedCatalogPreset = State(initialValue: preset)
         _selectedOfferID = State(initialValue: defaultOffer?.id)
         _selectedPeriodRawValue = State(
             initialValue: defaultOffer?.billingInterval.rawValue
@@ -86,6 +84,8 @@ struct AddSubscriptionView: View {
                 draft: $draft,
                 status: nil,
                 nextExpectedCharge: nil,
+                catalogMatches: catalogMatches,
+                onSelectCatalogMatch: selectCatalogPreset,
                 locksCatalogMetadata: hasVerifiedOffers,
                 showsValidation: didAttemptSave,
                 onEditDate: beginDateTask
@@ -102,7 +102,9 @@ struct AddSubscriptionView: View {
         }
         .accessibilityIdentifier("subscription.form")
         .navigationTitle(
-            catalogPresetID == nil ? "Add Subscription" : "Confirm Subscription"
+            selectedCatalogPreset == nil
+                ? "Add Subscription"
+                : "Confirm Subscription"
         )
         #if os(iOS)
             .navigationBarTitleDisplayMode(.inline)
@@ -129,6 +131,9 @@ struct AddSubscriptionView: View {
         .onChange(of: selectedOfferID) { _, _ in
             applySelectedOffer()
         }
+        .onChange(of: draft.serviceName) { _, serviceName in
+            clearCatalogSelectionIfNeeded(for: serviceName)
+        }
         .sheet(item: $dateTaskSelection) { selection in
             NavigationStack {
                 BillingDateTaskView(
@@ -141,26 +146,37 @@ struct AddSubscriptionView: View {
     }
 
     private var availablePeriods: [String] {
-        guard let catalogPreset else { return [] }
-        return CatalogOfferSelection.periods(in: catalogPreset)
+        guard let selectedCatalogPreset else { return [] }
+        return CatalogOfferSelection.periods(in: selectedCatalogPreset)
     }
 
     private var offersForSelectedPeriod: [CatalogOffer] {
-        guard let catalogPreset else { return [] }
+        guard let selectedCatalogPreset else { return [] }
         return CatalogOfferSelection.offers(
-            in: catalogPreset,
+            in: selectedCatalogPreset,
             periodRawValue: selectedPeriodRawValue
         )
     }
 
     private var selectedOffer: CatalogOffer? {
-        guard let selectedOfferID, let catalogPreset else { return nil }
-        return CatalogOfferSelection.selectableOffers(in: catalogPreset)
+        guard let selectedOfferID, let selectedCatalogPreset else { return nil }
+        return CatalogOfferSelection.selectableOffers(in: selectedCatalogPreset)
             .first(where: { $0.id == selectedOfferID })
     }
 
     private var hasVerifiedOffers: Bool {
         !availablePeriods.isEmpty
+    }
+
+    private var catalogMatches: [CatalogPreset] {
+        guard selectedCatalogPreset == nil,
+              !draft.serviceName.trimmingCharacters(
+                  in: .whitespacesAndNewlines
+              ).isEmpty
+        else {
+            return []
+        }
+        return workspace.catalogMatches(query: draft.serviceName, locale: locale)
     }
 
     @ViewBuilder
@@ -239,14 +255,15 @@ struct AddSubscriptionView: View {
     }
 
     private var initialStatusSection: some View {
-        Section("Subscription Details") {
-            Picker("Initial Status", selection: initialStatusBinding) {
-                Text("Active").tag(SubscriptionInitialStatus.active)
-                Text("Trial").tag(SubscriptionInitialStatus.trial)
-            }
-            .pickerStyle(.segmented)
-            .accessibilityIdentifier("subscription.form.initial-status")
+        Picker("Initial Status", selection: initialStatusBinding) {
+            Text("Active").tag(SubscriptionInitialStatus.active)
+            Text("Trial").tag(SubscriptionInitialStatus.trial)
         }
+        .pickerStyle(.segmented)
+        .accessibilityIdentifier("subscription.form.initial-status")
+        .listRowInsets(EdgeInsets(top: 8, leading: 0, bottom: 8, trailing: 0))
+        .listRowBackground(Color.clear)
+        .listRowSeparator(.hidden)
     }
 
     private var initialStatusBinding: Binding<SubscriptionInitialStatus> {
@@ -288,7 +305,10 @@ struct AddSubscriptionView: View {
         }
 
         let wasCreated: Bool
-        if let catalogPresetID, hasVerifiedOffers, let selectedOffer {
+        if let catalogPresetID = selectedCatalogPreset?.id,
+           hasVerifiedOffers,
+           let selectedOffer
+        {
             let result = workspace.createCatalogSubscription(
                 presetID: catalogPresetID,
                 command: .verifiedOffer(
@@ -314,7 +334,7 @@ struct AddSubscriptionView: View {
                 )
             )
             wasCreated = if case .created = result { true } else { false }
-        } else if let catalogPresetID {
+        } else if let catalogPresetID = selectedCatalogPreset?.id {
             // A service-only preset carries identity evidence only. Its
             // suggested interval is intentionally not adopted by the draft.
             let result = workspace.createCatalogSubscription(
@@ -343,6 +363,33 @@ struct AddSubscriptionView: View {
         draft.currency = offer.price.currency
         draft.catalogOfferID = offer.id
         applyBillingInterval(offer.billingInterval)
+    }
+
+    private func selectCatalogPreset(_ preset: CatalogPreset) {
+        let defaultOffer = CatalogOfferSelection.defaultOffer(in: preset)
+        selectedCatalogPreset = preset
+        selectedOfferID = defaultOffer?.id
+        selectedPeriodRawValue = defaultOffer?.billingInterval.rawValue
+            ?? BillingInterval.monthly.rawValue
+        draft = SubscriptionDraft.catalog(
+            preset: preset,
+            offer: defaultOffer,
+            now: now,
+            locale: locale,
+            timeZoneIdentifier: draft.billingTimeZoneIdentifier
+        )
+        didAttemptSave = false
+    }
+
+    private func clearCatalogSelectionIfNeeded(for serviceName: String) {
+        guard let selectedCatalogPreset,
+              !hasVerifiedOffers,
+              serviceName != selectedCatalogPreset.serviceName.value(for: locale)
+        else {
+            return
+        }
+        self.selectedCatalogPreset = nil
+        selectedOfferID = nil
     }
 
     private func applyBillingInterval(_ interval: BillingInterval) {

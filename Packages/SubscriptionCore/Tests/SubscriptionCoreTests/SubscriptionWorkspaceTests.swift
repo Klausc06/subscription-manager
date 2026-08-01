@@ -866,6 +866,93 @@ struct SubscriptionWorkspaceTests {
         #expect(occurrence.date == dueToday)
     }
 
+    @Test("Upcoming includes past unconfirmed occurrences and replaces them after confirmation")
+    @MainActor
+    func upcomingPastMonthDeduplicatesConfirmedOccurrences() throws {
+        let calendar = utcCalendar()
+        let now = try actionDate(
+            year: 2026,
+            month: 8,
+            day: 1,
+            hour: 12,
+            calendar: calendar
+        )
+        let dueDate = try actionDate(
+            year: 2026,
+            month: 6,
+            day: 1,
+            hour: 12,
+            calendar: calendar
+        )
+        let subscriptionID = UUID(
+            uuidString: "ABCDEFAB-CDEF-CDEF-CDEF-ABCDEFABCDEF"
+        )!
+        let schedule = FixedBillingSchedule(
+            interval: .monthly,
+            renewalAnchor: dueDate,
+            timeZoneIdentifier: "UTC"
+        )
+        let expectedID = ScheduledChargeID(
+            subscriptionID: subscriptionID,
+            year: 2026,
+            month: 6,
+            day: 1
+        )
+        let base = makeSubscription(
+            id: subscriptionID,
+            billingSchedule: schedule,
+            confirmedNextRenewal: now
+        )
+        let unconfirmedWorkspace = SubscriptionWorkspace(
+            repository: InMemorySubscriptionRepository(subscriptions: [base]),
+            now: { now },
+            calendar: calendar
+        )
+
+        let unconfirmed = try unconfirmedWorkspace.upcomingRenewals(
+            from: dueDate,
+            through: dueDate
+        )
+        let unconfirmedKinds: [UpcomingTimelineItem.Kind] = unconfirmed.map(
+            \.kind
+        )
+        #expect(unconfirmedKinds == [.expected])
+        #expect(unconfirmed.first?.date == dueDate)
+
+        let confirmed = makeSubscription(
+            id: subscriptionID,
+            billingSchedule: schedule,
+            confirmedNextRenewal: now,
+            confirmedCharges: [
+                ConfirmedCharge(
+                    id: UUID(
+                        uuidString: "FEDCBAFE-DCBA-DCBA-DCBA-FEDCBAFEDCBA"
+                    )!,
+                    chargedDate: dueDate,
+                    amount: Money(minorUnits: 999, currency: .usd),
+                    sourceScheduledChargeID: expectedID
+                ),
+            ]
+        )
+        let confirmedWorkspace = SubscriptionWorkspace(
+            repository: InMemorySubscriptionRepository(
+                subscriptions: [confirmed]
+            ),
+            now: { now },
+            calendar: calendar
+        )
+
+        let deduplicated = try confirmedWorkspace.upcomingRenewals(
+            from: dueDate,
+            through: dueDate
+        )
+        let deduplicatedKinds: [UpcomingTimelineItem.Kind] = deduplicated.map {
+            $0.kind
+        }
+        #expect(deduplicatedKinds == [.confirmed])
+        #expect(deduplicated.first?.date == dueDate)
+    }
+
     @Test("A valid newer catalog becomes active without mutating subscriptions")
     @MainActor
     func newerCatalogActivatesWithoutMutatingSubscriptions() async throws {

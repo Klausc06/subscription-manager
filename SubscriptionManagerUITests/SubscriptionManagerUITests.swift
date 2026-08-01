@@ -37,6 +37,106 @@ final class SubscriptionManagerUITests: XCTestCase {
         XCTAssertTrue(topLevelTab("Insights", in: app).exists)
     }
 
+    func testTopLevelSegmentedControlsUseOneVisualBoundary() throws {
+        try XCTSkipIf(
+            UIDevice.current.userInterfaceIdiom == .pad,
+            "The compact phone layout owns this visual-boundary contract."
+        )
+        let app = launch(language: "en", locale: "en_US")
+        let window = app.windows.firstMatch
+        XCTAssertTrue(window.waitForExistence(timeout: 5))
+        let minimumDirectControlWidth = window.frame.width * 0.88
+
+        topLevelTab("Upcoming", in: app).tap()
+        let monthTitle = app.staticTexts["upcoming.month.title"]
+        XCTAssertTrue(monthTitle.waitForExistence(timeout: 5))
+        XCTAssertTrue(app.buttons["upcoming.month.previous"].exists)
+        XCTAssertTrue(app.buttons["upcoming.month.next"].exists)
+        XCTAssertGreaterThan(
+            monthTitle.frame.width,
+            minimumDirectControlWidth * 0.2,
+            "Upcoming must expose its month context directly."
+        )
+        attachScreenshot(named: "r2-14-upcoming-single-boundary")
+
+        topLevelTab("Insights", in: app).tap()
+        let insightsMode = app.segmentedControls["insights.mode"]
+        XCTAssertTrue(insightsMode.waitForExistence(timeout: 5))
+        XCTAssertGreaterThan(
+            insightsMode.frame.width,
+            minimumDirectControlWidth,
+            "Insights must not inset its segmented control inside another card."
+        )
+        attachScreenshot(named: "r2-14-insights-single-boundary")
+    }
+
+    func testConfirmSubscriptionInitialStatusUsesOneVisualBoundary() throws {
+        try XCTSkipIf(
+            UIDevice.current.userInterfaceIdiom == .pad,
+            "The compact phone layout owns this visual-boundary contract."
+        )
+        let app = launch(language: "en", locale: "en_US")
+        let window = app.windows.firstMatch
+        XCTAssertTrue(window.waitForExistence(timeout: 5))
+
+        app.buttons["subscription.add"].tap()
+        let chatGPT = app.buttons["catalog.preset.chatgpt"]
+        XCTAssertTrue(scrollToExistence(chatGPT, in: app))
+        chatGPT.tap()
+
+        XCTAssertTrue(
+            app.navigationBars["Confirm Subscription"].waitForExistence(timeout: 5)
+        )
+        let initialStatus = app.segmentedControls["subscription.form.initial-status"]
+        XCTAssertTrue(initialStatus.waitForExistence(timeout: 5))
+        XCTAssertGreaterThan(
+            initialStatus.frame.width,
+            window.frame.width * 0.88,
+            "Initial Status must not inset its segmented control inside another card."
+        )
+        attachScreenshot(named: "r2-14-confirm-subscription-initial-status")
+    }
+
+    func testManualAddSuggestsAndAdoptsCatalogAlias() {
+        let app = launch(language: "en", locale: "en_US")
+        openManualAdd(in: app)
+
+        let serviceName = app.textFields["subscription.editor.service-name"]
+        XCTAssertTrue(serviceName.waitForExistence(timeout: 5))
+        serviceName.tap()
+        serviceName.typeText("88")
+
+        let match = app.buttons["subscription.catalog-match.taobao-88vip"]
+        XCTAssertTrue(match.waitForExistence(timeout: 5))
+        XCTAssertTrue(match.label.contains("88VIP"))
+        match.tap()
+
+        XCTAssertTrue(
+            accessibilityValue(of: serviceName).contains("Taobao 88VIP")
+        )
+        XCTAssertTrue(app.textFields["subscription.editor.amount"].exists)
+        XCTAssertTrue(app.textFields["subscription.editor.plan"].exists)
+        attachScreenshot(named: "r2-04-taobao-88vip-service-only")
+
+        let category = app.textFields["subscription.editor.category"]
+        XCTAssertTrue(scrollToExistence(category, in: app, maximumSwipes: 6))
+        XCTAssertTrue(
+            accessibilityValue(of: category).contains("Membership")
+        )
+        let managementURL = app.textFields["subscription.editor.management-url"]
+        XCTAssertTrue(scrollToExistence(managementURL, in: app, maximumSwipes: 6))
+        XCTAssertTrue(
+            accessibilityValue(of: managementURL).contains("taobao.com")
+        )
+    }
+
+    private func attachScreenshot(named name: String) {
+        let attachment = XCTAttachment(screenshot: XCUIScreen.main.screenshot())
+        attachment.name = name
+        attachment.lifetime = .keepAlways
+        add(attachment)
+    }
+
     func testInsightsShowsExplicitUnavailableStateWithoutRates() {
         let app = launch(language: "en", locale: "en_US")
 
@@ -94,9 +194,6 @@ final class SubscriptionManagerUITests: XCTestCase {
         createSubscription(named: "Upcoming Example", in: app)
 
         topLevelTab("Upcoming", in: app).tap()
-        let ninetyDays = app.buttons["Next 90 Days"]
-        XCTAssertTrue(ninetyDays.waitForExistence(timeout: 5))
-        ninetyDays.tap()
         let expectedCharge = app.descendants(matching: .any)
             .matching(identifier: "upcoming.row.expected")
             .firstMatch
@@ -120,7 +217,6 @@ final class SubscriptionManagerUITests: XCTestCase {
         let app = launchTask6Fixture()
 
         topLevelTab("Upcoming", in: app).tap()
-        app.buttons["Next 90 Days"].tap()
         let due = upcomingRow(
             named: Task6Fixture.due,
             identifier: "upcoming.row.expected",
@@ -901,9 +997,6 @@ final class SubscriptionManagerUITests: XCTestCase {
     func testOnlyDueExpectedOccurrenceOffersConfirmCharge() {
         let app = launchTask6Fixture()
         topLevelTab("Upcoming", in: app).tap()
-        let ninetyDays = app.buttons["Next 90 Days"]
-        XCTAssertTrue(ninetyDays.waitForExistence(timeout: 5))
-        ninetyDays.tap()
 
         let due = upcomingRow(
             named: Task6Fixture.due,
@@ -921,7 +1014,6 @@ final class SubscriptionManagerUITests: XCTestCase {
             in: app
         )
         XCTAssertTrue(due.waitForExistence(timeout: 5))
-        XCTAssertTrue(future.waitForExistence(timeout: 5))
         XCTAssertTrue(confirmed.waitForExistence(timeout: 5))
 
         let dueConfirm = app.descendants(matching: .any).matching(
@@ -954,7 +1046,29 @@ final class SubscriptionManagerUITests: XCTestCase {
             ).firstMatch.exists
         )
 
-        dueConfirm.tap()
+        app.buttons["upcoming.month.next"].tap()
+        XCTAssertTrue(future.waitForExistence(timeout: 5))
+        XCTAssertFalse(
+            app.descendants(matching: .any).matching(
+                NSPredicate(
+                    format: "identifier == %@ AND label CONTAINS %@",
+                    "upcoming.expected.confirm",
+                    Task6Fixture.future
+                )
+            ).firstMatch.exists
+        )
+
+        app.buttons["upcoming.month.previous"].tap()
+        XCTAssertTrue(due.waitForExistence(timeout: 5))
+        let dueConfirmAfterReturning = app.descendants(matching: .any).matching(
+            NSPredicate(
+                format: "identifier == %@ AND label CONTAINS %@",
+                "upcoming.expected.confirm",
+                Task6Fixture.due
+            )
+        ).firstMatch
+        XCTAssertTrue(dueConfirmAfterReturning.waitForExistence(timeout: 5))
+        dueConfirmAfterReturning.tap()
         XCTAssertTrue(
             app.navigationBars["Confirm Charge"].waitForExistence(timeout: 5)
         )
@@ -1230,6 +1344,43 @@ final class SubscriptionManagerUITests: XCTestCase {
         XCTAssertTrue(
             scrollToExistence(source, in: app, maximumSwipes: 4)
         )
+    }
+
+    func testChinaCatalogOfferPrefillsEditableAnnualCNY() {
+        let app = launch(
+            language: "en",
+            locale: "en_US",
+            storeToken: "jd-plus-offer-\(UUID().uuidString)"
+        )
+        app.buttons["subscription.add"].tap()
+
+        let jdPlus = app.buttons["catalog.preset.jd-plus"]
+        XCTAssertTrue(scrollToExistence(jdPlus, in: app))
+        jdPlus.tap()
+
+        let plan = app.buttons["subscription.form.offer-plan"]
+        XCTAssertTrue(plan.waitForExistence(timeout: 5))
+        XCTAssertTrue(plan.label.contains("JD PLUS Annual"))
+
+        let price = app.descendants(matching: .any)[
+            "subscription.form.selected-price"
+        ]
+        XCTAssertTrue(price.label.contains("99"))
+
+        let currency = app.buttons["subscription.editor.currency"]
+        XCTAssertTrue(scrollToExistence(currency, in: app, maximumSwipes: 8))
+        XCTAssertTrue(currency.label.contains("CNY"))
+
+        let interval = app.buttons["subscription.editor.billing-interval"]
+        XCTAssertTrue(scrollToExistence(interval, in: app, maximumSwipes: 8))
+        XCTAssertTrue(interval.label.contains("Yearly"))
+        attachScreenshot(named: "r2-06-jd-plus-cny-yearly")
+
+        let amount = app.textFields["subscription.editor.amount"]
+        XCTAssertTrue(scrollToHittable(amount, in: app, maximumSwipes: 8))
+        amount.tap(withNumberOfTaps: 3, numberOfTouches: 1)
+        amount.typeText("100")
+        XCTAssertEqual(amount.value as? String, "100")
     }
 
     func testOfficialOfferAmountValidationIsInline() {

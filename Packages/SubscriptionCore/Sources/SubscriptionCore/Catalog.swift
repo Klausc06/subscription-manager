@@ -444,7 +444,9 @@ public struct CatalogSnapshot: Codable, Equatable, Sendable {
                 normalizedQuery
             ) || preset.category.value(for: locale).localizedCaseInsensitiveContains(
                 normalizedQuery
-            )
+            ) || preset.matchAliases.contains { alias in
+                alias.localizedCaseInsensitiveContains(normalizedQuery)
+            }
         }
         .sorted { left, right in
             let comparison = left.serviceName.value(for: locale).localizedCompare(

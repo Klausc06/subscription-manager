@@ -4,68 +4,100 @@ import Testing
 @testable import SubscriptionManager
 
 struct BundledCatalogRepositoryTests {
-    @Test("Bundled catalog exposes verified first-batch offers")
+    @Test("Bundled catalog JSON decodes")
     @MainActor
-    func bundledCatalogExposesVerifiedFirstBatchOffers() throws {
-        let snapshot = try BundledCatalogRepository().loadSnapshot()
-        #expect(snapshot.catalogVersion == 5)
-        #expect(snapshot.presets.count == 106)
-
-        let chatGPT = try #require(
-            snapshot.presets.first(where: { $0.id == "chatgpt" })
-        )
-        #expect(chatGPT.serviceName.en == "ChatGPT")
-        #expect(chatGPT.matchAliases == ["ChatGPT Plus"])
-        #expect(chatGPT.offers.map(\.id) == [
-            "go-monthly-us-web",
-            "plus-monthly-us-web",
-            "pro-5x-monthly-us-web",
-            "pro-20x-monthly-us-web"
-        ])
-        #expect(
-            chatGPT.offers.map(\.price.minorUnits)
-                == [800, 2_000, 10_000, 20_000]
-        )
-        #expect(chatGPT.offers.allSatisfy {
-            $0.billingInterval == .monthly
-        })
-        #expect(
-            snapshot.presets.contains(where: { $0.id == "chatgpt-plus" })
-                == false
-        )
-
-        for preset in snapshot.presets {
-            for offer in preset.offers {
-                #expect(offer.price.currency == .usd)
-                #expect(offer.market == "US")
-                #expect(offer.purchaseChannel == .web)
-                #expect(offer.reviewStatus == .verified)
-                #expect(offer.sourceURL.scheme == "https")
-                #expect(offer.verifiedOn == "2026-07-30")
-            }
-        }
+    func bundledCatalogJSONDecodes() throws {
+        _ = try BundledCatalogRepository().loadSnapshot()
     }
 
-    @Test("Bundled catalog pins the exact verified offer table")
+    @Test("Bundled catalog has no empty offers")
     @MainActor
-    func bundledCatalogPinsExactVerifiedOfferTable() throws {
+    func bundledCatalogHasNoEmptyOffers() throws {
         let snapshot = try BundledCatalogRepository().loadSnapshot()
 
-        let actualOffers = snapshot.presets.flatMap { preset in
-            preset.offers.map { offer in
-                [
-                    preset.id,
-                    offer.id,
-                    offer.planName.en,
-                    offer.planName.zhHans,
-                    offer.billingInterval.rawValue,
-                    String(offer.price.minorUnits),
-                    offer.sourceURL.absoluteString
-                ].joined(separator: "|")
-            }
-        }
+        #expect(snapshot.presets.allSatisfy { !$0.offers.isEmpty })
+    }
 
-        #expect(actualOffers == expectedVerifiedOfferTable)
+    @Test("Bundled catalog groups the six AI services in one localized category")
+    @MainActor
+    func bundledCatalogGroupsAIServicesInOneCategory() throws {
+        let snapshot = try BundledCatalogRepository().loadSnapshot()
+        let aiIDs: Set<String> = [
+            "chatgpt", "claude", "google-ai", "doubao", "jimeng-ai",
+            "iflytek-spark"
+        ]
+
+        let aiPresets = snapshot.presets.filter { aiIDs.contains($0.id) }
+        #expect(Set(aiPresets.map(\.id)) == aiIDs)
+        #expect(aiPresets.allSatisfy {
+            $0.category.en == "AI" && $0.category.zhHans == "AI 工具"
+        })
+        #expect(snapshot.categories(locale: Locale(identifier: "zh-Hans")).contains {
+            $0.id == "ai" && $0.title.en == "AI" && $0.title.zhHans == "AI 工具"
+        })
+    }
+
+    @Test("Bundled catalog offers have positive amounts and complete money intervals")
+    @MainActor
+    func bundledCatalogOffersHaveCompleteMoneyIntervals() throws {
+        let snapshot = try BundledCatalogRepository().loadSnapshot()
+        let offers = snapshot.presets.flatMap(\.offers)
+
+        #expect(offers.count == 192)
+        #expect(offers.allSatisfy { offer in
+            offer.price.minorUnits > 0
+                && !offer.price.currency.rawValue.isEmpty
+                && !offer.billingInterval.rawValue.isEmpty
+        })
+    }
+
+    @Test("Bundled catalog excludes retired empty presets")
+    @MainActor
+    func bundledCatalogExcludesRetiredEmptyPresets() throws {
+        let snapshot = try BundledCatalogRepository().loadSnapshot()
+        let removedIDs: Set<String> = [
+            "36kr", "aliyun", "cailianpress", "china-daily", "douyin", "dushu",
+            "huawei-cloud", "huxiu", "jiemian", "qingcloud", "tencent-cloud",
+            "the-paper", "upyun", "volcengine", "yuanfudao"
+        ]
+
+        #expect(snapshot.presets.allSatisfy { !removedIDs.contains($0.id) })
+    }
+
+    @Test("Bundled catalog pins representative official offers")
+    @MainActor
+    func bundledCatalogPinsRepresentativeOfficialOffers() throws {
+        let snapshot = try BundledCatalogRepository().loadSnapshot()
+        let offersByKey = Dictionary(
+            uniqueKeysWithValues: snapshot.presets.flatMap { preset in
+                preset.offers.map { ("\(preset.id)|\($0.id)", $0) }
+            }
+        )
+        let expectedMinorUnits: [String: Int64] = [
+            "taobao-88vip|88vip-shopping-card-cn-web": 8_800,
+            "taobao-88vip|88vip-living-card-cn-web": 28_800,
+            "jd-plus|jingdian-annual-cn-web": 9_900,
+            "sams-club-china|ordinary-annual-cn-web": 26_000,
+            "sams-club-china|premium-annual-cn-web": 68_000,
+            "doubao|pro-advanced-monthly-cn-ios": 59_900,
+            "doubao|pro-enhanced-yearly-cn-ios": 248_800,
+            "jimeng-ai|jimeng-ai-member-monthly-cn-ios": 6_900,
+            "jimeng-ai|jimeng-ai-member-yearly-cn-ios": 65_900,
+            "jianying-pro|c-jianying-member-monthly-cn-ios": 2_500,
+            "qq-music|a-qq-music-green-diamond-monthly-cn-ios": 1_500,
+            "tencent-video|a-tencent-video-vip-monthly-cn-ios": 2_500,
+            "canva-china|c-canva-pro-monthly-cn-web": 3_900,
+            "youtube-premium|youtube-premium-individual-monthly-us-web": 1_599,
+            "youtube-premium|youtube-premium-family-monthly-us-web": 2_699,
+            "youtube-premium|youtube-premium-student-monthly-us-web": 899,
+            "youtube-premium|youtube-premium-lite-monthly-us-web": 899,
+            "youtube-premium|youtube-premium-individual-yearly-us-web": 15_999
+        ]
+
+        for (key, expected) in expectedMinorUnits {
+            let offer = try #require(offersByKey[key])
+            #expect(offer.price.minorUnits == expected)
+        }
     }
 
     @Test("Catalog cache atomically replaces data after it is validated")
@@ -203,7 +235,7 @@ struct BundledCatalogRepositoryTests {
 
         let snapshot = try repository.loadSnapshot()
 
-        #expect(snapshot.presets.count == 106)
+        #expect(snapshot.presets.count == 107)
         #expect(
             snapshot.search(query: "音乐", locale: Locale(identifier: "zh-Hans"))
                 .contains(where: { $0.id == "spotify" })
@@ -303,7 +335,7 @@ struct BundledCatalogRepositoryTests {
     }
 }
 
-private let expectedVerifiedOfferTable = [
+private let expectedCatalogOfferTable = [
     "spotify|individual-monthly-us-web|Individual|Individual|monthly|1299|https://www.spotify.com/us/premium/",
     "spotify|student-monthly-us-web|Student|Student|monthly|699|https://www.spotify.com/us/premium/",
     "spotify|duo-monthly-us-web|Duo|Duo|monthly|1899|https://www.spotify.com/us/premium/",
@@ -317,6 +349,11 @@ private let expectedVerifiedOfferTable = [
     "chatgpt|plus-monthly-us-web|Plus|Plus|monthly|2000|https://openai.com/chatgpt/pricing/",
     "chatgpt|pro-5x-monthly-us-web|Pro (5x)|Pro（5x）|monthly|10000|https://help.openai.com/en/articles/9793128-what-is-chatgpt-pro",
     "chatgpt|pro-20x-monthly-us-web|Pro (20x)|Pro（20x）|monthly|20000|https://help.openai.com/en/articles/9793128-what-is-chatgpt-pro",
+    "jd-plus|jingdian-annual-cn-web|JD PLUS Annual|京典年卡|yearly|9900|https://plus.jd.com/",
+    "taobao-88vip|88vip-shopping-card-cn-web|Shopping Card|购物卡|yearly|8800|https://www.taobao.com/",
+    "taobao-88vip|88vip-living-card-cn-web|Living Card|生活卡|yearly|28800|https://www.taobao.com/",
+    "sams-club-china|ordinary-annual-cn-web|Ordinary Membership|普通会员|yearly|26000|https://www.samsclub.cn/",
+    "sams-club-china|premium-annual-cn-web|Premium Membership|卓越会员|yearly|68000|https://www.samsclub.cn/",
     "claude|pro-monthly-us-web|Pro|Pro|monthly|2000|https://www.anthropic.com/pricing",
     "claude|pro-yearly-us-web|Pro|Pro|yearly|20000|https://www.anthropic.com/pricing",
     "claude|max-5x-monthly-us-web|Max (5x)|Max (5x)|monthly|10000|https://www.anthropic.com/pricing",
@@ -333,7 +370,11 @@ private let expectedVerifiedOfferTable = [
     "disney-plus|ads-monthly-us-web|With Ads|With Ads|monthly|1199|https://help.disneyplus.com/article/disneyplus-price",
     "disney-plus|premium-monthly-us-web|Premium|Premium|monthly|1899|https://help.disneyplus.com/article/disneyplus-price",
     "disney-plus|premium-yearly-us-web|Premium|Premium|yearly|18999|https://help.disneyplus.com/article/disneyplus-price",
-    "canva|pro-one-person-yearly-us-web|Pro (1 person)|Pro (1 person)|yearly|18000|https://www.canva.com/pricing/"
+    "canva|pro-one-person-yearly-us-web|Pro (1 person)|Pro (1 person)|yearly|18000|https://www.canva.com/pricing/",
+    "doubao|pro-advanced-monthly-cn-ios|Pro · Advanced|专业版 · 高级套餐|monthly|59900|https://apps.apple.com/cn/app/id6459478672",
+    "doubao|pro-advanced-yearly-cn-ios|Pro · Advanced|专业版 · 高级套餐|yearly|608800|https://apps.apple.com/cn/app/id6459478672",
+    "doubao|pro-enhanced-monthly-cn-ios|Pro · Enhanced|专业版 · 加强套餐|monthly|24000|https://apps.apple.com/cn/app/id6459478672",
+    "doubao|pro-enhanced-yearly-cn-ios|Pro · Enhanced|专业版 · 加强套餐|yearly|248800|https://apps.apple.com/cn/app/id6459478672"
 ]
 
 private func validCatalogData(

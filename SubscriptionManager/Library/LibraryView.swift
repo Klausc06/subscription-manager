@@ -2,6 +2,10 @@ import SubscriptionCore
 import SwiftUI
 import Charts
 
+#if os(iOS)
+import UIKit
+#endif
+
 struct LibraryView: View {
     private enum RootDestination: Hashable {
         case subscriptions
@@ -218,14 +222,17 @@ private struct InsightsView: View {
     var body: some View {
         NavigationStack {
             List {
-                Section {
-                    Picker("Total Mode", selection: $mode) {
-                        Text("Expected").tag(SpendingReportMode.expected)
-                        Text("Confirmed").tag(SpendingReportMode.confirmed)
-                    }
-                    .pickerStyle(.segmented)
-                    .accessibilityIdentifier("insights.mode")
+                Picker("Total Mode", selection: $mode) {
+                    Text("Expected").tag(SpendingReportMode.expected)
+                    Text("Confirmed").tag(SpendingReportMode.confirmed)
                 }
+                .pickerStyle(.segmented)
+                .accessibilityIdentifier("insights.mode")
+                .listRowInsets(
+                    EdgeInsets(top: 8, leading: 0, bottom: 8, trailing: 0)
+                )
+                .listRowBackground(Color.clear)
+                .listRowSeparator(.hidden)
 
                 switch workspace.insightsState {
                 case .notLoaded:
@@ -309,34 +316,13 @@ private struct InsightsView: View {
 }
 
 private struct UpcomingView: View {
-    private enum DateRange: String, CaseIterable, Identifiable {
-        case today
-        case next30Days
-        case next90Days
-
-        var id: String { rawValue }
-
-        var title: LocalizedStringKey {
-            switch self {
-            case .today: "Today"
-            case .next30Days: "Next 30 Days"
-            case .next90Days: "Next 90 Days"
-            }
-        }
-
-        var dayCount: Int {
-            switch self {
-            case .today: 0
-            case .next30Days: 30
-            case .next90Days: 90
-            }
-        }
-    }
-
     let workspace: SubscriptionWorkspace
-    @State private var dateRange: DateRange = .next30Days
+    @State private var displayedMonth = Calendar.current.startOfDay(for: Date())
+    @State private var selectedDay = Calendar.current.startOfDay(for: Date())
+    @State private var selectsFirstChargeAfterMonthChange = false
     @State private var confirmationPresentation:
         UpcomingConfirmationPresentation?
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     var body: some View {
         let subscriptionsByID = Dictionary(
@@ -345,63 +331,91 @@ private struct UpcomingView: View {
             }
         )
         NavigationStack {
-            List {
-                Section {
-                    Picker("Date Range", selection: $dateRange) {
-                        ForEach(DateRange.allCases) { range in
-                            Text(range.title).tag(range)
+            GeometryReader { geometry in
+                List {
+                    Section {
+                        HStack {
+                            Button {
+                                moveMonth(by: -1)
+                            } label: {
+                                Label("Previous Month", systemImage: "chevron.left")
+                            }
+                            .accessibilityIdentifier("upcoming.month.previous")
+
+                            Spacer()
+                            Text(displayedMonth, format: .dateTime.year().month(.wide))
+                                .font(.headline)
+                                .accessibilityIdentifier("upcoming.month.title")
+                            Spacer()
+
+                            Button {
+                                moveMonth(by: 1)
+                            } label: {
+                                Label("Next Month", systemImage: "chevron.right")
+                            }
+                            .accessibilityIdentifier("upcoming.month.next")
                         }
                     }
-                    .pickerStyle(.segmented)
-                    .accessibilityIdentifier("upcoming.range")
-                }
 
-                if workspace.upcomingTimeline.isEmpty {
-                    ContentUnavailableView(
-                        "No Upcoming Charges",
-                        systemImage: "calendar.badge.exclamationmark",
-                        description: Text(
-                            "Choose a longer date range or add a subscription."
-                        )
-                    )
-                    .accessibilityIdentifier("upcoming.empty-state")
-                } else {
-                    ForEach(workspace.upcomingTimeline) { item in
-                        let confirmation = confirmationContext(
-                            for: item,
-                            subscriptionsByID: subscriptionsByID
-                        )
-                        HStack(spacing: 8) {
-                            NavigationLink(value: item.subscriptionID) {
-                                UpcomingTimelineRow(item: item)
-                            }
-                            .accessibilityIdentifier(
-                                item.kind == .expected
-                                    ? "upcoming.row.expected"
-                                    : "upcoming.row.confirmed"
+                    monthOverview(availableWidth: geometry.size.width)
+
+                    Section {
+                        if selectedDayItems.isEmpty {
+                            ContentUnavailableView(
+                                "No Charges This Day",
+                                systemImage: "calendar",
+                                description: Text(
+                                    "Choose a day with a charge or another month."
+                                )
                             )
-
-                            if let confirmation {
-                                Button {
-                                    confirmationPresentation = confirmation
-                                } label: {
-                                    Label(
-                                        "Confirm Charge",
-                                        systemImage: "checkmark.circle"
+                            .accessibilityIdentifier(
+                                "upcoming.agenda.empty"
+                            )
+                        } else {
+                            ForEach(selectedDayItems) { item in
+                                let confirmation = confirmationContext(
+                                    for: item,
+                                    subscriptionsByID: subscriptionsByID
+                                )
+                                HStack(spacing: 8) {
+                                    NavigationLink(value: item.subscriptionID) {
+                                        UpcomingTimelineRow(item: item)
+                                    }
+                                    .accessibilityIdentifier(
+                                        item.kind == .expected
+                                            ? "upcoming.row.expected"
+                                            : "upcoming.row.confirmed"
                                     )
-                                    .labelStyle(.iconOnly)
+
+                                    if let confirmation {
+                                        Button {
+                                            confirmationPresentation = confirmation
+                                        } label: {
+                                            Label(
+                                                "Confirm Charge",
+                                                systemImage: "checkmark.circle"
+                                            )
+                                            .labelStyle(.iconOnly)
+                                        }
+                                        .buttonStyle(.borderless)
+                                        .accessibilityLabel(
+                                            "Confirm Charge, \(item.serviceName)"
+                                        )
+                                        .accessibilityIdentifier(
+                                            "upcoming.expected.confirm"
+                                        )
+                                    }
                                 }
-                                .buttonStyle(.borderless)
-                                .accessibilityLabel(
-                                    "Confirm Charge, \(item.serviceName)"
-                                )
-                                .accessibilityIdentifier(
-                                    "upcoming.expected.confirm"
-                                )
                             }
                         }
+                    } header: {
+                        Text(
+                            selectedDay,
+                            format: .dateTime.month().day().weekday()
+                        )
                     }
                 }
+                .accessibilityIdentifier("upcoming.month")
             }
             .navigationTitle("Upcoming")
             .navigationDestination(for: UUID.self) { subscriptionID in
@@ -423,25 +437,149 @@ private struct UpcomingView: View {
         .onAppear {
             loadTimeline()
         }
-        .task(id: dateRange) {
+        .task(id: displayedMonth) {
             loadTimeline()
         }
     }
 
-    private var rangeStart: Date {
-        Calendar.current.startOfDay(for: Date())
+    @ViewBuilder
+    private func monthOverview(availableWidth: CGFloat) -> some View {
+#if os(iOS)
+        if canUseNativeMonthCalendar(availableWidth: availableWidth) {
+            Section {
+                UpcomingMonthCalendar(
+                    selectedDay: $selectedDay,
+                    displayedMonth: displayedMonth,
+                    dayCounts: Dictionary(
+                        uniqueKeysWithValues: projection.days.map {
+                            ($0.date, $0.items.count)
+                        }
+                    ),
+                    calendar: calendar,
+                    onDisplayedMonthChange: selectMonth
+                )
+                .frame(height: 360)
+                .accessibilityIdentifier("upcoming.calendar")
+            }
+        } else {
+            groupedDayList
+        }
+#else
+        groupedDayList
+#endif
     }
 
-    private var rangeEnd: Date {
-        Calendar.current.date(
-            byAdding: .day,
-            value: dateRange.dayCount,
-            to: rangeStart
-        ) ?? rangeStart
+    private var groupedDayList: some View {
+        Section("Days") {
+            if projection.days.isEmpty {
+                ContentUnavailableView(
+                    "No Charges This Month",
+                    systemImage: "calendar.badge.exclamationmark",
+                    description: Text(
+                        "Select another month or add a subscription."
+                    )
+                )
+                .accessibilityIdentifier("upcoming.month.empty")
+            } else {
+                ForEach(projection.days) { day in
+                    Button {
+                        selectedDay = day.date
+                    } label: {
+                        HStack {
+                            Text(day.date, format: .dateTime.month().day().weekday())
+                            Spacer()
+                            Text(day.items.count, format: .number)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                    .accessibilityIdentifier(dayIdentifier(for: day.date))
+                    .accessibilityValue(
+                        selectedDay == day.date ? "Selected" : ""
+                    )
+                }
+            }
+        }
+    }
+
+    private func canUseNativeMonthCalendar(availableWidth: CGFloat) -> Bool {
+#if os(iOS)
+        guard !dynamicTypeSize.isAccessibilitySize else { return false }
+        return availableWidth >= nativeCalendarMinimumWidth
+#else
+        false
+#endif
+    }
+
+    private var nativeCalendarMinimumWidth: CGFloat {
+        // Seven readable day cells plus the list's measured horizontal insets.
+        7 * 36 + 32
+    }
+
+    private var calendar: Calendar {
+        Calendar.current
+    }
+
+    private var monthInterval: DateInterval? {
+        calendar.dateInterval(of: .month, for: displayedMonth)
+    }
+
+    private var projection: UpcomingCalendarProjection {
+        UpcomingCalendarProjection(
+            monthContaining: displayedMonth,
+            items: workspace.upcomingTimeline,
+            calendar: calendar
+        )
+    }
+
+    private var selectedDayItems: [UpcomingTimelineItem] {
+        projection.days.first(where: { $0.date == selectedDay })?.items ?? []
     }
 
     private func loadTimeline() {
-        workspace.loadUpcomingTimeline(from: rangeStart, through: rangeEnd)
+        guard let monthInterval else { return }
+        let lastDay = calendar.date(
+            byAdding: .day,
+            value: -1,
+            to: monthInterval.end
+        ) ?? monthInterval.start
+        workspace.loadUpcomingTimeline(from: monthInterval.start, through: lastDay)
+
+        if selectsFirstChargeAfterMonthChange {
+            selectedDay = projection.days.first?.date ?? monthInterval.start
+            selectsFirstChargeAfterMonthChange = false
+        }
+    }
+
+    private func moveMonth(by offset: Int) {
+        guard let month = calendar.date(
+            byAdding: .month,
+            value: offset,
+            to: displayedMonth
+        ) else {
+            return
+        }
+        selectMonth(month)
+    }
+
+    private func selectMonth(_ month: Date) {
+        let normalizedMonth = calendar.dateInterval(of: .month, for: month)?.start
+            ?? calendar.startOfDay(for: month)
+        guard !calendar.isDate(
+            normalizedMonth,
+            equalTo: displayedMonth,
+            toGranularity: .month
+        ) else {
+            return
+        }
+        displayedMonth = normalizedMonth
+        selectedDay = normalizedMonth
+        selectsFirstChargeAfterMonthChange = true
+    }
+
+    private func dayIdentifier(for date: Date) -> String {
+        let components = calendar.dateComponents([.year, .month, .day], from: date)
+        return "upcoming.day.\(components.year ?? 0)-\(components.month ?? 0)-"
+            + "\(components.day ?? 0)"
     }
 
     private func confirmationContext(
@@ -498,6 +636,174 @@ private struct UpcomingView: View {
         )
     }
 }
+
+#if os(iOS)
+private struct UpcomingMonthCalendar: UIViewRepresentable {
+    @Binding var selectedDay: Date
+    let displayedMonth: Date
+    let dayCounts: [Date: Int]
+    let calendar: Calendar
+    let onDisplayedMonthChange: (Date) -> Void
+
+    func makeCoordinator() -> Coordinator {
+        Coordinator(
+            selectedDay: $selectedDay,
+            calendar: calendar,
+            onDisplayedMonthChange: onDisplayedMonthChange
+        )
+    }
+
+    func makeUIView(context: Context) -> UICalendarView {
+        let calendarView = UICalendarView()
+        calendarView.calendar = calendar
+        calendarView.locale = calendar.locale ?? .current
+        calendarView.delegate = context.coordinator
+        calendarView.selectionBehavior = UICalendarSelectionSingleDate(
+            delegate: context.coordinator
+        )
+        calendarView.visibleDateComponents = monthComponents(for: displayedMonth)
+        calendarView.accessibilityIdentifier = "upcoming.calendar"
+        return calendarView
+    }
+
+    func updateUIView(_ calendarView: UICalendarView, context: Context) {
+        context.coordinator.calendar = calendar
+        context.coordinator.onDisplayedMonthChange = onDisplayedMonthChange
+        context.coordinator.dayCounts = dayCounts
+
+        let monthComponents = monthComponents(for: displayedMonth)
+        if calendarView.visibleDateComponents.year != monthComponents.year
+            || calendarView.visibleDateComponents.month != monthComponents.month {
+            calendarView.setVisibleDateComponents(monthComponents, animated: true)
+        }
+
+        if let selection = calendarView.selectionBehavior
+            as? UICalendarSelectionSingleDate {
+            let selectedComponents = calendar.dateComponents(
+                [.year, .month, .day],
+                from: selectedDay
+            )
+            if selection.selectedDate != selectedComponents {
+                selection.setSelected(selectedComponents, animated: false)
+            }
+        }
+
+        calendarView.reloadDecorations(
+            forDateComponents: dateComponentsInDisplayedMonth(),
+            animated: false
+        )
+    }
+
+    private func monthComponents(for date: Date) -> DateComponents {
+        calendar.dateComponents([.year, .month], from: date)
+    }
+
+    private func dateComponentsInDisplayedMonth() -> [DateComponents] {
+        guard let interval = calendar.dateInterval(
+            of: .month,
+            for: displayedMonth
+        ) else {
+            return []
+        }
+        var components: [DateComponents] = []
+        var date = interval.start
+        while date < interval.end {
+            components.append(
+                calendar.dateComponents([.year, .month, .day], from: date)
+            )
+            guard let nextDate = calendar.date(
+                byAdding: .day,
+                value: 1,
+                to: date
+            ) else {
+                break
+            }
+            date = nextDate
+        }
+        return components
+    }
+
+    @MainActor
+    final class Coordinator: NSObject, UICalendarViewDelegate,
+        UICalendarSelectionSingleDateDelegate {
+        @Binding private var selectedDay: Date
+        var calendar: Calendar
+        var dayCounts: [Date: Int] = [:]
+        var onDisplayedMonthChange: (Date) -> Void
+
+        init(
+            selectedDay: Binding<Date>,
+            calendar: Calendar,
+            onDisplayedMonthChange: @escaping (Date) -> Void
+        ) {
+            _selectedDay = selectedDay
+            self.calendar = calendar
+            self.onDisplayedMonthChange = onDisplayedMonthChange
+        }
+
+        func dateSelection(
+            _ selection: UICalendarSelectionSingleDate,
+            didSelectDate dateComponents: DateComponents?
+        ) {
+            guard let dateComponents,
+                  let date = calendar.date(from: dateComponents)
+            else {
+                return
+            }
+            selectedDay = calendar.startOfDay(for: date)
+        }
+
+        func dateSelection(
+            _ selection: UICalendarSelectionSingleDate,
+            canSelectDate dateComponents: DateComponents?
+        ) -> Bool {
+            true
+        }
+
+        func calendarView(
+            _ calendarView: UICalendarView,
+            didChangeVisibleDateComponentsFrom previousDateComponents: DateComponents
+        ) {
+            guard let visibleMonth = calendar.date(
+                from: calendarView.visibleDateComponents
+            ) else {
+                return
+            }
+            onDisplayedMonthChange(visibleMonth)
+        }
+
+        func calendarView(
+            _ calendarView: UICalendarView,
+            decorationFor dateComponents: DateComponents
+        ) -> UICalendarView.Decoration? {
+            guard let date = calendar.date(from: dateComponents) else {
+                return nil
+            }
+            let count = dayCounts[calendar.startOfDay(for: date)] ?? 0
+            guard count > 0 else { return nil }
+
+            return .customView {
+                let badge = UILabel()
+                badge.text = "\(count)"
+                badge.textAlignment = .center
+                badge.font = .preferredFont(forTextStyle: .caption2)
+                badge.textColor = .white
+                badge.backgroundColor = .systemBlue
+                badge.layer.cornerRadius = 8
+                badge.clipsToBounds = true
+                badge.translatesAutoresizingMaskIntoConstraints = false
+                NSLayoutConstraint.activate([
+                    badge.widthAnchor.constraint(equalToConstant: 16),
+                    badge.heightAnchor.constraint(equalToConstant: 16),
+                ])
+                badge.isAccessibilityElement = true
+                badge.accessibilityLabel = "\(count) charges"
+                return badge
+            }
+        }
+    }
+}
+#endif
 
 private struct UpcomingConfirmationPresentation: Identifiable {
     let subscription: Subscription
@@ -609,15 +915,16 @@ private struct FirstRunSetupView: View {
                     .foregroundStyle(.secondary)
             }
 
-            Section("Primary Currency") {
-                Picker("Primary Currency", selection: $primaryCurrency) {
-                    ForEach(Currency.allCases, id: \.rawValue) { currency in
-                        Text(currency.rawValue).tag(currency)
-                    }
+            Picker("Primary Currency", selection: $primaryCurrency) {
+                ForEach(Currency.allCases, id: \.rawValue) { currency in
+                    Text(currency.rawValue).tag(currency)
                 }
-                .pickerStyle(.segmented)
-                .accessibilityIdentifier("setup.primary-currency")
             }
+            .pickerStyle(.segmented)
+            .accessibilityIdentifier("setup.primary-currency")
+            .listRowInsets(EdgeInsets(top: 8, leading: 0, bottom: 8, trailing: 0))
+            .listRowBackground(Color.clear)
+            .listRowSeparator(.hidden)
 
             Section("Calendar Projection") {
                 Picker("Calendar Projection", selection: $horizon) {

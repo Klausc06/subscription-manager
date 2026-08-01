@@ -14,6 +14,8 @@ struct SubscriptionEditorSections: View {
     let status: SubscriptionStatus?
     let nextExpectedCharge: ExpectedCharge?
     let catalogOfferAdjustment: CatalogOfferAdjustment?
+    let catalogMatches: [CatalogPreset]
+    let onSelectCatalogMatch: (CatalogPreset) -> Void
     let locksCatalogMetadata: Bool
     let showsValidation: Bool
     let onEditDate: (SubscriptionDraft.DateSource) -> Void
@@ -23,6 +25,8 @@ struct SubscriptionEditorSections: View {
         status: SubscriptionStatus?,
         nextExpectedCharge: ExpectedCharge?,
         catalogOfferAdjustment: CatalogOfferAdjustment? = nil,
+        catalogMatches: [CatalogPreset] = [],
+        onSelectCatalogMatch: @escaping (CatalogPreset) -> Void = { _ in },
         locksCatalogMetadata: Bool = false,
         showsValidation: Bool = true,
         onEditDate: @escaping (SubscriptionDraft.DateSource) -> Void
@@ -31,6 +35,8 @@ struct SubscriptionEditorSections: View {
         self.status = status
         self.nextExpectedCharge = nextExpectedCharge
         self.catalogOfferAdjustment = catalogOfferAdjustment
+        self.catalogMatches = catalogMatches
+        self.onSelectCatalogMatch = onSelectCatalogMatch
         self.locksCatalogMetadata = locksCatalogMetadata
         self.showsValidation = showsValidation
         self.onEditDate = onEditDate
@@ -59,6 +65,22 @@ struct SubscriptionEditorSections: View {
                     .accessibilityIdentifier(
                         "subscription.editor.service-name"
                     )
+
+                ForEach(catalogMatches) { preset in
+                    Button {
+                        onSelectCatalogMatch(preset)
+                    } label: {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(preset.serviceName.value(for: locale))
+                            Text(preset.category.value(for: locale))
+                                .font(.footnote)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                    .accessibilityIdentifier(
+                        "subscription.catalog-match.\(preset.id)"
+                    )
+                }
             }
 
             if showsValidation, draft.validation.contains(.serviceName) {

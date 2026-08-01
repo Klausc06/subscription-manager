@@ -256,6 +256,36 @@ struct CatalogTests {
         )
     }
 
+    @Test("Catalog search includes explicit service aliases")
+    func searchIncludesAliases() throws {
+        let membership = CatalogPreset(
+            id: "taobao-88vip",
+            serviceName: CatalogLocalizedText(
+                en: "Taobao Membership",
+                zhHans: "淘宝会员"
+            ),
+            category: CatalogLocalizedText(
+                en: "Membership",
+                zhHans: "会员"
+            ),
+            suggestedInterval: .yearly,
+            managementURL: URL(string: "https://www.taobao.com/"),
+            icon: .membership,
+            matchAliases: ["88VIP"]
+        )
+        let snapshot = try CatalogSnapshot(
+            schemaVersion: CatalogSnapshot.currentSchemaVersion,
+            presets: [membership]
+        )
+
+        #expect(
+            snapshot.search(
+                query: "88",
+                locale: Locale(identifier: "en")
+            ) == [membership]
+        )
+    }
+
     @Test("Catalog snapshot rejects duplicate stable identifiers")
     func catalogSnapshotRejectsDuplicateIdentifiers() {
         let preset = CatalogPreset(
