@@ -697,8 +697,11 @@ git commit -m "feat(editor): share subscription draft and validation"
 - Create: `SubscriptionManager/Library/BillingDateTaskView.swift`
 - Modify: `SubscriptionManager/Library/SubscriptionFormSupport.swift`
 - Modify: `SubscriptionManager/Resources/Localizable.xcstrings`
-- Modify: `SubscriptionManagerTests/SubscriptionDraftTests.swift`
+- Modify: `SubscriptionManagerTests/SubscriptionDraftTests.swift` (value-operation coverage only)
 - Modify: `SubscriptionManager.xcodeproj/project.pbxproj`
+
+The Edit-driven UI acceptance test remains in Task 5, after the Add/Edit
+shells exist; Task 4 must not add or commit `SubscriptionManagerUITests`.
 
 **Interfaces:**
 
@@ -709,16 +712,18 @@ git commit -m "feat(editor): share subscription draft and validation"
   accessibility IDs under `subscription.editor.*` and
   `subscription.date-task.*`.
 
-- [ ] **Step 1: Add the failing XCTest method
-  `testDateTaskHasExplicitDoneAndCancel`.** From an open Edit editor, activate
-  Start Date, select a different day, assert source and derived date labels
-  both change inside the still-visible date task, tap Done, and assert the
-  editor remains open and unsaved with the new values. Reopen, change to a
-  second different day, tap Cancel, and assert the Done-committed values remain.
-  Never make Cancel a no-op test. Repeat the value-operation portion for Next
-  Renewal and a Trial fixture in `SubscriptionDraftTests`.
+- [ ] **Step 1: Add failing draft value-operation coverage.** Extend
+  `SubscriptionDraftTests` with explicit UTC and Asia/Shanghai fixtures for
+  Start Date -> derived Next Renewal, Next Renewal -> preceding Start Date,
+  interval re-derivation, and independent Trial Start/First Paid Charge
+  updates. Cover month-end and leap-year boundaries, invalid TimeZone and
+  non-finite Date rejection, optional metadata, malformed nonempty URL,
+  service-name/amount/currency/interval/date requirements, locale parsing,
+  exact minor-unit rounding, and positive amount validation. The
+  Edit-driven UI scenario `testDateTaskHasExplicitDoneAndCancel` is added in
+  Task 5 once the Add/Edit shells can host the date task.
 
-- [ ] **Step 2: Verify red.** Run:
+- [ ] **Step 2: Verify red.** Run the app unit/value-operation target:
 
 ```bash
 xcodebuild test -project SubscriptionManager.xcodeproj \
@@ -726,10 +731,12 @@ xcodebuild test -project SubscriptionManager.xcodeproj \
   -destination "platform=iOS Simulator,id=$SUBSCRIPTION_BATCH_A_SIMULATOR_UDID" \
   -derivedDataPath /tmp/subscription-manager-derived-data \
   -clonedSourcePackagesDirPath /tmp/subscription-manager-source-packages \
-  -only-testing:SubscriptionManagerUITests/SubscriptionManagerUITests/testDateTaskHasExplicitDoneAndCancel
+  -only-testing:SubscriptionManagerTests
 ```
 
-Expected: failure because the date-task identifiers do not exist.
+Expected: failure from the newly added draft value-operation assertions before
+the shared sections/date-task implementation is complete. No UI test is
+introduced or selected in this task.
 
 - [ ] **Step 3: Build semantic shared sections.** The parent Add/Edit surface
   owns the only `Form`; `SubscriptionEditorSections.body` emits sibling native
@@ -830,7 +837,7 @@ jq empty SubscriptionManager/Resources/Localizable.xcstrings
 
 Expected: exit 0.
 
-- [ ] **Step 7: Run the focused UI test and build both platforms.** Run the
+- [ ] **Step 7: Run app tests and build both platforms.** Run the unit/value
   test command from Step 2, then:
 
 ```bash
@@ -854,7 +861,7 @@ git add SubscriptionManager/Library/SubscriptionEditorSections.swift \
   SubscriptionManager/Library/BillingDateTaskView.swift \
   SubscriptionManager/Library/SubscriptionFormSupport.swift \
   SubscriptionManager/Resources/Localizable.xcstrings \
-  SubscriptionManagerTests SubscriptionManagerUITests \
+  SubscriptionManagerTests \
   SubscriptionManager.xcodeproj/project.pbxproj
 git commit -m "feat(editor): add compact fields and explicit date task"
 ```
@@ -881,7 +888,8 @@ git commit -m "feat(editor): add compact fields and explicit date task"
   `testManualAddRequiresFiveMinimumFacts`,
   `testVerifiedOfferKeepsEvidencedDefaultsUntilExplicitOverride`,
   `testEditPriceWritesHistoryAutomatically`, and
-  `testCatalogRenameClearsStaleIdentityWhilePriceOverrideRetainsIt`. Prove:
+  `testCatalogRenameClearsStaleIdentityWhilePriceOverrideRetainsIt`, and
+  `testDateTaskHasExplicitDoneAndCancel`. Prove:
   manual Add saves with empty Plan/Category but blocks missing Service Name,
   amount/currency, interval, or accepted date; verified offer activation keeps
   exact evidenced defaults; Edit exposes price/currency/interval/dates on the
@@ -890,6 +898,13 @@ git commit -m "feat(editor): add compact fields and explicit date task"
   changing price or interval alone retains catalog identity. Extend the
   existing official-catalog relaunch test to assert that “User-adjusted price”
   and “User-adjusted schedule” are derived after reload, with no stored flags.
+  From an open Edit editor, the date-task test activates Start Date, selects a
+  different day, asserts source and derived values change while the task stays
+  visible, taps Done, and verifies the editor remains open and unsaved with the
+  new values. It then reopens the task, selects a second different day, taps
+  Cancel, and verifies the Done-committed values remain. Repeat the same
+  value-operation assertions for Next Renewal and a Trial fixture; Cancel must
+  never be a no-op assertion.
 
 - [ ] **Step 2: Verify red.** Run:
 
@@ -900,7 +915,8 @@ xcodebuild test -project SubscriptionManager.xcodeproj \
   -derivedDataPath /tmp/subscription-manager-derived-data \
   -clonedSourcePackagesDirPath /tmp/subscription-manager-source-packages \
   -only-testing:SubscriptionManagerUITests/SubscriptionManagerUITests/testManualAddAllowsEmptyPlanAndCategory \
-  -only-testing:SubscriptionManagerUITests/SubscriptionManagerUITests/testEditPriceWritesHistoryAutomatically
+  -only-testing:SubscriptionManagerUITests/SubscriptionManagerUITests/testEditPriceWritesHistoryAutomatically \
+  -only-testing:SubscriptionManagerUITests/SubscriptionManagerUITests/testDateTaskHasExplicitDoneAndCancel
 ```
 
 Expected: the optional-metadata test fails at current validation and Edit has
@@ -976,6 +992,7 @@ xcodebuild test -project SubscriptionManager.xcodeproj \
   -only-testing:SubscriptionManagerTests \
   -only-testing:SubscriptionManagerUITests/SubscriptionManagerUITests/testManualAddAllowsEmptyPlanAndCategory \
   -only-testing:SubscriptionManagerUITests/SubscriptionManagerUITests/testEditPriceWritesHistoryAutomatically \
+  -only-testing:SubscriptionManagerUITests/SubscriptionManagerUITests/testDateTaskHasExplicitDoneAndCancel \
   -only-testing:SubscriptionManagerUITests/SubscriptionManagerUITests/testCreatesSubscriptionFromOfficialCatalogOffer
 ```
 
