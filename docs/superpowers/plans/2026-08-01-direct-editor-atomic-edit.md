@@ -876,6 +876,8 @@ git commit -m "feat(editor): add compact fields and explicit date task"
 
 **Files:**
 
+- Modify: `Packages/SubscriptionCore/Sources/SubscriptionCore/SubscriptionCore.swift`
+- Modify: `Packages/SubscriptionCore/Tests/SubscriptionCoreTests/SubscriptionWorkspaceTests.swift`
 - Modify: `SubscriptionManager/Library/AddSubscriptionView.swift`
 - Modify: `SubscriptionManager/Library/EditSubscriptionView.swift`
 - Modify: `SubscriptionManager/Library/SubscriptionEditorSections.swift`
@@ -978,16 +980,22 @@ return workspace.editingValidationErrors.isEmpty
 - [ ] **Step 6: Implement catalog identity/override derivation at the existing
   reconciliation seam.** Exact localized formal name or alias plus exact
   offer facts may attach/retain catalog identity. A renamed catalog-associated
-  service that no longer exactly matches clears to the existing manual identity
-  convention. Do not let fuzzy/typeahead ranking participate. After reload,
-  compare effective amount and interval with the current verified offer to
-  derive override labels in the editor; do not persist booleans or a new offer
-  entity.
+  service that no longer exactly matches any formal name or alias clears to the
+  existing `manual:<subscription-id>` identity convention. If the name still
+  matches exactly but price or interval differs, retain the catalog identity;
+  an ambiguous name match also leaves the existing identity unchanged. Cover
+  rename, price-only, and interval-only edits next to the existing Workspace
+  reconciliation tests. Do not let fuzzy/typeahead ranking participate. After
+  reload, compare effective amount and interval with the current verified offer
+  to derive override labels in the editor; do not persist booleans or a new
+  offer entity.
 
 - [ ] **Step 7: Run focused and regression tests.** Run:
 
 ```bash
 swift test --package-path Packages/SubscriptionCore
+swift test --package-path Packages/SubscriptionCore \
+  --filter SubscriptionWorkspaceTests/catalogIdentity
 xcodebuild test -project SubscriptionManager.xcodeproj \
   -scheme SubscriptionManager \
   -destination "platform=iOS Simulator,id=$SUBSCRIPTION_BATCH_A_SIMULATOR_UDID" \
@@ -1008,7 +1016,9 @@ Expected: all selected tests pass.
 git add SubscriptionManager/Library/AddSubscriptionView.swift \
   SubscriptionManager/Library/EditSubscriptionView.swift \
   SubscriptionManager/Library/SubscriptionEditorSections.swift \
-  SubscriptionManagerUITests SubscriptionManagerTests
+  SubscriptionManagerUITests SubscriptionManagerTests \
+  Packages/SubscriptionCore/Sources/SubscriptionCore/SubscriptionCore.swift \
+  Packages/SubscriptionCore/Tests/SubscriptionCoreTests/SubscriptionWorkspaceTests.swift
 git commit -m "refactor(editor): share add and edit field behavior"
 ```
 
