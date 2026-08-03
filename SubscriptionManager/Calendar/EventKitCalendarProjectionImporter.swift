@@ -19,6 +19,7 @@ struct CalendarProjectionCalendar: Equatable {
 struct CalendarEventWriteResult: Equatable {
     let eventIdentifier: String
     let updatedExistingEvent: Bool
+    let didSave: Bool
 }
 
 @MainActor
@@ -38,6 +39,11 @@ protocol CalendarEventStore {
     func requestFullEventAccess() async -> CalendarEventAccess
     func calendar(identifier: String) -> CalendarProjectionCalendar?
     func eventExists(identifier: String) -> Bool
+    func eventIdentifier(
+        for projectionUID: String,
+        near projection: CalendarProjectionEvent,
+        in calendar: CalendarProjectionCalendar
+    ) -> String?
     func removeEvent(identifier: String) throws
     func createDedicatedCalendar(
         named: String
@@ -126,9 +132,16 @@ final class EventKitCalendarProjectionImporter:
         var failedCount = 0
         for event in events {
             do {
-                let existingIdentifier = try mappingRepository.eventIdentifier(
+                var existingIdentifier = try mappingRepository.eventIdentifier(
                     for: event.uid
                 )
+                if existingIdentifier == nil {
+                    existingIdentifier = eventStore.eventIdentifier(
+                        for: event.uid,
+                        near: event,
+                        in: calendar
+                    )
+                }
                 let write = try eventStore.saveProjectedEvent(
                     event,
                     in: calendar,
@@ -139,10 +152,12 @@ final class EventKitCalendarProjectionImporter:
                     for: event.uid,
                     calendarIdentifier: calendar.identifier
                 )
-                if write.updatedExistingEvent {
-                    updatedCount += 1
-                } else {
-                    createdCount += 1
+                if write.didSave {
+                    if write.updatedExistingEvent {
+                        updatedCount += 1
+                    } else {
+                        createdCount += 1
+                    }
                 }
             } catch {
                 failedCount += 1
@@ -232,9 +247,16 @@ final class EventKitCalendarProjectionImporter:
             }
 
             for event in events {
-                let existingIdentifier = try mappingRepository.eventIdentifier(
+                var existingIdentifier = try mappingRepository.eventIdentifier(
                     for: event.uid
                 )
+                if existingIdentifier == nil {
+                    existingIdentifier = eventStore.eventIdentifier(
+                        for: event.uid,
+                        near: event,
+                        in: calendar
+                    )
+                }
                 let write = try eventStore.saveProjectedEvent(
                     event,
                     in: calendar,
@@ -293,6 +315,29 @@ private final class EventKitCalendarEventStore: CalendarEventStore {
         eventStore.event(withIdentifier: identifier) != nil
     }
 
+    func eventIdentifier(
+        for projectionUID: String,
+        near projection: CalendarProjectionEvent,
+        in calendar: CalendarProjectionCalendar
+    ) -> String? {
+        guard let targetCalendar = eventStore.calendar(
+            withIdentifier: calendar.identifier
+        ) else {
+            return nil
+        }
+        let predicate = eventStore.predicateForEvents(
+            withStart: projection.startDate,
+            end: projection.endDate,
+            calendars: [targetCalendar]
+        )
+        let marker = projectionUIDMarker(for: projectionUID)
+        return eventStore.events(matching: predicate).first { event in
+            event.calendar?.calendarIdentifier == calendar.identifier
+                && event.notes?.components(separatedBy: .newlines)
+                .contains(marker) == true
+        }?.eventIdentifier
+    }
+
     func removeEvent(identifier: String) throws {
         guard let event = eventStore.event(withIdentifier: identifier) else {
             return
@@ -327,6 +372,22 @@ private final class EventKitCalendarEventStore: CalendarEventStore {
             throw CalendarEventStoreError.noWritableSource
         }
         let existingEvent = identifier.flatMap(eventStore.event(withIdentifier:))
+        if let existingEvent,
+           eventMatchesProjection(
+               existingEvent,
+               projection: projection,
+               calendar: calendar
+           )
+        {
+            guard let eventIdentifier = existingEvent.eventIdentifier else {
+                throw CalendarEventStoreError.writeFailed
+            }
+            return CalendarEventWriteResult(
+                eventIdentifier: eventIdentifier,
+                updatedExistingEvent: false,
+                didSave: false
+            )
+        }
         let event = existingEvent ?? EKEvent(eventStore: eventStore)
         event.title = projection.title
         event.notes = projectionNotes(for: projection)
@@ -345,12 +406,34 @@ private final class EventKitCalendarEventStore: CalendarEventStore {
         }
         return CalendarEventWriteResult(
             eventIdentifier: eventIdentifier,
-            updatedExistingEvent: existingEvent != nil
+            updatedExistingEvent: existingEvent != nil,
+            didSave: true
         )
     }
 
+    private func eventMatchesProjection(
+        _ event: EKEvent,
+        projection: CalendarProjectionEvent,
+        calendar: CalendarProjectionCalendar
+    ) -> Bool {
+        event.title == projection.title
+            && event.notes == projectionNotes(for: projection)
+            && event.url == projection.managementURL
+            && event.isAllDay
+            && event.startDate == projection.startDate
+            && event.endDate == projection.endDate
+            && event.timeZone?.identifier == projection.timeZoneIdentifier
+            && (event.alarms ?? []).map(\.relativeOffset)
+            == projection.alarmOffsets.map { TimeInterval($0) * 86_400 }
+            && event.calendar?.calendarIdentifier == calendar.identifier
+    }
+
     private func projectionNotes(for event: CalendarProjectionEvent) -> String {
-        "\(event.notes)\n\nSubscription Manager Projection UID: \(event.uid)"
+        "\(event.notes)\n\n\(projectionUIDMarker(for: event.uid))"
+    }
+
+    private func projectionUIDMarker(for uid: String) -> String {
+        "Subscription Manager Projection UID: \(uid)"
     }
 }
 

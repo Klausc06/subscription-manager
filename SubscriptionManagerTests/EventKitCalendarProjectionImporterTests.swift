@@ -7,7 +7,7 @@ import Testing
 @MainActor
 struct EventKitCalendarProjectionImporterTests {
     @Test("Granted repeat import reuses one calendar and its mapped event")
-    func repeatImportIsIdempotent() async {
+    func repeatImportIsIdempotent() async throws {
         let store = CalendarEventStoreFixture(access: .granted)
         let mappings = CalendarMappingFixture()
         let importer = EventKitCalendarProjectionImporter(
@@ -31,14 +31,16 @@ struct EventKitCalendarProjectionImporterTests {
             secondResult == .imported(
                 CalendarProjectionImportSummary(
                     createdCount: 0,
-                    updatedCount: 1
+                    updatedCount: 0
                 )
             )
         )
         #expect(store.accessRequestCount == 2)
         #expect(store.calendarCreationCount == 1)
-        #expect(store.savedEventIdentifiers.count == 1)
-        #expect(store.savedProjectionEvents.first == events.first)
+        #expect(store.physicalEventIdentifiers == ["event-1"])
+        #expect(try mappings.eventIdentifier(for: "renewal-1") == "event-1")
+        #expect(store.saveCount == 1)
+        #expect(store.savedProjectionEvents == events)
     }
 
     @Test("Denied access creates no calendar or events")
@@ -110,11 +112,48 @@ struct EventKitCalendarProjectionImporterTests {
             retryResult == .imported(
                 CalendarProjectionImportSummary(
                     createdCount: 1,
-                    updatedCount: 1
+                    updatedCount: 0
                 )
             )
         )
         #expect(store.savedEventIdentifiers.count == 2)
+    }
+
+    @Test("Retry recovers an event when mapping persistence failed after save")
+    func mappingPersistenceFailureRecoversExistingEvent() async throws {
+        let store = CalendarEventStoreFixture(access: .granted)
+        let mappings = CalendarMappingFixture()
+        mappings.failNextEventMappingSave = true
+        let importer = EventKitCalendarProjectionImporter(
+            eventStore: store,
+            mappingRepository: mappings
+        )
+        let events = [calendarEvent(uid: "renewal-1")]
+
+        let firstResult = await importer.importProjection(events: events)
+        let retryResult = await importer.importProjection(events: events)
+
+        #expect(
+            firstResult == .partialFailure(
+                CalendarProjectionImportSummary(
+                    createdCount: 0,
+                    updatedCount: 0
+                ),
+                failedCount: 1
+            )
+        )
+        #expect(
+            retryResult == .imported(
+                CalendarProjectionImportSummary(
+                    createdCount: 0,
+                    updatedCount: 0
+                )
+            )
+        )
+        #expect(store.physicalEventIdentifiers == ["event-1"])
+        #expect(try mappings.eventIdentifier(for: "renewal-1") == "event-1")
+        #expect(store.saveCount == 1)
+        #expect(store.savedProjectionEvents == events)
     }
 
     @Test("Reconciliation does not recreate an externally deleted mapped event")
@@ -201,15 +240,29 @@ struct EventKitCalendarProjectionImporterTests {
     }
 }
 
+private struct PhysicalCalendarEvent: Equatable {
+    let identifier: String
+    let calendarIdentifier: String
+    let title: String
+    let notes: String
+    let url: URL?
+    let isAllDay: Bool
+    let startDate: Date
+    let endDate: Date
+    let timeZoneIdentifier: String?
+    let alarmOffsets: [Int]
+}
+
 @MainActor
 private final class CalendarEventStoreFixture: CalendarEventStore {
     let access: CalendarEventAccess
     var accessRequestCount = 0
     var calendarCreationCount = 0
+    var saveCount = 0
     var failingUIDs: Set<String>
     let allowsCalendarCreation: Bool
     private var calendar: CalendarProjectionCalendar?
-    private var eventIdentifiersByUID: [String: String] = [:]
+    private var physicalEventsByIdentifier: [String: PhysicalCalendarEvent] = [:]
     private(set) var savedProjectionEvents: [CalendarProjectionEvent] = []
 
     init(
@@ -223,11 +276,20 @@ private final class CalendarEventStoreFixture: CalendarEventStore {
     }
 
     var savedEventIdentifiers: Set<String> {
-        Set(eventIdentifiersByUID.values)
+        physicalEventIdentifiers
+    }
+
+    var physicalEventIdentifiers: Set<String> {
+        Set(physicalEventsByIdentifier.keys)
     }
 
     func deleteEvent(uid: String) {
-        eventIdentifiersByUID.removeValue(forKey: uid)
+        guard let identifier = physicalEventsByIdentifier.first(where: {
+            $0.value.notes.contains(projectionMarker(for: uid))
+        })?.key else {
+            return
+        }
+        physicalEventsByIdentifier.removeValue(forKey: identifier)
     }
 
     func requestFullEventAccess() async -> CalendarEventAccess {
@@ -242,16 +304,25 @@ private final class CalendarEventStoreFixture: CalendarEventStore {
     }
 
     func eventExists(identifier: String) -> Bool {
-        eventIdentifiersByUID.values.contains(identifier)
+        physicalEventsByIdentifier[identifier] != nil
+    }
+
+    func eventIdentifier(
+        for projectionUID: String,
+        near projection: CalendarProjectionEvent,
+        in calendar: CalendarProjectionCalendar
+    ) -> String? {
+        physicalEventsByIdentifier.values.first { event in
+            event.calendarIdentifier == calendar.identifier
+                && event.startDate < projection.endDate
+                && event.endDate > projection.startDate
+                && event.notes.components(separatedBy: .newlines)
+                .contains(projectionMarker(for: projectionUID))
+        }?.identifier
     }
 
     func removeEvent(identifier: String) throws {
-        guard let uid = eventIdentifiersByUID.first(where: {
-            $0.value == identifier
-        })?.key else {
-            return
-        }
-        eventIdentifiersByUID.removeValue(forKey: uid)
+        physicalEventsByIdentifier.removeValue(forKey: identifier)
     }
 
     func createDedicatedCalendar(
@@ -274,21 +345,46 @@ private final class CalendarEventStoreFixture: CalendarEventStore {
         guard !failingUIDs.contains(event.uid) else {
             throw CalendarEventStoreError.writeFailed
         }
-        savedProjectionEvents.append(event)
-        if let identifier,
-           eventIdentifiersByUID[event.uid] == identifier
-        {
+        let existingEvent = identifier.flatMap {
+            physicalEventsByIdentifier[$0]
+        }
+        let eventIdentifier = existingEvent?.identifier
+            ?? "event-\(physicalEventsByIdentifier.count + 1)"
+        let desiredEvent = PhysicalCalendarEvent(
+            identifier: eventIdentifier,
+            calendarIdentifier: calendar.identifier,
+            title: event.title,
+            notes: projectionNotes(for: event),
+            url: event.managementURL,
+            isAllDay: true,
+            startDate: event.startDate,
+            endDate: event.endDate,
+            timeZoneIdentifier: event.timeZoneIdentifier,
+            alarmOffsets: event.alarmOffsets
+        )
+        if let existingEvent, existingEvent == desiredEvent {
             return CalendarEventWriteResult(
-                eventIdentifier: identifier,
-                updatedExistingEvent: true
+                eventIdentifier: existingEvent.identifier,
+                updatedExistingEvent: false,
+                didSave: false
             )
         }
-        let identifier = "event-\(eventIdentifiersByUID.count + 1)"
-        eventIdentifiersByUID[event.uid] = identifier
+        saveCount += 1
+        physicalEventsByIdentifier[eventIdentifier] = desiredEvent
+        savedProjectionEvents.append(event)
         return CalendarEventWriteResult(
-            eventIdentifier: identifier,
-            updatedExistingEvent: false
+            eventIdentifier: eventIdentifier,
+            updatedExistingEvent: existingEvent != nil,
+            didSave: true
         )
+    }
+
+    private func projectionNotes(for event: CalendarProjectionEvent) -> String {
+        "\(event.notes)\n\n\(projectionMarker(for: event.uid))"
+    }
+
+    private func projectionMarker(for uid: String) -> String {
+        "Subscription Manager Projection UID: \(uid)"
     }
 }
 
@@ -297,6 +393,7 @@ private final class CalendarMappingFixture: CalendarProjectionMappingRepository 
     private var calendarID: String?
     private var isDisabled = false
     private var eventIDs: [String: String] = [:]
+    var failNextEventMappingSave = false
 
     func calendarIdentifier() throws -> String? { calendarID }
 
@@ -332,6 +429,10 @@ private final class CalendarMappingFixture: CalendarProjectionMappingRepository 
         for projectionUID: String,
         calendarIdentifier: String
     ) throws {
+        if failNextEventMappingSave {
+            failNextEventMappingSave = false
+            throw CalendarEventStoreError.writeFailed
+        }
         calendarID = calendarIdentifier
         eventIDs[projectionUID] = identifier
     }
