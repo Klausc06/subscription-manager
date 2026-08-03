@@ -1137,7 +1137,7 @@ struct SubscriptionWorkspaceTests {
             providerDate: now,
             fetchedAt: now,
             source: "fixture",
-            rates: [.eur: 1, .usd: 1.2]
+            rates: [.eur: 1, .usd: 1.2, .cny: 8.4]
         )
         let source = RecordingExchangeRateSource(snapshot: snapshot)
         let cache = InMemoryExchangeRateCache(
@@ -1157,6 +1157,46 @@ struct SubscriptionWorkspaceTests {
 
         #expect(source.requests.isEmpty)
         #expect(workspace.exchangeRateStatus == .fresh(snapshot))
+    }
+
+    @Test("A subscription read failure does not reuse an incomplete same-day cache")
+    @MainActor
+    func rateRefreshDoesNotTrustCacheWhenSubscriptionsCannotBeRead() async {
+        let now = Date(timeIntervalSince1970: 1_769_356_800)
+        let cacheSnapshot = ExchangeRateSnapshot(
+            base: .eur,
+            providerDate: now,
+            fetchedAt: now,
+            source: "fixture",
+            rates: [.eur: 1, .cny: 8.4]
+        )
+        let source = RecordingExchangeRateSource(snapshot: cacheSnapshot)
+        let cache = InMemoryExchangeRateCache(
+            state: ExchangeRateCacheState(
+                snapshot: cacheSnapshot,
+                lastAttemptAt: now
+            )
+        )
+        let workspace = SubscriptionWorkspace(
+            repository: FailingSubscriptionRepository(
+                subscriptions: [
+                    makeSubscription(
+                        id: UUID(
+                            uuidString: "11111111-2222-3333-4444-555555555555"
+                        )!,
+                        originalAmount: Money(minorUnits: 999, currency: .usd)
+                    ),
+                ]
+            ),
+            exchangeRateSource: source,
+            exchangeRateCache: cache,
+            now: { now }
+        )
+
+        await workspace.refreshExchangeRates()
+
+        #expect(source.requests.isEmpty)
+        #expect(workspace.exchangeRateStatus == .unavailable)
     }
 
     @Test("Stale rates refresh only library and display currencies")
@@ -1242,6 +1282,176 @@ struct SubscriptionWorkspaceTests {
         #expect(cache.state?.lastAttemptAt == now)
     }
 
+    @Test("An incomplete same-day rate cache requests its missing currency")
+    @MainActor
+    func incompleteSameDayRateCacheRequestsMissingCurrency() async {
+        let now = Date(timeIntervalSince1970: 1_769_356_800)
+        let refreshed = ExchangeRateSnapshot(
+            base: .eur,
+            providerDate: now,
+            fetchedAt: now,
+            source: "fixture",
+            rates: [.eur: 1, .cny: 8.4]
+        )
+        let source = RecordingExchangeRateSource(snapshot: refreshed)
+        let cache = InMemoryExchangeRateCache(
+            state: ExchangeRateCacheState(
+                snapshot: ExchangeRateSnapshot(
+                    base: .eur,
+                    providerDate: now,
+                    fetchedAt: now,
+                    source: "fixture",
+                    rates: [.eur: 1]
+                ),
+                lastAttemptAt: now
+            )
+        )
+        let workspace = SubscriptionWorkspace(
+            repository: InMemorySubscriptionRepository(),
+            exchangeRateSource: source,
+            exchangeRateCache: cache,
+            now: { now }
+        )
+
+        await workspace.refreshExchangeRates()
+
+        #expect(source.requests.count == 1)
+        #expect(source.requests.first?.quotes == [.cny])
+        #expect(workspace.exchangeRateStatus == .fresh(refreshed))
+    }
+
+    @Test("Rate refresh requests original, price-change, and confirmed currencies")
+    @MainActor
+    func rateRefreshRequestsAllSubscriptionCurrencies() async {
+        let yesterday = Date(timeIntervalSince1970: 1_769_270_400)
+        let now = Date(timeIntervalSince1970: 1_769_356_800)
+        let subscriptionID = UUID(
+            uuidString: "11111111-2222-3333-4444-555555555555"
+        )!
+        let refreshed = ExchangeRateSnapshot(
+            base: .eur,
+            providerDate: now,
+            fetchedAt: now,
+            source: "fixture",
+            rates: [.eur: 1, .usd: 1.2, .cny: 8.4]
+        )
+        let source = RecordingExchangeRateSource(snapshot: refreshed)
+        let cache = InMemoryExchangeRateCache(
+            state: ExchangeRateCacheState(
+                snapshot: ExchangeRateSnapshot(
+                    base: .eur,
+                    providerDate: yesterday,
+                    fetchedAt: yesterday,
+                    source: "fixture",
+                    rates: [.eur: 1]
+                ),
+                lastAttemptAt: yesterday
+            )
+        )
+        let workspace = SubscriptionWorkspace(
+            repository: InMemorySubscriptionRepository(subscriptions: [
+                makeSubscription(
+                    id: subscriptionID,
+                    confirmedCharges: [
+                        ConfirmedCharge(
+                            id: UUID(
+                                uuidString: "22222222-3333-4444-5555-666666666666"
+                            )!,
+                            chargedDate: yesterday,
+                            amount: Money(minorUnits: 999, currency: .eur)
+                        ),
+                    ],
+                    originalAmount: Money(minorUnits: 999, currency: .usd),
+                    priceChanges: [
+                        PriceChange(
+                            id: UUID(
+                                uuidString: "33333333-4444-5555-6666-777777777777"
+                            )!,
+                            effectiveDate: yesterday,
+                            amount: Money(minorUnits: 1_099, currency: .cny)
+                        ),
+                    ]
+                ),
+            ]),
+            exchangeRateSource: source,
+            exchangeRateCache: cache,
+            now: { now }
+        )
+
+        await workspace.refreshExchangeRates()
+
+        #expect(source.requests.first?.quotes == [.cny, .usd])
+    }
+
+    @Test("Cancelling a rate refresh does not write a failed attempt")
+    @MainActor
+    func cancelledRateRefreshDoesNotWriteFailureState() async {
+        let yesterday = Date(timeIntervalSince1970: 1_769_270_400)
+        let now = Date(timeIntervalSince1970: 1_769_356_800)
+        let stale = ExchangeRateSnapshot(
+            base: .eur,
+            providerDate: yesterday,
+            fetchedAt: yesterday,
+            source: "fixture",
+            rates: [.eur: 1, .cny: 8.4]
+        )
+        let cache = InMemoryExchangeRateCache(
+            state: ExchangeRateCacheState(
+                snapshot: stale,
+                lastAttemptAt: yesterday
+            )
+        )
+        let workspace = SubscriptionWorkspace(
+            repository: InMemorySubscriptionRepository(),
+            exchangeRateSource: RecordingExchangeRateSource(error: .cancelled),
+            exchangeRateCache: cache,
+            now: { now }
+        )
+
+        await workspace.refreshExchangeRates()
+
+        #expect(cache.state == ExchangeRateCacheState(
+            snapshot: stale,
+            lastAttemptAt: yesterday
+        ))
+        #expect(workspace.exchangeRateStatus == .stale(stale))
+    }
+
+    @Test("A failed rate-cache save does not repeat the same process attempt")
+    @MainActor
+    func failedRateCacheSaveDoesNotRepeatProcessAttempt() async {
+        let yesterday = Date(timeIntervalSince1970: 1_769_270_400)
+        let now = Date(timeIntervalSince1970: 1_769_356_800)
+        let snapshot = ExchangeRateSnapshot(
+            base: .eur,
+            providerDate: now,
+            fetchedAt: now,
+            source: "fixture",
+            rates: [.eur: 1, .cny: 8.4]
+        )
+        let source = RecordingExchangeRateSource(snapshot: snapshot)
+        let cache = InMemoryExchangeRateCache(
+            state: ExchangeRateCacheState(
+                snapshot: nil,
+                lastAttemptAt: yesterday
+            ),
+            saveError: .cacheSaveFailed
+        )
+        let workspace = SubscriptionWorkspace(
+            repository: InMemorySubscriptionRepository(),
+            exchangeRateSource: source,
+            exchangeRateCache: cache,
+            now: { now }
+        )
+
+        await workspace.refreshExchangeRates()
+        await workspace.refreshExchangeRates()
+
+        #expect(source.requests.count == 1)
+        #expect(cache.state?.lastAttemptAt == yesterday)
+        #expect(workspace.exchangeRateStatus == .fresh(snapshot))
+    }
+
     @Test("Expected insights convert charges into selected currency totals")
     @MainActor
     func expectedInsightsConvertRangeMonthlyAndCategoryTotals() async throws {
@@ -1300,6 +1510,91 @@ struct SubscriptionWorkspaceTests {
 
         let recomputed = try #require(workspace.insightsState.availableValue)
         #expect(recomputed.selectedRangeTotal == Money(minorUnits: 120, currency: .usd))
+    }
+
+    @Test("Annualized insights count both endpoints in a thirty-day range")
+    @MainActor
+    func annualizedInsightsCountBothEndpoints() async throws {
+        let calendar = utcCalendar()
+        let now = try actionDate(
+            year: 2026,
+            month: 1,
+            day: 31,
+            hour: 12,
+            calendar: calendar
+        )
+        let from = try actionDate(
+            year: 2026,
+            month: 1,
+            day: 1,
+            hour: 12,
+            calendar: calendar
+        )
+        let through = try actionDate(
+            year: 2026,
+            month: 1,
+            day: 30,
+            hour: 12,
+            calendar: calendar
+        )
+        let chargeDate = try actionDate(
+            year: 2026,
+            month: 1,
+            day: 15,
+            hour: 12,
+            calendar: calendar
+        )
+        let snapshot = ExchangeRateSnapshot(
+            base: .eur,
+            providerDate: now,
+            fetchedAt: now,
+            source: "fixture",
+            rates: [.eur: 1, .cny: 8.4]
+        )
+        let workspace = SubscriptionWorkspace(
+            repository: InMemorySubscriptionRepository(subscriptions: [
+                makeSubscription(
+                    id: UUID(
+                        uuidString: "11111111-2222-3333-4444-555555555555"
+                    )!,
+                    confirmedCharges: [
+                        ConfirmedCharge(
+                            id: UUID(
+                                uuidString: "22222222-3333-4444-5555-666666666666"
+                            )!,
+                            chargedDate: chargeDate,
+                            amount: Money(minorUnits: 3_000, currency: .cny)
+                        ),
+                    ],
+                    originalAmount: Money(minorUnits: 3_000, currency: .cny)
+                ),
+            ]),
+            exchangeRateCache: InMemoryExchangeRateCache(
+                state: ExchangeRateCacheState(
+                    snapshot: snapshot,
+                    lastAttemptAt: now
+                )
+            ),
+            now: { now },
+            calendar: calendar
+        )
+
+        await workspace.refreshExchangeRates()
+        workspace.loadInsights(
+            mode: .confirmed,
+            from: from,
+            through: through
+        )
+
+        let insights = try #require(workspace.insightsState.availableValue)
+        #expect(insights.selectedRangeTotal == Money(
+            minorUnits: 3_000,
+            currency: .cny
+        ))
+        #expect(insights.annualizedTotal == Money(
+            minorUnits: 36_500,
+            currency: .cny
+        ))
     }
 
     @Test("Upcoming timeline orders expected and confirmed charges while excluding cancelled subscriptions")
@@ -1372,6 +1667,34 @@ struct SubscriptionWorkspaceTests {
         ])
     }
 
+    @Test("Upcoming repository failure is distinct from an empty result")
+    @MainActor
+    func upcomingRepositoryFailureIsDistinctFromEmpty() {
+        let now = Date(timeIntervalSince1970: 1_767_225_600)
+        let emptyWorkspace = SubscriptionWorkspace(
+            repository: InMemorySubscriptionRepository(),
+            now: { now }
+        )
+        emptyWorkspace.loadUpcomingTimeline(
+            from: now,
+            through: now.addingTimeInterval(86_400)
+        )
+        #expect(emptyWorkspace.upcomingTimelineState == .empty)
+
+        let workspace = SubscriptionWorkspace(
+            repository: FailingSubscriptionRepository(),
+            now: { now }
+        )
+
+        workspace.loadUpcomingTimeline(
+            from: now,
+            through: now.addingTimeInterval(86_400)
+        )
+
+        #expect(workspace.upcomingTimeline.isEmpty)
+        #expect(workspace.upcomingTimelineState == .failed)
+    }
+
     @Test("Upcoming keeps a due-today charge visible after its normalized billing time")
     @MainActor
     func upcomingKeepsDueTodayVisibleAfterBillingTime() throws {
@@ -1422,6 +1745,104 @@ struct SubscriptionWorkspaceTests {
             })
         )
         #expect(occurrence.date == dueToday)
+    }
+
+    @Test("Upcoming month-end queries include the last day's full time range")
+    @MainActor
+    func upcomingMonthEndQueryIncludesLastDayNoon() throws {
+        let calendar = utcCalendar()
+        let monthStart = try actionDate(
+            year: 2026,
+            month: 8,
+            day: 1,
+            hour: 0,
+            calendar: calendar
+        )
+        let monthEnd = try actionDate(
+            year: 2026,
+            month: 8,
+            day: 31,
+            hour: 12,
+            calendar: calendar
+        )
+        let workspace = SubscriptionWorkspace(
+            repository: InMemorySubscriptionRepository(subscriptions: [
+                makeSubscription(
+                    id: UUID(
+                        uuidString: "D0DEC0DE-0000-4000-8000-000000000001"
+                    )!,
+                    billingSchedule: FixedBillingSchedule(
+                        interval: .monthly,
+                        renewalAnchor: monthEnd,
+                        timeZoneIdentifier: "UTC"
+                    ),
+                    confirmedNextRenewal: monthEnd
+                ),
+            ]),
+            now: { monthStart },
+            calendar: calendar
+        )
+
+        let monthInterval = try #require(
+            calendar.dateInterval(of: .month, for: monthStart)
+        )
+        workspace.loadUpcomingTimeline(
+            from: monthInterval.start,
+            through: try #require(calendar.date(
+                byAdding: .nanosecond,
+                value: -1,
+                to: monthInterval.end
+            ))
+        )
+
+        #expect(workspace.upcomingTimeline.contains {
+            $0.date == monthEnd
+        })
+    }
+
+    @Test("Upcoming keeps renewal dates in the subscription billing timezone")
+    @MainActor
+    func upcomingUsesSubscriptionBillingTimezone() throws {
+        var billingCalendar = Calendar(identifier: .gregorian)
+        billingCalendar.timeZone = TimeZone(identifier: "America/Los_Angeles")!
+        let renewal = try actionDate(
+            year: 2026,
+            month: 8,
+            day: 1,
+            hour: 12,
+            calendar: billingCalendar
+        )
+        let now = try actionDate(
+            year: 2026,
+            month: 8,
+            day: 1,
+            hour: 11,
+            calendar: billingCalendar
+        )
+        let workspace = SubscriptionWorkspace(
+            repository: InMemorySubscriptionRepository(subscriptions: [
+                makeSubscription(
+                    id: UUID(
+                        uuidString: "D0DEC0DE-0000-4000-8000-000000000002"
+                    )!,
+                    billingSchedule: FixedBillingSchedule(
+                        interval: .monthly,
+                        renewalAnchor: renewal,
+                        timeZoneIdentifier: "America/Los_Angeles"
+                    ),
+                    confirmedNextRenewal: renewal
+                ),
+            ]),
+            now: { now },
+            calendar: actionCalendar()
+        )
+
+        workspace.loadUpcomingTimeline(
+            from: now,
+            through: now.addingTimeInterval(86_400)
+        )
+
+        #expect(workspace.upcomingTimeline.first?.date == renewal)
     }
 
     @Test("Upcoming includes past unconfirmed occurrences and replaces them after confirmation")
@@ -6451,12 +6872,17 @@ private final class RecordingExchangeRateSource: ExchangeRateSource {
         quotes: Set<Currency>
     ) async throws -> ExchangeRateSnapshot {
         requests.append((base: base, quotes: quotes))
+        if case .failure(.cancelled) = result {
+            throw CancellationError()
+        }
         return try result.get()
     }
 }
 
 private enum ExchangeRateFixtureError: Error {
     case offline
+    case cacheSaveFailed
+    case cancelled
 }
 
 @MainActor
@@ -6890,9 +7316,14 @@ private struct SyncMonitorFixture: LibrarySyncMonitor {
 @MainActor
 private final class InMemoryExchangeRateCache: ExchangeRateCache {
     private(set) var state: ExchangeRateCacheState?
+    private let saveError: ExchangeRateFixtureError?
 
-    init(state: ExchangeRateCacheState?) {
+    init(
+        state: ExchangeRateCacheState?,
+        saveError: ExchangeRateFixtureError? = nil
+    ) {
         self.state = state
+        self.saveError = saveError
     }
 
     func loadState() throws -> ExchangeRateCacheState? {
@@ -6900,12 +7331,21 @@ private final class InMemoryExchangeRateCache: ExchangeRateCache {
     }
 
     func saveState(_ state: ExchangeRateCacheState) throws {
+        if let saveError {
+            throw saveError
+        }
         self.state = state
     }
 }
 
 @MainActor
 private struct FailingSubscriptionRepository: SubscriptionRepository {
+    let subscriptions: [Subscription]
+
+    init(subscriptions: [Subscription] = []) {
+        self.subscriptions = subscriptions
+    }
+
     func createSubscription(_ subscription: Subscription) throws {
         throw RepositoryError.unavailable
     }
@@ -7255,6 +7695,7 @@ private func makeSubscription(
     confirmedNextRenewal: Date? = nil,
     confirmedCharges: [ConfirmedCharge] = [],
     originalAmount: Money = Money(minorUnits: 999, currency: .usd),
+    priceChanges: [PriceChange] = [],
     category: String = "Other",
     serviceName: String = "Example",
     plan: String = "Standard",
@@ -7283,6 +7724,7 @@ private func makeSubscription(
         managementURL: nil,
         notes: notes,
         confirmedCharges: confirmedCharges,
+        priceChanges: priceChanges,
         lifecycle: lifecycle,
         isArchived: isArchived,
         pinnedAt: pinnedAt

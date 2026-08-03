@@ -304,14 +304,25 @@ private struct InsightsView: View {
         }
         .task(id: mode) {
             await workspace.refreshExchangeRates()
+            let today = Calendar.current.startOfDay(for: Date())
+            let rangeStart = mode == .expected
+                ? today
+                : Calendar.current.date(
+                    byAdding: .day,
+                    value: -29,
+                    to: today
+                ) ?? today
+            let rangeEnd = mode == .expected
+                ? Calendar.current.date(
+                    byAdding: .day,
+                    value: 29,
+                    to: today
+                ) ?? today
+                : today
             workspace.loadInsights(
                 mode: mode,
-                from: Calendar.current.startOfDay(for: Date()),
-                through: Calendar.current.date(
-                    byAdding: .day,
-                    value: 30,
-                    to: Calendar.current.startOfDay(for: Date())
-                ) ?? Date()
+                from: rangeStart,
+                through: rangeEnd
             )
         }
     }
@@ -406,7 +417,16 @@ private struct UpcomingView: View {
                     monthOverview(availableWidth: geometry.size.width)
 
                     Section {
-                        if selectedDayItems.isEmpty {
+                        if hasUpcomingFailure {
+                            ContentUnavailableView(
+                                "Upcoming Unavailable",
+                                systemImage: "exclamationmark.triangle",
+                                description: Text(
+                                    "Renewals could not be loaded. Try again later."
+                                )
+                            )
+                            .accessibilityIdentifier("upcoming.agenda.failed")
+                        } else if selectedDayItems.isEmpty {
                             ContentUnavailableView(
                                 "No Charges This Day",
                                 systemImage: "calendar",
@@ -425,7 +445,13 @@ private struct UpcomingView: View {
                                 )
                                 HStack(alignment: .firstTextBaseline, spacing: 12) {
                                     NavigationLink(value: item.subscriptionID) {
-                                        UpcomingTimelineRow(item: item)
+                                        UpcomingTimelineRow(
+                                            item: item,
+                                            billingTimeZoneIdentifier:
+                                                subscriptionsByID[item.subscriptionID]?
+                                                .billingSchedule.timeZoneIdentifier
+                                                ?? TimeZone.autoupdatingCurrent.identifier
+                                        )
                                     }
                                     .frame(maxWidth: .infinity, alignment: .leading)
                                     .accessibilityIdentifier(
@@ -499,7 +525,18 @@ private struct UpcomingView: View {
     @ViewBuilder
     private func monthOverview(availableWidth: CGFloat) -> some View {
 #if os(iOS)
-        if canUseNativeMonthCalendar(availableWidth: availableWidth) {
+        if hasUpcomingFailure {
+            Section {
+                ContentUnavailableView(
+                    "Upcoming Unavailable",
+                    systemImage: "exclamationmark.triangle",
+                    description: Text(
+                        "Renewals could not be loaded. Try again later."
+                    )
+                )
+                .accessibilityIdentifier("upcoming.month.failed")
+            }
+        } else if canUseNativeMonthCalendar(availableWidth: availableWidth) {
             Section {
                 UpcomingMonthCalendar(
                     selectedDay: $selectedDay,
@@ -525,7 +562,20 @@ private struct UpcomingView: View {
             groupedDayList
         }
 #else
-        groupedDayList
+        if hasUpcomingFailure {
+            Section {
+                ContentUnavailableView(
+                    "Upcoming Unavailable",
+                    systemImage: "exclamationmark.triangle",
+                    description: Text(
+                        "Renewals could not be loaded. Try again later."
+                    )
+                )
+                .accessibilityIdentifier("upcoming.month.failed")
+            }
+        } else {
+            groupedDayList
+        }
 #endif
     }
 
@@ -595,14 +645,24 @@ private struct UpcomingView: View {
         projection.days.first(where: { $0.date == selectedDay })?.items ?? []
     }
 
+    private var hasUpcomingFailure: Bool {
+        if case .failed = workspace.upcomingTimelineState {
+            return true
+        }
+        return false
+    }
+
     private func loadTimeline() {
         guard let monthInterval else { return }
         let lastDay = calendar.date(
-            byAdding: .day,
+            byAdding: .nanosecond,
             value: -1,
             to: monthInterval.end
-        ) ?? monthInterval.start
-        workspace.loadUpcomingTimeline(from: monthInterval.start, through: lastDay)
+        ) ?? monthInterval.end
+        workspace.loadUpcomingTimeline(
+            from: monthInterval.start,
+            through: lastDay
+        )
 
         if selectsFirstChargeAfterMonthChange {
             selectedDay = projection.days.first?.date ?? monthInterval.start
@@ -897,6 +957,7 @@ private struct UpcomingConfirmationPresentation: Identifiable {
 
 private struct UpcomingTimelineRow: View {
     let item: UpcomingTimelineItem
+    let billingTimeZoneIdentifier: String
 
     var body: some View {
         HStack(alignment: .firstTextBaseline, spacing: 10) {
@@ -920,7 +981,13 @@ private struct UpcomingTimelineRow: View {
                 Text(formattedMoney(item.amount))
                     .lineLimit(1)
                     .minimumScaleFactor(0.8)
-                Text(item.date, format: .dateTime.month().day().year())
+                Text(
+                    formattedBillingDate(
+                        item.date,
+                        timeZoneIdentifier: billingTimeZoneIdentifier,
+                        locale: .current
+                    )
+                )
                     .font(.footnote)
                     .foregroundStyle(.secondary)
                     .lineLimit(1)
@@ -932,7 +999,12 @@ private struct UpcomingTimelineRow: View {
         .accessibilityElement(children: .combine)
         .accessibilityLabel(
             "\(item.serviceName), \(statusAccessibilityText), "
-                + "\(formattedMoney(item.amount))"
+                + "\(formattedMoney(item.amount)), "
+                + formattedBillingDate(
+                    item.date,
+                    timeZoneIdentifier: billingTimeZoneIdentifier,
+                    locale: .current
+                )
         )
     }
 

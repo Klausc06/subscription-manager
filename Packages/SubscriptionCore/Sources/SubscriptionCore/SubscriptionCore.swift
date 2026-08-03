@@ -569,6 +569,13 @@ public enum SubscriptionLibraryState: Equatable, Sendable {
     case failed(SubscriptionLibraryScope)
 }
 
+public enum UpcomingTimelineState: Equatable, Sendable {
+    case notLoaded
+    case empty
+    case loaded([UpcomingTimelineItem])
+    case failed
+}
+
 public enum SubscriptionTableSort: String, CaseIterable, Codable, Sendable {
     case serviceName
     case plan
@@ -709,6 +716,8 @@ public final class SubscriptionWorkspace {
         [SubscriptionCreationField: SubscriptionCreationValidationError] = [:]
     public private(set) var expectedCharges: [ExpectedCharge]?
     public private(set) var upcomingTimeline: [UpcomingTimelineItem] = []
+    public private(set) var upcomingTimelineState: UpcomingTimelineState =
+        .notLoaded
     public private(set) var calendarProjection: [CalendarProjectionEvent] = []
     public private(set) var calendarImportState: CalendarImportState =
         .notRequested
@@ -771,6 +780,11 @@ public final class SubscriptionWorkspace {
     private var catalogLocale = Locale.current
     private var catalogSearchQuery = ""
     private var catalogCategoryID: String?
+    private struct ExchangeRateAttemptKey: Hashable {
+        let day: Date
+        let quotes: Set<Currency>
+    }
+    private var exchangeRateAttempts: Set<ExchangeRateAttemptKey> = []
 
     public init(
         repository: any SubscriptionRepository,
@@ -955,7 +969,27 @@ public final class SubscriptionWorkspace {
 
     public func refreshExchangeRates() async {
         let cachedState = try? exchangeRateCache?.loadState()
+        guard let subscriptions = try? repository.listSubscriptions() else {
+            exchangeRateStatus = .unavailable
+            return
+        }
+        let requiredCurrencies = Set(
+            subscriptions.flatMap { subscription in
+                [subscription.originalAmount.currency]
+                    + subscription.priceChanges.map(\.amount.currency)
+                    + subscription.confirmedCharges.map(\.amount.currency)
+            }
+        )
+            .union([currentPreferences.primaryCurrency])
+        let requiredQuotes = requiredCurrencies.subtracting([.eur])
+        let cacheIsComplete = cachedState?.snapshot.map {
+            snapshotContainsRequiredCurrencies(
+                $0,
+                requiredCurrencies: requiredCurrencies
+            )
+        } ?? false
         if let cachedState,
+           cacheIsComplete,
            calendar.isDate(
                cachedState.lastAttemptAt
                    ?? cachedState.snapshot?.fetchedAt
@@ -971,42 +1005,66 @@ public final class SubscriptionWorkspace {
             return
         }
 
-        guard let exchangeRateSource else {
-            exchangeRateStatus = cachedState?.snapshot.map(
-                ExchangeRateStatus.stale
-            ) ?? .unavailable
+        let attemptKey = ExchangeRateAttemptKey(
+            day: calendar.startOfDay(for: now()),
+            quotes: requiredQuotes
+        )
+        if exchangeRateAttempts.contains(attemptKey) {
             return
         }
 
-        let subscriptions = (try? repository.listSubscriptions()) ?? []
-        let quotes = Set(
-            subscriptions.map {
-                $0.amount(onBillingDay: $0.confirmedNextRenewal).currency
-            }
-        )
-            .union([currentPreferences.primaryCurrency])
-            .subtracting([.eur])
+        guard let exchangeRateSource else {
+            exchangeRateStatus = cacheIsComplete
+                ? cachedState?.snapshot.map(ExchangeRateStatus.stale)
+                    ?? .unavailable
+                : .unavailable
+            return
+        }
+
         let attemptedAt = now()
         do {
             let snapshot = try await exchangeRateSource.fetchRates(
                 base: .eur,
-                quotes: quotes
+                quotes: requiredQuotes
             )
             let state = ExchangeRateCacheState(
                 snapshot: snapshot,
                 lastAttemptAt: attemptedAt
             )
-            try? exchangeRateCache?.saveState(state)
+            do {
+                try exchangeRateCache?.saveState(state)
+            } catch {
+                exchangeRateAttempts.insert(attemptKey)
+            }
             exchangeRateStatus = .fresh(snapshot)
+        } catch is CancellationError {
+            exchangeRateStatus = cacheIsComplete
+                ? cachedState?.snapshot.map(ExchangeRateStatus.stale)
+                    ?? .unavailable
+                : .unavailable
         } catch {
             let state = ExchangeRateCacheState(
                 snapshot: cachedState?.snapshot,
                 lastAttemptAt: attemptedAt
             )
-            try? exchangeRateCache?.saveState(state)
-            exchangeRateStatus = cachedState?.snapshot.map(
-                ExchangeRateStatus.stale
-            ) ?? .unavailable
+            do {
+                try exchangeRateCache?.saveState(state)
+            } catch {
+                exchangeRateAttempts.insert(attemptKey)
+            }
+            exchangeRateStatus = cacheIsComplete
+                ? cachedState?.snapshot.map(ExchangeRateStatus.stale)
+                    ?? .unavailable
+                : .unavailable
+        }
+    }
+
+    private func snapshotContainsRequiredCurrencies(
+        _ snapshot: ExchangeRateSnapshot,
+        requiredCurrencies: Set<Currency>
+    ) -> Bool {
+        requiredCurrencies.allSatisfy { currency in
+            currency == snapshot.base || snapshot.rates[currency] != nil
         }
     }
 
@@ -1128,7 +1186,8 @@ public final class SubscriptionWorkspace {
             .sorted { $0.category.localizedCompare($1.category) == .orderedAscending }
         let dayCount = max(
             1,
-            calendar.dateComponents([.day], from: from, to: through).day ?? 0
+            (calendar.dateComponents([.day], from: from, to: through).day ?? 0)
+                + 1
         )
         let annualizedMinorUnits = NSDecimalNumber(
             decimal: Decimal(totalMinorUnits) / Decimal(dayCount) * 365
@@ -2153,9 +2212,12 @@ public final class SubscriptionWorkspace {
             through: through
         )
         do {
-            upcomingTimeline = try upcomingRenewals(from: from, through: through)
+            let timeline = try upcomingRenewals(from: from, through: through)
+            upcomingTimeline = timeline
+            upcomingTimelineState = timeline.isEmpty ? .empty : .loaded(timeline)
         } catch {
             upcomingTimeline = []
+            upcomingTimelineState = .failed
         }
     }
 
