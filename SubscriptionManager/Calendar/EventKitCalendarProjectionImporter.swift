@@ -34,6 +34,127 @@ enum CalendarEventStoreError: Error {
     case writeFailed
 }
 
+struct EventKitCalendarProjectionManagedFields: Equatable {
+    let title: String
+    let notes: String?
+    let url: URL?
+    let isAllDay: Bool
+    let startDate: Date
+    let endDate: Date
+    let timeZoneIdentifier: String?
+    let alarmOffsets: [TimeInterval]
+    let calendarIdentifier: String?
+}
+
+enum EventKitCalendarProjectionSemantics {
+    static func projectionUIDMarker(for uid: String) -> String {
+        "Subscription Manager Projection UID: \(uid)"
+    }
+
+    static func projectionNotes(for event: CalendarProjectionEvent) -> String {
+        "\(event.notes)\n\n\(projectionUIDMarker(for: event.uid))"
+    }
+
+    static func allDayDates(
+        for projection: CalendarProjectionEvent
+    ) -> (startDate: Date, endDate: Date) {
+        (
+            floatingAllDayDate(
+                projection.startDate,
+                projectionTimeZoneIdentifier: projection.timeZoneIdentifier
+            ),
+            floatingAllDayDate(
+                projection.endDate,
+                projectionTimeZoneIdentifier: projection.timeZoneIdentifier
+            )
+        )
+    }
+
+    static func recoveryInterval(
+        for projection: CalendarProjectionEvent
+    ) -> DateInterval {
+        let dates = allDayDates(for: projection)
+        return DateInterval(start: dates.startDate, end: dates.endDate)
+    }
+
+    static func containsExactProjectionUIDMarker(
+        in notes: String?,
+        uid: String
+    ) -> Bool {
+        notes?.components(separatedBy: .newlines)
+            .contains(projectionUIDMarker(for: uid)) == true
+    }
+
+    static func eventMatchesProjection(
+        _ fields: EventKitCalendarProjectionManagedFields,
+        projection: CalendarProjectionEvent,
+        calendar: CalendarProjectionCalendar
+    ) -> Bool {
+        let projectionTimeZone = TimeZone(
+            identifier: projection.timeZoneIdentifier
+        ) ?? .current
+        return fields.title == projection.title
+            && fields.notes == projectionNotes(for: projection)
+            && fields.url == projection.managementURL
+            && fields.isAllDay
+            && sameDay(
+                fields.startDate,
+                in: NSTimeZone.default,
+                as: projection.startDate,
+                in: projectionTimeZone
+            )
+            && sameDay(
+                fields.endDate,
+                in: NSTimeZone.default,
+                as: projection.endDate,
+                in: projectionTimeZone
+            )
+            && fields.timeZoneIdentifier == projection.timeZoneIdentifier
+            && fields.alarmOffsets
+                == projection.alarmOffsets.map {
+                    TimeInterval($0) * 86_400
+                }
+            && fields.calendarIdentifier == calendar.identifier
+    }
+
+    private static func floatingAllDayDate(
+        _ date: Date,
+        projectionTimeZoneIdentifier: String
+    ) -> Date {
+        var projectionCalendar = Calendar(identifier: .gregorian)
+        projectionCalendar.timeZone = TimeZone(
+            identifier: projectionTimeZoneIdentifier
+        ) ?? .current
+        let components = projectionCalendar.dateComponents(
+            [.year, .month, .day],
+            from: date
+        )
+
+        var defaultCalendar = Calendar(identifier: .gregorian)
+        defaultCalendar.timeZone = NSTimeZone.default
+        return defaultCalendar.date(from: components) ?? date
+    }
+
+    private static func sameDay(
+        _ lhs: Date,
+        in lhsTimeZone: TimeZone,
+        as rhs: Date,
+        in rhsTimeZone: TimeZone
+    ) -> Bool {
+        dayComponents(for: lhs, in: lhsTimeZone)
+            == dayComponents(for: rhs, in: rhsTimeZone)
+    }
+
+    private static func dayComponents(
+        for date: Date,
+        in timeZone: TimeZone
+    ) -> DateComponents {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = timeZone
+        return calendar.dateComponents([.year, .month, .day], from: date)
+    }
+}
+
 @MainActor
 protocol CalendarEventStore {
     func requestFullEventAccess() async -> CalendarEventAccess
@@ -325,16 +446,20 @@ private final class EventKitCalendarEventStore: CalendarEventStore {
         ) else {
             return nil
         }
+        let recoveryInterval = EventKitCalendarProjectionSemantics
+            .recoveryInterval(for: projection)
         let predicate = eventStore.predicateForEvents(
-            withStart: projection.startDate,
-            end: projection.endDate,
+            withStart: recoveryInterval.start,
+            end: recoveryInterval.end,
             calendars: [targetCalendar]
         )
-        let marker = projectionUIDMarker(for: projectionUID)
         return eventStore.events(matching: predicate).first { event in
             event.calendar?.calendarIdentifier == calendar.identifier
-                && event.notes?.components(separatedBy: .newlines)
-                .contains(marker) == true
+                && EventKitCalendarProjectionSemantics
+                    .containsExactProjectionUIDMarker(
+                        in: event.notes,
+                        uid: projectionUID
+                    )
         }?.eventIdentifier
     }
 
@@ -373,8 +498,20 @@ private final class EventKitCalendarEventStore: CalendarEventStore {
         }
         let existingEvent = identifier.flatMap(eventStore.event(withIdentifier:))
         if let existingEvent,
-           eventMatchesProjection(
-               existingEvent,
+           EventKitCalendarProjectionSemantics.eventMatchesProjection(
+               EventKitCalendarProjectionManagedFields(
+                   title: existingEvent.title,
+                   notes: existingEvent.notes,
+                   url: existingEvent.url,
+                   isAllDay: existingEvent.isAllDay,
+                   startDate: existingEvent.startDate,
+                   endDate: existingEvent.endDate,
+                   timeZoneIdentifier: existingEvent.timeZone?.identifier,
+                   alarmOffsets: (existingEvent.alarms ?? [])
+                       .map(\.relativeOffset),
+                   calendarIdentifier: existingEvent.calendar?
+                       .calendarIdentifier
+               ),
                projection: projection,
                calendar: calendar
            )
@@ -389,12 +526,17 @@ private final class EventKitCalendarEventStore: CalendarEventStore {
             )
         }
         let event = existingEvent ?? EKEvent(eventStore: eventStore)
+        let allDayDates = EventKitCalendarProjectionSemantics.allDayDates(
+            for: projection
+        )
         event.title = projection.title
-        event.notes = projectionNotes(for: projection)
+        event.notes = EventKitCalendarProjectionSemantics.projectionNotes(
+            for: projection
+        )
         event.url = projection.managementURL
         event.isAllDay = true
-        event.startDate = projection.startDate
-        event.endDate = projection.endDate
+        event.startDate = allDayDates.startDate
+        event.endDate = allDayDates.endDate
         event.timeZone = TimeZone(identifier: projection.timeZoneIdentifier)
         event.alarms = projection.alarmOffsets.map {
             EKAlarm(relativeOffset: TimeInterval($0 * 86_400))
@@ -411,30 +553,6 @@ private final class EventKitCalendarEventStore: CalendarEventStore {
         )
     }
 
-    private func eventMatchesProjection(
-        _ event: EKEvent,
-        projection: CalendarProjectionEvent,
-        calendar: CalendarProjectionCalendar
-    ) -> Bool {
-        event.title == projection.title
-            && event.notes == projectionNotes(for: projection)
-            && event.url == projection.managementURL
-            && event.isAllDay
-            && event.startDate == projection.startDate
-            && event.endDate == projection.endDate
-            && event.timeZone?.identifier == projection.timeZoneIdentifier
-            && (event.alarms ?? []).map(\.relativeOffset)
-            == projection.alarmOffsets.map { TimeInterval($0) * 86_400 }
-            && event.calendar?.calendarIdentifier == calendar.identifier
-    }
-
-    private func projectionNotes(for event: CalendarProjectionEvent) -> String {
-        "\(event.notes)\n\n\(projectionUIDMarker(for: event.uid))"
-    }
-
-    private func projectionUIDMarker(for uid: String) -> String {
-        "Subscription Manager Projection UID: \(uid)"
-    }
 }
 
 @MainActor

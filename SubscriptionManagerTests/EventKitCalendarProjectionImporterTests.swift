@@ -3,18 +3,24 @@ import SubscriptionCore
 import Testing
 @testable import SubscriptionManager
 
-@Suite("EventKit calendar projection importer")
+@Suite("EventKit calendar projection importer", .serialized)
 @MainActor
 struct EventKitCalendarProjectionImporterTests {
     @Test("Granted repeat import reuses one calendar and its mapped event")
     func repeatImportIsIdempotent() async throws {
+        let originalDefaultTimeZone = NSTimeZone.default
+        defer { NSTimeZone.default = originalDefaultTimeZone }
+        NSTimeZone.default = TimeZone(identifier: "America/Los_Angeles")!
+
         let store = CalendarEventStoreFixture(access: .granted)
         let mappings = CalendarMappingFixture()
         let importer = EventKitCalendarProjectionImporter(
             eventStore: store,
             mappingRepository: mappings
         )
-        let events = [calendarEvent(uid: "renewal-1")]
+        let events = [
+            calendarEvent(uid: "renewal-1", timeZoneIdentifier: "Asia/Tokyo")
+        ]
 
         let firstResult = await importer.importProjection(events: events)
         let secondResult = await importer.importProjection(events: events)
@@ -41,6 +47,237 @@ struct EventKitCalendarProjectionImporterTests {
         #expect(try mappings.eventIdentifier(for: "renewal-1") == "event-1")
         #expect(store.saveCount == 1)
         #expect(store.savedProjectionEvents == events)
+    }
+
+    @Test("All-day dates preserve the billing local day")
+    func allDayDatesUseProjectionLocalDay() {
+        let originalDefaultTimeZone = NSTimeZone.default
+        defer { NSTimeZone.default = originalDefaultTimeZone }
+        NSTimeZone.default = TimeZone(identifier: "America/Los_Angeles")!
+
+        let event = calendarEvent(
+            uid: "renewal-1",
+            timeZoneIdentifier: "Asia/Tokyo"
+        )
+        let dates = EventKitCalendarProjectionSemantics.allDayDates(
+            for: event
+        )
+        var billingCalendar = Calendar(identifier: .gregorian)
+        billingCalendar.timeZone = TimeZone(identifier: "Asia/Tokyo")!
+        var systemCalendar = Calendar(identifier: .gregorian)
+        systemCalendar.timeZone = NSTimeZone.default
+        let projectionComponents = billingCalendar.dateComponents(
+            [.year, .month, .day],
+            from: event.startDate
+        )
+        let storedComponents = systemCalendar.dateComponents(
+            [.year, .month, .day],
+            from: dates.startDate
+        )
+
+        #expect(projectionComponents.year == 2026)
+        #expect(projectionComponents.month == 8)
+        #expect(projectionComponents.day == 2)
+        #expect(storedComponents.year == 2026)
+        #expect(storedComponents.month == 8)
+        #expect(storedComponents.day == 2)
+        #expect(dates.startDate != event.startDate)
+    }
+
+    @Test("Repeated unchanged reconciliation performs no additional save")
+    func repeatedReconciliationIsIdempotent() async throws {
+        let store = CalendarEventStoreFixture(access: .granted)
+        let mappings = CalendarMappingFixture()
+        let importer = EventKitCalendarProjectionImporter(
+            eventStore: store,
+            mappingRepository: mappings
+        )
+        let event = calendarEvent(uid: "renewal-1")
+
+        _ = await importer.importProjection(events: [event])
+        let physicalEventsAfterImport = store.physicalEventIdentifiers
+        let mappingsAfterImport = try mappings.eventMappings()
+        let firstReconcile = await importer.perform(.reconcile([event]))
+        let secondReconcile = await importer.perform(.reconcile([event]))
+
+        #expect(firstReconcile == .reconciled)
+        #expect(secondReconcile == .reconciled)
+        #expect(store.saveCount == 1)
+        #expect(store.physicalEventIdentifiers == physicalEventsAfterImport)
+        #expect(try mappings.eventMappings() == mappingsAfterImport)
+        #expect(try mappings.eventIdentifier(for: event.uid) == "event-1")
+    }
+
+    @Test("Managed field changes each trigger a physical update")
+    func everyManagedFieldChangeTriggersWrite() async throws {
+        for field in ManagedFieldChange.allCases {
+            let store = CalendarEventStoreFixture(access: .granted)
+            let mappings = CalendarMappingFixture()
+            let importer = EventKitCalendarProjectionImporter(
+                eventStore: store,
+                mappingRepository: mappings
+            )
+            let original = calendarEvent(uid: "renewal-1")
+            _ = await importer.importProjection(events: [original])
+
+            var revised = original
+            switch field {
+            case .title:
+                revised = projection(from: original, title: "Revised")
+            case .notesAndUIDMarker:
+                store.mutatePhysicalEvent(identifier: "event-1") {
+                    $0.notes = "Pro\n\nSubscription Manager Projection UID: renewal-1-extra"
+                }
+            case .url:
+                revised = projection(
+                    from: original,
+                    managementURL: URL(string: "https://example.com/revised")
+                )
+            case .allDay:
+                store.mutatePhysicalEvent(identifier: "event-1") {
+                    $0.isAllDay = false
+                }
+            case .start:
+                revised = projection(
+                    from: original,
+                    startDate: original.startDate.addingTimeInterval(86_400)
+                )
+            case .end:
+                revised = projection(
+                    from: original,
+                    endDate: original.endDate.addingTimeInterval(86_400)
+                )
+            case .timeZone:
+                revised = projection(
+                    from: original,
+                    timeZoneIdentifier: "Europe/London"
+                )
+            case .alarms:
+                revised = projection(from: original, alarmOffsets: [-1])
+            case .targetCalendar:
+                store.mutatePhysicalEvent(identifier: "event-1") {
+                    $0.calendarIdentifier = "calendar-other"
+                }
+            }
+
+            #expect(
+                await importer.perform(.reconcile([revised])) == .reconciled
+            )
+            #expect(store.saveCount == 2)
+            #expect(store.physicalEventIdentifiers == ["event-1"])
+            #expect(
+                try mappings.eventIdentifier(for: original.uid) == "event-1"
+            )
+        }
+    }
+
+    @Test("UID recovery ignores calendar, date, and marker decoys")
+    func UIDRecoveryUsesDedicatedCalendarDateWindowAndExactMarker() async throws {
+        let originalDefaultTimeZone = NSTimeZone.default
+        defer { NSTimeZone.default = originalDefaultTimeZone }
+        NSTimeZone.default = TimeZone(identifier: "America/Los_Angeles")!
+
+        let event = calendarEvent(
+            uid: "renewal-1",
+            timeZoneIdentifier: "Asia/Tokyo"
+        )
+        let dates = EventKitCalendarProjectionSemantics.allDayDates(
+            for: event
+        )
+        let exactNotes = EventKitCalendarProjectionSemantics.projectionNotes(
+            for: event
+        )
+        let store = CalendarEventStoreFixture(access: .granted)
+        store.seedCalendar(identifier: "calendar-1")
+        store.seedPhysicalEvent(
+            PhysicalCalendarEvent(
+                identifier: "event-7",
+                calendarIdentifier: "calendar-1",
+                title: event.title,
+                notes: exactNotes,
+                url: event.managementURL,
+                isAllDay: true,
+                startDate: dates.startDate,
+                endDate: dates.endDate,
+                timeZoneIdentifier: event.timeZoneIdentifier,
+                alarmOffsets: event.alarmOffsets
+            )
+        )
+        store.seedPhysicalEvent(
+            PhysicalCalendarEvent(
+                identifier: "event-wrong-calendar",
+                calendarIdentifier: "calendar-other",
+                title: event.title,
+                notes: exactNotes,
+                url: event.managementURL,
+                isAllDay: true,
+                startDate: dates.startDate,
+                endDate: dates.endDate,
+                timeZoneIdentifier: event.timeZoneIdentifier,
+                alarmOffsets: event.alarmOffsets
+            )
+        )
+        store.seedPhysicalEvent(
+            PhysicalCalendarEvent(
+                identifier: "event-outside-window",
+                calendarIdentifier: "calendar-1",
+                title: event.title,
+                notes: exactNotes,
+                url: event.managementURL,
+                isAllDay: true,
+                startDate: dates.startDate.addingTimeInterval(-3 * 86_400),
+                endDate: dates.endDate.addingTimeInterval(-3 * 86_400),
+                timeZoneIdentifier: event.timeZoneIdentifier,
+                alarmOffsets: event.alarmOffsets
+            )
+        )
+        store.seedPhysicalEvent(
+            PhysicalCalendarEvent(
+                identifier: "event-similar-marker",
+                calendarIdentifier: "calendar-1",
+                title: event.title,
+                notes: "Pro\n\nSubscription Manager Projection UID: renewal-1-extra",
+                url: event.managementURL,
+                isAllDay: true,
+                startDate: dates.startDate,
+                endDate: dates.endDate,
+                timeZoneIdentifier: event.timeZoneIdentifier,
+                alarmOffsets: event.alarmOffsets
+            )
+        )
+        let mappings = CalendarMappingFixture()
+        mappings.seedCalendarIdentifier("calendar-1")
+        let importer = EventKitCalendarProjectionImporter(
+            eventStore: store,
+            mappingRepository: mappings
+        )
+
+        let result = await importer.importProjection(events: [event])
+
+        #expect(
+            result == .imported(
+                CalendarProjectionImportSummary(
+                    createdCount: 0,
+                    updatedCount: 0
+                )
+            )
+        )
+        #expect(
+            store.physicalEventIdentifiers == [
+                "event-7",
+                "event-wrong-calendar",
+                "event-outside-window",
+                "event-similar-marker"
+            ]
+        )
+        #expect(try mappings.eventIdentifier(for: event.uid) == "event-7")
+        #expect(try mappings.eventMappings() == [
+            CalendarProjectionEventMapping(
+                projectionUID: event.uid,
+                eventIdentifier: "event-7"
+            )
+        ])
+        #expect(store.saveCount == 0)
     }
 
     @Test("Denied access creates no calendar or events")
@@ -242,15 +479,29 @@ struct EventKitCalendarProjectionImporterTests {
 
 private struct PhysicalCalendarEvent: Equatable {
     let identifier: String
-    let calendarIdentifier: String
+    var calendarIdentifier: String
     let title: String
-    let notes: String
+    var notes: String
     let url: URL?
-    let isAllDay: Bool
+    var isAllDay: Bool
     let startDate: Date
     let endDate: Date
     let timeZoneIdentifier: String?
     let alarmOffsets: [Int]
+
+    var managedFields: EventKitCalendarProjectionManagedFields {
+        EventKitCalendarProjectionManagedFields(
+            title: title,
+            notes: notes,
+            url: url,
+            isAllDay: isAllDay,
+            startDate: startDate,
+            endDate: endDate,
+            timeZoneIdentifier: timeZoneIdentifier,
+            alarmOffsets: alarmOffsets.map { TimeInterval($0) * 86_400 },
+            calendarIdentifier: calendarIdentifier
+        )
+    }
 }
 
 @MainActor
@@ -285,11 +536,34 @@ private final class CalendarEventStoreFixture: CalendarEventStore {
 
     func deleteEvent(uid: String) {
         guard let identifier = physicalEventsByIdentifier.first(where: {
-            $0.value.notes.contains(projectionMarker(for: uid))
+            EventKitCalendarProjectionSemantics
+                .containsExactProjectionUIDMarker(
+                    in: $0.value.notes,
+                    uid: uid
+                )
         })?.key else {
             return
         }
         physicalEventsByIdentifier.removeValue(forKey: identifier)
+    }
+
+    func mutatePhysicalEvent(
+        identifier: String,
+        _ mutate: (inout PhysicalCalendarEvent) -> Void
+    ) {
+        guard var event = physicalEventsByIdentifier[identifier] else {
+            return
+        }
+        mutate(&event)
+        physicalEventsByIdentifier[identifier] = event
+    }
+
+    func seedCalendar(identifier: String) {
+        calendar = CalendarProjectionCalendar(identifier: identifier)
+    }
+
+    func seedPhysicalEvent(_ event: PhysicalCalendarEvent) {
+        physicalEventsByIdentifier[event.identifier] = event
     }
 
     func requestFullEventAccess() async -> CalendarEventAccess {
@@ -312,12 +586,17 @@ private final class CalendarEventStoreFixture: CalendarEventStore {
         near projection: CalendarProjectionEvent,
         in calendar: CalendarProjectionCalendar
     ) -> String? {
-        physicalEventsByIdentifier.values.first { event in
+        let recoveryInterval = EventKitCalendarProjectionSemantics
+            .recoveryInterval(for: projection)
+        return physicalEventsByIdentifier.values.first { event in
             event.calendarIdentifier == calendar.identifier
-                && event.startDate < projection.endDate
-                && event.endDate > projection.startDate
-                && event.notes.components(separatedBy: .newlines)
-                .contains(projectionMarker(for: projectionUID))
+                && event.startDate < recoveryInterval.end
+                && event.endDate > recoveryInterval.start
+                && EventKitCalendarProjectionSemantics
+                    .containsExactProjectionUIDMarker(
+                        in: event.notes,
+                        uid: projectionUID
+                    )
         }?.identifier
     }
 
@@ -349,20 +628,31 @@ private final class CalendarEventStoreFixture: CalendarEventStore {
             physicalEventsByIdentifier[$0]
         }
         let eventIdentifier = existingEvent?.identifier
-            ?? "event-\(physicalEventsByIdentifier.count + 1)"
+            ?? nextEventIdentifier()
+        let allDayDates = EventKitCalendarProjectionSemantics.allDayDates(
+            for: event
+        )
         let desiredEvent = PhysicalCalendarEvent(
             identifier: eventIdentifier,
             calendarIdentifier: calendar.identifier,
             title: event.title,
-            notes: projectionNotes(for: event),
+            notes: EventKitCalendarProjectionSemantics.projectionNotes(
+                for: event
+            ),
             url: event.managementURL,
             isAllDay: true,
-            startDate: event.startDate,
-            endDate: event.endDate,
+            startDate: allDayDates.startDate,
+            endDate: allDayDates.endDate,
             timeZoneIdentifier: event.timeZoneIdentifier,
             alarmOffsets: event.alarmOffsets
         )
-        if let existingEvent, existingEvent == desiredEvent {
+        if let existingEvent,
+           EventKitCalendarProjectionSemantics.eventMatchesProjection(
+               existingEvent.managedFields,
+               projection: event,
+               calendar: calendar
+           )
+        {
             return CalendarEventWriteResult(
                 eventIdentifier: existingEvent.identifier,
                 updatedExistingEvent: false,
@@ -379,12 +669,11 @@ private final class CalendarEventStoreFixture: CalendarEventStore {
         )
     }
 
-    private func projectionNotes(for event: CalendarProjectionEvent) -> String {
-        "\(event.notes)\n\n\(projectionMarker(for: event.uid))"
-    }
+    private var nextEventIdentifierValue = 1
 
-    private func projectionMarker(for uid: String) -> String {
-        "Subscription Manager Projection UID: \(uid)"
+    private func nextEventIdentifier() -> String {
+        defer { nextEventIdentifierValue += 1 }
+        return "event-\(nextEventIdentifierValue)"
     }
 }
 
@@ -404,6 +693,10 @@ private final class CalendarMappingFixture: CalendarProjectionMappingRepository 
     }
 
     func saveCalendarIdentifier(_ identifier: String) throws {
+        calendarID = identifier
+    }
+
+    func seedCalendarIdentifier(_ identifier: String) {
         calendarID = identifier
     }
 
@@ -438,7 +731,10 @@ private final class CalendarMappingFixture: CalendarProjectionMappingRepository 
     }
 }
 
-private func calendarEvent(uid: String) -> CalendarProjectionEvent {
+private func calendarEvent(
+    uid: String,
+    timeZoneIdentifier: String = "UTC"
+) -> CalendarProjectionEvent {
     CalendarProjectionEvent(
         uid: uid,
         startDate: Date(timeIntervalSince1970: 1_785_628_800),
@@ -447,6 +743,40 @@ private func calendarEvent(uid: String) -> CalendarProjectionEvent {
         notes: "Pro",
         managementURL: URL(string: "https://example.com/manage")!,
         alarmOffsets: [-7, -1],
-        timeZoneIdentifier: "UTC"
+        timeZoneIdentifier: timeZoneIdentifier
+    )
+}
+
+private enum ManagedFieldChange: CaseIterable {
+    case title
+    case notesAndUIDMarker
+    case url
+    case allDay
+    case start
+    case end
+    case timeZone
+    case alarms
+    case targetCalendar
+}
+
+private func projection(
+    from event: CalendarProjectionEvent,
+    startDate: Date? = nil,
+    endDate: Date? = nil,
+    title: String? = nil,
+    notes: String? = nil,
+    managementURL: URL? = nil,
+    alarmOffsets: [Int]? = nil,
+    timeZoneIdentifier: String? = nil
+) -> CalendarProjectionEvent {
+    CalendarProjectionEvent(
+        uid: event.uid,
+        startDate: startDate ?? event.startDate,
+        endDate: endDate ?? event.endDate,
+        title: title ?? event.title,
+        notes: notes ?? event.notes,
+        managementURL: managementURL ?? event.managementURL,
+        alarmOffsets: alarmOffsets ?? event.alarmOffsets,
+        timeZoneIdentifier: timeZoneIdentifier ?? event.timeZoneIdentifier
     )
 }
