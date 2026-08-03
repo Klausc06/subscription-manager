@@ -215,20 +215,31 @@ struct LibraryView: View {
         workspace.loadCatalog(locale: locale)
         workspace.reconcileCatalogAssociations(locale: locale)
         rootLibraryScope = initialLibraryScope
+        workspace.loadLibrary(scope: .current)
+        let currentLibraryState = workspace.libraryState
+        workspace.loadLibrary(scope: .archived)
+        let archivedLibraryState = workspace.libraryState
         workspace.loadLibrary(scope: initialLibraryScope)
-        let libraryIsEmpty: Bool
-        if case .empty(.current) = workspace.libraryState {
-            libraryIsEmpty = true
-        } else {
-            libraryIsEmpty = false
-        }
-        workspace.loadSetup(libraryIsEmpty: libraryIsEmpty)
-        if case .needsSetup = workspace.setupState,
+        workspace.initializeSetup(
+            currentLibraryState: currentLibraryState,
+            archivedLibraryState: archivedLibraryState
+        )
+        if shouldPresentSetup,
            !isUITesting || allowsUITestOnboarding
         {
             isSetupPresented = true
         }
     }
+
+    private var shouldPresentSetup: Bool {
+        switch workspace.setupState {
+        case .needsSetup, .failed:
+            true
+        case .notLoaded, .completed, .skipped:
+            false
+        }
+    }
+
 }
 
 private struct InsightsView: View {
@@ -1019,7 +1030,7 @@ private struct UpcomingTimelineRow: View {
     }
 }
 
-private struct FirstRunSetupView: View {
+struct FirstRunSetupView: View {
     private enum Step {
         case preferences
         case catalog
@@ -1161,8 +1172,8 @@ private struct FirstRunSetupView: View {
                     }
                     .accessibilityValue(
                         selectedPresetIDs.contains(preset.id)
-                            ? "Selected"
-                            : "Not selected"
+                            ? LocalizedStringKey("Selected")
+                            : LocalizedStringKey("Not selected")
                     )
                     .accessibilityIdentifier("setup.preset.\(preset.id)")
                 }
@@ -1845,7 +1856,11 @@ struct UserPreferencesView: View {
                 }
             }
         }
-        .accessibilityValue(isSelected ? "Selected" : "Not selected")
+        .accessibilityValue(
+            isSelected
+                ? LocalizedStringKey("Selected")
+                : LocalizedStringKey("Not selected")
+        )
         .accessibilityIdentifier(identifier)
     }
 

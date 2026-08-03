@@ -5,6 +5,21 @@ import Testing
 
 struct MacWindowRouterTests {
     #if os(macOS)
+    @Test("Add Subscription replaces the default New Window command")
+    func addSubscriptionReplacesDefaultNewWindowCommand() throws {
+        let testFile = URL(fileURLWithPath: #filePath)
+        let sourceURL = testFile
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .appendingPathComponent(
+                "SubscriptionManager/App/SubscriptionManagerApp.swift"
+            )
+        let source = try String(contentsOf: sourceURL, encoding: .utf8)
+
+        #expect(source.contains("CommandGroup(replacing: .newItem)"))
+        #expect(!source.contains("CommandGroup(after: .newItem)"))
+    }
+
     @Test("A Mac command only matches its focused window")
     func commandTargetsOnlyFocusedWindow() {
         let focusedWindow = UUID()
