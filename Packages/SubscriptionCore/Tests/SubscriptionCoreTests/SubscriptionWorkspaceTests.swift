@@ -192,6 +192,106 @@ struct SubscriptionWorkspaceTests {
         )
     }
 
+    @Test("Calendar reconciliation preserves the last projection when repository read fails")
+    @MainActor
+    func calendarReconciliationPreservesProjectionWhenRepositoryReadFails() async throws {
+        let calendar = utcCalendar()
+        let now = try actionDate(
+            year: 2026,
+            month: 1,
+            day: 15,
+            hour: 12,
+            calendar: calendar
+        )
+        let repository = InMemorySubscriptionRepository(
+            subscriptions: [
+                makeSubscription(
+                    id: UUID(
+                        uuidString: "99999999-2222-3333-4444-555555555555"
+                    )!
+                )
+            ]
+        )
+        let reconciler = CalendarReconcilerFixture(result: .reconciled)
+        let workspace = SubscriptionWorkspace(
+            repository: repository,
+            preferencesRepository: CalendarPreferencesFixture(
+                preferences: UserPreferences(
+                    primaryCurrency: .usd,
+                    calendarProjectionHorizon: .sixMonths,
+                    setupStatus: .completed
+                )
+            ),
+            calendarProjectionReconciler: reconciler,
+            now: { now },
+            calendar: calendar
+        )
+
+        workspace.loadSetup(libraryIsEmpty: false)
+        workspace.loadCalendarProjection(locale: Locale(identifier: "en_US"))
+        let previousProjection = workspace.calendarProjection
+        #expect(!previousProjection.isEmpty)
+
+        repository.failure = .list
+        await workspace.reconcileCalendarProjection(
+            locale: Locale(identifier: "en_US")
+        )
+
+        #expect(workspace.calendarProjection == previousProjection)
+        #expect(reconciler.commands.isEmpty)
+        #expect(workspace.calendarReconciliationState == .unavailable)
+    }
+
+    @Test("Calendar rebuild stops when repository read fails")
+    @MainActor
+    func calendarRebuildStopsWhenRepositoryReadFails() async throws {
+        let calendar = utcCalendar()
+        let now = try actionDate(
+            year: 2026,
+            month: 1,
+            day: 15,
+            hour: 12,
+            calendar: calendar
+        )
+        let repository = InMemorySubscriptionRepository(
+            subscriptions: [
+                makeSubscription(
+                    id: UUID(
+                        uuidString: "99999999-2222-3333-4444-555555555555"
+                    )!
+                )
+            ]
+        )
+        let reconciler = CalendarReconcilerFixture(result: .reconciled)
+        let workspace = SubscriptionWorkspace(
+            repository: repository,
+            preferencesRepository: CalendarPreferencesFixture(
+                preferences: UserPreferences(
+                    primaryCurrency: .usd,
+                    calendarProjectionHorizon: .sixMonths,
+                    setupStatus: .completed
+                )
+            ),
+            calendarProjectionReconciler: reconciler,
+            now: { now },
+            calendar: calendar
+        )
+
+        workspace.loadSetup(libraryIsEmpty: false)
+        workspace.loadCalendarProjection(locale: Locale(identifier: "en_US"))
+        let previousProjection = workspace.calendarProjection
+        #expect(!previousProjection.isEmpty)
+
+        repository.failure = .list
+        await workspace.rebuildCalendarProjection(
+            locale: Locale(identifier: "en_US")
+        )
+
+        #expect(workspace.calendarProjection == previousProjection)
+        #expect(reconciler.commands.isEmpty)
+        #expect(workspace.calendarReconciliationState == .unavailable)
+    }
+
     @Test("Sync status remains local-first when iCloud is signed out")
     @MainActor
     func signedOutSyncStatusDoesNotBlockCreation() async throws {

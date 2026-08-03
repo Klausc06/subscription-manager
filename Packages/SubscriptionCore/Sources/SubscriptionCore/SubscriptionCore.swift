@@ -2160,7 +2160,8 @@ public final class SubscriptionWorkspace {
             }
     }
 
-    public func loadCalendarProjection(locale: Locale) {
+    @discardableResult
+    public func loadCalendarProjection(locale: Locale) -> Bool {
         calendarProjectionLocale = locale
         let horizon = calendar.date(
             byAdding: .month,
@@ -2183,8 +2184,9 @@ public final class SubscriptionWorkspace {
                     }
                     return lhs.uid < rhs.uid
                 }
+            return true
         } catch {
-            calendarProjection = []
+            return false
         }
     }
 
@@ -2267,7 +2269,10 @@ public final class SubscriptionWorkspace {
             calendarReconciliationState = .notConfigured
             return
         }
-        loadCalendarProjection(locale: locale)
+        guard loadCalendarProjection(locale: locale) else {
+            calendarReconciliationState = .unavailable
+            return
+        }
         calendarReconciliationState = .reconciling
         let result = await calendarProjectionReconciler.perform(
             .reconcile(calendarProjection)
@@ -2296,7 +2301,10 @@ public final class SubscriptionWorkspace {
         guard calendarReconciliationState != .reconciling,
               let calendarProjectionReconciler
         else { return }
-        loadCalendarProjection(locale: locale)
+        guard loadCalendarProjection(locale: locale) else {
+            calendarReconciliationState = .unavailable
+            return
+        }
         calendarReconciliationState = .reconciling
         let command = switch command {
         case .rebuild:
