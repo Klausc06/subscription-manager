@@ -356,6 +356,103 @@ struct EventKitCalendarProjectionImporterTests {
         #expect(store.savedEventIdentifiers.count == 2)
     }
 
+    @Test("Rebuild preserves partial import failure")
+    func rebuildPreservesPartialImportFailure() async {
+        let store = CalendarEventStoreFixture(
+            access: .granted,
+            failingUIDs: ["renewal-2"]
+        )
+        let importer = EventKitCalendarProjectionImporter(
+            eventStore: store,
+            mappingRepository: CalendarMappingFixture()
+        )
+        let events = [
+            calendarEvent(uid: "renewal-1"),
+            calendarEvent(uid: "renewal-2")
+        ]
+
+        let result = await importer.perform(.rebuild(events))
+
+        #expect(result == .partialFailure(failedCount: 1))
+        #expect(store.savedEventIdentifiers == ["event-1"])
+    }
+
+    @Test("Reconciliation preserves successful sibling writes after one failure")
+    func reconciliationPreservesSuccessfulSiblingWritesAfterFailure() async throws {
+        let store = CalendarEventStoreFixture(access: .granted)
+        let mappings = CalendarMappingFixture()
+        let importer = EventKitCalendarProjectionImporter(
+            eventStore: store,
+            mappingRepository: mappings
+        )
+        let first = calendarEvent(uid: "renewal-1")
+        let second = calendarEvent(uid: "renewal-2")
+        _ = await importer.importProjection(events: [first, second])
+
+        store.failingUIDs = [first.uid]
+        let revisedFirst = projection(from: first, title: "Failed update")
+        let revisedSecond = projection(from: second, title: "Successful update")
+
+        let result = await importer.perform(
+            .reconcile([revisedFirst, revisedSecond])
+        )
+
+        #expect(result == .partialFailure(failedCount: 1))
+        #expect(store.saveCount == 3)
+        #expect(store.savedProjectionEvents == [first, second, revisedSecond])
+        #expect(try mappings.eventIdentifier(for: second.uid) == "event-2")
+    }
+
+    @Test("Reconciliation reports mapping persistence failure and continues")
+    func reconciliationReportsMappingPersistenceFailureAndContinues() async throws {
+        let store = CalendarEventStoreFixture(access: .granted)
+        let mappings = CalendarMappingFixture()
+        let importer = EventKitCalendarProjectionImporter(
+            eventStore: store,
+            mappingRepository: mappings
+        )
+        let first = calendarEvent(uid: "renewal-1")
+        let second = calendarEvent(uid: "renewal-2")
+        _ = await importer.importProjection(events: [first, second])
+
+        mappings.failNextEventMappingSave = true
+        let revisedFirst = projection(from: first, title: "Mapping failure")
+        let revisedSecond = projection(from: second, title: "Continued update")
+
+        let result = await importer.perform(
+            .reconcile([revisedFirst, revisedSecond])
+        )
+
+        #expect(result == .partialFailure(failedCount: 1))
+        #expect(store.saveCount == 4)
+        #expect(
+            store.savedProjectionEvents
+                == [first, second, revisedFirst, revisedSecond]
+        )
+        #expect(try mappings.eventIdentifier(for: first.uid) == "event-1")
+        #expect(try mappings.eventIdentifier(for: second.uid) == "event-2")
+    }
+
+    @Test("A preflight mapping read failure remains unavailable")
+    func preflightMappingReadFailureRemainsUnavailable() async throws {
+        let store = CalendarEventStoreFixture(access: .granted)
+        store.seedCalendar(identifier: "calendar-1")
+        let mappings = CalendarMappingFixture()
+        mappings.seedCalendarIdentifier("calendar-1")
+        mappings.failEventMappingsRead = true
+        let importer = EventKitCalendarProjectionImporter(
+            eventStore: store,
+            mappingRepository: mappings
+        )
+
+        let result = await importer.perform(
+            .reconcile([calendarEvent(uid: "renewal-1")])
+        )
+
+        #expect(result == .unavailable)
+        #expect(store.saveCount == 0)
+    }
+
     @Test("Retry recovers an event when mapping persistence failed after save")
     func mappingPersistenceFailureRecoversExistingEvent() async throws {
         let store = CalendarEventStoreFixture(access: .granted)
@@ -683,6 +780,7 @@ private final class CalendarMappingFixture: CalendarProjectionMappingRepository 
     private var isDisabled = false
     private var eventIDs: [String: String] = [:]
     var failNextEventMappingSave = false
+    var failEventMappingsRead = false
 
     func calendarIdentifier() throws -> String? { calendarID }
 
@@ -705,7 +803,10 @@ private final class CalendarMappingFixture: CalendarProjectionMappingRepository 
     }
 
     func eventMappings() throws -> [CalendarProjectionEventMapping] {
-        eventIDs.map {
+        if failEventMappingsRead {
+            throw CalendarEventStoreError.writeFailed
+        }
+        return eventIDs.map {
             CalendarProjectionEventMapping(
                 projectionUID: $0.key,
                 eventIdentifier: $0.value

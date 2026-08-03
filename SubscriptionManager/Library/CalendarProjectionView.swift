@@ -134,17 +134,45 @@ private struct CalendarReconciliationStatusView: View {
             Section("Calendar Import") {
                 Text("Calendar content was deleted outside Subscription Manager.")
                     .foregroundStyle(.secondary)
+                    .accessibilityIdentifier("calendar.reconciliation.needs-decision")
                 Button("Rebuild Calendar", action: onRebuild)
                     .accessibilityIdentifier("calendar.rebuild")
                 Button("Disable Calendar Sync", role: .destructive, action: onDisable)
                     .accessibilityIdentifier("calendar.disable")
             }
+        case .partialFailure(let failedCount):
+            retrySection(
+                message: failedCount == 1
+                    ? "Calendar sync is incomplete. 1 event failed."
+                    : "Calendar sync is incomplete. \(failedCount) events failed.",
+                errorIdentifier: "calendar.reconciliation.partial"
+            )
+        case .unavailable:
+            retrySection(
+                message: "Calendar sync is unavailable. Check Calendar access and try again.",
+                errorIdentifier: "calendar.reconciliation.unavailable"
+            )
         case .reconciling:
             Section("Calendar Import") {
                 ProgressView("Reconciling Calendar")
             }
-        case .current, .notConfigured, .disabled, .unavailable:
+        case .current, .notConfigured, .disabled:
             EmptyView()
+        }
+    }
+
+    private func retrySection(
+        message: LocalizedStringKey,
+        errorIdentifier: String
+    ) -> some View {
+        Section("Calendar Import") {
+            Text(message)
+                .foregroundStyle(.secondary)
+                .accessibilityIdentifier(errorIdentifier)
+            Button("Retry Calendar Sync", action: onRebuild)
+                .accessibilityIdentifier("calendar.reconciliation.retry")
+            Button("Disable Calendar Sync", role: .destructive, action: onDisable)
+                .accessibilityIdentifier("calendar.disable")
         }
     }
 }

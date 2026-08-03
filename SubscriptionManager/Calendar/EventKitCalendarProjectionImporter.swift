@@ -319,8 +319,10 @@ final class EventKitCalendarProjectionImporter:
             return .unavailable
         }
         switch await importProjection(events: events) {
-        case .imported, .partialFailure:
+        case .imported:
             return .reconciled
+        case .partialFailure(_, let failedCount):
+            return .partialFailure(failedCount: failedCount)
         case .accessDenied, .unavailable:
             return .unavailable
         }
@@ -330,6 +332,8 @@ final class EventKitCalendarProjectionImporter:
         events: [CalendarProjectionEvent]
     ) -> CalendarReconciliationResult {
         let calendar: CalendarProjectionCalendar
+        let mappings: [CalendarProjectionEventMapping]
+        var mappedIdentifiers: [String: String] = [:]
         do {
             guard try !mappingRepository.isCalendarSyncDisabled() else {
                 return .disabled
@@ -344,40 +348,47 @@ final class EventKitCalendarProjectionImporter:
             }
             calendar = existing
 
-            let desiredUIDs = Set(events.map(\.uid))
-            for mapping in try mappingRepository.eventMappings()
-            where !desiredUIDs.contains(mapping.projectionUID) {
+            mappings = try mappingRepository.eventMappings()
+            for event in events {
+                if let identifier = try mappingRepository.eventIdentifier(
+                    for: event.uid
+                ) {
+                    mappedIdentifiers[event.uid] = identifier
+                }
+            }
+
+            let missingCount = mappedIdentifiers.values.filter {
+                !eventStore.eventExists(identifier: $0)
+            }.count
+            guard missingCount == 0 else {
+                return .needsDecision(.eventsMissing(count: missingCount))
+            }
+        } catch {
+            return .unavailable
+        }
+
+        var failedCount = 0
+        let desiredUIDs = Set(events.map(\.uid))
+        for mapping in mappings
+        where !desiredUIDs.contains(mapping.projectionUID) {
+            do {
                 try eventStore.removeEvent(identifier: mapping.eventIdentifier)
                 try mappingRepository.removeEventMapping(
                     for: mapping.projectionUID
                 )
+            } catch {
+                failedCount += 1
             }
+        }
 
-            let missingCount = try events.reduce(into: 0) { count, event in
-                guard let identifier = try mappingRepository.eventIdentifier(
-                    for: event.uid
-                ) else {
-                    return
-                }
-                if !eventStore.eventExists(identifier: identifier) {
-                    count += 1
-                }
-            }
-            guard missingCount == 0 else {
-                return .needsDecision(.eventsMissing(count: missingCount))
-            }
-
-            for event in events {
-                var existingIdentifier = try mappingRepository.eventIdentifier(
-                    for: event.uid
-                )
-                if existingIdentifier == nil {
-                    existingIdentifier = eventStore.eventIdentifier(
+        for event in events {
+            do {
+                let existingIdentifier = mappedIdentifiers[event.uid]
+                    ?? eventStore.eventIdentifier(
                         for: event.uid,
                         near: event,
                         in: calendar
                     )
-                }
                 let write = try eventStore.saveProjectedEvent(
                     event,
                     in: calendar,
@@ -388,11 +399,14 @@ final class EventKitCalendarProjectionImporter:
                     for: event.uid,
                     calendarIdentifier: calendar.identifier
                 )
+            } catch {
+                failedCount += 1
             }
-            return .reconciled
-        } catch {
-            return .unavailable
         }
+
+        return failedCount == 0
+            ? .reconciled
+            : .partialFailure(failedCount: failedCount)
     }
 }
 

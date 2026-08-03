@@ -292,6 +292,202 @@ struct SubscriptionWorkspaceTests {
         #expect(workspace.calendarReconciliationState == .unavailable)
     }
 
+    @Test("Calendar reconciliation preserves partial failure counts")
+    @MainActor
+    func calendarReconciliationPreservesPartialFailure() async throws {
+        let calendar = utcCalendar()
+        let now = try actionDate(
+            year: 2026,
+            month: 1,
+            day: 15,
+            hour: 12,
+            calendar: calendar
+        )
+        let reconciler = CalendarReconcilerFixture(
+            result: .partialFailure(failedCount: 2)
+        )
+        let workspace = SubscriptionWorkspace(
+            repository: InMemorySubscriptionRepository(
+                subscriptions: [
+                    makeSubscription(
+                        id: UUID(
+                            uuidString: "99999999-2222-3333-4444-555555555555"
+                        )!
+                    )
+                ]
+            ),
+            preferencesRepository: CalendarPreferencesFixture(
+                preferences: UserPreferences(
+                    primaryCurrency: .usd,
+                    calendarProjectionHorizon: .sixMonths,
+                    setupStatus: .completed
+                )
+            ),
+            calendarProjectionReconciler: reconciler,
+            now: { now },
+            calendar: calendar
+        )
+
+        await workspace.rebuildCalendarProjection(
+            locale: Locale(identifier: "en_US")
+        )
+
+        #expect(
+            reconciler.commands == [.rebuild(workspace.calendarProjection)]
+        )
+        #expect(
+            workspace.calendarReconciliationState
+                == .partialFailure(failedCount: 2)
+        )
+        #expect(workspace.calendarReconciliationState != .current)
+    }
+
+    @Test("Normal calendar reconciliation maps partial failure without current")
+    @MainActor
+    func normalCalendarReconciliationMapsPartialFailure() async throws {
+        let calendar = utcCalendar()
+        let now = try actionDate(
+            year: 2026,
+            month: 1,
+            day: 15,
+            hour: 12,
+            calendar: calendar
+        )
+        let reconciler = CalendarReconcilerFixture(
+            result: .partialFailure(failedCount: 1)
+        )
+        let workspace = SubscriptionWorkspace(
+            repository: InMemorySubscriptionRepository(
+                subscriptions: [
+                    makeSubscription(
+                        id: UUID(
+                            uuidString: "99999999-2222-3333-4444-555555555555"
+                        )!
+                    )
+                ]
+            ),
+            preferencesRepository: CalendarPreferencesFixture(
+                preferences: UserPreferences(
+                    primaryCurrency: .usd,
+                    calendarProjectionHorizon: .sixMonths,
+                    setupStatus: .completed
+                )
+            ),
+            calendarProjectionReconciler: reconciler,
+            now: { now },
+            calendar: calendar
+        )
+
+        await workspace.reconcileCalendarProjection(
+            locale: Locale(identifier: "en_US")
+        )
+
+        #expect(
+            workspace.calendarReconciliationState
+                == .partialFailure(failedCount: 1)
+        )
+        #expect(workspace.calendarReconciliationState != .current)
+    }
+
+    @Test("Unavailable calendar reconciliation never becomes current")
+    @MainActor
+    func unavailableCalendarReconciliationNeverBecomesCurrent() async throws {
+        let calendar = utcCalendar()
+        let now = try actionDate(
+            year: 2026,
+            month: 1,
+            day: 15,
+            hour: 12,
+            calendar: calendar
+        )
+        let reconciler = CalendarReconcilerFixture(result: .unavailable)
+        let workspace = SubscriptionWorkspace(
+            repository: InMemorySubscriptionRepository(
+                subscriptions: [
+                    makeSubscription(
+                        id: UUID(
+                            uuidString: "99999999-2222-3333-4444-555555555555"
+                        )!
+                    )
+                ]
+            ),
+            preferencesRepository: CalendarPreferencesFixture(
+                preferences: UserPreferences(
+                    primaryCurrency: .usd,
+                    calendarProjectionHorizon: .sixMonths,
+                    setupStatus: .completed
+                )
+            ),
+            calendarProjectionReconciler: reconciler,
+            now: { now },
+            calendar: calendar
+        )
+
+        await workspace.reconcileCalendarProjection(
+            locale: Locale(identifier: "en_US")
+        )
+
+        #expect(workspace.calendarReconciliationState == .unavailable)
+        #expect(workspace.calendarReconciliationState != .current)
+    }
+
+    @Test("Calendar sync retry uses rebuild and can return to current")
+    @MainActor
+    func calendarSyncRetryUsesRebuildAndCanReturnToCurrent() async throws {
+        let calendar = utcCalendar()
+        let now = try actionDate(
+            year: 2026,
+            month: 1,
+            day: 15,
+            hour: 12,
+            calendar: calendar
+        )
+        let reconciler = CalendarReconcilerFixture(
+            results: [.partialFailure(failedCount: 1), .reconciled]
+        )
+        let workspace = SubscriptionWorkspace(
+            repository: InMemorySubscriptionRepository(
+                subscriptions: [
+                    makeSubscription(
+                        id: UUID(
+                            uuidString: "99999999-2222-3333-4444-555555555555"
+                        )!
+                    )
+                ]
+            ),
+            preferencesRepository: CalendarPreferencesFixture(
+                preferences: UserPreferences(
+                    primaryCurrency: .usd,
+                    calendarProjectionHorizon: .sixMonths,
+                    setupStatus: .completed
+                )
+            ),
+            calendarProjectionReconciler: reconciler,
+            now: { now },
+            calendar: calendar
+        )
+
+        await workspace.reconcileCalendarProjection(
+            locale: Locale(identifier: "en_US")
+        )
+        #expect(
+            workspace.calendarReconciliationState
+                == .partialFailure(failedCount: 1)
+        )
+
+        await workspace.rebuildCalendarProjection(
+            locale: Locale(identifier: "en_US")
+        )
+
+        #expect(
+            reconciler.commands == [
+                .reconcile(workspace.calendarProjection),
+                .rebuild(workspace.calendarProjection),
+            ]
+        )
+        #expect(workspace.calendarReconciliationState == .current)
+    }
+
     @Test("Calendar reconciliation serializes requests received while active")
     @MainActor
     func calendarReconciliationSerializesRequestsReceivedWhileActive() async throws {
