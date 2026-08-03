@@ -530,6 +530,43 @@ struct EventKitCalendarProjectionImporterTests {
         #expect(try mappings.eventIdentifier(for: stale.uid) == nil)
     }
 
+    @Test("A stale mapping save failure rolls back for a safe retry")
+    func staleMappingSaveFailureIsRetryable() async throws {
+        let store = CalendarEventStoreFixture(access: .granted)
+        let mappings = CalendarMappingFixture()
+        let importer = EventKitCalendarProjectionImporter(
+            eventStore: store,
+            mappingRepository: mappings
+        )
+        let current = calendarEvent(uid: "renewal-1")
+        let stale = calendarEvent(uid: "renewal-2")
+
+        _ = await importer.importProjection(events: [current, stale])
+        mappings.failNextEventMappingRemovalSave = true
+
+        let firstResult = await importer.perform(.reconcile([current]))
+
+        #expect(firstResult == .partialFailure(failedCount: 1))
+        #expect(store.physicalEventIdentifiers == ["event-1"])
+        #expect(try mappings.eventIdentifier(for: current.uid) == "event-1")
+        #expect(try mappings.eventIdentifier(for: stale.uid) == "event-2")
+        #expect(store.savedProjectionEvents == [current, stale])
+
+        let secondResult = await importer.perform(.reconcile([current]))
+
+        #expect(secondResult == .reconciled)
+        #expect(store.physicalEventIdentifiers == ["event-1"])
+        #expect(try mappings.eventIdentifier(for: current.uid) == "event-1")
+        #expect(try mappings.eventIdentifier(for: stale.uid) == nil)
+        #expect(try mappings.eventMappings() == [
+            CalendarProjectionEventMapping(
+                projectionUID: current.uid,
+                eventIdentifier: "event-1"
+            )
+        ])
+        #expect(store.savedProjectionEvents == [current, stale])
+    }
+
     @Test("Disabling calendar sync prevents later automatic reconciliation")
     func disabledCalendarSyncDoesNotWriteEvents() async {
         let store = CalendarEventStoreFixture(access: .granted)
@@ -780,6 +817,7 @@ private final class CalendarMappingFixture: CalendarProjectionMappingRepository 
     private var isDisabled = false
     private var eventIDs: [String: String] = [:]
     var failNextEventMappingSave = false
+    var failNextEventMappingRemovalSave = false
     var failEventMappingsRead = false
 
     func calendarIdentifier() throws -> String? { calendarID }
@@ -815,7 +853,14 @@ private final class CalendarMappingFixture: CalendarProjectionMappingRepository 
     }
 
     func removeEventMapping(for projectionUID: String) throws {
-        eventIDs.removeValue(forKey: projectionUID)
+        let removedEventIdentifier = eventIDs.removeValue(forKey: projectionUID)
+        if failNextEventMappingRemovalSave {
+            failNextEventMappingRemovalSave = false
+            if let removedEventIdentifier {
+                eventIDs[projectionUID] = removedEventIdentifier
+            }
+            throw CalendarEventStoreError.writeFailed
+        }
     }
 
     func saveEventIdentifier(

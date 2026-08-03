@@ -632,7 +632,12 @@ final class SwiftDataCalendarProjectionMappingRepository:
             return
         }
         modelContext.delete(record)
-        try modelContext.save()
+        do {
+            try modelContext.save()
+        } catch {
+            modelContext.rollback()
+            throw error
+        }
     }
 
     func saveEventIdentifier(
