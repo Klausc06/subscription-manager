@@ -304,8 +304,11 @@ struct SubscriptionWorkspaceTests {
             calendar: calendar
         )
         let reconciler = CalendarReconcilerFixture(
-            result: .reconciled,
-            suspendFirstCall: true
+            results: [
+                .reconciled,
+                .needsDecision(.calendarMissing)
+            ],
+            suspendedCallNumbers: Set([1, 2])
         )
         let workspace = SubscriptionWorkspace(
             repository: InMemorySubscriptionRepository(
@@ -334,7 +337,13 @@ struct SubscriptionWorkspaceTests {
                 locale: Locale(identifier: "en_US")
             )
         }
-        await reconciler.waitForFirstCall()
+        guard await assertCalendarReconcilerCallStarted(
+            1,
+            on: reconciler
+        ) else {
+            await firstRequest.value
+            return
+        }
         #expect(workspace.calendarReconciliationState == .reconciling)
 
         let secondRequest = Task { @MainActor in
@@ -345,7 +354,18 @@ struct SubscriptionWorkspaceTests {
         await secondRequest.value
         #expect(reconciler.commands.count == 1)
 
-        reconciler.releaseFirstCall()
+        reconciler.releaseCall(1)
+        guard await assertCalendarReconcilerCallStarted(
+            2,
+            on: reconciler
+        ) else {
+            await firstRequest.value
+            return
+        }
+        #expect(workspace.calendarReconciliationState == .reconciling)
+        #expect(reconciler.commands.count == 2)
+
+        reconciler.releaseCall(2)
         await firstRequest.value
 
         #expect(
@@ -356,7 +376,10 @@ struct SubscriptionWorkspaceTests {
                 ]
         )
         #expect(reconciler.maximumConcurrentCalls == 1)
-        #expect(workspace.calendarReconciliationState == .current)
+        #expect(
+            workspace.calendarReconciliationState
+                == .needsDecision(.calendarMissing)
+        )
     }
 
     @Test("Calendar reconciliation prioritizes a pending disable")
@@ -371,8 +394,8 @@ struct SubscriptionWorkspaceTests {
             calendar: calendar
         )
         let reconciler = CalendarReconcilerFixture(
-            result: .reconciled,
-            suspendFirstCall: true
+            results: [.reconciled, .disabled],
+            suspendedCallNumbers: Set([1, 2])
         )
         let workspace = SubscriptionWorkspace(
             repository: InMemorySubscriptionRepository(
@@ -401,7 +424,13 @@ struct SubscriptionWorkspaceTests {
                 locale: Locale(identifier: "en_US")
             )
         }
-        await reconciler.waitForFirstCall()
+        guard await assertCalendarReconcilerCallStarted(
+            1,
+            on: reconciler
+        ) else {
+            await firstRequest.value
+            return
+        }
 
         let disableRequest = Task { @MainActor in
             await workspace.disableCalendarReconciliation()
@@ -417,7 +446,17 @@ struct SubscriptionWorkspaceTests {
         #expect(workspace.calendarReconciliationState == .reconciling)
         #expect(reconciler.commands.count == 1)
 
-        reconciler.releaseFirstCall()
+        reconciler.releaseCall(1)
+        guard await assertCalendarReconcilerCallStarted(
+            2,
+            on: reconciler
+        ) else {
+            await firstRequest.value
+            return
+        }
+        #expect(workspace.calendarReconciliationState == .reconciling)
+
+        reconciler.releaseCall(2)
         await firstRequest.value
 
         #expect(
@@ -428,6 +467,60 @@ struct SubscriptionWorkspaceTests {
                 ]
         )
         #expect(reconciler.maximumConcurrentCalls == 1)
+        #expect(workspace.calendarReconciliationState == .disabled)
+    }
+
+    @Test("Pending reconcile reloads the projection before its adapter command")
+    @MainActor
+    func pendingReconcileUsesFreshProjection() async throws {
+        try await assertPendingProjectionUsesFreshProjection(
+            .reconcile(Locale(identifier: "en_US"))
+        )
+    }
+
+    @Test("Pending rebuild reloads the projection before its adapter command")
+    @MainActor
+    func pendingRebuildUsesFreshProjection() async throws {
+        try await assertPendingProjectionUsesFreshProjection(
+            .rebuild(Locale(identifier: "en_US"))
+        )
+    }
+
+    @Test("A pending reconcile stops on a fresh projection read failure")
+    @MainActor
+    func pendingReconcileStopsWhenProjectionReadFails() async throws {
+        try await assertPendingProjectionReadFailure(
+            .reconcile(Locale(identifier: "en_US"))
+        )
+    }
+
+    @Test("A pending rebuild stops on a fresh projection read failure")
+    @MainActor
+    func pendingRebuildStopsWhenProjectionReadFails() async throws {
+        try await assertPendingProjectionReadFailure(
+            .rebuild(Locale(identifier: "en_US"))
+        )
+    }
+
+    @Test("Calendar reconciliation coalesces the pending priority matrix")
+    @MainActor
+    func calendarReconciliationCoalescesPendingPriorityMatrix() async throws {
+        try await assertPendingPriorityScenario(
+            firstPending: .reconcile(Locale(identifier: "en_US")),
+            secondPending: .rebuild(Locale(identifier: "en_US")),
+            expectedKind: .rebuild
+        )
+        try await assertPendingPriorityScenario(
+            firstPending: .rebuild(Locale(identifier: "en_US")),
+            secondPending: .reconcile(Locale(identifier: "en_US")),
+            expectedKind: .rebuild
+        )
+        try await assertPendingPriorityScenario(
+            firstPending: .reconcile(Locale(identifier: "en_US")),
+            secondPending: .reconcile(Locale(identifier: "de_DE")),
+            expectedKind: .reconcile,
+            expectedDifferentProjection: true
+        )
     }
 
     @Test("Sync status remains local-first when iCloud is signed out")
@@ -6208,35 +6301,57 @@ private final class CalendarImporterFixture: CalendarProjectionImporter {
 
 @MainActor
 private final class CalendarReconcilerFixture: CalendarProjectionReconciler {
-    let result: CalendarReconciliationResult
     private(set) var commands: [CalendarReconciliationCommand] = []
     private(set) var maximumConcurrentCalls = 0
 
-    private let suspendFirstCall: Bool
+    private let results: [CalendarReconciliationResult]
+    private let suspendedCallNumbers: Set<Int>
     private var activeCallCount = 0
-    private var firstCallStarted = false
-    private var firstCallStartedContinuation:
-        CheckedContinuation<Void, Never>?
-    private var firstCallContinuation: CheckedContinuation<Void, Never>?
+    private var startedCallNumbers: Set<Int> = []
+    private var releasedCallNumbers: Set<Int> = []
+    private var callContinuations: [
+        Int: CheckedContinuation<Void, Never>
+    ] = [:]
 
     init(
+        results: [CalendarReconciliationResult],
+        suspendedCallNumbers: Set<Int> = []
+    ) {
+        precondition(!results.isEmpty)
+        self.results = results
+        self.suspendedCallNumbers = suspendedCallNumbers
+    }
+
+    convenience init(
         result: CalendarReconciliationResult,
         suspendFirstCall: Bool = false
     ) {
-        self.result = result
-        self.suspendFirstCall = suspendFirstCall
+        self.init(
+            results: [result],
+            suspendedCallNumbers: suspendFirstCall ? Set([1]) : []
+        )
     }
 
-    func waitForFirstCall() async {
-        guard !firstCallStarted else { return }
-        await withCheckedContinuation { continuation in
-            firstCallStartedContinuation = continuation
+    func waitForCallStart(_ callNumber: Int) async -> Bool {
+        for _ in 0..<1_000 {
+            if startedCallNumbers.contains(callNumber) {
+                return true
+            }
+            await Task.yield()
         }
+        return startedCallNumbers.contains(callNumber)
     }
 
-    func releaseFirstCall() {
-        guard let continuation = firstCallContinuation else { return }
-        firstCallContinuation = nil
+    func releaseCall(_ callNumber: Int) {
+        guard let continuation = callContinuations.removeValue(
+            forKey: callNumber
+        ) else {
+            Issue.record(
+                "No suspended calendar reconciler call (callNumber) to release."
+            )
+            releasedCallNumbers.insert(callNumber)
+            return
+        }
         continuation.resume()
     }
 
@@ -6249,21 +6364,323 @@ private final class CalendarReconcilerFixture: CalendarProjectionReconciler {
             activeCallCount
         )
         commands.append(command)
+        let callNumber = commands.count
 
-        if suspendFirstCall && commands.count == 1 {
+        if suspendedCallNumbers.contains(callNumber),
+           releasedCallNumbers.remove(callNumber) == nil {
             await withCheckedContinuation { continuation in
-                firstCallContinuation = continuation
-                firstCallStarted = true
-                if let started = firstCallStartedContinuation {
-                    firstCallStartedContinuation = nil
-                    started.resume()
-                }
+                callContinuations[callNumber] = continuation
+                startedCallNumbers.insert(callNumber)
             }
+        } else {
+            startedCallNumbers.insert(callNumber)
         }
 
         activeCallCount -= 1
-        return result
+        return results[min(callNumber - 1, results.count - 1)]
     }
+}
+
+private enum CalendarPendingRequest {
+    case reconcile(Locale)
+    case rebuild(Locale)
+
+    var kind: CalendarPendingCommandKind {
+        switch self {
+        case .reconcile:
+            .reconcile
+        case .rebuild:
+            .rebuild
+        }
+    }
+
+    @MainActor
+    func enqueue(on workspace: SubscriptionWorkspace) async {
+        switch self {
+        case .reconcile(let locale):
+            await workspace.reconcileCalendarProjection(locale: locale)
+        case .rebuild(let locale):
+            await workspace.rebuildCalendarProjection(locale: locale)
+        }
+    }
+}
+
+private enum CalendarPendingCommandKind {
+    case reconcile
+    case rebuild
+}
+
+@MainActor
+private func assertCalendarReconcilerCallStarted(
+    _ callNumber: Int,
+    on reconciler: CalendarReconcilerFixture
+) async -> Bool {
+    let started = await reconciler.waitForCallStart(callNumber)
+    guard !started else { return true }
+    Issue.record(
+        "Timed out waiting for calendar reconciler call (callNumber) to start."
+    )
+    reconciler.releaseCall(callNumber)
+    return false
+}
+
+@MainActor
+private func makeCalendarReconciliationWorkspace(
+    repository: InMemorySubscriptionRepository,
+    reconciler: CalendarReconcilerFixture,
+    now: Date,
+    calendar: Calendar
+) -> SubscriptionWorkspace {
+    SubscriptionWorkspace(
+        repository: repository,
+        preferencesRepository: CalendarPreferencesFixture(
+            preferences: UserPreferences(
+                primaryCurrency: .usd,
+                calendarProjectionHorizon: .sixMonths,
+                setupStatus: .completed
+            )
+        ),
+        calendarProjectionReconciler: reconciler,
+        now: { now },
+        calendar: calendar
+    )
+}
+
+private func calendarProjectionEvents(
+    in command: CalendarReconciliationCommand
+) -> [CalendarProjectionEvent]? {
+    switch command {
+    case .reconcile(let events), .rebuild(let events):
+        events
+    case .disable:
+        nil
+    }
+}
+
+@MainActor
+private func assertPendingProjectionUsesFreshProjection(
+    _ pending: CalendarPendingRequest
+) async throws {
+    let calendar = utcCalendar()
+    let now = try actionDate(
+        year: 2026,
+        month: 1,
+        day: 15,
+        hour: 12,
+        calendar: calendar
+    )
+    let subscriptionID = UUID(
+        uuidString: "99999999-2222-3333-4444-555555555555"
+    )!
+    let repository = InMemorySubscriptionRepository(
+        subscriptions: [makeSubscription(id: subscriptionID)]
+    )
+    let reconciler = CalendarReconcilerFixture(
+        results: [.reconciled, .reconciled],
+        suspendedCallNumbers: Set([1, 2])
+    )
+    let workspace = makeCalendarReconciliationWorkspace(
+        repository: repository,
+        reconciler: reconciler,
+        now: now,
+        calendar: calendar
+    )
+
+    let firstRequest = Task { @MainActor in
+        await workspace.reconcileCalendarProjection(
+            locale: Locale(identifier: "en_US")
+        )
+    }
+    guard await assertCalendarReconcilerCallStarted(1, on: reconciler) else {
+        await firstRequest.value
+        return
+    }
+    let firstCommand = try #require(reconciler.commands.first)
+    let oldProjection = try #require(
+        calendarProjectionEvents(in: firstCommand)
+    )
+
+    try repository.createSubscription(
+        makeSubscription(
+            id: subscriptionID,
+            serviceName: "Updated"
+        )
+    )
+    let pendingRequest = Task { @MainActor in
+        await pending.enqueue(on: workspace)
+    }
+    await pendingRequest.value
+    #expect(reconciler.commands.count == 1)
+
+    reconciler.releaseCall(1)
+    guard await assertCalendarReconcilerCallStarted(2, on: reconciler) else {
+        await firstRequest.value
+        return
+    }
+    #expect(workspace.calendarReconciliationState == .reconciling)
+    #expect(reconciler.commands.count == 2)
+
+    let secondCommand = try #require(reconciler.commands.last)
+    let secondProjection = try #require(
+        calendarProjectionEvents(in: secondCommand)
+    )
+    #expect(secondProjection != oldProjection)
+    #expect(secondProjection.allSatisfy { $0.title.hasPrefix("Updated") })
+    switch (pending.kind, secondCommand) {
+    case (.reconcile, .reconcile), (.rebuild, .rebuild):
+        break
+    default:
+        Issue.record("Pending request used the wrong adapter command.")
+    }
+
+    reconciler.releaseCall(2)
+    await firstRequest.value
+    #expect(reconciler.maximumConcurrentCalls == 1)
+    #expect(workspace.calendarReconciliationState == .current)
+}
+
+@MainActor
+private func assertPendingProjectionReadFailure(
+    _ pending: CalendarPendingRequest
+) async throws {
+    let calendar = utcCalendar()
+    let now = try actionDate(
+        year: 2026,
+        month: 1,
+        day: 15,
+        hour: 12,
+        calendar: calendar
+    )
+    let subscriptionID = UUID(
+        uuidString: "99999999-2222-3333-4444-555555555555"
+    )!
+    let repository = InMemorySubscriptionRepository(
+        subscriptions: [makeSubscription(id: subscriptionID)]
+    )
+    let reconciler = CalendarReconcilerFixture(
+        results: [.reconciled],
+        suspendedCallNumbers: Set([1])
+    )
+    let workspace = makeCalendarReconciliationWorkspace(
+        repository: repository,
+        reconciler: reconciler,
+        now: now,
+        calendar: calendar
+    )
+
+    let firstRequest = Task { @MainActor in
+        await workspace.reconcileCalendarProjection(
+            locale: Locale(identifier: "en_US")
+        )
+    }
+    guard await assertCalendarReconcilerCallStarted(1, on: reconciler) else {
+        await firstRequest.value
+        return
+    }
+    let firstCommand = try #require(reconciler.commands.first)
+    let oldProjection = try #require(
+        calendarProjectionEvents(in: firstCommand)
+    )
+
+    repository.failure = .list
+    let pendingRequest = Task { @MainActor in
+        await pending.enqueue(on: workspace)
+    }
+    await pendingRequest.value
+    #expect(reconciler.commands.count == 1)
+
+    reconciler.releaseCall(1)
+    await firstRequest.value
+
+    #expect(reconciler.commands.count == 1)
+    #expect(workspace.calendarProjection == oldProjection)
+    #expect(workspace.calendarReconciliationState == .unavailable)
+    #expect(reconciler.maximumConcurrentCalls == 1)
+}
+
+@MainActor
+private func assertPendingPriorityScenario(
+    firstPending: CalendarPendingRequest,
+    secondPending: CalendarPendingRequest,
+    expectedKind: CalendarPendingCommandKind,
+    expectedDifferentProjection: Bool = false
+) async throws {
+    let calendar = utcCalendar()
+    let now = try actionDate(
+        year: 2026,
+        month: 1,
+        day: 15,
+        hour: 12,
+        calendar: calendar
+    )
+    let subscriptionID = UUID(
+        uuidString: "99999999-2222-3333-4444-555555555555"
+    )!
+    let repository = InMemorySubscriptionRepository(
+        subscriptions: [makeSubscription(id: subscriptionID)]
+    )
+    let reconciler = CalendarReconcilerFixture(
+        results: [.reconciled, .reconciled],
+        suspendedCallNumbers: Set([1, 2])
+    )
+    let workspace = makeCalendarReconciliationWorkspace(
+        repository: repository,
+        reconciler: reconciler,
+        now: now,
+        calendar: calendar
+    )
+
+    let firstRequest = Task { @MainActor in
+        await workspace.reconcileCalendarProjection(
+            locale: Locale(identifier: "en_US")
+        )
+    }
+    guard await assertCalendarReconcilerCallStarted(1, on: reconciler) else {
+        await firstRequest.value
+        return
+    }
+    let firstCommand = try #require(reconciler.commands.first)
+    let firstProjection = try #require(
+        calendarProjectionEvents(in: firstCommand)
+    )
+
+    let firstPendingRequest = Task { @MainActor in
+        await firstPending.enqueue(on: workspace)
+    }
+    await firstPendingRequest.value
+    let secondPendingRequest = Task { @MainActor in
+        await secondPending.enqueue(on: workspace)
+    }
+    await secondPendingRequest.value
+    #expect(reconciler.commands.count == 1)
+
+    reconciler.releaseCall(1)
+    guard await assertCalendarReconcilerCallStarted(2, on: reconciler) else {
+        await firstRequest.value
+        return
+    }
+    #expect(workspace.calendarReconciliationState == .reconciling)
+    #expect(reconciler.commands.count == 2)
+
+    let secondCommand = try #require(reconciler.commands.last)
+    let secondProjection = try #require(
+        calendarProjectionEvents(in: secondCommand)
+    )
+    switch (expectedKind, secondCommand) {
+    case (.reconcile, .reconcile), (.rebuild, .rebuild):
+        break
+    default:
+        Issue.record("Pending priority selected the wrong command.")
+    }
+    if expectedDifferentProjection {
+        #expect(firstProjection != secondProjection)
+    }
+
+    reconciler.releaseCall(2)
+    await firstRequest.value
+    #expect(reconciler.commands.count == 2)
+    #expect(reconciler.maximumConcurrentCalls == 1)
+    #expect(workspace.calendarReconciliationState == .current)
 }
 
 private struct SyncMonitorFixture: LibrarySyncMonitor {
