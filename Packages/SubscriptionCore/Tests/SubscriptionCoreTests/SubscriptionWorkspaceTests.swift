@@ -292,6 +292,144 @@ struct SubscriptionWorkspaceTests {
         #expect(workspace.calendarReconciliationState == .unavailable)
     }
 
+    @Test("Calendar reconciliation serializes requests received while active")
+    @MainActor
+    func calendarReconciliationSerializesRequestsReceivedWhileActive() async throws {
+        let calendar = utcCalendar()
+        let now = try actionDate(
+            year: 2026,
+            month: 1,
+            day: 15,
+            hour: 12,
+            calendar: calendar
+        )
+        let reconciler = CalendarReconcilerFixture(
+            result: .reconciled,
+            suspendFirstCall: true
+        )
+        let workspace = SubscriptionWorkspace(
+            repository: InMemorySubscriptionRepository(
+                subscriptions: [
+                    makeSubscription(
+                        id: UUID(
+                            uuidString: "99999999-2222-3333-4444-555555555555"
+                        )!
+                    )
+                ]
+            ),
+            preferencesRepository: CalendarPreferencesFixture(
+                preferences: UserPreferences(
+                    primaryCurrency: .usd,
+                    calendarProjectionHorizon: .sixMonths,
+                    setupStatus: .completed
+                )
+            ),
+            calendarProjectionReconciler: reconciler,
+            now: { now },
+            calendar: calendar
+        )
+
+        let firstRequest = Task { @MainActor in
+            await workspace.reconcileCalendarProjection(
+                locale: Locale(identifier: "en_US")
+            )
+        }
+        await reconciler.waitForFirstCall()
+        #expect(workspace.calendarReconciliationState == .reconciling)
+
+        let secondRequest = Task { @MainActor in
+            await workspace.reconcileCalendarProjection(
+                locale: Locale(identifier: "en_US")
+            )
+        }
+        await secondRequest.value
+        #expect(reconciler.commands.count == 1)
+
+        reconciler.releaseFirstCall()
+        await firstRequest.value
+
+        #expect(
+            reconciler.commands
+                == [
+                    .reconcile(workspace.calendarProjection),
+                    .reconcile(workspace.calendarProjection)
+                ]
+        )
+        #expect(reconciler.maximumConcurrentCalls == 1)
+        #expect(workspace.calendarReconciliationState == .current)
+    }
+
+    @Test("Calendar reconciliation prioritizes a pending disable")
+    @MainActor
+    func calendarReconciliationPrioritizesPendingDisable() async throws {
+        let calendar = utcCalendar()
+        let now = try actionDate(
+            year: 2026,
+            month: 1,
+            day: 15,
+            hour: 12,
+            calendar: calendar
+        )
+        let reconciler = CalendarReconcilerFixture(
+            result: .reconciled,
+            suspendFirstCall: true
+        )
+        let workspace = SubscriptionWorkspace(
+            repository: InMemorySubscriptionRepository(
+                subscriptions: [
+                    makeSubscription(
+                        id: UUID(
+                            uuidString: "99999999-2222-3333-4444-555555555555"
+                        )!
+                    )
+                ]
+            ),
+            preferencesRepository: CalendarPreferencesFixture(
+                preferences: UserPreferences(
+                    primaryCurrency: .usd,
+                    calendarProjectionHorizon: .sixMonths,
+                    setupStatus: .completed
+                )
+            ),
+            calendarProjectionReconciler: reconciler,
+            now: { now },
+            calendar: calendar
+        )
+
+        let firstRequest = Task { @MainActor in
+            await workspace.reconcileCalendarProjection(
+                locale: Locale(identifier: "en_US")
+            )
+        }
+        await reconciler.waitForFirstCall()
+
+        let disableRequest = Task { @MainActor in
+            await workspace.disableCalendarReconciliation()
+        }
+        await disableRequest.value
+
+        let automaticRequest = Task { @MainActor in
+            await workspace.reconcileCalendarProjection(
+                locale: Locale(identifier: "en_US")
+            )
+        }
+        await automaticRequest.value
+        #expect(workspace.calendarReconciliationState == .reconciling)
+        #expect(reconciler.commands.count == 1)
+
+        reconciler.releaseFirstCall()
+        await firstRequest.value
+
+        #expect(
+            reconciler.commands
+                == [
+                    .reconcile(workspace.calendarProjection),
+                    .disable
+                ]
+        )
+        #expect(reconciler.maximumConcurrentCalls == 1)
+    }
+
     @Test("Sync status remains local-first when iCloud is signed out")
     @MainActor
     func signedOutSyncStatusDoesNotBlockCreation() async throws {
@@ -6072,15 +6210,58 @@ private final class CalendarImporterFixture: CalendarProjectionImporter {
 private final class CalendarReconcilerFixture: CalendarProjectionReconciler {
     let result: CalendarReconciliationResult
     private(set) var commands: [CalendarReconciliationCommand] = []
+    private(set) var maximumConcurrentCalls = 0
 
-    init(result: CalendarReconciliationResult) {
+    private let suspendFirstCall: Bool
+    private var activeCallCount = 0
+    private var firstCallStarted = false
+    private var firstCallStartedContinuation:
+        CheckedContinuation<Void, Never>?
+    private var firstCallContinuation: CheckedContinuation<Void, Never>?
+
+    init(
+        result: CalendarReconciliationResult,
+        suspendFirstCall: Bool = false
+    ) {
         self.result = result
+        self.suspendFirstCall = suspendFirstCall
+    }
+
+    func waitForFirstCall() async {
+        guard !firstCallStarted else { return }
+        await withCheckedContinuation { continuation in
+            firstCallStartedContinuation = continuation
+        }
+    }
+
+    func releaseFirstCall() {
+        guard let continuation = firstCallContinuation else { return }
+        firstCallContinuation = nil
+        continuation.resume()
     }
 
     func perform(
         _ command: CalendarReconciliationCommand
     ) async -> CalendarReconciliationResult {
+        activeCallCount += 1
+        maximumConcurrentCalls = max(
+            maximumConcurrentCalls,
+            activeCallCount
+        )
         commands.append(command)
+
+        if suspendFirstCall && commands.count == 1 {
+            await withCheckedContinuation { continuation in
+                firstCallContinuation = continuation
+                firstCallStarted = true
+                if let started = firstCallStartedContinuation {
+                    firstCallStartedContinuation = nil
+                    started.resume()
+                }
+            }
+        }
+
+        activeCallCount -= 1
         return result
     }
 }

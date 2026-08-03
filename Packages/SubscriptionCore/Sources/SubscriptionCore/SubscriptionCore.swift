@@ -745,10 +745,28 @@ public final class SubscriptionWorkspace {
     private let identifierGenerator: () -> UUID
     private let now: () -> Date
     private let calendar: Calendar
+    private enum CalendarReconciliationRequest {
+        case reconcile(Locale)
+        case rebuild(Locale)
+        case disable
+
+        var priority: Int {
+            switch self {
+            case .reconcile:
+                1
+            case .rebuild:
+                2
+            case .disable:
+                3
+            }
+        }
+    }
     private var expectedChargesRequest: ExpectedChargesRequest?
     private var insightsRequest: InsightsRequest?
     private var upcomingTimelineRequest: UpcomingTimelineRequest?
     private var calendarProjectionLocale: Locale?
+    private var pendingCalendarReconciliationRequest:
+        CalendarReconciliationRequest?
     private var catalogSnapshot: CatalogSnapshot?
     private var catalogLocale = Locale.current
     private var catalogSearchQuery = ""
@@ -2264,56 +2282,80 @@ public final class SubscriptionWorkspace {
     }
 
     public func reconcileCalendarProjection(locale: Locale) async {
-        guard calendarReconciliationState != .reconciling else { return }
-        guard let calendarProjectionReconciler else {
-            calendarReconciliationState = .notConfigured
-            return
-        }
-        guard loadCalendarProjection(locale: locale) else {
-            calendarReconciliationState = .unavailable
-            return
-        }
-        calendarReconciliationState = .reconciling
-        let result = await calendarProjectionReconciler.perform(
-            .reconcile(calendarProjection)
-        )
-        calendarReconciliationState = CalendarReconciliationState(result: result)
+        await enqueueCalendarReconciliation(.reconcile(locale))
     }
 
     public func rebuildCalendarProjection(locale: Locale) async {
-        await performCalendarReconciliation(.rebuild([]), locale: locale)
+        await enqueueCalendarReconciliation(.rebuild(locale))
     }
 
     public func disableCalendarReconciliation() async {
-        guard let calendarProjectionReconciler else {
+        await enqueueCalendarReconciliation(.disable)
+    }
+
+    private func enqueueCalendarReconciliation(
+        _ request: CalendarReconciliationRequest
+    ) async {
+        guard calendarProjectionReconciler != nil else {
             calendarReconciliationState = .notConfigured
             return
         }
-        calendarReconciliationState = .reconciling
-        let result = await calendarProjectionReconciler.perform(.disable)
-        calendarReconciliationState = CalendarReconciliationState(result: result)
-    }
-
-    private func performCalendarReconciliation(
-        _ command: CalendarReconciliationCommand,
-        locale: Locale
-    ) async {
-        guard calendarReconciliationState != .reconciling,
-              let calendarProjectionReconciler
-        else { return }
-        guard loadCalendarProjection(locale: locale) else {
-            calendarReconciliationState = .unavailable
+        guard calendarReconciliationState != .reconciling else {
+            pendingCalendarReconciliationRequest =
+                coalescedCalendarReconciliationRequest(
+                    pending: pendingCalendarReconciliationRequest,
+                    incoming: request
+                )
             return
         }
         calendarReconciliationState = .reconciling
-        let command = switch command {
-        case .rebuild:
-            CalendarReconciliationCommand.rebuild(calendarProjection)
-        default:
-            command
+
+        var request = request
+        while true {
+            let result = await performCalendarReconciliation(request)
+            guard let pending = pendingCalendarReconciliationRequest else {
+                calendarReconciliationState = CalendarReconciliationState(
+                    result: result
+                )
+                return
+            }
+            pendingCalendarReconciliationRequest = nil
+            request = pending
         }
-        let result = await calendarProjectionReconciler.perform(command)
-        calendarReconciliationState = CalendarReconciliationState(result: result)
+    }
+
+    private func coalescedCalendarReconciliationRequest(
+        pending: CalendarReconciliationRequest?,
+        incoming: CalendarReconciliationRequest
+    ) -> CalendarReconciliationRequest {
+        guard let pending else { return incoming }
+        return incoming.priority >= pending.priority ? incoming : pending
+    }
+
+    private func performCalendarReconciliation(
+        _ request: CalendarReconciliationRequest
+    ) async -> CalendarReconciliationResult {
+        guard let calendarProjectionReconciler else {
+            return .notConfigured
+        }
+        switch request {
+        case .reconcile(let locale):
+            guard loadCalendarProjection(locale: locale) else {
+                return .unavailable
+            }
+            return await calendarProjectionReconciler.perform(
+                .reconcile(calendarProjection)
+            )
+        case .rebuild(let locale):
+            guard loadCalendarProjection(locale: locale) else {
+                return .unavailable
+            }
+            return await calendarProjectionReconciler.perform(
+                .rebuild(calendarProjection)
+            )
+        case .disable:
+            return await calendarProjectionReconciler.perform(.disable)
+        }
     }
 
     private func validate(
