@@ -23,3 +23,14 @@ This is a single-context repository. See `docs/agents/domain.md`.
 - Mark each item complete only after checking all 14 points in `docs/research/2026-07-30-round-2-requirements.md` and providing code, test, and UI evidence.
 - Work on one requirement at a time. Do not expand scope opportunistically.
 - Do not push without the user's explicit authorization in the current turn.
+
+## Bug-fix execution protocol
+
+- The main task owns the boundary, Luna level, status, and final conclusion; implementation and acceptance are separate jobs.
+- Default to the smallest two-task loop: one implementation Luna plus one independent read-only Luna Medium reviewer. Return to the original implementer only for a real reproducible finding; the same Medium reviewer rechecks that finding after the fix. Do not add a third reviewer.
+- Use only `gpt-5.6-luna`: narrow logic or documentation uses Medium or High; cross-Workspace/adapter/persistence uses High or XHigh; SwiftData/CloudKit/schema uses XHigh; Max is only for high-risk architecture review or one XHigh fix that still has a real cross-layer finding.
+- Every implementation prompt must state: goal/user value, starting SHA, allowed files, prohibitions, failure invariants, skills, RED → GREEN order, focused plus batch regression, completion evidence, and remote side effects.
+- Hard implementation gate: obtain a real RED on the failure path first. A test added afterward must be labeled regression, not called RED. Fakes/mocks must model physical side effects, transaction failures, retry/idempotency, and applicable system semantics; they must not copy the production algorithm to prove itself.
+- Acceptance output is only `APPROVE` or `FINDINGS`. A finding must include reproduction, impact, minimal fix, and a permanent regression test.
+- Do not add UI tests, a full audit, Max, or another reviewer merely because of confidence; verify only the current batch brief.
+- Update the single canonical `progress.md` immediately after each batch conclusion.
