@@ -12,7 +12,27 @@ struct UserPreferencesTests {
         )
         #expect(UserPreferences.default.hideAmountsInCalendar == false)
         #expect(UserPreferences.default.menuBarModeEnabled == false)
+        #expect(UserPreferences.default.appearanceMode == .system)
         #expect(UserPreferences.default.setupStatus == .notCompleted)
+    }
+
+    @Test("Appearance modes encode and decode without changing")
+    func appearanceModesRoundTripThroughCodable() throws {
+        for appearanceMode in AppearanceMode.allCases {
+            let original = UserPreferences(
+                primaryCurrency: .eur,
+                calendarProjectionHorizon: .sixMonths,
+                appearanceMode: appearanceMode,
+                setupStatus: .completed
+            )
+            let data = try JSONEncoder().encode(original)
+            let decoded = try JSONDecoder().decode(
+                UserPreferences.self,
+                from: data
+            )
+
+            #expect(decoded == original)
+        }
     }
 
     @Test("Legacy preferences decode with calendar amounts visible")
@@ -34,6 +54,7 @@ struct UserPreferencesTests {
 
         #expect(preferences.hideAmountsInCalendar == false)
         #expect(preferences.menuBarModeEnabled == false)
+        #expect(preferences.appearanceMode == .system)
     }
 
     @Test("Menu-bar mode persists through the workspace preference command")

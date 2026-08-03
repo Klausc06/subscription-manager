@@ -235,7 +235,7 @@ struct BundledCatalogRepositoryTests {
 
         let snapshot = try repository.loadSnapshot()
 
-        #expect(snapshot.presets.count == 107)
+        #expect(snapshot.presets.count == 93)
         #expect(
             snapshot.search(query: "音乐", locale: Locale(identifier: "zh-Hans"))
                 .contains(where: { $0.id == "spotify" })

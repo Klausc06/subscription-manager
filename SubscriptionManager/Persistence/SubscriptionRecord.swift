@@ -89,6 +89,7 @@ final class UserPreferencesRecord {
     var calendarProjectionHorizonMonths: Int = 12
     var hideAmountsInCalendar: Bool = false
     var menuBarModeEnabled: Bool = false
+    var appearanceModeRawValue: String = "system"
     var setupStatusRawValue: String = "notCompleted"
 
     init(
@@ -96,6 +97,7 @@ final class UserPreferencesRecord {
         calendarProjectionHorizonMonths: Int = 12,
         hideAmountsInCalendar: Bool = false,
         menuBarModeEnabled: Bool = false,
+        appearanceModeRawValue: String = "system",
         setupStatusRawValue: String = "notCompleted"
     ) {
         self.primaryCurrencyRawValue = primaryCurrencyRawValue
@@ -103,6 +105,7 @@ final class UserPreferencesRecord {
             calendarProjectionHorizonMonths
         self.hideAmountsInCalendar = hideAmountsInCalendar
         self.menuBarModeEnabled = menuBarModeEnabled
+        self.appearanceModeRawValue = appearanceModeRawValue
         self.setupStatusRawValue = setupStatusRawValue
     }
 }

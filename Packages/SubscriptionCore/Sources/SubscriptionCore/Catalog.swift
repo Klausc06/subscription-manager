@@ -183,6 +183,7 @@ public struct CatalogPreset: Codable, Equatable, Identifiable, Sendable {
     public let id: String
     public let serviceName: CatalogLocalizedText
     public let category: CatalogLocalizedText
+    public let categoryID: String
     public let suggestedInterval: BillingInterval
     public let managementURL: URL?
     public let icon: CatalogIcon
@@ -198,6 +199,7 @@ public struct CatalogPreset: Codable, Equatable, Identifiable, Sendable {
         suggestedInterval: BillingInterval,
         managementURL: URL?,
         icon: CatalogIcon,
+        categoryID: String? = nil,
         assetProvenance: CatalogAssetProvenance? = nil,
         legacyPresetIDs: [String] = [],
         matchAliases: [String] = [],
@@ -206,6 +208,9 @@ public struct CatalogPreset: Codable, Equatable, Identifiable, Sendable {
         self.id = id
         self.serviceName = serviceName
         self.category = category
+        self.categoryID = categoryID?.trimmingCharacters(
+            in: .whitespacesAndNewlines
+        ) ?? Self.normalizedCategoryID(category.en)
         self.suggestedInterval = suggestedInterval
         self.managementURL = managementURL
         self.icon = icon
@@ -220,6 +225,7 @@ public struct CatalogPreset: Codable, Equatable, Identifiable, Sendable {
         case id
         case serviceName
         case category
+        case categoryID
         case suggestedInterval
         case managementURL
         case icon
@@ -250,6 +256,10 @@ public struct CatalogPreset: Codable, Equatable, Identifiable, Sendable {
                 forKey: .managementURL
             ),
             icon: try container.decode(CatalogIcon.self, forKey: .icon),
+            categoryID: try container.decodeIfPresent(
+                String.self,
+                forKey: .categoryID
+            ),
             assetProvenance: try container.decodeIfPresent(
                 CatalogAssetProvenance.self,
                 forKey: .assetProvenance
@@ -274,6 +284,7 @@ public struct CatalogPreset: Codable, Equatable, Identifiable, Sendable {
         try container.encode(id, forKey: .id)
         try container.encode(serviceName, forKey: .serviceName)
         try container.encode(category, forKey: .category)
+        try container.encode(categoryID, forKey: .categoryID)
         try container.encode(suggestedInterval, forKey: .suggestedInterval)
         try container.encodeIfPresent(managementURL, forKey: .managementURL)
         try container.encode(icon, forKey: .icon)
@@ -287,6 +298,13 @@ public struct CatalogPreset: Codable, Equatable, Identifiable, Sendable {
         if !offers.isEmpty {
             try container.encode(offers, forKey: .offers)
         }
+    }
+
+    private static func normalizedCategoryID(_ value: String) -> String {
+        value.trimmingCharacters(in: .whitespacesAndNewlines).folding(
+            options: [.caseInsensitive, .diacriticInsensitive],
+            locale: Locale(identifier: "en")
+        )
     }
 }
 
@@ -340,6 +358,13 @@ public struct CatalogSnapshot: Codable, Equatable, Sendable {
                     presetID: identifier,
                     field: .category,
                     message: "English and Simplified-Chinese text are required"
+                )
+            }
+            guard !preset.categoryID.isEmpty else {
+                throw CatalogLoadError(
+                    presetID: identifier,
+                    field: .category,
+                    message: "stable category identifier is required"
                 )
             }
             guard preset.suggestedInterval.isValid else {
@@ -462,15 +487,9 @@ public struct CatalogSnapshot: Codable, Equatable, Sendable {
         let categories = Dictionary(
             presets.map {
                 (
-                    $0.category.en.folding(
-                        options: [.caseInsensitive, .diacriticInsensitive],
-                        locale: Locale(identifier: "en")
-                    ),
+                    $0.categoryID,
                     CatalogCategory(
-                        id: $0.category.en.folding(
-                            options: [.caseInsensitive, .diacriticInsensitive],
-                            locale: Locale(identifier: "en")
-                        ),
+                        id: $0.categoryID,
                         title: $0.category
                     )
                 )

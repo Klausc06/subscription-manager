@@ -4,6 +4,37 @@ import Testing
 
 @Suite("Subscription workspace")
 struct SubscriptionWorkspaceTests {
+    @Test("Workspace preference commands persist appearance mode")
+    @MainActor
+    func appearanceModePersistsThroughWorkspace() throws {
+        let preferences = CalendarPreferencesFixture(
+            preferences: .default
+        )
+        let workspace = SubscriptionWorkspace(
+            repository: EmptySubscriptionRepository(),
+            preferencesRepository: preferences
+        )
+
+        workspace.loadSetup(libraryIsEmpty: false)
+        workspace.updatePreferences(
+            primaryCurrency: .cny,
+            calendarProjectionHorizon: .twelveMonths,
+            appearanceMode: .dark
+        )
+
+        #expect(try preferences.loadPreferences()?.appearanceMode == .dark)
+        #expect(
+            workspace.setupState == .needsSetup(
+                UserPreferences(
+                    primaryCurrency: .cny,
+                    calendarProjectionHorizon: .twelveMonths,
+                    appearanceMode: .dark,
+                    setupStatus: .notCompleted
+                )
+            )
+        )
+    }
+
     @Test("Calendar projection hides amounts and uses trial alarm offsets")
     @MainActor
     func calendarProjectionUsesPreferencesAndTrialAlarms() throws {

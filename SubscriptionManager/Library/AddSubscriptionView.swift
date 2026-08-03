@@ -82,7 +82,6 @@ struct AddSubscriptionView: View {
             initialStatusSection
             SubscriptionEditorSections(
                 draft: $draft,
-                status: nil,
                 nextExpectedCharge: nil,
                 catalogMatches: catalogMatches,
                 onSelectCatalogMatch: selectCatalogPreset,
@@ -225,30 +224,6 @@ struct AddSubscriptionView: View {
                         value: formattedMoney(selectedOffer.price)
                     )
                     .accessibilityIdentifier("subscription.form.selected-price")
-
-                    Text(
-                        "\(selectedOffer.market) · "
-                            + selectedOffer.purchaseChannel.localizedTitle
-                            + " · \(String(localized: "Verified")) "
-                            + selectedOffer.verifiedOn
-                    )
-                    .font(.footnote)
-                    .foregroundStyle(.secondary)
-                    .accessibilityIdentifier("subscription.form.offer-provenance")
-                }
-
-                if let selectedOffer {
-                    Link(
-                        "Official Pricing Source",
-                        destination: selectedOffer.sourceURL
-                    )
-                    .accessibilityIdentifier("subscription.form.offer-source")
-
-                    Text(
-                        "Official prices may vary by region, tax, and storefront."
-                    )
-                    .font(.footnote)
-                    .foregroundStyle(.secondary)
                 }
             }
         }

@@ -97,9 +97,62 @@ struct SubscriptionManagerApp: App {
                 )
             }
         }
+        #if DEBUG
+        .overlay {
+            if isUITesting {
+                AppearanceDebugProbe()
+                    .allowsHitTesting(false)
+            }
+        }
+        #endif
+        .preferredColorScheme(rootPreferredColorScheme)
+    }
+
+    #if DEBUG
+    private var isUITesting: Bool {
+        ProcessInfo.processInfo.arguments.contains("--ui-testing")
+    }
+    #endif
+
+    private var rootPreferredColorScheme: ColorScheme? {
+        guard case .ready(let dependencies) = startupState else {
+            return nil
+        }
+        let appearanceMode: AppearanceMode
+        switch dependencies.workspace.setupState {
+        case .needsSetup(let preferences),
+             .completed(let preferences),
+             .skipped(let preferences),
+             .failed(let preferences):
+            appearanceMode = preferences.appearanceMode
+        case .notLoaded:
+            appearanceMode = .system
+        }
+        switch appearanceMode {
+        case .system:
+            return nil
+        case .light:
+            return .light
+        case .dark:
+            return .dark
+        }
     }
 
 }
+
+#if DEBUG
+private struct AppearanceDebugProbe: View {
+    @Environment(\.colorScheme) private var colorScheme
+
+    var body: some View {
+        Color.clear
+            .frame(width: 1, height: 1)
+            .accessibilityElement()
+            .accessibilityIdentifier("appearance.debug.probe")
+            .accessibilityValue(colorScheme == .dark ? "dark" : "light")
+    }
+}
+#endif
 
 #if os(macOS)
 enum MacWindowCommand {

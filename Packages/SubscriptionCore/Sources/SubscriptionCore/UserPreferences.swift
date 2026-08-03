@@ -9,11 +9,18 @@ public enum SetupStatus: String, Codable, Equatable, Sendable {
     case skipped
 }
 
+public enum AppearanceMode: String, CaseIterable, Codable, Equatable, Sendable {
+    case system
+    case light
+    case dark
+}
+
 public struct UserPreferences: Codable, Equatable, Sendable {
     public let primaryCurrency: Currency
     public let calendarProjectionHorizon: CalendarProjectionHorizon
     public let hideAmountsInCalendar: Bool
     public let menuBarModeEnabled: Bool
+    public let appearanceMode: AppearanceMode
     public let setupStatus: SetupStatus
 
     public init(
@@ -21,12 +28,14 @@ public struct UserPreferences: Codable, Equatable, Sendable {
         calendarProjectionHorizon: CalendarProjectionHorizon,
         hideAmountsInCalendar: Bool = false,
         menuBarModeEnabled: Bool = false,
+        appearanceMode: AppearanceMode = .system,
         setupStatus: SetupStatus
     ) {
         self.primaryCurrency = primaryCurrency
         self.calendarProjectionHorizon = calendarProjectionHorizon
         self.hideAmountsInCalendar = hideAmountsInCalendar
         self.menuBarModeEnabled = menuBarModeEnabled
+        self.appearanceMode = appearanceMode
         self.setupStatus = setupStatus
     }
 
@@ -35,6 +44,7 @@ public struct UserPreferences: Codable, Equatable, Sendable {
         calendarProjectionHorizon: .twelveMonths,
         hideAmountsInCalendar: false,
         menuBarModeEnabled: false,
+        appearanceMode: .system,
         setupStatus: .notCompleted
     )
 
@@ -43,6 +53,7 @@ public struct UserPreferences: Codable, Equatable, Sendable {
         case calendarProjectionHorizon
         case hideAmountsInCalendar
         case menuBarModeEnabled
+        case appearanceMode
         case setupStatus
     }
 
@@ -64,6 +75,10 @@ public struct UserPreferences: Codable, Equatable, Sendable {
             Bool.self,
             forKey: .menuBarModeEnabled
         ) ?? false
+        appearanceMode = try container.decodeIfPresent(
+            AppearanceMode.self,
+            forKey: .appearanceMode
+        ) ?? .system
         setupStatus = try container.decode(SetupStatus.self, forKey: .setupStatus)
     }
 
@@ -79,6 +94,7 @@ public struct UserPreferences: Codable, Equatable, Sendable {
             forKey: .hideAmountsInCalendar
         )
         try container.encode(menuBarModeEnabled, forKey: .menuBarModeEnabled)
+        try container.encode(appearanceMode, forKey: .appearanceMode)
         try container.encode(setupStatus, forKey: .setupStatus)
     }
 }

@@ -45,6 +45,10 @@ struct UpcomingCalendarProjectionTests {
             "expected-fourth",
         ])
         #expect(projection.days[1].items.map(\.id) == ["expected-twentieth"])
+        let selectedDay = calendar.startOfDay(for: fourth)
+        #expect(
+            projection.days.first(where: { $0.date == selectedDay })?.items.count == 2
+        )
     }
 
     private func item(

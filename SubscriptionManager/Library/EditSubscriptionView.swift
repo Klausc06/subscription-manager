@@ -29,11 +29,14 @@ struct EditSubscriptionView: View {
     let onRecordCancellation: () -> Void
     let onReactivate: () -> Void
     let onConfirmCharge: (ExpectedCharge) -> Void
+    let onSave: (() -> Void)?
+    let onCancel: (() -> Void)?
 
     @State private var draft: SubscriptionDraft
     @State private var dateTaskPresentation: EditDateTaskPresentation?
     @State private var didAttemptSave = false
     @State private var saveFailed = false
+    private let initialDraft: SubscriptionDraft
     private let now: Date
 
     init(
@@ -43,7 +46,9 @@ struct EditSubscriptionView: View {
         now: Date = Date(),
         onRecordCancellation: @escaping () -> Void = {},
         onReactivate: @escaping () -> Void = {},
-        onConfirmCharge: @escaping (ExpectedCharge) -> Void = { _ in }
+        onConfirmCharge: @escaping (ExpectedCharge) -> Void = { _ in },
+        onSave: (() -> Void)? = nil,
+        onCancel: (() -> Void)? = nil
     ) {
         self.workspace = workspace
         self.subscription = subscription
@@ -51,19 +56,20 @@ struct EditSubscriptionView: View {
         self.onRecordCancellation = onRecordCancellation
         self.onReactivate = onReactivate
         self.onConfirmCharge = onConfirmCharge
-        _draft = State(
-            initialValue: SubscriptionDraft.editing(
-                subscription: subscription,
-                locale: locale
-            )
+        self.onSave = onSave
+        self.onCancel = onCancel
+        let initialDraft = SubscriptionDraft.editing(
+            subscription: subscription,
+            locale: locale
         )
+        self.initialDraft = initialDraft
+        _draft = State(initialValue: initialDraft)
     }
 
     var body: some View {
         Form {
             SubscriptionEditorSections(
                 draft: $draft,
-                status: editorStatus,
                 nextExpectedCharge: editorNextExpectedCharge,
                 catalogOfferAdjustment: workspace.catalogOfferAdjustment(
                     for: subscription
@@ -92,10 +98,14 @@ struct EditSubscriptionView: View {
         #if os(iOS)
             .navigationBarTitleDisplayMode(.inline)
         #endif
+        .interactiveDismissDisabled(isDirty)
         .toolbar {
-            // The enclosing NavigationStack supplies the system Back action.
-            // Edit intentionally exposes only Save here so a second Cancel
-            // action cannot compete with that native navigation affordance.
+            ToolbarItem(placement: .cancellationAction) {
+                Button("Cancel", role: .cancel) {
+                    cancel()
+                }
+                .accessibilityIdentifier("subscription.form.cancel")
+            }
             ToolbarItem(placement: .confirmationAction) {
                 Button("Save") {
                     save()
@@ -271,15 +281,35 @@ struct EditSubscriptionView: View {
         }
 
         #if os(macOS)
-        draft = SubscriptionDraft.editing(
-            subscription: savedSubscription,
-            locale: locale
-        )
-        didAttemptSave = false
-        workspace.beginEditing()
+        if let onSave {
+            onSave()
+        } else {
+            draft = SubscriptionDraft.editing(
+                subscription: savedSubscription,
+                locale: locale
+            )
+            didAttemptSave = false
+            workspace.beginEditing()
+        }
         #else
-        dismiss()
+        if let onSave {
+            onSave()
+        } else {
+            dismiss()
+        }
         #endif
+    }
+
+    private var isDirty: Bool {
+        draft != initialDraft
+    }
+
+    private func cancel() {
+        if let onCancel {
+            onCancel()
+        } else {
+            dismiss()
+        }
     }
 }
 

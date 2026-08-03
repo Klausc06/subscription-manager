@@ -37,6 +37,9 @@ struct CatalogBrowserView: View {
     var body: some View {
         catalogContent
             .navigationTitle("Browse Catalog")
+            #if os(iOS)
+            .navigationBarTitleDisplayMode(.inline)
+            #endif
             .searchable(
                 text: $searchQuery,
                 prompt: "Search services or categories"
@@ -51,6 +54,18 @@ struct CatalogBrowserView: View {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Cancel", action: onCancel)
                         .accessibilityIdentifier("catalog.cancel")
+                }
+                ToolbarItem(placement: .primaryAction) {
+                    NavigationLink {
+                        AddSubscriptionView(
+                            workspace: workspace,
+                            showsCancellationAction: false,
+                            onSuccessfulSave: onSubscriptionCreated
+                        )
+                    } label: {
+                        Text("Add Manually")
+                    }
+                    .accessibilityIdentifier("catalog.add-manually")
                 }
             }
     }
@@ -80,7 +95,7 @@ struct CatalogBrowserView: View {
                     List {
                         Section {
                             Menu {
-                                Button("All Categories") {
+                                Button("Categories") {
                                     selectedCategoryID = nil
                                     workspace.setCatalogCategory(nil)
                                 }
@@ -98,22 +113,6 @@ struct CatalogBrowserView: View {
                                 )
                                 .accessibilityIdentifier("catalog.category")
                             }
-                        }
-
-                        Section {
-                            NavigationLink {
-                                AddSubscriptionView(
-                                    workspace: workspace,
-                                    showsCancellationAction: false,
-                                    onSuccessfulSave: onSubscriptionCreated
-                                )
-                            } label: {
-                                Label(
-                                    "Add Manually",
-                                    systemImage: "square.and.pencil"
-                                )
-                            }
-                            .accessibilityIdentifier("catalog.add-manually")
                         }
 
                         if sections.isEmpty {
@@ -217,7 +216,7 @@ struct CatalogBrowserView: View {
         guard let selectedCategoryID,
               let category = categories.first(where: { $0.id == selectedCategoryID })
         else {
-            return String(localized: "All Categories")
+            return String(localized: "Category")
         }
         return category.title.value(for: locale)
     }

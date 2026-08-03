@@ -5,6 +5,61 @@ import SubscriptionCore
 import Testing
 @testable import SubscriptionManager
 
+private enum Task4LegacySchema: VersionedSchema {
+    static var versionIdentifier: Schema.Version { .init(1, 0, 0) }
+
+    static var models: [any PersistentModel.Type] {
+        [UserPreferencesRecord.self]
+    }
+
+    @Model
+    final class UserPreferencesRecord {
+        var primaryCurrencyRawValue: String = "CNY"
+        var calendarProjectionHorizonMonths: Int = 12
+        var hideAmountsInCalendar: Bool = false
+        var menuBarModeEnabled: Bool = false
+        var setupStatusRawValue: String = "notCompleted"
+
+        init(
+            primaryCurrencyRawValue: String = "CNY",
+            calendarProjectionHorizonMonths: Int = 12,
+            hideAmountsInCalendar: Bool = false,
+            menuBarModeEnabled: Bool = false,
+            setupStatusRawValue: String = "notCompleted"
+        ) {
+            self.primaryCurrencyRawValue = primaryCurrencyRawValue
+            self.calendarProjectionHorizonMonths =
+                calendarProjectionHorizonMonths
+            self.hideAmountsInCalendar = hideAmountsInCalendar
+            self.menuBarModeEnabled = menuBarModeEnabled
+            self.setupStatusRawValue = setupStatusRawValue
+        }
+    }
+}
+
+private enum Task4CurrentSchema: VersionedSchema {
+    static var versionIdentifier: Schema.Version { .init(2, 0, 0) }
+
+    static var models: [any PersistentModel.Type] {
+        [SubscriptionManager.UserPreferencesRecord.self]
+    }
+}
+
+private enum Task4MigrationPlan: SchemaMigrationPlan {
+    static var schemas: [any VersionedSchema.Type] {
+        [Task4LegacySchema.self, Task4CurrentSchema.self]
+    }
+
+    static var stages: [MigrationStage] {
+        [
+            .lightweight(
+                fromVersion: Task4LegacySchema.self,
+                toVersion: Task4CurrentSchema.self
+            ),
+        ]
+    }
+}
+
 struct AppDependenciesTests {
     @Test("Production SwiftData schema is compatible with CloudKit")
     @MainActor
@@ -116,6 +171,7 @@ struct AppDependenciesTests {
             calendarProjectionHorizon: .sixMonths,
             hideAmountsInCalendar: true,
             menuBarModeEnabled: true,
+            appearanceMode: .dark,
             setupStatus: .completed
         )
 
@@ -127,6 +183,96 @@ struct AppDependenciesTests {
         ).loadPreferences()
 
         #expect(reloaded == expected)
+    }
+
+    @Test("All appearance modes survive repository rebuilds")
+    @MainActor
+    func appearanceModesRoundTrip() throws {
+        let container = try ModelContainer(
+            for: SubscriptionRecord.self,
+            UserPreferencesRecord.self,
+            configurations: ModelConfiguration(
+                isStoredInMemoryOnly: true,
+                cloudKitDatabase: .none
+            )
+        )
+        let repository = SwiftDataUserPreferencesRepository(
+            modelContainer: container
+        )
+
+        for appearanceMode in AppearanceMode.allCases {
+            let expected = UserPreferences(
+                primaryCurrency: .usd,
+                calendarProjectionHorizon: .twelveMonths,
+                appearanceMode: appearanceMode,
+                setupStatus: .completed
+            )
+            try repository.savePreferences(expected)
+            let reloaded = try SwiftDataUserPreferencesRepository(
+                modelContainer: container
+            ).loadPreferences()
+            #expect(reloaded == expected)
+        }
+
+    }
+
+    @Test("Reopening a real pre-appearance store defaults the missing field to system")
+    @MainActor
+    func reopeningLegacyStoreDefaultsMissingAppearanceToSystem() throws {
+        let directory = FileManager.default.temporaryDirectory.appending(
+            path: "SubscriptionManagerTask4LegacyStore-\(UUID().uuidString)",
+            directoryHint: .isDirectory
+        )
+        defer { try? FileManager.default.removeItem(at: directory) }
+        try FileManager.default.createDirectory(
+            at: directory,
+            withIntermediateDirectories: true
+        )
+        let storeURL = directory.appending(path: "SubscriptionManager.store")
+
+        do {
+            let legacySchema = Schema(versionedSchema: Task4LegacySchema.self)
+            let legacyConfiguration = ModelConfiguration(
+                "Task4Legacy",
+                schema: legacySchema,
+                url: storeURL,
+                cloudKitDatabase: .none
+            )
+            let legacyContainer = try ModelContainer(
+                for: legacySchema,
+                configurations: [legacyConfiguration]
+            )
+            let context = ModelContext(legacyContainer)
+            context.insert(
+                Task4LegacySchema.UserPreferencesRecord(
+                    primaryCurrencyRawValue: "EUR",
+                    calendarProjectionHorizonMonths: 6,
+                    setupStatusRawValue: "completed"
+                )
+            )
+            try context.save()
+        }
+
+        let currentSchema = Schema(versionedSchema: Task4CurrentSchema.self)
+        let currentConfiguration = ModelConfiguration(
+            "Task4Current",
+            schema: currentSchema,
+            url: storeURL,
+            cloudKitDatabase: .none
+        )
+        let reopenedContainer = try ModelContainer(
+            for: currentSchema,
+            migrationPlan: Task4MigrationPlan.self,
+            configurations: [currentConfiguration]
+        )
+
+        let migratedPreferences = try SwiftDataUserPreferencesRepository(
+            modelContainer: reopenedContainer
+        ).loadPreferences()
+        #expect(migratedPreferences?.primaryCurrency == .eur)
+        #expect(migratedPreferences?.calendarProjectionHorizon == .sixMonths)
+        #expect(migratedPreferences?.setupStatus == .completed)
+        #expect(migratedPreferences?.appearanceMode == .system)
     }
 
     @Test("Calendar projection mappings survive a SwiftData repository reload")

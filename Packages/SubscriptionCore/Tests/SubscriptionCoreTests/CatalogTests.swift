@@ -27,6 +27,70 @@ struct CatalogTests {
 
         #expect(preset.matchAliases.isEmpty)
         #expect(preset.offers.isEmpty)
+        #expect(preset.categoryID == "other")
+    }
+
+    @Test("Stable category IDs round-trip and titles remain localized")
+    func stableCategoryIDRoundTrips() throws {
+        let preset = CatalogPreset(
+            id: "chatgpt",
+            serviceName: CatalogLocalizedText(en: "ChatGPT", zhHans: "ChatGPT"),
+            category: CatalogLocalizedText(en: "AI", zhHans: "AI 工具"),
+            suggestedInterval: .monthly,
+            managementURL: nil,
+            icon: .productivity,
+            categoryID: "ai"
+        )
+
+        let decoded = try JSONDecoder().decode(
+            CatalogPreset.self,
+            from: JSONEncoder().encode(preset)
+        )
+
+        #expect(decoded.categoryID == "ai")
+        #expect(decoded.category.en == "AI")
+        #expect(decoded.category.zhHans == "AI 工具")
+    }
+
+    @Test("Category filtering uses the stable ID in both locales")
+    func categoryFilteringUsesStableIDInBothLocales() throws {
+        let chatGPT = CatalogPreset(
+            id: "chatgpt",
+            serviceName: CatalogLocalizedText(en: "ChatGPT", zhHans: "ChatGPT"),
+            category: CatalogLocalizedText(en: "AI", zhHans: "AI 工具"),
+            suggestedInterval: .monthly,
+            managementURL: nil,
+            icon: .productivity,
+            categoryID: "ai"
+        )
+        let productivity = CatalogPreset(
+            id: "wps-office",
+            serviceName: CatalogLocalizedText(en: "WPS Office", zhHans: "WPS Office"),
+            category: CatalogLocalizedText(en: "Productivity", zhHans: "效率"),
+            suggestedInterval: .monthly,
+            managementURL: nil,
+            icon: .productivity,
+            categoryID: "productivity"
+        )
+        let snapshot = try CatalogSnapshot(
+            schemaVersion: CatalogSnapshot.currentSchemaVersion,
+            presets: [chatGPT, productivity]
+        )
+
+        #expect(
+            Set(snapshot.categories(locale: Locale(identifier: "en")).map(\.id))
+                == ["ai", "productivity"]
+        )
+        #expect(
+            Set(snapshot.categories(locale: Locale(identifier: "zh-Hans")).map(\.id))
+                == ["ai", "productivity"]
+        )
+        #expect(
+            snapshot.categories(locale: Locale(identifier: "zh-Hans"))
+                .first(where: { $0.id == "ai" })?.title.zhHans == "AI 工具"
+        )
+        #expect(chatGPT.categoryID == "ai")
+        #expect(productivity.categoryID != chatGPT.categoryID)
     }
 
     @Test("Catalog rejects empty or normalized duplicate match aliases")

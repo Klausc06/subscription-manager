@@ -11,7 +11,6 @@ struct SubscriptionEditorSections: View {
     @Environment(\.locale) private var locale
 
     @Binding var draft: SubscriptionDraft
-    let status: SubscriptionStatus?
     let nextExpectedCharge: ExpectedCharge?
     let catalogOfferAdjustment: CatalogOfferAdjustment?
     let catalogMatches: [CatalogPreset]
@@ -22,7 +21,6 @@ struct SubscriptionEditorSections: View {
 
     init(
         draft: Binding<SubscriptionDraft>,
-        status: SubscriptionStatus?,
         nextExpectedCharge: ExpectedCharge?,
         catalogOfferAdjustment: CatalogOfferAdjustment? = nil,
         catalogMatches: [CatalogPreset] = [],
@@ -32,7 +30,6 @@ struct SubscriptionEditorSections: View {
         onEditDate: @escaping (SubscriptionDraft.DateSource) -> Void
     ) {
         self._draft = draft
-        self.status = status
         self.nextExpectedCharge = nextExpectedCharge
         self.catalogOfferAdjustment = catalogOfferAdjustment
         self.catalogMatches = catalogMatches
@@ -106,7 +103,6 @@ struct SubscriptionEditorSections: View {
             }
 
             Picker("Currency", selection: currencyBinding) {
-                Text("Select Currency").tag(String?.none)
                 ForEach(Currency.allCases, id: \.rawValue) { currency in
                     Text(currency.rawValue).tag(Optional(currency.rawValue))
                 }
@@ -115,7 +111,7 @@ struct SubscriptionEditorSections: View {
 
             if showsValidation, draft.validation.contains(.currency) {
                 ValidationMessage(
-                    "Select Currency",
+                    "This field is required.",
                     identifier: "subscription.validation.currency"
                 )
             }
@@ -201,16 +197,6 @@ struct SubscriptionEditorSections: View {
 
     @ViewBuilder
     private var derivedSection: some View {
-        if let status {
-            Section("Status") {
-                LabeledContent(
-                    "Status",
-                    value: localizedSubscriptionStatus(status)
-                )
-                .accessibilityIdentifier("subscription.editor.status")
-            }
-        }
-
         if !isCancelled, let nextExpectedCharge {
             Section("Next Expected Charge") {
                 LabeledContent(
@@ -236,52 +222,13 @@ struct SubscriptionEditorSections: View {
             if locksCatalogMetadata {
                 LabeledContent("Category", value: draft.category)
                     .accessibilityIdentifier("subscription.editor.category")
-
-                if !draft.managementURLText.isEmpty,
-                   let managementURL = URL(
-                    string: draft.managementURLText
-                   )
-                {
-                    Link(
-                        "Subscription Management URL",
-                        destination: managementURL
-                    )
-                    .accessibilityIdentifier(
-                        "subscription.editor.management-url"
-                    )
-                }
             } else {
                 TextField("Plan", text: $draft.plan)
                     .accessibilityIdentifier("subscription.editor.plan")
 
                 TextField("Category", text: $draft.category)
                     .accessibilityIdentifier("subscription.editor.category")
-
-                TextField(
-                    "Subscription Management URL",
-                    text: $draft.managementURLText
-                )
-                .textContentType(.URL)
-                .subscriptionURLKeyboard()
-                .accessibilityIdentifier(
-                    "subscription.editor.management-url"
-                )
-
-                if showsValidation,
-                   draft.validation.contains(.managementURL)
-                {
-                    ValidationMessage(
-                        "Enter a complete HTTP or HTTPS URL.",
-                        identifier: "subscription.validation.management-url"
-                    )
-                }
             }
-
-            Text(
-                "Open the provider's billing, renewal, or cancellation page; this app will not cancel the subscription for you."
-            )
-            .font(.footnote)
-            .foregroundStyle(.secondary)
 
             TextField("Notes", text: $draft.notes, axis: .vertical)
                 .lineLimit(3 ... 8)

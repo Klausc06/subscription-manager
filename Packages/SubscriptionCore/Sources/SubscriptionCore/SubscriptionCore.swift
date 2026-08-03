@@ -833,7 +833,8 @@ public final class SubscriptionWorkspace {
         primaryCurrency: Currency,
         calendarProjectionHorizon: CalendarProjectionHorizon,
         hideAmountsInCalendar: Bool? = nil,
-        menuBarModeEnabled: Bool? = nil
+        menuBarModeEnabled: Bool? = nil,
+        appearanceMode: AppearanceMode? = nil
     ) {
         persistPreferences(
             UserPreferences(
@@ -843,6 +844,8 @@ public final class SubscriptionWorkspace {
                     ?? currentPreferences.hideAmountsInCalendar,
                 menuBarModeEnabled: menuBarModeEnabled
                     ?? currentPreferences.menuBarModeEnabled,
+                appearanceMode: appearanceMode
+                    ?? currentPreferences.appearanceMode,
                 setupStatus: currentPreferences.setupStatus
             )
         )
@@ -856,6 +859,7 @@ public final class SubscriptionWorkspace {
                 calendarProjectionHorizon: currentPreferences.calendarProjectionHorizon,
                 hideAmountsInCalendar: currentPreferences.hideAmountsInCalendar,
                 menuBarModeEnabled: currentPreferences.menuBarModeEnabled,
+                appearanceMode: currentPreferences.appearanceMode,
                 setupStatus: .completed
             )
         )
@@ -868,6 +872,7 @@ public final class SubscriptionWorkspace {
                 calendarProjectionHorizon: currentPreferences.calendarProjectionHorizon,
                 hideAmountsInCalendar: currentPreferences.hideAmountsInCalendar,
                 menuBarModeEnabled: currentPreferences.menuBarModeEnabled,
+                appearanceMode: currentPreferences.appearanceMode,
                 setupStatus: .skipped
             )
         )
@@ -880,6 +885,7 @@ public final class SubscriptionWorkspace {
                 calendarProjectionHorizon: currentPreferences.calendarProjectionHorizon,
                 hideAmountsInCalendar: currentPreferences.hideAmountsInCalendar,
                 menuBarModeEnabled: currentPreferences.menuBarModeEnabled,
+                appearanceMode: currentPreferences.appearanceMode,
                 setupStatus: .notCompleted
             ),
             stateOnSuccess: { .needsSetup($0) }

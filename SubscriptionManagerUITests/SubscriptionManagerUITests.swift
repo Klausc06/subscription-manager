@@ -37,6 +37,45 @@ final class SubscriptionManagerUITests: XCTestCase {
         XCTAssertTrue(topLevelTab("Insights", in: app).exists)
     }
 
+    func testCurrentLibraryUsesMySubscriptionsToolbarWithoutArchiveButton() {
+        let app = launch(language: "en", locale: "en_US")
+
+        XCTAssertTrue(
+            app.navigationBars["My Subscriptions"].waitForExistence(timeout: 5)
+        )
+        XCTAssertTrue(app.buttons["library.settings"].exists)
+        XCTAssertTrue(app.buttons["subscription.add"].exists)
+        XCTAssertFalse(app.buttons["library.archived"].exists)
+    }
+
+    func testSimplifiedChineseLibraryUsesMySubscriptionsTitle() {
+        let app = launch(language: "zh-Hans", locale: "zh_CN")
+
+        XCTAssertTrue(
+            app.navigationBars["我的订阅"].waitForExistence(timeout: 5)
+        )
+        XCTAssertTrue(app.buttons["library.settings"].exists)
+        XCTAssertTrue(app.buttons["subscription.add"].exists)
+        XCTAssertFalse(app.buttons["library.archived"].exists)
+    }
+
+    func testCatalogUsesCenteredTitleAndToolbarManualAddPath() {
+        let app = launch(language: "zh-Hans", locale: "zh_CN")
+
+        XCTAssertTrue(app.buttons["subscription.add"].waitForExistence(timeout: 5))
+        app.buttons["subscription.add"].tap()
+
+        XCTAssertTrue(
+            app.navigationBars["浏览目录"].waitForExistence(timeout: 5)
+        )
+        let addManually = app.buttons["catalog.add-manually"]
+        XCTAssertTrue(addManually.waitForExistence(timeout: 5))
+        XCTAssertFalse(app.cells["catalog.add-manually"].exists)
+        addManually.tap()
+
+        XCTAssertTrue(app.navigationBars["添加订阅"].waitForExistence(timeout: 5))
+    }
+
     func testTopLevelSegmentedControlsUseOneVisualBoundary() throws {
         try XCTSkipIf(
             UIDevice.current.userInterfaceIdiom == .pad,
@@ -101,32 +140,41 @@ final class SubscriptionManagerUITests: XCTestCase {
         let app = launch(language: "en", locale: "en_US")
         openManualAdd(in: app)
 
-        let serviceName = app.textFields["subscription.editor.service-name"]
-        XCTAssertTrue(serviceName.waitForExistence(timeout: 5))
-        serviceName.tap()
-        serviceName.typeText("88")
+        let serviceNameField = app.textFields["subscription.editor.service-name"]
+        XCTAssertTrue(serviceNameField.waitForExistence(timeout: 5))
+        serviceNameField.tap()
+        serviceNameField.typeText("88")
 
         let match = app.buttons["subscription.catalog-match.taobao-88vip"]
         XCTAssertTrue(match.waitForExistence(timeout: 5))
         XCTAssertTrue(match.label.contains("88VIP"))
         match.tap()
 
+        let serviceName = app.descendants(matching: .any)[
+            "subscription.editor.service-name"
+        ]
         XCTAssertTrue(
             accessibilityValue(of: serviceName).contains("Taobao 88VIP")
         )
         XCTAssertTrue(app.textFields["subscription.editor.amount"].exists)
-        XCTAssertTrue(app.textFields["subscription.editor.plan"].exists)
+        let offerPlan = app.descendants(matching: .any)[
+            "subscription.form.offer-plan"
+        ]
+        XCTAssertTrue(offerPlan.waitForExistence(timeout: 5))
         attachScreenshot(named: "r2-04-taobao-88vip-service-only")
 
-        let category = app.textFields["subscription.editor.category"]
+        let category = app.descendants(matching: .any)[
+            "subscription.editor.category"
+        ]
         XCTAssertTrue(scrollToExistence(category, in: app, maximumSwipes: 6))
         XCTAssertTrue(
             accessibilityValue(of: category).contains("Membership")
         )
-        let managementURL = app.textFields["subscription.editor.management-url"]
-        XCTAssertTrue(scrollToExistence(managementURL, in: app, maximumSwipes: 6))
-        XCTAssertTrue(
-            accessibilityValue(of: managementURL).contains("taobao.com")
+        XCTAssertFalse(
+            app.textFields["subscription.editor.management-url"].exists
+        )
+        XCTAssertFalse(
+            app.links["subscription.editor.management-url"].exists
         )
     }
 
@@ -162,12 +210,80 @@ final class SubscriptionManagerUITests: XCTestCase {
         )
     }
 
+    func testAppearanceModePersistsAndFollowsSystem() {
+        let storeToken = "appearance-\(UUID().uuidString)"
+        let app = launch(
+            language: "en",
+            locale: "en_US",
+            storeToken: storeToken
+        )
+        let systemProbe = app.descendants(matching: .any)[
+            "appearance.debug.probe"
+        ]
+        XCTAssertTrue(systemProbe.waitForExistence(timeout: 5))
+        let systemBaseline = systemProbe.value as? String
+        XCTAssertTrue(
+            systemBaseline == "light" || systemBaseline == "dark",
+            "System appearance must resolve to light or dark."
+        )
+
+        app.buttons["library.settings"].tap()
+        let dark = app.buttons["preferences.appearance.dark"]
+        XCTAssertTrue(dark.waitForExistence(timeout: 5))
+        dark.tap()
+        XCTAssertEqual(dark.value as? String, "Selected")
+        app.buttons["preferences.save"].tap()
+
+        app.terminate()
+        app.launch()
+        let darkProbe = app.descendants(matching: .any)[
+            "appearance.debug.probe"
+        ]
+        XCTAssertTrue(darkProbe.waitForExistence(timeout: 5))
+        XCTAssertEqual(darkProbe.value as? String, "dark")
+        app.buttons["library.settings"].tap()
+        XCTAssertEqual(
+            app.buttons["preferences.appearance.dark"].value as? String,
+            "Selected"
+        )
+
+        app.buttons["preferences.appearance.light"].tap()
+        app.buttons["preferences.save"].tap()
+        app.terminate()
+        app.launch()
+        let lightProbe = app.descendants(matching: .any)[
+            "appearance.debug.probe"
+        ]
+        XCTAssertTrue(lightProbe.waitForExistence(timeout: 5))
+        XCTAssertEqual(lightProbe.value as? String, "light")
+        app.buttons["library.settings"].tap()
+        XCTAssertEqual(
+            app.buttons["preferences.appearance.light"].value as? String,
+            "Selected"
+        )
+
+        app.buttons["preferences.appearance.system"].tap()
+        app.buttons["preferences.save"].tap()
+        app.terminate()
+        app.launch()
+        let restoredSystemProbe = app.descendants(matching: .any)[
+            "appearance.debug.probe"
+        ]
+        XCTAssertTrue(restoredSystemProbe.waitForExistence(timeout: 5))
+        XCTAssertEqual(restoredSystemProbe.value as? String, systemBaseline)
+        app.buttons["library.settings"].tap()
+        XCTAssertEqual(
+            app.buttons["preferences.appearance.system"].value as? String,
+            "Selected"
+        )
+    }
+
     func testSettingsOffersPortableExports() {
         let app = launch(language: "en", locale: "en_US")
 
         app.buttons["library.settings"].tap()
         let exportEntry = app.buttons["preferences.portable-export"]
-        XCTAssertTrue(exportEntry.waitForExistence(timeout: 5))
+        XCTAssertTrue(scrollToExistence(exportEntry, in: app, maximumSwipes: 8))
         exportEntry.tap()
 
         XCTAssertTrue(
@@ -181,7 +297,7 @@ final class SubscriptionManagerUITests: XCTestCase {
 
         app.buttons["library.settings"].tap()
         let restoreEntry = app.buttons["preferences.portable-restore"]
-        XCTAssertTrue(restoreEntry.waitForExistence(timeout: 5))
+        XCTAssertTrue(scrollToExistence(restoreEntry, in: app, maximumSwipes: 8))
         restoreEntry.tap()
 
         XCTAssertTrue(
@@ -190,15 +306,39 @@ final class SubscriptionManagerUITests: XCTestCase {
     }
 
     func testUpcomingExpectedChargeOpensItsSubscriptionDetail() {
-        let app = launch(language: "en", locale: "en_US")
-        createSubscription(named: "Upcoming Example", in: app)
+        let app = launchTask6Fixture(timeZoneIdentifier: "UTC")
 
         topLevelTab("Upcoming", in: app).tap()
-        let expectedCharge = app.descendants(matching: .any)
-            .matching(identifier: "upcoming.row.expected")
-            .firstMatch
+        XCTAssertTrue(
+            app.descendants(matching: .any)["upcoming.calendar"]
+                .waitForExistence(timeout: 5)
+        )
+        let calendar = app.descendants(matching: .any)["upcoming.calendar"]
+        let window = app.windows.firstMatch
+        XCTAssertGreaterThan(
+            calendar.frame.minX,
+            window.frame.minX,
+            "The native month calendar must keep content away from the window edge."
+        )
+        XCTAssertLessThan(
+            calendar.frame.maxX,
+            window.frame.maxX,
+            "The native month calendar must remain fully inside the window."
+        )
+        XCTAssertTrue(
+            app.staticTexts["upcoming.agenda"].waitForExistence(timeout: 5)
+        )
+        let expectedCharge = upcomingRow(
+            named: Task6Fixture.due,
+            identifier: "upcoming.row.expected",
+            in: app
+        )
         XCTAssertTrue(expectedCharge.waitForExistence(timeout: 5))
         expectedCharge.tap()
+        XCTAssertTrue(
+            app.buttons["subscription.edit"].waitForExistence(timeout: 5)
+        )
+        app.buttons["subscription.edit"].tap()
         XCTAssertTrue(
             app.descendants(matching: .any)["subscription.form"]
                 .waitForExistence(timeout: 5)
@@ -214,7 +354,7 @@ final class SubscriptionManagerUITests: XCTestCase {
     }
 
     func testUpcomingDistinguishesConfirmedPaymentsWithoutColorOnly() {
-        let app = launchTask6Fixture()
+        let app = launchTask6Fixture(timeZoneIdentifier: "UTC")
 
         topLevelTab("Upcoming", in: app).tap()
         let due = upcomingRow(
@@ -483,6 +623,10 @@ final class SubscriptionManagerUITests: XCTestCase {
         XCTAssertTrue(rowAmount.label.contains("12.34"))
 
         row.tap()
+        XCTAssertTrue(
+            app.buttons["subscription.edit"].waitForExistence(timeout: 5)
+        )
+        app.buttons["subscription.edit"].tap()
 
         XCTAssertTrue(
             app.descendants(matching: .any)["subscription.form"]
@@ -491,16 +635,19 @@ final class SubscriptionManagerUITests: XCTestCase {
         let detailService = app.textFields["subscription.editor.service-name"]
         XCTAssertTrue(detailService.exists)
         XCTAssertEqual(detailService.value as? String, "Example Video")
-        let detailPlan = app.textFields["subscription.editor.plan"]
-        XCTAssertTrue(scrollToExistence(detailPlan, in: app, maximumSwipes: 8))
-        XCTAssertEqual(detailPlan.value as? String, "Standard")
         let detailAmount = app.textFields["subscription.editor.amount"]
         XCTAssertTrue(scrollToExistence(detailAmount, in: app, maximumSwipes: 8))
         XCTAssertTrue((detailAmount.value as? String)?.contains("12.34") == true)
         XCTAssertTrue(
-            app.descendants(matching: .any)["subscription.editor.next-charge"]
-                .waitForExistence(timeout: 5)
+            scrollToExistence(
+                app.descendants(matching: .any)["subscription.editor.next-charge"],
+                in: app,
+                maximumSwipes: 8
+            )
         )
+        let detailPlan = app.textFields["subscription.editor.plan"]
+        XCTAssertTrue(scrollToExistence(detailPlan, in: app, maximumSwipes: 8))
+        XCTAssertEqual(detailPlan.value as? String, "Standard")
     }
 
     func testManualAddAllowsEmptyPlanAndCategory() {
@@ -521,7 +668,7 @@ final class SubscriptionManagerUITests: XCTestCase {
 
         XCTAssertTrue(
             app.staticTexts[serviceName].waitForExistence(timeout: 5),
-            "Plan, category, management URL, and notes must remain optional."
+            "Plan, category, and notes must remain optional."
         )
     }
 
@@ -570,6 +717,10 @@ final class SubscriptionManagerUITests: XCTestCase {
         amount.tap(withNumberOfTaps: 3, numberOfTouches: 1)
         amount.typeText("14.99")
         app.buttons["subscription.form.save"].tap()
+        XCTAssertTrue(
+            app.buttons["subscription.edit"].waitForExistence(timeout: 5)
+        )
+        app.buttons["subscription.edit"].tap()
 
         XCTAssertTrue(
             scrollToExistence(
@@ -842,6 +993,10 @@ final class SubscriptionManagerUITests: XCTestCase {
         let row = app.buttons["subscription.row"].firstMatch
         XCTAssertTrue(row.waitForExistence(timeout: 5))
         row.tap()
+        XCTAssertTrue(
+            app.buttons["subscription.edit"].waitForExistence(timeout: 5)
+        )
+        app.buttons["subscription.edit"].tap()
         waitForCurrentSubscriptionEditor(in: app)
 
         let reloadedAmount = app.textFields["subscription.editor.amount"]
@@ -862,7 +1017,43 @@ final class SubscriptionManagerUITests: XCTestCase {
         )
     }
 
-    func testRowOpensDirectEditor() {
+    func testSubscriptionRowOpensOneSummarySheet() {
+        let app = launch(
+            language: "en",
+            locale: "en_US",
+            storeToken: "summary-sheet-\(UUID().uuidString)"
+        )
+        createSubscription(named: "Summary Card", in: app)
+
+        let row = subscriptionRow(named: "Summary Card", in: app)
+        XCTAssertTrue(row.waitForExistence(timeout: 5))
+        row.tap()
+
+        XCTAssertTrue(
+            app.descendants(matching: .any)["subscription.summary"]
+                .waitForExistence(timeout: 5)
+        )
+        XCTAssertFalse(
+            app.descendants(matching: .any)["subscription.form"].exists
+        )
+        for identifier in [
+            "subscription.summary.service",
+            "subscription.summary.amount",
+            "subscription.summary.interval",
+            "subscription.summary.next-renewal",
+        ] {
+            XCTAssertTrue(
+                app.descendants(matching: .any)[identifier].exists,
+                "Summary is missing \(identifier)."
+            )
+        }
+        XCTAssertTrue(
+            app.descendants(matching: .any)["subscription.summary.amount"]
+                .label.contains("USD")
+        )
+    }
+
+    func testSubscriptionSummarySwitchesToEditorInSameSheet() {
         let app = launchTask6Fixture()
         let row = subscriptionRow(
             named: Task6Fixture.directEditor,
@@ -879,10 +1070,27 @@ final class SubscriptionManagerUITests: XCTestCase {
         )
 
         row.tap()
+        XCTAssertTrue(
+            app.descendants(matching: .any)["subscription.summary"]
+                .waitForExistence(timeout: 5)
+        )
+        let navigationBarCount = app.navigationBars.count
+        XCTAssertTrue(
+            app.buttons["subscription.edit"].waitForExistence(timeout: 5)
+        )
+        app.buttons["subscription.edit"].tap()
         let editor = app.descendants(matching: .any)["subscription.form"]
         XCTAssertTrue(
             editor.waitForExistence(timeout: 5),
-            "Tapping a row must open the editable destination directly."
+            "Editing must replace the summary in the same presentation."
+        )
+        XCTAssertFalse(
+            app.descendants(matching: .any)["subscription.summary"].exists
+        )
+        XCTAssertEqual(
+            app.navigationBars.count,
+            navigationBarCount,
+            "Edit must not add a navigation page."
         )
         for identifier in [
             "subscription.editor.service-name",
@@ -917,6 +1125,144 @@ final class SubscriptionManagerUITests: XCTestCase {
         XCTAssertFalse(app.buttons["subscription.lifecycle.delete"].exists)
     }
 
+    func testSubscriptionEditSaveUpdatesSummary() {
+        let app = launch(
+            language: "en",
+            locale: "en_US",
+            storeToken: "summary-save-\(UUID().uuidString)"
+        )
+        createSubscription(named: "Summary Save", in: app)
+        openFirstSubscriptionEditor(in: app)
+
+        let amount = app.textFields["subscription.editor.amount"]
+        XCTAssertTrue(scrollToHittable(amount, in: app, maximumSwipes: 8))
+        amount.tap(withNumberOfTaps: 3, numberOfTouches: 1)
+        amount.typeText("14.99")
+        app.buttons["subscription.form.save"].tap()
+
+        let summaryAmount = app.descendants(matching: .any)[
+            "subscription.summary.amount"
+        ]
+        XCTAssertTrue(summaryAmount.waitForExistence(timeout: 5))
+        XCTAssertTrue(summaryAmount.label.contains("14.99"))
+        XCTAssertFalse(
+            app.descendants(matching: .any)["subscription.form"].exists
+        )
+    }
+
+    func testSubscriptionEditCancelLeavesDataUnchanged() {
+        let app = launch(
+            language: "en",
+            locale: "en_US",
+            storeToken: "summary-cancel-\(UUID().uuidString)"
+        )
+        createSubscription(named: "Summary Cancel", in: app)
+        let row = subscriptionRow(named: "Summary Cancel", in: app)
+        XCTAssertTrue(row.waitForExistence(timeout: 5))
+        row.tap()
+
+        let originalAmount = app.descendants(matching: .any)[
+            "subscription.summary.amount"
+        ]
+        XCTAssertTrue(originalAmount.waitForExistence(timeout: 5))
+        let originalAmountLabel = originalAmount.label
+        app.buttons["subscription.edit"].tap()
+
+        let amount = app.textFields["subscription.editor.amount"]
+        XCTAssertTrue(scrollToHittable(amount, in: app, maximumSwipes: 8))
+        amount.tap(withNumberOfTaps: 3, numberOfTouches: 1)
+        amount.typeText("24.99")
+        app.buttons["subscription.form.cancel"].tap()
+
+        XCTAssertTrue(originalAmount.waitForExistence(timeout: 5))
+        XCTAssertEqual(originalAmount.label, originalAmountLabel)
+        XCTAssertFalse(
+            app.descendants(matching: .any)["subscription.form"].exists
+        )
+    }
+
+    func testEditorHidesRemovedFieldsAndPreservesCategoryAndNotes() {
+        let app = launch(
+            language: "en",
+            locale: "en_US",
+            storeToken: "editor-cleanup-\(UUID().uuidString)"
+        )
+        openManualAdd(in: app)
+        fillRequiredEditorFacts(
+            serviceName: "Clean Editor",
+            amount: "8.99",
+            in: app
+        )
+
+        let category = app.textFields["subscription.editor.category"]
+        XCTAssertTrue(scrollToHittable(category, in: app, maximumSwipes: 8))
+        category.tap()
+        category.typeText("Software")
+
+        let notes = app.descendants(matching: .any)["subscription.editor.notes"]
+        XCTAssertTrue(scrollToHittable(notes, in: app, maximumSwipes: 8))
+        notes.tap()
+        notes.typeText("Keep for work")
+
+        XCTAssertFalse(
+            app.descendants(matching: .any)["subscription.editor.status"].exists
+        )
+        XCTAssertFalse(
+            app.textFields["subscription.editor.management-url"].exists
+        )
+        XCTAssertFalse(app.links["subscription.editor.management-url"].exists)
+        XCTAssertFalse(
+            app.staticTexts[
+                "Open the provider's billing, renewal, or cancellation page; this app will not cancel the subscription for you."
+            ].exists
+        )
+
+        let form = app.descendants(matching: .any)["subscription.form"]
+        app.buttons["subscription.form.save"].tap()
+        XCTAssertTrue(form.waitForNonExistence(timeout: 5))
+        let row = subscriptionRow(named: "Clean Editor", in: app)
+        XCTAssertTrue(scrollToHittable(row, in: app, maximumSwipes: 4))
+        let serviceLabel = app.staticTexts["Clean Editor"]
+        XCTAssertTrue(serviceLabel.waitForExistence(timeout: 5))
+        serviceLabel.tap()
+
+        let summary = app.descendants(matching: .any)["subscription.summary"]
+        XCTAssertTrue(summary.waitForExistence(timeout: 5))
+
+        let summaryCategory = app.descendants(matching: .any)[
+            "subscription.summary.category"
+        ]
+        let summaryNote = app.descendants(matching: .any)[
+            "subscription.summary.note"
+        ]
+        XCTAssertTrue(summaryCategory.waitForExistence(timeout: 5))
+        XCTAssertTrue(summaryNote.waitForExistence(timeout: 5))
+        XCTAssertTrue(summaryCategory.label.contains("Software"))
+        XCTAssertTrue(summaryNote.label.contains("Keep for work"))
+
+        let edit = app.buttons["subscription.edit"]
+        XCTAssertTrue(edit.waitForExistence(timeout: 5))
+        edit.tap()
+        XCTAssertTrue(
+            app.descendants(matching: .any)["subscription.form"]
+                .waitForExistence(timeout: 5)
+        )
+        XCTAssertFalse(
+            app.descendants(matching: .any)["subscription.editor.status"].exists
+        )
+        let editorNotes = app.descendants(matching: .any)[
+            "subscription.editor.notes"
+        ]
+        XCTAssertTrue(
+            scrollToExistence(editorNotes, in: app, maximumSwipes: 8)
+        )
+        XCTAssertFalse(
+            app.staticTexts[
+                "Open the provider's billing, renewal, or cancellation page; this app will not cancel the subscription for you."
+            ].exists
+        )
+    }
+
     func testFailedOrdinarySaveKeepsEditorAndDraft() {
         let app = launchTask6Fixture(failsLifecycleMutations: true)
         openTask6Editor(named: Task6Fixture.directEditor, in: app)
@@ -943,7 +1289,8 @@ final class SubscriptionManagerUITests: XCTestCase {
     }
 
     func testArchivedRowOpensEditorWithExternalRestore() {
-        let app = launchTask6Fixture()
+        let storeToken = "archived-editor-\(UUID().uuidString)"
+        let app = launchTask6Fixture(storeToken: storeToken)
         let currentRow = subscriptionRow(
             named: Task6Fixture.archivedEditor,
             in: app
@@ -953,49 +1300,65 @@ final class SubscriptionManagerUITests: XCTestCase {
         let archive = app.buttons["subscription.archive"]
         XCTAssertTrue(archive.waitForExistence(timeout: 5))
         archive.tap()
+        waitForLifecyclePersistence()
 
-        let archivedLibrary = app.buttons["library.archived"]
-        XCTAssertTrue(archivedLibrary.waitForExistence(timeout: 5))
-        archivedLibrary.tap()
+        app.terminate()
+        let archivedApp = launchTask6Fixture(
+            storeToken: storeToken,
+            opensArchivedLibrary: true
+        )
         let archivedRow = subscriptionRow(
             named: Task6Fixture.archivedEditor,
-            in: app
+            in: archivedApp
         )
         XCTAssertTrue(archivedRow.waitForExistence(timeout: 5))
         archivedRow.tap()
+        XCTAssertTrue(
+            archivedApp.buttons["subscription.edit"].waitForExistence(timeout: 5)
+        )
+        archivedApp.buttons["subscription.edit"].tap()
 
-        let editor = app.descendants(matching: .any)["subscription.form"]
+        let editor = archivedApp.descendants(matching: .any)["subscription.form"]
         XCTAssertTrue(editor.waitForExistence(timeout: 5))
-        let status = app.descendants(matching: .any)[
+        let status = archivedApp.descendants(matching: .any)[
             "subscription.editor.status"
         ]
-        XCTAssertTrue(scrollToExistence(status, in: app, maximumSwipes: 12))
+        XCTAssertTrue(scrollToExistence(status, in: archivedApp, maximumSwipes: 12))
         XCTAssertTrue(status.label.contains("Archived"))
-        XCTAssertFalse(app.buttons["subscription.lifecycle.actions"].exists)
-        XCTAssertFalse(app.buttons["subscription.edit"].exists)
+        XCTAssertFalse(archivedApp.buttons["subscription.lifecycle.actions"].exists)
+        XCTAssertFalse(archivedApp.buttons["subscription.edit"].exists)
         XCTAssertFalse(
-            app.buttons["subscription.lifecycle.restore"].exists,
+            archivedApp.buttons["subscription.lifecycle.restore"].exists,
             "Restore stays on the archived library surface."
         )
         XCTAssertFalse(
-            app.buttons["subscription.lifecycle.delete"].exists,
+            archivedApp.buttons["subscription.lifecycle.delete"].exists,
             "Delete stays on the archived library surface."
         )
 
-        XCTAssertTrue(app.navigationBars.buttons["Archived"].waitForExistence(timeout: 5))
-        app.navigationBars.buttons["Archived"].tap()
+        archivedApp.terminate()
+        let reopenedArchivedApp = launchTask6Fixture(
+            storeToken: storeToken,
+            opensArchivedLibrary: true
+        )
         let archivedListRow = subscriptionRow(
             named: Task6Fixture.archivedEditor,
-            in: app
+            in: reopenedArchivedApp
         )
         XCTAssertTrue(archivedListRow.waitForExistence(timeout: 5))
         revealTrailingActions(on: archivedListRow)
-        XCTAssertTrue(app.buttons["subscription.restore"].waitForExistence(timeout: 5))
-        XCTAssertTrue(app.buttons["subscription.delete"].waitForExistence(timeout: 5))
+        XCTAssertTrue(
+            reopenedArchivedApp.buttons["subscription.restore"]
+                .waitForExistence(timeout: 5)
+        )
+        XCTAssertTrue(
+            reopenedArchivedApp.buttons["subscription.delete"]
+                .waitForExistence(timeout: 5)
+        )
     }
 
     func testOnlyDueExpectedOccurrenceOffersConfirmCharge() {
-        let app = launchTask6Fixture()
+        let app = launchTask6Fixture(timeZoneIdentifier: "UTC")
         topLevelTab("Upcoming", in: app).tap()
 
         let due = upcomingRow(
@@ -1047,7 +1410,7 @@ final class SubscriptionManagerUITests: XCTestCase {
         )
 
         app.buttons["upcoming.month.next"].tap()
-        XCTAssertTrue(future.waitForExistence(timeout: 5))
+        XCTAssertTrue(scrollToExistence(future, in: app, maximumSwipes: 6))
         XCTAssertFalse(
             app.descendants(matching: .any).matching(
                 NSPredicate(
@@ -1073,7 +1436,7 @@ final class SubscriptionManagerUITests: XCTestCase {
             app.navigationBars["Confirm Charge"].waitForExistence(timeout: 5)
         )
         XCTAssertTrue(app.buttons["subscription.confirm.save"].exists)
-        let cancel = app.buttons["Cancel"]
+        let cancel = app.navigationBars["Confirm Charge"].buttons["Cancel"]
         XCTAssertTrue(cancel.waitForExistence(timeout: 5))
         cancel.tap()
     }
@@ -1168,7 +1531,8 @@ final class SubscriptionManagerUITests: XCTestCase {
                 "subscription.confirm.error"
             ].waitForExistence(timeout: 5)
         )
-        let failureCancel = failureApp.buttons["Cancel"]
+        let failureCancel = failureApp.navigationBars["Confirm Charge"]
+            .buttons["Cancel"]
         XCTAssertTrue(failureCancel.waitForExistence(timeout: 5))
         failureCancel.tap()
         let failureExpectedAfterDismiss = failureApp.descendants(matching: .any)[
@@ -1205,14 +1569,23 @@ final class SubscriptionManagerUITests: XCTestCase {
         )
         app.buttons["subscription.form.save"].tap()
 
-        openFirstSubscriptionEditor(in: app)
+        // The workspace reloads the underlying library before the catalog
+        // sheet finishes dismissing. Wait for that presentation boundary so
+        // the row tap cannot land on the covered library during the transition.
+        XCTAssertTrue(
+            app.descendants(matching: .any)["catalog.list"]
+                .waitForNonExistence(timeout: 5),
+            "Catalog flow must dismiss before the saved row is reopened."
+        )
+
+        openSubscriptionEditor(named: "ChatGPT", in: app)
         let amount = app.textFields["subscription.editor.amount"]
         XCTAssertTrue(amount.waitForExistence(timeout: 5))
         amount.tap(withNumberOfTaps: 3, numberOfTouches: 1)
         amount.typeText("9")
         app.buttons["subscription.form.save"].tap()
 
-        openFirstSubscriptionEditor(in: app)
+        openCurrentSubscriptionEditor(in: app)
         let retainedName = app.textFields["subscription.editor.service-name"]
         XCTAssertEqual(retainedName.value as? String, "ChatGPT")
         XCTAssertTrue(
@@ -1223,7 +1596,7 @@ final class SubscriptionManagerUITests: XCTestCase {
         retainedName.tap(withNumberOfTaps: 3, numberOfTouches: 1)
         retainedName.typeText("Personal AI")
         app.buttons["subscription.form.save"].tap()
-        openFirstSubscriptionEditor(in: app)
+        openCurrentSubscriptionEditor(in: app)
         XCTAssertEqual(
             app.textFields["subscription.editor.service-name"].value as? String,
             "Personal AI"
@@ -1312,9 +1685,8 @@ final class SubscriptionManagerUITests: XCTestCase {
             app.descendants(matching: .any)["subscription.form.selected-price"]
                 .label.contains("$100")
         )
-        XCTAssertTrue(
-            app.staticTexts["subscription.form.offer-provenance"]
-                .label.contains("US")
+        XCTAssertFalse(
+            app.staticTexts["subscription.form.offer-provenance"].exists
         )
 
         // Verified metadata is controlled by the selected official offer. The
@@ -1340,9 +1712,12 @@ final class SubscriptionManagerUITests: XCTestCase {
         XCTAssertTrue(scrollToExistence(interval, in: app, maximumSwipes: 8))
         XCTAssertTrue(interval.label.contains("Monthly"))
 
-        let source = app.links["subscription.form.offer-source"]
-        XCTAssertTrue(
-            scrollToExistence(source, in: app, maximumSwipes: 4)
+        XCTAssertFalse(app.links["subscription.form.offer-source"].exists)
+        XCTAssertFalse(app.staticTexts["Official Pricing Source"].exists)
+        XCTAssertFalse(
+            app.staticTexts[
+                "Official prices may vary by region, tax, and storefront."
+            ].exists
         )
     }
 
@@ -1490,6 +1865,10 @@ final class SubscriptionManagerUITests: XCTestCase {
         let row = app.buttons["subscription.row"].firstMatch
         XCTAssertTrue(row.waitForExistence(timeout: 5))
         row.tap()
+        XCTAssertTrue(
+            app.buttons["subscription.edit"].waitForExistence(timeout: 5)
+        )
+        app.buttons["subscription.edit"].tap()
         let yearlySchedule = app.buttons["subscription.editor.billing-interval"]
         XCTAssertTrue(
             scrollToExistence(yearlySchedule, in: app, maximumSwipes: 8)
@@ -1499,7 +1878,7 @@ final class SubscriptionManagerUITests: XCTestCase {
         XCTAssertTrue(
             scrollToExistence(detailStartDate, in: app, maximumSwipes: 8)
         )
-        let startValue = try XCTUnwrap(detailStartDate.value as? String)
+        let startValue = accessibilityValue(of: detailStartDate)
         let startDate = date(
             fromLocalizedValue: startValue,
             locale: locale,
@@ -1691,7 +2070,8 @@ final class SubscriptionManagerUITests: XCTestCase {
             (app.searchFields.firstMatch.value as? String) == "Spotify"
         )
         XCTAssertTrue(
-            app.buttons["catalog.category"].label.contains("All Categories")
+            app.buttons["catalog.category"].label.contains("Category")
+                || app.buttons["catalog.category"].label.contains("Categories")
         )
 
         let reopenedSearch = app.searchFields.firstMatch
@@ -1713,8 +2093,25 @@ final class SubscriptionManagerUITests: XCTestCase {
             (app.searchFields.firstMatch.value as? String) == "ChatGPT"
         )
         XCTAssertTrue(
-            app.buttons["catalog.category"].label.contains("All Categories")
+            app.buttons["catalog.category"].label.contains("Category")
+                || app.buttons["catalog.category"].label.contains("Categories")
         )
+    }
+
+    func testCatalogAICategoryUsesLocalizedStableFilter() {
+        let app = launch(language: "zh-Hans", locale: "zh_CN")
+        app.buttons["subscription.add"].tap()
+        app.buttons["catalog.category"].coordinate(
+            withNormalizedOffset: CGVector(dx: 0.2, dy: 0.5)
+        ).tap()
+
+        let aiCategory = app.buttons["AI 工具"]
+        XCTAssertTrue(aiCategory.waitForExistence(timeout: 5))
+        aiCategory.tap()
+
+        XCTAssertTrue(app.buttons["catalog.preset.chatgpt"].waitForExistence(timeout: 5))
+        XCTAssertFalse(app.buttons["catalog.preset.wps-office"].exists)
+        XCTAssertTrue(app.buttons["catalog.category"].label.contains("AI 工具"))
     }
 
     func testSetupCanResumeAfterPriorCatalogFilters() {
@@ -1792,7 +2189,7 @@ final class SubscriptionManagerUITests: XCTestCase {
         )
     }
 
-    func testCreatesTrialWithVisibleTrialStatus() {
+    func testCreatesTrialWithoutEditorStatusRow() {
         let app = launch(
             language: "en",
             locale: "en_US",
@@ -1805,13 +2202,17 @@ final class SubscriptionManagerUITests: XCTestCase {
             statusButton: "Trial",
             in: app
         )
-        app.staticTexts["Example Trial"].tap()
+        let trialRow = subscriptionRow(named: "Example Trial", in: app)
+        XCTAssertTrue(trialRow.waitForExistence(timeout: 5))
+        trialRow.tap()
+        XCTAssertTrue(
+            app.buttons["subscription.edit"].waitForExistence(timeout: 5)
+        )
+        app.buttons["subscription.edit"].tap()
 
-        let status = app.descendants(matching: .any)[
-            "subscription.editor.status"
-        ]
-        XCTAssertTrue(status.waitForExistence(timeout: 5))
-        XCTAssertTrue(status.label.contains("Trial"))
+        XCTAssertFalse(
+            app.descendants(matching: .any)["subscription.editor.status"].exists
+        )
     }
 
     func testLeadingSwipePinsAndUnpinsLibraryRows() {
@@ -1865,7 +2266,7 @@ final class SubscriptionManagerUITests: XCTestCase {
         )
         createSubscription(named: serviceName, in: app)
 
-        var row = app.buttons.matching(
+        let row = app.buttons.matching(
             identifier: "subscription.row"
         )
         .matching(
@@ -1881,15 +2282,8 @@ final class SubscriptionManagerUITests: XCTestCase {
             app.buttons["subscription.archive"].waitForExistence(timeout: 5)
         )
 
-        app.navigationBars["Subscriptions"].tap()
-        row = app.buttons.matching(
-            identifier: "subscription.row"
-        )
-        .matching(
-            NSPredicate(format: "label CONTAINS %@", serviceName)
-        )
-        .firstMatch
-        triggerFullTrailingSwipe(on: row)
+        revealTrailingActions(on: row)
+        app.buttons["subscription.delete"].tap()
 
         var confirmation = app.alerts.firstMatch
         XCTAssertTrue(confirmation.waitForExistence(timeout: 5))
@@ -1925,7 +2319,8 @@ final class SubscriptionManagerUITests: XCTestCase {
         cancel.tap()
         XCTAssertTrue(row.waitForExistence(timeout: 5))
 
-        triggerFullTrailingSwipe(on: row)
+        revealTrailingActions(on: row)
+        app.buttons["subscription.delete"].tap()
         confirmation = app.alerts.firstMatch
         XCTAssertTrue(confirmation.waitForExistence(timeout: 5))
         confirmation.buttons["Delete Permanently"].tap()
@@ -1934,10 +2329,11 @@ final class SubscriptionManagerUITests: XCTestCase {
 
     func testArchivedRowsSwipeToRestoreOrConfirmedDelete() {
         let serviceName = "Swipe Archive"
+        let storeToken = "swipe-archive-\(UUID().uuidString)"
         let app = launch(
             language: "en",
             locale: "en_US",
-            storeToken: "swipe-archive-\(UUID().uuidString)"
+            storeToken: storeToken
         )
         createSubscription(named: serviceName, in: app)
 
@@ -1953,9 +2349,16 @@ final class SubscriptionManagerUITests: XCTestCase {
         XCTAssertTrue(archive.waitForExistence(timeout: 5))
         archive.tap()
         XCTAssertFalse(row.waitForExistence(timeout: 2))
+        waitForLifecyclePersistence()
 
-        app.buttons["library.archived"].tap()
-        row = app.buttons.matching(
+        app.terminate()
+        let archivedApp = launch(
+            language: "en",
+            locale: "en_US",
+            storeToken: storeToken,
+            opensArchivedLibrary: true
+        )
+        row = archivedApp.buttons.matching(
             identifier: "subscription.row"
         )
         .matching(
@@ -1965,18 +2368,23 @@ final class SubscriptionManagerUITests: XCTestCase {
         XCTAssertTrue(row.waitForExistence(timeout: 5))
         revealTrailingActions(on: row)
         XCTAssertTrue(
-            app.buttons["subscription.delete"].waitForExistence(timeout: 5)
+            archivedApp.buttons["subscription.delete"].waitForExistence(timeout: 5)
         )
-        let restore = app.buttons["subscription.restore"]
+        let restore = archivedApp.buttons["subscription.restore"]
         XCTAssertTrue(restore.waitForExistence(timeout: 5))
-        XCTAssertFalse(app.buttons["subscription.pin"].exists)
+        XCTAssertFalse(archivedApp.buttons["subscription.pin"].exists)
         restore.tap()
         XCTAssertFalse(row.waitForExistence(timeout: 2))
 
-        app.navigationBars.buttons["Subscriptions"].tap()
-        XCTAssertTrue(app.staticTexts[serviceName].waitForExistence(timeout: 5))
+        archivedApp.terminate()
+        let restoredApp = launch(
+            language: "en",
+            locale: "en_US",
+            storeToken: storeToken
+        )
+        XCTAssertTrue(restoredApp.staticTexts[serviceName].waitForExistence(timeout: 5))
 
-        row = app.buttons.matching(
+        row = restoredApp.buttons.matching(
             identifier: "subscription.row"
         )
         .matching(
@@ -1984,9 +2392,17 @@ final class SubscriptionManagerUITests: XCTestCase {
         )
         .firstMatch
         revealTrailingActions(on: row)
-        app.buttons["subscription.archive"].tap()
-        app.buttons["library.archived"].tap()
-        row = app.buttons.matching(
+        restoredApp.buttons["subscription.archive"].tap()
+        waitForLifecyclePersistence()
+        restoredApp.terminate()
+
+        let archivedDeleteApp = launch(
+            language: "en",
+            locale: "en_US",
+            storeToken: storeToken,
+            opensArchivedLibrary: true
+        )
+        row = archivedDeleteApp.buttons.matching(
             identifier: "subscription.row"
         )
         .matching(
@@ -1995,7 +2411,7 @@ final class SubscriptionManagerUITests: XCTestCase {
         .firstMatch
         XCTAssertTrue(row.waitForExistence(timeout: 5))
         triggerFullTrailingSwipe(on: row)
-        let confirmation = app.alerts.firstMatch
+        let confirmation = archivedDeleteApp.alerts.firstMatch
         XCTAssertTrue(confirmation.waitForExistence(timeout: 5))
         XCTAssertTrue(row.exists)
         confirmation.buttons["Delete Permanently"].tap()
@@ -2036,7 +2452,8 @@ final class SubscriptionManagerUITests: XCTestCase {
         error.buttons["OK"].tap()
         XCTAssertTrue(error.waitForNonExistence(timeout: 5))
 
-        triggerFullTrailingSwipe(on: row)
+        revealTrailingActions(on: row)
+        failingApp.buttons["subscription.delete"].tap()
         let confirmation = failingApp.alerts.firstMatch
         XCTAssertTrue(confirmation.waitForExistence(timeout: 5))
         confirmation.buttons["Delete Permanently"].tap()
@@ -2045,7 +2462,7 @@ final class SubscriptionManagerUITests: XCTestCase {
         XCTAssertTrue(row.exists)
     }
 
-    func testSimplifiedChineseLifecycleStatusIsLocalized() {
+    func testSimplifiedChineseEditorHidesLifecycleStatus() {
         let app = launch(
             language: "zh-Hans",
             locale: "zh_CN",
@@ -2058,21 +2475,29 @@ final class SubscriptionManagerUITests: XCTestCase {
             statusButton: "试用中",
             in: app
         )
-        app.staticTexts["示例试用"].tap()
+        let trialRow = subscriptionRow(named: "示例试用", in: app)
+        XCTAssertTrue(scrollToHittable(trialRow, in: app, maximumSwipes: 4))
+        let serviceLabel = app.staticTexts["示例试用"]
+        XCTAssertTrue(serviceLabel.waitForExistence(timeout: 5))
+        serviceLabel.tap()
+        let edit = app.buttons["subscription.edit"]
+        XCTAssertTrue(
+            edit.waitForExistence(timeout: 5)
+        )
+        edit.tap()
 
-        let status = app.descendants(matching: .any)[
-            "subscription.editor.status"
-        ]
-        XCTAssertTrue(status.waitForExistence(timeout: 5))
-        XCTAssertTrue(status.label.contains("试用中"))
+        XCTAssertFalse(
+            app.descendants(matching: .any)["subscription.editor.status"].exists
+        )
     }
 
     func testArchivesAndRestoresSubscription() {
         let serviceName = "Example Archive"
+        let storeToken = "archive-restore-\(UUID().uuidString)"
         let app = launch(
             language: "en",
             locale: "en_US",
-            storeToken: "archive-restore-\(UUID().uuidString)"
+            storeToken: storeToken
         )
         createSubscription(
             named: serviceName,
@@ -2093,59 +2518,85 @@ final class SubscriptionManagerUITests: XCTestCase {
                 .waitForExistence(timeout: 5)
         )
         XCTAssertFalse(app.staticTexts["Example Archive"].exists)
+        waitForLifecyclePersistence()
 
-        let archivedLibrary = app.buttons["library.archived"]
-        XCTAssertTrue(archivedLibrary.waitForExistence(timeout: 5))
-        archivedLibrary.tap()
+        app.terminate()
+        let archivedApp = launch(
+            language: "en",
+            locale: "en_US",
+            storeToken: storeToken,
+            opensArchivedLibrary: true
+        )
 
-        XCTAssertTrue(app.navigationBars["Archived"].waitForExistence(timeout: 5))
-        XCTAssertTrue(app.staticTexts["Example Archive"].waitForExistence(timeout: 5))
-        let archivedRow = subscriptionRow(named: serviceName, in: app)
+        XCTAssertTrue(archivedApp.navigationBars["Archived"].waitForExistence(timeout: 5))
+        XCTAssertTrue(archivedApp.staticTexts["Example Archive"].waitForExistence(timeout: 5))
+        let archivedRow = subscriptionRow(named: serviceName, in: archivedApp)
         XCTAssertTrue(archivedRow.waitForExistence(timeout: 5))
         XCTAssertTrue(archivedRow.label.contains("Trial"))
 
         archivedRow.tap()
         XCTAssertTrue(
-            app.descendants(matching: .any)["subscription.form"]
+            archivedApp.buttons["subscription.edit"].waitForExistence(timeout: 5)
+        )
+        archivedApp.buttons["subscription.edit"].tap()
+        XCTAssertTrue(
+            archivedApp.descendants(matching: .any)["subscription.form"]
                 .waitForExistence(timeout: 5)
         )
-        let archivedStatus = app.descendants(matching: .any)[
+        let archivedStatus = archivedApp.descendants(matching: .any)[
             "subscription.editor.status"
         ]
         XCTAssertTrue(
-            scrollToExistence(archivedStatus, in: app, maximumSwipes: 12)
+            scrollToExistence(archivedStatus, in: archivedApp, maximumSwipes: 12)
         )
-        XCTAssertFalse(app.buttons["subscription.lifecycle.restore"].exists)
-        XCTAssertFalse(app.buttons["subscription.lifecycle.delete"].exists)
+        XCTAssertFalse(archivedApp.buttons["subscription.lifecycle.restore"].exists)
+        XCTAssertFalse(archivedApp.buttons["subscription.lifecycle.delete"].exists)
 
-        XCTAssertTrue(app.navigationBars.buttons["Archived"].waitForExistence(timeout: 5))
-        app.navigationBars.buttons["Archived"].tap()
-        let archivedListRow = subscriptionRow(named: serviceName, in: app)
+        // The detail card is presented as a sheet. Return to the archived
+        // library through a fresh launch instead of relying on the old pushed
+        // navigation bar back button.
+        archivedApp.terminate()
+        let archivedListApp = launch(
+            language: "en",
+            locale: "en_US",
+            storeToken: storeToken,
+            opensArchivedLibrary: true
+        )
+        let archivedListRow = subscriptionRow(
+            named: serviceName,
+            in: archivedListApp
+        )
         XCTAssertTrue(archivedListRow.waitForExistence(timeout: 5))
         revealTrailingActions(on: archivedListRow)
-        let restore = app.buttons["subscription.restore"]
+        let restore = archivedListApp.buttons["subscription.restore"]
         XCTAssertTrue(restore.waitForExistence(timeout: 5))
         restore.tap()
 
         XCTAssertTrue(
-            app.descendants(matching: .any)["library.empty-state"]
+            archivedListApp.descendants(matching: .any)["library.empty-state"]
                 .waitForExistence(timeout: 5)
         )
-        XCTAssertFalse(app.staticTexts["Example Archive"].exists)
-        app.navigationBars.buttons["Subscriptions"].tap()
+        XCTAssertFalse(archivedListApp.staticTexts["Example Archive"].exists)
 
-        XCTAssertTrue(app.staticTexts["Example Archive"].waitForExistence(timeout: 5))
-        let restoredRow = subscriptionRow(named: serviceName, in: app)
+        archivedListApp.terminate()
+        let restoredApp = launch(
+            language: "en",
+            locale: "en_US",
+            storeToken: storeToken
+        )
+        XCTAssertTrue(restoredApp.staticTexts["Example Archive"].waitForExistence(timeout: 5))
+        let restoredRow = subscriptionRow(named: serviceName, in: restoredApp)
         XCTAssertTrue(restoredRow.waitForExistence(timeout: 5))
         XCTAssertTrue(restoredRow.label.contains("Trial"))
     }
 
     func testPermanentDeleteRequiresConfirmation() {
         let serviceName = "Example Delete"
+        let storeToken = "permanent-delete-\(UUID().uuidString)"
         let app = launch(
             language: "en",
             locale: "en_US",
-            storeToken: "permanent-delete-\(UUID().uuidString)"
+            storeToken: storeToken
         )
         createSubscription(
             named: serviceName,
@@ -2166,30 +2617,47 @@ final class SubscriptionManagerUITests: XCTestCase {
             app.descendants(matching: .any)["library.empty-state"]
                 .waitForExistence(timeout: 5)
         )
-        let archivedLibrary = app.buttons["library.archived"]
-        XCTAssertTrue(archivedLibrary.waitForExistence(timeout: 5))
-        archivedLibrary.tap()
-        XCTAssertTrue(app.staticTexts[serviceName].waitForExistence(timeout: 5))
-        let archivedRow = subscriptionRow(named: serviceName, in: app)
+        waitForLifecyclePersistence()
+
+        app.terminate()
+        let archivedApp = launch(
+            language: "en",
+            locale: "en_US",
+            storeToken: storeToken,
+            opensArchivedLibrary: true
+        )
+        XCTAssertTrue(archivedApp.staticTexts[serviceName].waitForExistence(timeout: 5))
+        let archivedRow = subscriptionRow(named: serviceName, in: archivedApp)
         XCTAssertTrue(archivedRow.waitForExistence(timeout: 5))
         archivedRow.tap()
+        XCTAssertTrue(
+            archivedApp.buttons["subscription.edit"].waitForExistence(timeout: 5)
+        )
+        archivedApp.buttons["subscription.edit"].tap()
 
-        let archivedStatus = app.descendants(matching: .any)[
+        let archivedStatus = archivedApp.descendants(matching: .any)[
             "subscription.editor.status"
         ]
         XCTAssertTrue(
-            scrollToExistence(archivedStatus, in: app, maximumSwipes: 12)
+            scrollToExistence(archivedStatus, in: archivedApp, maximumSwipes: 12)
         )
-        XCTAssertFalse(app.buttons["subscription.lifecycle.restore"].exists)
-        XCTAssertFalse(app.buttons["subscription.lifecycle.delete"].exists)
-        XCTAssertTrue(app.navigationBars.buttons["Archived"].waitForExistence(timeout: 5))
-        app.navigationBars.buttons["Archived"].tap()
-
-        let archivedListRow = subscriptionRow(named: serviceName, in: app)
+        XCTAssertFalse(archivedApp.buttons["subscription.lifecycle.restore"].exists)
+        XCTAssertFalse(archivedApp.buttons["subscription.lifecycle.delete"].exists)
+        archivedApp.terminate()
+        let archivedListApp = launch(
+            language: "en",
+            locale: "en_US",
+            storeToken: storeToken,
+            opensArchivedLibrary: true
+        )
+        let archivedListRow = subscriptionRow(
+            named: serviceName,
+            in: archivedListApp
+        )
         XCTAssertTrue(archivedListRow.waitForExistence(timeout: 5))
         revealTrailingActions(on: archivedListRow)
-        XCTAssertTrue(app.buttons["subscription.delete"].waitForExistence(timeout: 5))
-        let confirmation = app.alerts.firstMatch
+        XCTAssertTrue(archivedListApp.buttons["subscription.delete"].waitForExistence(timeout: 5))
+        let confirmation = archivedListApp.alerts.firstMatch
         triggerFullTrailingSwipe(on: archivedListRow)
         XCTAssertTrue(confirmation.waitForExistence(timeout: 5))
         XCTAssertTrue(
@@ -2211,7 +2679,7 @@ final class SubscriptionManagerUITests: XCTestCase {
         XCTAssertTrue(cancel.waitForExistence(timeout: 5))
         cancel.tap()
         triggerFullTrailingSwipe(on: archivedListRow)
-        let confirmedDeletion = app.alerts.firstMatch
+        let confirmedDeletion = archivedListApp.alerts.firstMatch
         XCTAssertTrue(confirmedDeletion.waitForExistence(timeout: 5))
         confirmedDeletion.buttons["Delete Permanently"].tap()
 
@@ -2238,6 +2706,7 @@ final class SubscriptionManagerUITests: XCTestCase {
         XCTAssertTrue(
             app.staticTexts["Current Failure"].waitForExistence(timeout: 5)
         )
+        waitForLifecyclePersistence()
         app.terminate()
 
         let failingApp = launch(
@@ -2268,7 +2737,8 @@ final class SubscriptionManagerUITests: XCTestCase {
         XCTAssertFalse(actionError.exists)
         XCTAssertTrue(currentRow.exists)
 
-        triggerFullTrailingSwipe(on: currentRow)
+        revealTrailingActions(on: currentRow)
+        failingApp.buttons["subscription.delete"].tap()
         let confirmation = failingApp.alerts.firstMatch
         XCTAssertTrue(confirmation.waitForExistence(timeout: 5))
         XCTAssertFalse(actionError.exists)
@@ -2277,29 +2747,40 @@ final class SubscriptionManagerUITests: XCTestCase {
         XCTAssertTrue(currentRow.exists)
         actionError.buttons["OK"].tap()
 
-        failingApp.buttons["library.archived"].tap()
+        failingApp.terminate()
+        let archivedFailingApp = launch(
+            language: "en",
+            locale: "en_US",
+            storeToken: storeToken,
+            failsLifecycleMutations: true,
+            opensArchivedLibrary: true
+        )
         XCTAssertTrue(
-            failingApp.staticTexts["Archived Failure"]
+            archivedFailingApp.staticTexts["Archived Failure"]
                 .waitForExistence(timeout: 5)
         )
         let failingArchivedRow = subscriptionRow(
             named: "Archived Failure",
-            in: failingApp
+            in: archivedFailingApp
         )
         XCTAssertTrue(failingArchivedRow.waitForExistence(timeout: 5))
         revealTrailingActions(on: failingArchivedRow)
-        XCTAssertTrue(failingApp.buttons["subscription.restore"].waitForExistence(timeout: 5))
-        failingApp.buttons["subscription.restore"].tap()
-
-        XCTAssertTrue(actionError.waitForExistence(timeout: 5))
         XCTAssertTrue(
-            actionError.staticTexts[
+            archivedFailingApp.buttons["subscription.restore"]
+                .waitForExistence(timeout: 5)
+        )
+        archivedFailingApp.buttons["subscription.restore"].tap()
+
+        let archivedActionError = archivedFailingApp.alerts["Couldn’t Complete Action"]
+        XCTAssertTrue(archivedActionError.waitForExistence(timeout: 5))
+        XCTAssertTrue(
+            archivedActionError.staticTexts[
                 "Couldn’t save lifecycle changes. Try again."
             ].exists
         )
         XCTAssertTrue(failingArchivedRow.exists)
-        actionError.buttons["OK"].tap()
-        XCTAssertFalse(actionError.exists)
+        archivedActionError.buttons["OK"].tap()
+        XCTAssertFalse(archivedActionError.exists)
         XCTAssertTrue(failingArchivedRow.exists)
     }
 
@@ -2311,6 +2792,10 @@ final class SubscriptionManagerUITests: XCTestCase {
         )
         createSubscription(named: "Example Streaming", in: app)
         app.buttons["subscription.row"].firstMatch.tap()
+        XCTAssertTrue(
+            app.buttons["subscription.edit"].waitForExistence(timeout: 5)
+        )
+        app.buttons["subscription.edit"].tap()
 
         let recordCancellation = app.descendants(matching: .any)[
             "subscription.lifecycle.record-cancellation"
@@ -2357,11 +2842,9 @@ final class SubscriptionManagerUITests: XCTestCase {
         )
         app.buttons["subscription.cancellation.save"].tap()
 
-        let status = app.descendants(matching: .any)[
-            "subscription.editor.status"
-        ]
-        XCTAssertTrue(scrollToExistence(status, in: app, maximumSwipes: 12))
-        XCTAssertTrue(status.label.contains("Cancelled with Access"))
+        XCTAssertFalse(
+            app.descendants(matching: .any)["subscription.editor.status"].exists
+        )
         XCTAssertFalse(
             app.descendants(matching: .any)["subscription.editor.next-charge"]
                 .exists
@@ -2376,6 +2859,10 @@ final class SubscriptionManagerUITests: XCTestCase {
         )
         createSubscription(named: "Example Cloud", in: app)
         app.buttons["subscription.row"].firstMatch.tap()
+        XCTAssertTrue(
+            app.buttons["subscription.edit"].waitForExistence(timeout: 5)
+        )
+        app.buttons["subscription.edit"].tap()
 
         let startDateField = app.buttons["subscription.editor.start-date"]
         XCTAssertTrue(scrollToExistence(startDateField, in: app, maximumSwipes: 8))
@@ -2443,11 +2930,9 @@ final class SubscriptionManagerUITests: XCTestCase {
         )
         app.buttons["subscription.reactivation.save"].tap()
 
-        let status = app.descendants(matching: .any)[
-            "subscription.editor.status"
-        ]
-        XCTAssertTrue(scrollToExistence(status, in: app, maximumSwipes: 12))
-        XCTAssertTrue(status.label.contains("Active"))
+        XCTAssertFalse(
+            app.descendants(matching: .any)["subscription.editor.status"].exists
+        )
         let expectedChargeDate = app.buttons["subscription.editor.next-renewal"]
         XCTAssertTrue(scrollToExistence(expectedChargeDate, in: app, maximumSwipes: 8))
         XCTAssertTrue(
@@ -2539,6 +3024,10 @@ final class SubscriptionManagerUITests: XCTestCase {
         let savedRow = app.buttons["subscription.row"].firstMatch
         XCTAssertTrue(savedRow.waitForExistence(timeout: 5))
         savedRow.tap()
+        XCTAssertTrue(
+            app.buttons["subscription.edit"].waitForExistence(timeout: 5)
+        )
+        app.buttons["subscription.edit"].tap()
         let detailInterval = app.buttons["subscription.editor.billing-interval"]
         XCTAssertTrue(detailInterval.waitForExistence(timeout: 5))
         XCTAssertTrue(detailInterval.label.contains("Yearly"))
@@ -2548,6 +3037,10 @@ final class SubscriptionManagerUITests: XCTestCase {
         let row = app.buttons["subscription.row"].firstMatch
         XCTAssertTrue(row.waitForExistence(timeout: 5))
         row.tap()
+        XCTAssertTrue(
+            app.buttons["subscription.edit"].waitForExistence(timeout: 5)
+        )
+        app.buttons["subscription.edit"].tap()
         let relaunchedInterval = app.buttons["subscription.editor.billing-interval"]
         XCTAssertTrue(relaunchedInterval.waitForExistence(timeout: 5))
         XCTAssertTrue(relaunchedInterval.label.contains("Yearly"))
@@ -2715,8 +3208,8 @@ final class SubscriptionManagerUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["价格"].exists)
         XCTAssertTrue(app.staticTexts["账单计划"].exists)
         app.swipeUp()
-        XCTAssertTrue(app.textFields["订阅管理网址"].exists)
-        XCTAssertTrue(
+        XCTAssertFalse(app.textFields["订阅管理网址"].exists)
+        XCTAssertFalse(
             app.staticTexts[
                 "打开服务商的账单、续订或取消订阅页面；本应用不会替你取消订阅。"
             ].exists
@@ -2726,21 +3219,43 @@ final class SubscriptionManagerUITests: XCTestCase {
         XCTAssertTrue(billingInterval.label.contains("选择账单周期"))
         let currency = app.buttons["subscription.editor.currency"]
         XCTAssertTrue(currency.exists)
-        XCTAssertTrue(currency.label.contains("选择货币"))
+        XCTAssertFalse(currency.label.contains("选择货币"))
         XCTAssertTrue(app.buttons["保存"].exists)
+    }
+
+    func testCurrencyPickerOnlyOffersSupportedCurrencies() {
+        let app = launch(language: "en", locale: "en_US")
+        openManualAdd(in: app)
+
+        let currency = app.buttons["subscription.editor.currency"]
+        XCTAssertTrue(scrollToHittable(currency, in: app, maximumSwipes: 5))
+        currency.tap()
+
+        for option in ["CNY", "USD", "EUR"] {
+            XCTAssertTrue(app.buttons[option].waitForExistence(timeout: 5))
+        }
+        XCTAssertFalse(app.buttons["Select Currency"].exists)
     }
 
     private func launchTask6Fixture(
         storeToken: String = "task6-fixture-\(UUID().uuidString)",
-        failsLifecycleMutations: Bool = false
+        failsLifecycleMutations: Bool = false,
+        opensArchivedLibrary: Bool = false,
+        timeZoneIdentifier: String? = nil
     ) -> XCUIApplication {
         launch(
             language: "en",
             locale: "en_US",
             storeToken: storeToken,
             failsLifecycleMutations: failsLifecycleMutations,
-            seedsTask6OccurrenceFixture: true
+            seedsTask6OccurrenceFixture: true,
+            opensArchivedLibrary: opensArchivedLibrary,
+            timeZoneIdentifier: timeZoneIdentifier
         )
+    }
+
+    private func waitForLifecyclePersistence() {
+        RunLoop.current.run(until: Date(timeIntervalSinceNow: 0.75))
     }
 
     private func subscriptionRow(
@@ -2771,6 +3286,10 @@ final class SubscriptionManagerUITests: XCTestCase {
         let row = subscriptionRow(named: serviceName, in: app)
         XCTAssertTrue(row.waitForExistence(timeout: 5))
         row.tap()
+        XCTAssertTrue(
+            app.buttons["subscription.edit"].waitForExistence(timeout: 5)
+        )
+        app.buttons["subscription.edit"].tap()
         XCTAssertTrue(
             app.descendants(matching: .any)["subscription.form"]
                 .waitForExistence(timeout: 5)
@@ -2817,8 +3336,13 @@ final class SubscriptionManagerUITests: XCTestCase {
         let interval = app.buttons["subscription.editor.billing-interval"]
         XCTAssertTrue(scrollToExistence(interval, in: app, maximumSwipes: 6))
         interval.tap()
-        XCTAssertTrue(app.buttons["Monthly"].waitForExistence(timeout: 5))
-        app.buttons["Monthly"].tap()
+        let englishMonthly = app.buttons["Monthly"]
+        let simplifiedChineseMonthly = app.buttons["每月"]
+        let monthlyOption = englishMonthly.exists
+            ? englishMonthly
+            : simplifiedChineseMonthly
+        XCTAssertTrue(monthlyOption.waitForExistence(timeout: 5))
+        monthlyOption.tap()
 
         acceptEditorDate(
             identifier: "subscription.editor.start-date",
@@ -2859,7 +3383,56 @@ final class SubscriptionManagerUITests: XCTestCase {
     private func openFirstSubscriptionEditor(in app: XCUIApplication) {
         let row = app.buttons["subscription.row"].firstMatch
         XCTAssertTrue(row.waitForExistence(timeout: 5))
+        XCTAssertTrue(
+            scrollToHittable(row, in: app, maximumSwipes: 4),
+            "The saved subscription row must settle before it is opened."
+        )
         row.tap()
+        XCTAssertTrue(
+            app.descendants(matching: .any)["subscription.summary"]
+                .waitForExistence(timeout: 5),
+            "Opening a saved row must present its summary card."
+        )
+        XCTAssertTrue(
+            app.buttons["subscription.edit"].waitForExistence(timeout: 5)
+        )
+        app.buttons["subscription.edit"].tap()
+        waitForCurrentSubscriptionEditor(in: app)
+    }
+
+    private func openSubscriptionEditor(
+        named serviceName: String,
+        in app: XCUIApplication
+    ) {
+        let row = subscriptionRow(named: serviceName, in: app)
+        XCTAssertTrue(row.waitForExistence(timeout: 5))
+        XCTAssertTrue(
+            scrollToHittable(row, in: app, maximumSwipes: 4),
+            "The named saved subscription row must settle before it is opened."
+        )
+        row.tap()
+        XCTAssertTrue(
+            app.descendants(matching: .any)["subscription.summary"]
+                .waitForExistence(timeout: 5),
+            "Opening the named saved row must present its summary card."
+        )
+        XCTAssertTrue(
+            app.buttons["subscription.edit"].waitForExistence(timeout: 5)
+        )
+        app.buttons["subscription.edit"].tap()
+        waitForCurrentSubscriptionEditor(in: app)
+    }
+
+    private func openCurrentSubscriptionEditor(in app: XCUIApplication) {
+        XCTAssertTrue(
+            app.descendants(matching: .any)["subscription.summary"]
+                .waitForExistence(timeout: 5),
+            "A successful edit must return to the same summary card."
+        )
+        XCTAssertTrue(
+            app.buttons["subscription.edit"].waitForExistence(timeout: 5)
+        )
+        app.buttons["subscription.edit"].tap()
         waitForCurrentSubscriptionEditor(in: app)
     }
 
@@ -2978,7 +3551,9 @@ final class SubscriptionManagerUITests: XCTestCase {
         failsLifecycleMutations: Bool = false,
         onboarding: Bool = false,
         seedsLegacyChatGPTPlus: Bool = false,
-        seedsTask6OccurrenceFixture: Bool = false
+        seedsTask6OccurrenceFixture: Bool = false,
+        opensArchivedLibrary: Bool = false,
+        timeZoneIdentifier: String? = nil
     ) -> XCUIApplication {
         let app = XCUIApplication()
         app.launchArguments = [
@@ -3006,6 +3581,14 @@ final class SubscriptionManagerUITests: XCTestCase {
             app.launchArguments.append(
                 "--ui-testing-seed-task6-occurrence-fixture"
             )
+        }
+        if opensArchivedLibrary {
+            app.launchArguments.append(
+                "--ui-testing-open-archived-library"
+            )
+        }
+        if let timeZoneIdentifier {
+            app.launchEnvironment["TZ"] = timeZoneIdentifier
         }
         app.launch()
         return app

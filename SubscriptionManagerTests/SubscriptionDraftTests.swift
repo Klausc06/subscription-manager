@@ -19,7 +19,6 @@ struct SubscriptionDraftTests {
         )
         let sections = SubscriptionEditorSections(
             draft: binding,
-            status: nil,
             nextExpectedCharge: nil,
             onEditDate: { _ in }
         )

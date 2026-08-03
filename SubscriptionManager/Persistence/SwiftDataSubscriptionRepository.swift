@@ -498,6 +498,9 @@ final class SwiftDataUserPreferencesRepository: UserPreferencesRepository {
                 ) ?? .twelveMonths,
                 hideAmountsInCalendar: record.hideAmountsInCalendar,
                 menuBarModeEnabled: record.menuBarModeEnabled,
+                appearanceMode: AppearanceMode(
+                    rawValue: record.appearanceModeRawValue
+                ) ?? .system,
                 setupStatus: SetupStatus(rawValue: record.setupStatusRawValue)
                     ?? .notCompleted
             )
@@ -521,6 +524,7 @@ final class SwiftDataUserPreferencesRepository: UserPreferencesRepository {
                 preferences.calendarProjectionHorizon.rawValue
             record.hideAmountsInCalendar = preferences.hideAmountsInCalendar
             record.menuBarModeEnabled = preferences.menuBarModeEnabled
+            record.appearanceModeRawValue = preferences.appearanceMode.rawValue
             record.setupStatusRawValue = preferences.setupStatus.rawValue
             try save(modelContext)
         } catch {
@@ -582,6 +586,7 @@ final class SwiftDataPortableBackupImportRepository:
                     preferences.calendarProjectionHorizon.rawValue
                 record.hideAmountsInCalendar = preferences.hideAmountsInCalendar
                 record.menuBarModeEnabled = preferences.menuBarModeEnabled
+                record.appearanceModeRawValue = preferences.appearanceMode.rawValue
                 record.setupStatusRawValue = preferences.setupStatus.rawValue
             }
             try save(context)

@@ -20,28 +20,37 @@ struct LibraryView: View {
     @State private var isSetupPresented = false
     @State private var isPreferencesPresented = false
     @State private var selectedDestination: RootDestination = .subscriptions
+    @State private var rootLibraryScope: SubscriptionLibraryScope = .current
     @State private var subscriptionsPath = NavigationPath()
 
     var body: some View {
         rootContent
         .sheet(item: $presentedSheet) { sheet in
-            switch sheet {
-            case .addSubscription:
-                CatalogAddFlowView(workspace: workspace) {
-                    workspace.loadLibrary(scope: .current)
+            Group {
+                switch sheet {
+                case .addSubscription:
+                    CatalogAddFlowView(workspace: workspace) {
+                        workspace.loadLibrary(scope: .current)
+                    }
                 }
             }
+            .presentationBackground(.background)
+            .presentationCornerRadius(28)
         }
         .sheet(isPresented: $isSetupPresented) {
             FirstRunSetupView(workspace: workspace) {
                 isSetupPresented = false
             }
+            .presentationBackground(.background)
+            .presentationCornerRadius(28)
         }
         .sheet(isPresented: $isPreferencesPresented) {
             UserPreferencesView(workspace: workspace) {
                 isPreferencesPresented = false
                 isSetupPresented = true
             }
+            .presentationBackground(.background)
+            .presentationCornerRadius(28)
         }
         .task {
             loadInitialState()
@@ -148,7 +157,7 @@ struct LibraryView: View {
         NavigationStack(path: $subscriptionsPath) {
             ScopedLibraryView(
                 workspace: workspace,
-                scope: .current,
+                scope: rootLibraryScope,
                 onAddSubscription: presentAddSubscription,
                 onPreferences: presentPreferences
             )
@@ -182,6 +191,7 @@ struct LibraryView: View {
     private func openDeepLink(_ url: URL) {
         guard url.scheme == "subscription-manager" else { return }
         selectedDestination = .subscriptions
+        rootLibraryScope = .current
         guard url.host == "subscription",
               let identifier = url.pathComponents.dropFirst().first,
               let subscriptionID = UUID(uuidString: identifier)
@@ -194,9 +204,18 @@ struct LibraryView: View {
     }
 
     private func loadInitialState() {
+        let arguments = ProcessInfo.processInfo.arguments
+        let allowsUITestOnboarding = arguments.contains("--ui-testing-onboarding")
+        let isUITesting = arguments.contains("--ui-testing")
+        let opensArchivedLibrary = isUITesting
+            && arguments.contains("--ui-testing-open-archived-library")
+        let initialLibraryScope: SubscriptionLibraryScope =
+            opensArchivedLibrary ? .archived : .current
+
         workspace.loadCatalog(locale: locale)
         workspace.reconcileCatalogAssociations(locale: locale)
-        workspace.loadLibrary(scope: .current)
+        rootLibraryScope = initialLibraryScope
+        workspace.loadLibrary(scope: initialLibraryScope)
         let libraryIsEmpty: Bool
         if case .empty(.current) = workspace.libraryState {
             libraryIsEmpty = true
@@ -204,9 +223,6 @@ struct LibraryView: View {
             libraryIsEmpty = false
         }
         workspace.loadSetup(libraryIsEmpty: libraryIsEmpty)
-        let arguments = ProcessInfo.processInfo.arguments
-        let allowsUITestOnboarding = arguments.contains("--ui-testing-onboarding")
-        let isUITesting = arguments.contains("--ui-testing")
         if case .needsSetup = workspace.setupState,
            !isUITesting || allowsUITestOnboarding
         {
@@ -304,14 +320,33 @@ private struct InsightsView: View {
     private var rateStatus: some View {
         switch workspace.exchangeRateStatus {
         case .fresh(let snapshot):
-            Text("Rates updated \(snapshot.providerDate, format: .dateTime.year().month().day())")
-                .accessibilityIdentifier("insights.rate-status")
+            rateStatusContainer(
+                Text(
+                    "Rates updated \(snapshot.providerDate, format: .dateTime.year().month().day())"
+                )
+            )
         case .stale(let snapshot):
-            Text("Using cached rates from \(snapshot.providerDate, format: .dateTime.year().month().day())")
-                .accessibilityIdentifier("insights.rate-status")
+            rateStatusContainer(
+                Text(
+                    "Using cached rates from \(snapshot.providerDate, format: .dateTime.year().month().day())"
+                )
+            )
         case .notLoaded, .unavailable:
             EmptyView()
         }
+    }
+
+    private func rateStatusContainer(_ content: Text) -> some View {
+        content
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.horizontal, 12)
+            .padding(.vertical, 8)
+            .background(
+                .thinMaterial,
+                in: RoundedRectangle(cornerRadius: 12, style: .continuous)
+            )
+            .padding(.vertical, 4)
+            .accessibilityIdentifier("insights.rate-status")
     }
 }
 
@@ -339,8 +374,11 @@ private struct UpcomingView: View {
                                 moveMonth(by: -1)
                             } label: {
                                 Label("Previous Month", systemImage: "chevron.left")
+                                    .labelStyle(.iconOnly)
                             }
+                            .accessibilityLabel("Previous Month")
                             .accessibilityIdentifier("upcoming.month.previous")
+                            .buttonStyle(.borderless)
 
                             Spacer()
                             Text(displayedMonth, format: .dateTime.year().month(.wide))
@@ -352,10 +390,18 @@ private struct UpcomingView: View {
                                 moveMonth(by: 1)
                             } label: {
                                 Label("Next Month", systemImage: "chevron.right")
+                                    .labelStyle(.iconOnly)
                             }
+                            .accessibilityLabel("Next Month")
                             .accessibilityIdentifier("upcoming.month.next")
+                            .buttonStyle(.borderless)
                         }
+                        .frame(maxWidth: .infinity)
+                        .padding(.horizontal, 12)
                     }
+                    .listRowInsets(
+                        EdgeInsets(top: 8, leading: 0, bottom: 8, trailing: 0)
+                    )
 
                     monthOverview(availableWidth: geometry.size.width)
 
@@ -377,10 +423,11 @@ private struct UpcomingView: View {
                                     for: item,
                                     subscriptionsByID: subscriptionsByID
                                 )
-                                HStack(spacing: 8) {
+                                HStack(alignment: .firstTextBaseline, spacing: 12) {
                                     NavigationLink(value: item.subscriptionID) {
                                         UpcomingTimelineRow(item: item)
                                     }
+                                    .frame(maxWidth: .infinity, alignment: .leading)
                                     .accessibilityIdentifier(
                                         item.kind == .expected
                                             ? "upcoming.row.expected"
@@ -396,6 +443,7 @@ private struct UpcomingView: View {
                                                 systemImage: "checkmark.circle"
                                             )
                                             .labelStyle(.iconOnly)
+                                            .frame(minWidth: 28, minHeight: 28)
                                         }
                                         .buttonStyle(.borderless)
                                         .accessibilityLabel(
@@ -413,7 +461,11 @@ private struct UpcomingView: View {
                             selectedDay,
                             format: .dateTime.month().day().weekday()
                         )
+                        .accessibilityIdentifier("upcoming.agenda")
                     }
+                    .listRowInsets(
+                        EdgeInsets(top: 8, leading: 12, bottom: 8, trailing: 12)
+                    )
                 }
                 .accessibilityIdentifier("upcoming.month")
             }
@@ -433,6 +485,8 @@ private struct UpcomingView: View {
                     expectedOccurrence: presentation.expectedOccurrence
                 )
             }
+            .presentationBackground(.background)
+            .presentationCornerRadius(28)
         }
         .onAppear {
             loadTimeline()
@@ -458,9 +512,15 @@ private struct UpcomingView: View {
                     calendar: calendar,
                     onDisplayedMonthChange: selectMonth
                 )
+                .frame(maxWidth: .infinity)
                 .frame(height: 360)
+                .padding(.horizontal, 12)
+                .padding(.vertical, 8)
                 .accessibilityIdentifier("upcoming.calendar")
             }
+            .listRowInsets(
+                EdgeInsets(top: 0, leading: 0, bottom: 0, trailing: 0)
+            )
         } else {
             groupedDayList
         }
@@ -655,6 +715,7 @@ private struct UpcomingMonthCalendar: UIViewRepresentable {
 
     func makeUIView(context: Context) -> UICalendarView {
         let calendarView = UICalendarView()
+        configureLayoutMargins(of: calendarView)
         calendarView.calendar = calendar
         calendarView.locale = calendar.locale ?? .current
         calendarView.delegate = context.coordinator
@@ -667,6 +728,7 @@ private struct UpcomingMonthCalendar: UIViewRepresentable {
     }
 
     func updateUIView(_ calendarView: UICalendarView, context: Context) {
+        configureLayoutMargins(of: calendarView)
         context.coordinator.calendar = calendar
         context.coordinator.onDisplayedMonthChange = onDisplayedMonthChange
         context.coordinator.dayCounts = dayCounts
@@ -691,6 +753,19 @@ private struct UpcomingMonthCalendar: UIViewRepresentable {
         calendarView.reloadDecorations(
             forDateComponents: dateComponentsInDisplayedMonth(),
             animated: false
+        )
+    }
+
+    private func configureLayoutMargins(of calendarView: UICalendarView) {
+        // Keep the UIKit calendar's day cells inset from its SwiftUI/List row
+        // on every update; otherwise the system can lay digits against the
+        // wrapper edge when the month or selection changes.
+        calendarView.preservesSuperviewLayoutMargins = false
+        calendarView.directionalLayoutMargins = NSDirectionalEdgeInsets(
+            top: 8,
+            leading: 8,
+            bottom: 8,
+            trailing: 8
         )
     }
 
@@ -784,17 +859,20 @@ private struct UpcomingMonthCalendar: UIViewRepresentable {
 
             return .customView {
                 let badge = UILabel()
-                badge.text = "\(count)"
+                badge.text = count > 99 ? "99+" : "\(count)"
                 badge.textAlignment = .center
                 badge.font = .preferredFont(forTextStyle: .caption2)
+                badge.adjustsFontSizeToFitWidth = true
+                badge.minimumScaleFactor = 0.7
                 badge.textColor = .white
                 badge.backgroundColor = .systemBlue
-                badge.layer.cornerRadius = 8
+                badge.layer.cornerCurve = .continuous
+                badge.layer.cornerRadius = 9
                 badge.clipsToBounds = true
                 badge.translatesAutoresizingMaskIntoConstraints = false
                 NSLayoutConstraint.activate([
-                    badge.widthAnchor.constraint(equalToConstant: 16),
-                    badge.heightAnchor.constraint(equalToConstant: 16),
+                    badge.widthAnchor.constraint(equalToConstant: 24),
+                    badge.heightAnchor.constraint(equalToConstant: 18),
                 ])
                 badge.isAccessibilityElement = true
                 badge.accessibilityLabel = "\(count) charges"
@@ -821,27 +899,36 @@ private struct UpcomingTimelineRow: View {
     let item: UpcomingTimelineItem
 
     var body: some View {
-        HStack {
+        HStack(alignment: .firstTextBaseline, spacing: 10) {
             Image(
                 systemName: item.kind == .expected
                     ? "calendar"
                     : "checkmark.circle"
             )
             .accessibilityHidden(true)
-            VStack(alignment: .leading) {
+            VStack(alignment: .leading, spacing: 2) {
                 Text(item.serviceName)
+                    .lineLimit(2)
                 Text(statusTitle)
                     .font(.footnote)
                     .foregroundStyle(.secondary)
+                    .lineLimit(1)
             }
-            Spacer()
-            VStack(alignment: .trailing) {
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .layoutPriority(1)
+            VStack(alignment: .trailing, spacing: 2) {
                 Text(formattedMoney(item.amount))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.8)
                 Text(item.date, format: .dateTime.month().day().year())
                     .font(.footnote)
                     .foregroundStyle(.secondary)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.8)
             }
+            .fixedSize(horizontal: true, vertical: false)
         }
+        .padding(.vertical, 4)
         .accessibilityElement(children: .combine)
         .accessibilityLabel(
             "\(item.serviceName), \(statusAccessibilityText), "
@@ -1140,6 +1227,7 @@ private struct ScopedLibraryView: View {
     let onAddSubscription: () -> Void
     let onPreferences: () -> Void
     @State private var pinActionFailed = false
+    @State private var selectedSubscription: SubscriptionSummary?
     @State private var subscriptionPendingDeletion: SubscriptionSummary?
     @State private var directActionError:
         SubscriptionLifecycleActionError?
@@ -1147,19 +1235,13 @@ private struct ScopedLibraryView: View {
     var body: some View {
         libraryContent
             .navigationTitle(navigationTitle)
+            #if os(iOS)
+            .navigationBarTitleDisplayMode(.inline)
+            #endif
             .toolbar {
                 if scope == .current {
                     settingsToolbarItem
-                    ToolbarItemGroup(placement: .primaryAction) {
-                        NavigationLink(
-                            value: SubscriptionLibraryScope.archived
-                        ) {
-                            Label("Archived", systemImage: "archivebox")
-                        }
-                        .accessibilityIdentifier("library.archived")
-
-                        addButton
-                    }
+                    addToolbarItem
                 }
             }
             .task(id: scope) {
@@ -1167,6 +1249,16 @@ private struct ScopedLibraryView: View {
             }
             .onAppear {
                 loadLibraryIfNeeded()
+            }
+            .sheet(item: $selectedSubscription) { subscription in
+                NavigationStack {
+                    SubscriptionDetailView(
+                        workspace: workspace,
+                        subscriptionID: subscription.id
+                    )
+                }
+                .presentationBackground(.background)
+                .presentationCornerRadius(28)
             }
             .alert(
                 deletionConfirmationTitle,
@@ -1246,10 +1338,23 @@ private struct ScopedLibraryView: View {
     private var navigationTitle: LocalizedStringKey {
         switch scope {
         case .current:
-            "Subscriptions"
+            "My Subscriptions"
         case .archived:
             "Archived"
         }
+    }
+
+    @ToolbarContentBuilder
+    private var addToolbarItem: some ToolbarContent {
+        #if os(macOS)
+        ToolbarItem(placement: .automatic) {
+            addButton
+        }
+        #else
+        ToolbarItem(placement: .topBarTrailing) {
+            addButton
+        }
+        #endif
     }
 
     private var addButton: some View {
@@ -1307,9 +1412,15 @@ private struct ScopedLibraryView: View {
     private func subscriptionRow(
         _ subscription: SubscriptionSummary
     ) -> some View {
-        let row = NavigationLink(value: subscription.id) {
+        let row = Button {
+            selectedSubscription = subscription
+        } label: {
             SubscriptionRow(subscription: subscription)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .contentShape(Rectangle())
         }
+        .buttonStyle(.plain)
+        .contentShape(Rectangle())
         .accessibilityLabel(
             "\(subscription.serviceName), \(subscription.plan), "
                 + "\(formattedMoney(subscription.amount)), "
@@ -1345,7 +1456,7 @@ private struct ScopedLibraryView: View {
                 }
                 .swipeActions(
                     edge: .trailing,
-                    allowsFullSwipe: true
+                    allowsFullSwipe: false
                 ) {
                     trailingActions(for: subscription)
                 }
@@ -1375,14 +1486,6 @@ private struct ScopedLibraryView: View {
     private func trailingActions(
         for subscription: SubscriptionSummary
     ) -> some View {
-        Button(role: .destructive) {
-            beginDirectAction()
-            subscriptionPendingDeletion = subscription
-        } label: {
-            Label("Delete", systemImage: "trash")
-        }
-        .accessibilityIdentifier("subscription.delete")
-
         if scope == .current {
             Button {
                 performDirectAction {
@@ -1393,7 +1496,11 @@ private struct ScopedLibraryView: View {
             }
             .tint(.blue)
             .accessibilityIdentifier("subscription.archive")
+
+            deleteButton(for: subscription)
         } else {
+            deleteButton(for: subscription)
+
             Button {
                 performDirectAction {
                     workspace.restore(id: subscription.id)
@@ -1404,6 +1511,18 @@ private struct ScopedLibraryView: View {
             .tint(.blue)
             .accessibilityIdentifier("subscription.restore")
         }
+    }
+
+    private func deleteButton(
+        for subscription: SubscriptionSummary
+    ) -> some View {
+        Button(role: .destructive) {
+            beginDirectAction()
+            subscriptionPendingDeletion = subscription
+        } label: {
+            Label("Delete", systemImage: "trash")
+        }
+        .accessibilityIdentifier("subscription.delete")
     }
 
     private var deletionConfirmationTitle: LocalizedStringKey {
@@ -1467,11 +1586,36 @@ struct UserPreferencesView: View {
     @State private var horizon: CalendarProjectionHorizon = .twelveMonths
     @State private var hideAmountsInCalendar = false
     @State private var menuBarModeEnabled = false
+    @State private var appearanceMode: AppearanceMode = .system
     @State private var saveFailed = false
 
     var body: some View {
         NavigationStack {
             Form {
+                Section("Appearance") {
+                    preferenceButton(
+                        title: "System",
+                        isSelected: appearanceMode == .system,
+                        identifier: "preferences.appearance.system"
+                    ) {
+                        appearanceMode = .system
+                    }
+                    preferenceButton(
+                        title: "Light",
+                        isSelected: appearanceMode == .light,
+                        identifier: "preferences.appearance.light"
+                    ) {
+                        appearanceMode = .light
+                    }
+                    preferenceButton(
+                        title: "Dark",
+                        isSelected: appearanceMode == .dark,
+                        identifier: "preferences.appearance.dark"
+                    ) {
+                        appearanceMode = .dark
+                    }
+                }
+
                 Section("Primary Currency") {
                     preferenceButton(
                         title: "CNY",
@@ -1596,7 +1740,8 @@ struct UserPreferencesView: View {
                             primaryCurrency: primaryCurrency,
                             calendarProjectionHorizon: horizon,
                             hideAmountsInCalendar: hideAmountsInCalendar,
-                            menuBarModeEnabled: menuBarModeEnabled
+                            menuBarModeEnabled: menuBarModeEnabled,
+                            appearanceMode: appearanceMode
                         )
                         saveFailed = isSetupSaveFailure
                         if !saveFailed {
@@ -1649,6 +1794,7 @@ struct UserPreferencesView: View {
             horizon = preferences.calendarProjectionHorizon
             hideAmountsInCalendar = preferences.hideAmountsInCalendar
             menuBarModeEnabled = preferences.menuBarModeEnabled
+            appearanceMode = preferences.appearanceMode
         case .notLoaded:
             break
         }
