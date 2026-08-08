@@ -595,7 +595,7 @@ final class SwiftDataCalendarProjectionMappingRepository:
             record.calendarSyncDisabled = disabled
             modelContext.insert(record)
         }
-        try modelContext.save()
+        try saveContext()
     }
 
     func saveCalendarIdentifier(_ identifier: String) throws {
@@ -606,7 +606,7 @@ final class SwiftDataCalendarProjectionMappingRepository:
                 CalendarProjectionMappingRecord(calendarIdentifier: identifier)
             )
         }
-        try modelContext.save()
+        try saveContext()
     }
 
     func eventIdentifier(for projectionUID: String) throws -> String? {
@@ -632,12 +632,7 @@ final class SwiftDataCalendarProjectionMappingRepository:
             return
         }
         modelContext.delete(record)
-        do {
-            try modelContext.save()
-        } catch {
-            modelContext.rollback()
-            throw error
-        }
+        try saveContext()
     }
 
     func saveEventIdentifier(
@@ -659,7 +654,16 @@ final class SwiftDataCalendarProjectionMappingRepository:
                 )
             )
         }
-        try modelContext.save()
+        try saveContext()
+    }
+
+    private func saveContext() throws {
+        do {
+            try modelContext.save()
+        } catch {
+            modelContext.rollback()
+            throw error
+        }
     }
 
     private func records() throws -> [CalendarProjectionMappingRecord] {

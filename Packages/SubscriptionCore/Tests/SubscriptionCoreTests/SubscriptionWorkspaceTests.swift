@@ -237,7 +237,7 @@ struct SubscriptionWorkspaceTests {
             locale: Locale(identifier: "en_US")
         )
 
-        #expect(workspace.calendarProjection == previousProjection)
+        #expect(workspace.calendarProjection.isEmpty)
         #expect(reconciler.commands.isEmpty)
         #expect(workspace.calendarReconciliationState == .unavailable)
     }
@@ -287,7 +287,7 @@ struct SubscriptionWorkspaceTests {
             locale: Locale(identifier: "en_US")
         )
 
-        #expect(workspace.calendarProjection == previousProjection)
+        #expect(workspace.calendarProjection.isEmpty)
         #expect(reconciler.commands.isEmpty)
         #expect(workspace.calendarReconciliationState == .unavailable)
     }
@@ -2219,7 +2219,13 @@ struct SubscriptionWorkspaceTests {
             category: CatalogLocalizedText(en: "Music", zhHans: "音乐"),
             suggestedInterval: .monthly,
             managementURL: nil,
-            icon: .music
+            icon: .music,
+            offers: [
+                catalogOfferFixture(
+                    id: "music-monthly-us-web",
+                    status: .verified
+                )
+            ]
         )
         let newer = CatalogPreset(
             id: "video.example",
@@ -2230,7 +2236,13 @@ struct SubscriptionWorkspaceTests {
             category: CatalogLocalizedText(en: "Video", zhHans: "视频"),
             suggestedInterval: .monthly,
             managementURL: nil,
-            icon: .video
+            icon: .video,
+            offers: [
+                catalogOfferFixture(
+                    id: "video-monthly-us-web",
+                    status: .verified
+                )
+            ]
         )
         let update = try JSONEncoder().encode(
             CatalogSnapshot(
@@ -2270,7 +2282,12 @@ struct SubscriptionWorkspaceTests {
     @MainActor
     func refreshCatalogRejectsOutOfOrderStaleResponse() async throws {
         let bundled = catalogPresetFixture(
-            offers: [],
+            offers: [
+                catalogOfferFixture(
+                    id: "bundled-monthly-us-web",
+                    status: .verified
+                )
+            ],
             id: "bundled.example",
             serviceName: CatalogLocalizedText(
                 en: "Bundled Example",
@@ -2278,7 +2295,12 @@ struct SubscriptionWorkspaceTests {
             )
         )
         let v2 = catalogPresetFixture(
-            offers: [],
+            offers: [
+                catalogOfferFixture(
+                    id: "v2-monthly-us-web",
+                    status: .verified
+                )
+            ],
             id: "v2.example",
             serviceName: CatalogLocalizedText(
                 en: "Version Two",
@@ -2286,7 +2308,12 @@ struct SubscriptionWorkspaceTests {
             )
         )
         let v3 = catalogPresetFixture(
-            offers: [],
+            offers: [
+                catalogOfferFixture(
+                    id: "v3-monthly-us-web",
+                    status: .verified
+                )
+            ],
             id: "v3.example",
             serviceName: CatalogLocalizedText(
                 en: "Version Three",
@@ -2360,7 +2387,13 @@ struct SubscriptionWorkspaceTests {
             category: CatalogLocalizedText(en: "Music", zhHans: "音乐"),
             suggestedInterval: .monthly,
             managementURL: nil,
-            icon: .music
+            icon: .music,
+            offers: [
+                catalogOfferFixture(
+                    id: "music-monthly-us-web",
+                    status: .verified
+                )
+            ]
         )
         let newer = CatalogPreset(
             id: "video.example",
@@ -2371,7 +2404,13 @@ struct SubscriptionWorkspaceTests {
             category: CatalogLocalizedText(en: "Video", zhHans: "视频"),
             suggestedInterval: .monthly,
             managementURL: nil,
-            icon: .video
+            icon: .video,
+            offers: [
+                catalogOfferFixture(
+                    id: "video-monthly-us-web",
+                    status: .verified
+                )
+            ]
         )
         let bundledData = try JSONEncoder().encode(
             CatalogSnapshot(
@@ -2442,7 +2481,13 @@ struct SubscriptionWorkspaceTests {
             category: CatalogLocalizedText(en: "Music", zhHans: "音乐"),
             suggestedInterval: .monthly,
             managementURL: nil,
-            icon: .music
+            icon: .music,
+            offers: [
+                catalogOfferFixture(
+                    id: "music-monthly-us-web",
+                    status: .verified
+                )
+            ]
         )
         let stale = try JSONEncoder().encode(
             CatalogSnapshot(
@@ -2495,7 +2540,13 @@ struct SubscriptionWorkspaceTests {
             category: CatalogLocalizedText(en: "Music", zhHans: "音乐"),
             suggestedInterval: .monthly,
             managementURL: nil,
-            icon: .music
+            icon: .music,
+            offers: [
+                catalogOfferFixture(
+                    id: "music-monthly-us-web",
+                    status: .verified
+                )
+            ]
         )
         let video = CatalogPreset(
             id: "video.example",
@@ -2503,7 +2554,13 @@ struct SubscriptionWorkspaceTests {
             category: CatalogLocalizedText(en: "Video", zhHans: "视频"),
             suggestedInterval: .monthly,
             managementURL: nil,
-            icon: .video
+            icon: .video,
+            offers: [
+                catalogOfferFixture(
+                    id: "video-monthly-us-web",
+                    status: .verified
+                )
+            ]
         )
         let workspace = SubscriptionWorkspace(
             repository: InMemorySubscriptionRepository(),
@@ -2853,6 +2910,10 @@ struct SubscriptionWorkspaceTests {
     @Test("Catalog search and creation preserve the preset identity")
     @MainActor
     func catalogSearchAndCreationPreservePresetIdentity() throws {
+        let verifiedOffer = catalogOfferFixture(
+            id: "music-monthly-us-web",
+            status: .verified
+        )
         let preset = CatalogPreset(
             id: "music.example",
             serviceName: CatalogLocalizedText(
@@ -2862,13 +2923,13 @@ struct SubscriptionWorkspaceTests {
             category: CatalogLocalizedText(en: "Music", zhHans: "音乐"),
             suggestedInterval: .monthly,
             managementURL: URL(string: "https://example.com/manage"),
-            icon: .music
+            icon: .music,
+            offers: [verifiedOffer]
         )
         let repository = InMemorySubscriptionRepository()
         let subscriptionID = UUID(
             uuidString: "ACACACAC-BBBB-CCCC-DDDD-EEEEEEEEEEEE"
         )!
-        let start = Date(timeIntervalSince1970: 1_767_225_600)
         let workspace = SubscriptionWorkspace(
             repository: repository,
             catalogRepository: StaticCatalogRepository(presets: [preset]),
@@ -2879,18 +2940,8 @@ struct SubscriptionWorkspaceTests {
         workspace.setCatalogSearchQuery("音乐")
         let result = workspace.createCatalogSubscription(
             presetID: preset.id,
-            command: .legacy(
-                SubscriptionCreationInput(
-                    serviceName: "Example Music",
-                    plan: "Family",
-                    category: "Music",
-                    originalAmount: Money(minorUnits: 1_299, currency: .usd),
-                    billingInterval: .monthly,
-                    startDate: start,
-                    confirmedNextRenewal: start.addingTimeInterval(86_400),
-                    managementURL: preset.managementURL,
-                    notes: ""
-                )
+            command: .verifiedOffer(
+                catalogOfferInputFixture(offerID: verifiedOffer.id)
             )
         )
 
@@ -2905,7 +2956,7 @@ struct SubscriptionWorkspaceTests {
                 == ServiceIdentity(rawValue: "catalog:music.example")
         )
         guard case .created = result else {
-            Issue.record("Expected offer-less legacy catalog creation")
+            Issue.record("Expected verified-offer catalog creation")
             return
         }
     }
@@ -7883,11 +7934,6 @@ private func assertPendingProjectionReadFailure(
         await firstRequest.value
         return
     }
-    let firstCommand = try #require(reconciler.commands.first)
-    let oldProjection = try #require(
-        calendarProjectionEvents(in: firstCommand)
-    )
-
     repository.failure = .list
     let pendingRequest = Task { @MainActor in
         await pending.enqueue(on: workspace)
@@ -7899,7 +7945,7 @@ private func assertPendingProjectionReadFailure(
     await firstRequest.value
 
     #expect(reconciler.commands.count == 1)
-    #expect(workspace.calendarProjection == oldProjection)
+    #expect(workspace.calendarProjection.isEmpty)
     #expect(workspace.calendarReconciliationState == .unavailable)
     #expect(reconciler.maximumConcurrentCalls == 1)
 }

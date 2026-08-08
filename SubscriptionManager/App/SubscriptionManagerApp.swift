@@ -784,6 +784,9 @@ private struct MacLibraryView: View {
         workspace.clearLifecycleActionError()
         workspace.setPinned(id: id, pinned: pinned)
         pinActionFailed = workspace.lifecycleActionError != nil
+        if !pinActionFailed {
+            reloadLibrary()
+        }
     }
 
     private var deletionConfirmationTitle: LocalizedStringKey {
@@ -854,6 +857,9 @@ private struct MacLibraryView: View {
         beginDirectAction()
         action()
         directActionError = workspace.lifecycleActionError
+        if directActionError == nil {
+            reloadLibrary()
+        }
     }
 
     private func dismissDirectActionError() {

@@ -61,7 +61,8 @@ struct CatalogTests {
             suggestedInterval: .monthly,
             managementURL: nil,
             icon: .productivity,
-            categoryID: "ai"
+            categoryID: "ai",
+            offers: [verifiedOffer()]
         )
         let productivity = CatalogPreset(
             id: "wps-office",
@@ -70,7 +71,8 @@ struct CatalogTests {
             suggestedInterval: .monthly,
             managementURL: nil,
             icon: .productivity,
-            categoryID: "productivity"
+            categoryID: "productivity",
+            offers: [verifiedOffer(id: "productivity-monthly-us-web")]
         )
         let snapshot = try CatalogSnapshot(
             schemaVersion: CatalogSnapshot.currentSchemaVersion,
@@ -193,7 +195,8 @@ struct CatalogTests {
             suggestedInterval: .monthly,
             managementURL: URL(string: "https://chatgpt.com/"),
             icon: .productivity,
-            legacyPresetIDs: ["chatgpt-plus"]
+            legacyPresetIDs: ["chatgpt-plus"],
+            offers: [verifiedOffer()]
         )
         let snapshot = try CatalogSnapshot(
             schemaVersion: CatalogSnapshot.currentSchemaVersion,
@@ -351,7 +354,8 @@ struct CatalogTests {
                 kind: .originalSymbol,
                 license: "CC0-1.0",
                 source: "music.example"
-            )
+            ),
+            offers: [verifiedOffer()]
         )
 
         let snapshot = try CatalogSnapshot(
@@ -378,7 +382,8 @@ struct CatalogTests {
             ),
             suggestedInterval: .monthly,
             managementURL: URL(string: "https://example.com/manage"),
-            icon: .music
+            icon: .music,
+            offers: [verifiedOffer()]
         )
         let snapshot = try CatalogSnapshot(
             schemaVersion: CatalogSnapshot.currentSchemaVersion,
@@ -410,7 +415,8 @@ struct CatalogTests {
             category: CatalogLocalizedText(en: "Food", zhHans: "餐饮"),
             suggestedInterval: .monthly,
             managementURL: URL(string: "https://example.com/manage"),
-            icon: .other
+            icon: .other,
+            offers: [verifiedOffer()]
         )
         let snapshot = try CatalogSnapshot(
             schemaVersion: CatalogSnapshot.currentSchemaVersion,
@@ -440,7 +446,8 @@ struct CatalogTests {
             suggestedInterval: .yearly,
             managementURL: URL(string: "https://www.taobao.com/"),
             icon: .membership,
-            matchAliases: ["88VIP"]
+            matchAliases: ["88VIP"],
+            offers: [verifiedOffer()]
         )
         let snapshot = try CatalogSnapshot(
             schemaVersion: CatalogSnapshot.currentSchemaVersion,
@@ -488,7 +495,7 @@ struct CatalogTests {
             managementURL: managementURL,
             icon: .other,
             matchAliases: matchAliases,
-            offers: offers
+            offers: offers.isEmpty ? [verifiedOffer()] : offers
         )
     }
 

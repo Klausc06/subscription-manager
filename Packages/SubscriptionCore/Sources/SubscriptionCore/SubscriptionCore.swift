@@ -1043,15 +1043,12 @@ public final class SubscriptionWorkspace {
                     ?? .unavailable
                 : .unavailable
         } catch {
+            exchangeRateAttempts.insert(attemptKey)
             let state = ExchangeRateCacheState(
                 snapshot: cachedState?.snapshot,
                 lastAttemptAt: attemptedAt
             )
-            do {
-                try exchangeRateCache?.saveState(state)
-            } catch {
-                exchangeRateAttempts.insert(attemptKey)
-            }
+            try? exchangeRateCache?.saveState(state)
             exchangeRateStatus = cacheIsComplete
                 ? cachedState?.snapshot.map(ExchangeRateStatus.stale)
                     ?? .unavailable
@@ -2281,6 +2278,7 @@ public final class SubscriptionWorkspace {
                 }
             return true
         } catch {
+            calendarProjection = []
             return false
         }
     }

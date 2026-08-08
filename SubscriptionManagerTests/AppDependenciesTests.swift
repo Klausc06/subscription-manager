@@ -384,8 +384,11 @@ struct AppDependenciesTests {
         let remaining = try context.fetch(
             FetchDescriptor<UserPreferencesRecord>()
         )
-        #expect(remaining.count == 1)
-        #expect(remaining.first?.id == UserPreferencesRecord.canonicalID)
+        #expect(remaining.count == 2)
+        #expect(
+            remaining.contains { $0.id == UserPreferencesRecord.canonicalID }
+        )
+        #expect(remaining.contains { $0.id == duplicate.id })
     }
 
     @Test("Legacy duplicate preferences use a deterministic value tie-break")
@@ -418,7 +421,7 @@ struct AppDependenciesTests {
         #expect(loaded?.primaryCurrency == .eur)
         #expect(
             try context.fetch(FetchDescriptor<UserPreferencesRecord>()).count
-                == 1
+                == 2
         )
     }
 

@@ -315,21 +315,29 @@ private struct InsightsView: View {
         }
         .task(id: mode) {
             await workspace.refreshExchangeRates()
-            let today = Calendar.current.startOfDay(for: Date())
+            let calendar = Calendar.current
+            let today = calendar.startOfDay(for: Date())
             let rangeStart = mode == .expected
                 ? today
-                : Calendar.current.date(
+                : calendar.date(
                     byAdding: .day,
                     value: -29,
                     to: today
                 ) ?? today
-            let rangeEnd = mode == .expected
-                ? Calendar.current.date(
+            let finalDay = mode == .expected
+                ? calendar.date(
                     byAdding: .day,
                     value: 29,
                     to: today
                 ) ?? today
                 : today
+            let rangeEnd = calendar.dateInterval(of: .day, for: finalDay).flatMap {
+                calendar.date(
+                    byAdding: .nanosecond,
+                    value: -1,
+                    to: $0.end
+                )
+            } ?? finalDay
             workspace.loadInsights(
                 mode: mode,
                 from: rangeStart,

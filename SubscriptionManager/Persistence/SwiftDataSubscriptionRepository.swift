@@ -880,7 +880,7 @@ final class SwiftDataUserPreferencesRepository: UserPreferencesRepository {
             guard !records.isEmpty else {
                 return nil
             }
-            let record = try canonicalize(records)
+            let record = records.sorted(by: preferenceRecordPrecedes).first!
             return UserPreferences(
                 primaryCurrency: Currency(
                     rawValue: record.primaryCurrencyRawValue
@@ -989,8 +989,8 @@ final class SwiftDataPortableBackupImportRepository:
         do {
             for subscription in merge.additions {
                 let record = SubscriptionRecord(id: subscription.id)
-                try apply(subscription, to: record, in: context)
                 context.insert(record)
+                try apply(subscription, to: record, in: context)
             }
             for subscription in merge.replacements {
                 let id = subscription.id

@@ -357,14 +357,14 @@ public struct CatalogSnapshot: Codable, Equatable, Sendable {
                 throw CatalogLoadError(
                     presetID: identifier,
                     field: .serviceName,
-                    message: "English and Simplified-Chinese text are required"
+                    message: "English and Simplified Chinese text are required"
                 )
             }
             guard preset.category.isValid else {
                 throw CatalogLoadError(
                     presetID: identifier,
                     field: .category,
-                    message: "English and Simplified-Chinese text are required"
+                    message: "English and Simplified Chinese text are required"
                 )
             }
             guard !preset.categoryID.isEmpty else {
@@ -430,6 +430,13 @@ public struct CatalogSnapshot: Codable, Equatable, Sendable {
                         message: "match alias is empty or duplicated"
                     )
                 }
+            }
+            guard !preset.offers.isEmpty else {
+                throw CatalogLoadError(
+                    presetID: identifier,
+                    field: .offers,
+                    message: "preset must include at least one fixed-price offer"
+                )
             }
             var offerIdentifiers = Set<String>()
             for offer in preset.offers {
