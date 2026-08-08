@@ -349,17 +349,30 @@ final class EventKitCalendarProjectionImporter:
             calendar = existing
 
             mappings = try mappingRepository.eventMappings()
+            var missingCount = 0
             for event in events {
                 if let identifier = try mappingRepository.eventIdentifier(
                     for: event.uid
                 ) {
-                    mappedIdentifiers[event.uid] = identifier
+                    if eventStore.eventExists(identifier: identifier) {
+                        mappedIdentifiers[event.uid] = identifier
+                    } else if let recoveredIdentifier = eventStore.eventIdentifier(
+                        for: event.uid,
+                        near: event,
+                        in: calendar
+                    ) {
+                        try mappingRepository.saveEventIdentifier(
+                            recoveredIdentifier,
+                            for: event.uid,
+                            calendarIdentifier: calendar.identifier
+                        )
+                        mappedIdentifiers[event.uid] = recoveredIdentifier
+                    } else {
+                        missingCount += 1
+                    }
                 }
             }
 
-            let missingCount = mappedIdentifiers.values.filter {
-                !eventStore.eventExists(identifier: $0)
-            }.count
             guard missingCount == 0 else {
                 return .needsDecision(.eventsMissing(count: missingCount))
             }

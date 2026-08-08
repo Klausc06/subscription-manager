@@ -840,24 +840,29 @@ public final class SubscriptionWorkspace {
 
     public func loadSetup(libraryIsEmpty: Bool) {
         let fallback = UserPreferences.default
-        do {
-            let storedPreferences = try preferencesRepository?.loadPreferences()
-            guard let preferences = storedPreferences else {
-                setupState = libraryIsEmpty
-                    ? .needsSetup(fallback)
-                    : .completed(fallback)
+        for attempt in 0..<2 {
+            do {
+                let storedPreferences = try preferencesRepository?.loadPreferences()
+                guard let preferences = storedPreferences else {
+                    setupState = libraryIsEmpty
+                        ? .needsSetup(fallback)
+                        : .completed(fallback)
+                    return
+                }
+                switch preferences.setupStatus {
+                case .notCompleted:
+                    setupState = .needsSetup(preferences)
+                case .completed:
+                    setupState = .completed(preferences)
+                case .skipped:
+                    setupState = .skipped(preferences)
+                }
                 return
+            } catch {
+                if attempt == 1 {
+                    setupState = .notLoaded
+                }
             }
-            switch preferences.setupStatus {
-            case .notCompleted:
-                setupState = .needsSetup(preferences)
-            case .completed:
-                setupState = .completed(preferences)
-            case .skipped:
-                setupState = .skipped(preferences)
-            }
-        } catch {
-            setupState = .failed(fallback)
         }
     }
 
@@ -940,6 +945,11 @@ public final class SubscriptionWorkspace {
         _ preferences: UserPreferences,
         stateOnSuccess: ((UserPreferences) -> SetupState)? = nil
     ) {
+        if preferencesRepository != nil,
+           case .notLoaded = setupState
+        {
+            return
+        }
         do {
             try preferencesRepository?.savePreferences(preferences)
             if preferencesRepository != nil {

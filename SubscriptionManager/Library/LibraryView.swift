@@ -390,11 +390,9 @@ private struct UpcomingView: View {
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     var body: some View {
-        let subscriptionsByID = Dictionary(
-            uniqueKeysWithValues: ((try? workspace.subscriptions()) ?? []).map {
-                ($0.id, $0)
-            }
-        )
+        let subscriptionsByID = self.subscriptionsByID()
+        let projection = makeProjection(subscriptionsByID: subscriptionsByID)
+        let selectedDayItems = selectedDayItems(in: projection)
         NavigationStack {
             GeometryReader { geometry in
                 List {
@@ -433,7 +431,10 @@ private struct UpcomingView: View {
                         EdgeInsets(top: 8, leading: 0, bottom: 8, trailing: 0)
                     )
 
-                    monthOverview(availableWidth: geometry.size.width)
+                    monthOverview(
+                        availableWidth: geometry.size.width,
+                        projection: projection
+                    )
 
                     Section {
                         if hasUpcomingFailure {
@@ -542,7 +543,10 @@ private struct UpcomingView: View {
     }
 
     @ViewBuilder
-    private func monthOverview(availableWidth: CGFloat) -> some View {
+    private func monthOverview(
+        availableWidth: CGFloat,
+        projection: UpcomingCalendarProjection
+    ) -> some View {
 #if os(iOS)
         if hasUpcomingFailure {
             Section {
@@ -578,7 +582,7 @@ private struct UpcomingView: View {
                 EdgeInsets(top: 0, leading: 0, bottom: 0, trailing: 0)
             )
         } else {
-            groupedDayList
+            groupedDayList(projection: projection)
         }
 #else
         if hasUpcomingFailure {
@@ -593,12 +597,14 @@ private struct UpcomingView: View {
                 .accessibilityIdentifier("upcoming.month.failed")
             }
         } else {
-            groupedDayList
+            groupedDayList(projection: projection)
         }
 #endif
     }
 
-    private var groupedDayList: some View {
+    private func groupedDayList(
+        projection: UpcomingCalendarProjection
+    ) -> some View {
         Section("Days") {
             if projection.days.isEmpty {
                 ContentUnavailableView(
@@ -652,16 +658,76 @@ private struct UpcomingView: View {
         calendar.dateInterval(of: .month, for: displayedMonth)
     }
 
-    private var projection: UpcomingCalendarProjection {
+    private func makeProjection(
+        subscriptionsByID: [UUID: Subscription]
+    ) -> UpcomingCalendarProjection {
         UpcomingCalendarProjection(
             monthContaining: displayedMonth,
-            items: workspace.upcomingTimeline,
+            items: workspace.upcomingTimeline.map { item in
+                UpcomingTimelineItem(
+                    id: item.id,
+                    kind: item.kind,
+                    subscriptionID: item.subscriptionID,
+                    serviceName: item.serviceName,
+                    date: billingLocalDay(
+                        for: item,
+                        subscriptionsByID: subscriptionsByID
+                    ),
+                    amount: item.amount
+                )
+            },
             calendar: calendar
         )
     }
 
-    private var selectedDayItems: [UpcomingTimelineItem] {
-        projection.days.first(where: { $0.date == selectedDay })?.items ?? []
+    private func selectedDayItems(
+        in projection: UpcomingCalendarProjection
+    ) -> [UpcomingTimelineItem] {
+        let selectedIDs = Set(
+            projection.days.first(where: { $0.date == selectedDay })?
+                .items.map(\.id) ?? []
+        )
+        return workspace.upcomingTimeline
+            .filter { selectedIDs.contains($0.id) }
+            .sorted { lhs, rhs in
+                if lhs.date != rhs.date { return lhs.date < rhs.date }
+                return lhs.id < rhs.id
+            }
+    }
+
+    private func subscriptionsByID() -> [UUID: Subscription] {
+        Dictionary(
+            uniqueKeysWithValues: ((try? workspace.subscriptions()) ?? []).map {
+                ($0.id, $0)
+            }
+        )
+    }
+
+    private func billingLocalDay(
+        for item: UpcomingTimelineItem,
+        subscriptionsByID: [UUID: Subscription]
+    ) -> Date {
+        let timeZoneIdentifier = subscriptionsByID[item.subscriptionID]?
+            .billingSchedule.timeZoneIdentifier
+            ?? TimeZone.autoupdatingCurrent.identifier
+        var billingCalendar = Calendar(identifier: .gregorian)
+        billingCalendar.timeZone = billingTimeZone(
+            identifier: timeZoneIdentifier
+        )
+        let components = billingCalendar.dateComponents(
+            [.year, .month, .day],
+            from: item.date
+        )
+        guard let year = components.year,
+              let month = components.month,
+              let day = components.day,
+              let displayDate = calendar.date(
+                  from: DateComponents(year: year, month: month, day: day)
+              )
+        else {
+            return calendar.startOfDay(for: item.date)
+        }
+        return calendar.startOfDay(for: displayDate)
     }
 
     private var hasUpcomingFailure: Bool {
@@ -678,12 +744,25 @@ private struct UpcomingView: View {
             value: -1,
             to: monthInterval.end
         ) ?? monthInterval.end
+        let queryStart = calendar.date(
+            byAdding: .day,
+            value: -2,
+            to: monthInterval.start
+        ) ?? monthInterval.start
+        let queryEnd = calendar.date(
+            byAdding: .day,
+            value: 2,
+            to: lastDay
+        ) ?? lastDay
         workspace.loadUpcomingTimeline(
-            from: monthInterval.start,
-            through: lastDay
+            from: queryStart,
+            through: queryEnd
         )
 
         if selectsFirstChargeAfterMonthChange {
+            let projection = makeProjection(
+                subscriptionsByID: subscriptionsByID()
+            )
             selectedDay = projection.days.first?.date ?? monthInterval.start
             selectsFirstChargeAfterMonthChange = false
         }

@@ -146,9 +146,15 @@ final class SwiftDataSubscriptionRepository: SubscriptionRepository {
                     subscriptions.append(result.subscription)
                     rememberPriceChanges(for: result.subscription)
                 } catch {
-                    Self.logger.error(
-                        "Skipping unreadable subscription record \(record.id.uuidString, privacy: .public): \(String(describing: error), privacy: .public)"
-                    )
+                    switch error {
+                    case is DecodingError,
+                         RepositoryError.invalidLifecycleStorage:
+                        Self.logger.error(
+                            "Skipping unreadable subscription record \(record.id.uuidString, privacy: .public): \(String(describing: error), privacy: .public)"
+                        )
+                    default:
+                        throw error
+                    }
                 }
             }
             if needsSave {
