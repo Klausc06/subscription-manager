@@ -1391,21 +1391,25 @@ public final class SubscriptionWorkspace {
         }
 
         do {
-            let activeSnapshot: CatalogSnapshot
-            if let catalogSnapshot {
-                activeSnapshot = catalogSnapshot
-            } else {
-                activeSnapshot = try catalogRepository.loadSnapshot()
+            if catalogSnapshot == nil {
+                _ = try catalogRepository.loadSnapshot()
             }
             let data = try await catalogUpdateSource.fetchCatalogData()
             let candidate = try JSONDecoder().decode(
                 CatalogSnapshot.self,
                 from: data
             )
-            guard candidate.catalogVersion > activeSnapshot.catalogVersion else {
+            let latestActiveSnapshot: CatalogSnapshot
+            if let catalogSnapshot {
+                latestActiveSnapshot = catalogSnapshot
+            } else {
+                latestActiveSnapshot = try catalogRepository.loadSnapshot()
+            }
+            guard candidate.catalogVersion > latestActiveSnapshot.catalogVersion else {
                 catalogDiagnostics = CatalogDiagnostics(
-                    source: catalogRepository.catalogSource,
-                    version: activeSnapshot.catalogVersion,
+                    source: catalogDiagnostics?.source
+                        ?? catalogRepository.catalogSource,
+                    version: latestActiveSnapshot.catalogVersion,
                     refreshStatus: .alreadyCurrent
                 )
                 return
@@ -1422,7 +1426,8 @@ public final class SubscriptionWorkspace {
         } catch {
             if let catalogSnapshot {
                 catalogDiagnostics = CatalogDiagnostics(
-                    source: catalogRepository.catalogSource,
+                    source: catalogDiagnostics?.source
+                        ?? catalogRepository.catalogSource,
                     version: catalogSnapshot.catalogVersion,
                     refreshStatus: .failed
                 )
@@ -1628,6 +1633,13 @@ public final class SubscriptionWorkspace {
                 return false
             }
             let localCalendar = billingLocalCalendar(timeZone: timeZone)
+            guard !existing.priceChanges.contains(where: {
+                localCalendar.startOfDay(for: $0.effectiveDate)
+                    < localCalendar.startOfDay(for: normalizedStartDate)
+            }) else {
+                editingValidationErrors[.billingSchedule] = .beforeStartDate
+                return false
+            }
             let confirmedNextRenewal: Date
             let renewalAnchor: Date
             switch existing.lifecycle {
@@ -1872,6 +1884,7 @@ public final class SubscriptionWorkspace {
                 $0.sourceScheduledChargeID == sourceScheduledChargeID
             }) else {
                 detailState = makeDetail(existing)
+                reloadRequestedConsumers()
                 return
             }
 
@@ -1954,7 +1967,6 @@ public final class SubscriptionWorkspace {
             reloadRequestedConsumers()
         } catch {
             paymentHistoryActionError = .persistenceFailed
-            detailState = .failed
         }
     }
 
@@ -2098,6 +2110,7 @@ public final class SubscriptionWorkspace {
             markLocalChangesForSync()
 
             detailState = .notFound
+            paymentHistory = []
             expectedCharges = refreshedExpectedCharges
             if clearsExpectedCharges {
                 expectedChargesRequest = nil
@@ -2164,9 +2177,11 @@ public final class SubscriptionWorkspace {
                 detailState = makeDetail(subscription)
             } else {
                 detailState = .notFound
+                paymentHistory = []
             }
         } catch {
             detailState = .failed
+            paymentHistory = []
         }
     }
 
@@ -3088,32 +3103,44 @@ public final class SubscriptionWorkspace {
                 onOrAfter: today,
                 calendar: localCalendar
             )
-            let missed = (candidateIndex...(candidateIndex + 1)).compactMap {
-                scheduledDate(
+            let startDay = localCalendar.startOfDay(for: subscription.startDate)
+            let confirmedNextRenewalDay = localCalendar.startOfDay(
+                for: subscription.confirmedNextRenewal
+            )
+            var missed: ExpectedCharge?
+            for occurrenceIndex in stride(
+                from: candidateIndex + 1,
+                through: 0,
+                by: -1
+            ) {
+                guard let occurrence = scheduledDate(
                     for: subscription.billingSchedule,
-                    occurrenceIndex: $0,
+                    occurrenceIndex: occurrenceIndex,
                     calendar: localCalendar
-                )
-            }
-            .filter {
-                let occurrenceDay = localCalendar.startOfDay(for: $0)
-                return occurrenceDay >= localCalendar.startOfDay(
-                    for: subscription.startDate
-                ) && occurrenceDay <= today
-            }
-            .map {
-                expectedCharge(
+                ) else {
+                    continue
+                }
+                let occurrenceDay = localCalendar.startOfDay(for: occurrence)
+                if occurrenceDay < startDay {
+                    break
+                }
+                guard occurrenceDay >= confirmedNextRenewalDay,
+                      occurrenceDay <= today
+                else {
+                    continue
+                }
+                let charge = expectedCharge(
                     for: subscription,
-                    scheduledDate: $0,
+                    scheduledDate: occurrence,
                     calendar: localCalendar
                 )
-            }
-            .filter { charge in
-                !subscription.confirmedCharges.contains {
+                if !subscription.confirmedCharges.contains(where: {
                     $0.sourceScheduledChargeID == charge.id
+                }) {
+                    missed = charge
+                    break
                 }
             }
-            .max { $0.scheduledDate < $1.scheduledDate }
             if let missed {
                 entries.append(.expected(missed))
             }
@@ -3123,9 +3150,10 @@ public final class SubscriptionWorkspace {
                 value: 1,
                 to: today
             ) ?? today
+            let nextLowerBound = max(tomorrow, confirmedNextRenewalDay)
             let nextIndex = estimatedOccurrenceIndex(
                 for: subscription.billingSchedule,
-                onOrAfter: tomorrow,
+                onOrAfter: nextLowerBound,
                 calendar: localCalendar
             )
             let next = (nextIndex...(nextIndex + 2)).compactMap {
@@ -3135,7 +3163,7 @@ public final class SubscriptionWorkspace {
                     calendar: localCalendar
                 )
             }
-            .filter { $0 >= tomorrow }
+            .filter { $0 >= nextLowerBound }
             .map {
                 expectedCharge(
                     for: subscription,
@@ -3156,9 +3184,15 @@ public final class SubscriptionWorkspace {
         return entries.sorted { lhs, rhs in
             let left = historySortKey(lhs)
             let right = historySortKey(rhs)
-            return left.date == right.date
-                ? left.kindOrder < right.kindOrder
-                : left.date < right.date
+            let leftDay = localCalendar.startOfDay(for: left.date)
+            let rightDay = localCalendar.startOfDay(for: right.date)
+            if leftDay != rightDay {
+                return leftDay < rightDay
+            }
+            if left.kindOrder != right.kindOrder {
+                return left.kindOrder < right.kindOrder
+            }
+            return left.date < right.date
         }
     }
 

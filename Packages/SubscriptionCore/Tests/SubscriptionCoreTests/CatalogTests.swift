@@ -129,6 +129,61 @@ struct CatalogTests {
         }
     }
 
+    @Test("Catalog rejects preset identifiers with surrounding whitespace")
+    func catalogRejectsPresetIdentifiersWithSurroundingWhitespace() {
+        for id in [
+            " chatgpt",
+            "chatgpt ",
+            "\nchatgpt",
+            "chatgpt\n",
+            "\tchatgpt\t",
+            "   \n\t"
+        ] {
+            do {
+                _ = try CatalogSnapshot(
+                    schemaVersion: CatalogSnapshot.currentSchemaVersion,
+                    presets: [
+                        CatalogPreset(
+                            id: id,
+                            serviceName: CatalogLocalizedText(
+                                en: "Example",
+                                zhHans: "示例"
+                            ),
+                            category: CatalogLocalizedText(
+                                en: "Other",
+                                zhHans: "其他"
+                            ),
+                            suggestedInterval: .monthly,
+                            managementURL: nil,
+                            icon: .other,
+                            assetProvenance: CatalogAssetProvenance(
+                                kind: .originalSymbol,
+                                license: "CC0-1.0",
+                                source: id.trimmingCharacters(
+                                    in: .whitespacesAndNewlines
+                                )
+                            )
+                        )
+                    ]
+                )
+                Issue.record("Expected padded preset ID to be rejected: \(id.debugDescription)")
+            } catch let error as CatalogLoadError {
+                #expect(error.field == .id)
+            } catch {
+                Issue.record("Expected CatalogLoadError, got \(error)")
+            }
+        }
+
+        do {
+            _ = try CatalogSnapshot(
+                schemaVersion: CatalogSnapshot.currentSchemaVersion,
+                presets: [catalogPreset(id: "chatgpt")]
+            )
+        } catch {
+            Issue.record("Expected clean preset ID to be accepted, got \(error)")
+        }
+    }
+
     @Test("Catalog canonicalizes legacy preset identifiers")
     func catalogCanonicalizesLegacyPresetIdentifiers() throws {
         let preset = CatalogPreset(
@@ -148,6 +203,30 @@ struct CatalogTests {
         #expect(snapshot.canonicalPresetID(for: "chatgpt") == "chatgpt")
         #expect(snapshot.canonicalPresetID(for: "chatgpt-plus") == "chatgpt")
         #expect(snapshot.canonicalPresetID(for: "unknown") == nil)
+    }
+
+    @Test("Catalog rejects hostless preset management URLs")
+    func catalogRejectsHostlessPresetManagementURLs() {
+        for rawURL in ["https:/account", "https:javascript:alert(1)"] {
+            guard let managementURL = URL(string: rawURL) else {
+                Issue.record("Expected URL to be constructible: \(rawURL)")
+                continue
+            }
+
+            do {
+                _ = try CatalogSnapshot(
+                    schemaVersion: CatalogSnapshot.currentSchemaVersion,
+                    presets: [catalogPreset(managementURL: managementURL)]
+                )
+                Issue.record(
+                    "Expected hostless management URL to be rejected: \(rawURL)"
+                )
+            } catch let error as CatalogLoadError {
+                #expect(error.field == .managementURL)
+            } catch {
+                Issue.record("Expected CatalogLoadError, got \(error)")
+            }
+        }
     }
 
     @Test("Verified catalog offers round-trip with provenance")
@@ -320,6 +399,32 @@ struct CatalogTests {
         )
     }
 
+    @Test("Catalog search matches unaccented localized text")
+    func searchMatchesUnaccentedLocalizedText() throws {
+        let cafe = CatalogPreset(
+            id: "cafe.example",
+            serviceName: CatalogLocalizedText(
+                en: "Café",
+                zhHans: "咖啡馆"
+            ),
+            category: CatalogLocalizedText(en: "Food", zhHans: "餐饮"),
+            suggestedInterval: .monthly,
+            managementURL: URL(string: "https://example.com/manage"),
+            icon: .other
+        )
+        let snapshot = try CatalogSnapshot(
+            schemaVersion: CatalogSnapshot.currentSchemaVersion,
+            presets: [cafe]
+        )
+
+        #expect(
+            snapshot.search(
+                query: "cafe",
+                locale: Locale(identifier: "en")
+            ) == [cafe]
+        )
+    }
+
     @Test("Catalog search includes explicit service aliases")
     func searchIncludesAliases() throws {
         let membership = CatalogPreset(
@@ -370,15 +475,17 @@ struct CatalogTests {
     }
 
     private func catalogPreset(
+        id: String = "example",
+        managementURL: URL? = nil,
         offers: [CatalogOffer] = [],
         matchAliases: [String] = []
     ) -> CatalogPreset {
         CatalogPreset(
-            id: "example",
+            id: id,
             serviceName: CatalogLocalizedText(en: "Example", zhHans: "示例"),
             category: CatalogLocalizedText(en: "Other", zhHans: "其他"),
             suggestedInterval: .monthly,
-            managementURL: nil,
+            managementURL: managementURL,
             icon: .other,
             matchAliases: matchAliases,
             offers: offers

@@ -339,6 +339,13 @@ public struct CatalogSnapshot: Codable, Equatable, Sendable {
             let identifier = preset.id.trimmingCharacters(
                 in: .whitespacesAndNewlines
             )
+            guard preset.id == identifier else {
+                throw CatalogLoadError(
+                    presetID: identifier.isEmpty ? nil : identifier,
+                    field: .id,
+                    message: "preset ID must not have leading or trailing whitespace"
+                )
+            }
             guard !identifier.isEmpty, identifiers.insert(identifier).inserted else {
                 throw CatalogLoadError(
                     presetID: identifier.isEmpty ? nil : identifier,
@@ -374,15 +381,18 @@ public struct CatalogSnapshot: Codable, Equatable, Sendable {
                     message: "billing interval is unsupported"
                 )
             }
-            if let url = preset.managementURL,
-               url.scheme?.lowercased() != "http"
-                && url.scheme?.lowercased() != "https"
-            {
-                throw CatalogLoadError(
-                    presetID: identifier,
-                    field: .managementURL,
-                    message: "URL must use HTTP or HTTPS"
-                )
+            if let url = preset.managementURL {
+                guard (url.scheme?.lowercased() == "http"
+                    || url.scheme?.lowercased() == "https"),
+                    let host = url.host,
+                    !host.isEmpty
+                else {
+                    throw CatalogLoadError(
+                        presetID: identifier,
+                        field: .managementURL,
+                        message: "URL must use HTTP or HTTPS and have a host"
+                    )
+                }
             }
             guard preset.assetProvenance.kind == .originalSymbol,
                   preset.assetProvenance.license == "CC0-1.0",
@@ -463,15 +473,21 @@ public struct CatalogSnapshot: Codable, Equatable, Sendable {
         let normalizedQuery = query.trimmingCharacters(
             in: .whitespacesAndNewlines
         )
+        let foldedQuery = normalizedQuery.folding(
+            options: [.caseInsensitive, .diacriticInsensitive],
+            locale: locale
+        )
+        func matches(_ value: String) -> Bool {
+            value.folding(
+                options: [.caseInsensitive, .diacriticInsensitive],
+                locale: locale
+            ).contains(foldedQuery)
+        }
         return presets.filter { preset in
             guard !normalizedQuery.isEmpty else { return true }
-            return preset.serviceName.value(for: locale).localizedCaseInsensitiveContains(
-                normalizedQuery
-            ) || preset.category.value(for: locale).localizedCaseInsensitiveContains(
-                normalizedQuery
-            ) || preset.matchAliases.contains { alias in
-                alias.localizedCaseInsensitiveContains(normalizedQuery)
-            }
+            return matches(preset.serviceName.value(for: locale))
+                || matches(preset.category.value(for: locale))
+                || preset.matchAliases.contains { matches($0) }
         }
         .sorted { left, right in
             let comparison = left.serviceName.value(for: locale).localizedCompare(

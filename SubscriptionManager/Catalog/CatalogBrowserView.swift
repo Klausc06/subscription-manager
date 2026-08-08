@@ -48,6 +48,8 @@ struct CatalogBrowserView: View {
                 workspace.setCatalogSearchQuery(query)
             }
             .task {
+                searchQuery = ""
+                selectedCategoryID = nil
                 workspace.loadCatalog(locale: locale)
             }
             .toolbar {
@@ -176,10 +178,7 @@ struct CatalogBrowserView: View {
     private var catalogDiagnostics: some View {
         if let diagnostics = workspace.catalogDiagnostics {
             Section {
-                Text(
-                    "Catalog version \(diagnostics.version) · "
-                        + diagnostics.source.localizedTitle
-                )
+                Text("Catalog version \(diagnostics.version) · \(diagnostics.source.localizedTitle)")
                 .font(.footnote)
                 .foregroundStyle(.secondary)
                 .accessibilityIdentifier("catalog.diagnostics")
