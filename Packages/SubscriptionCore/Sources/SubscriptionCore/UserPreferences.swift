@@ -112,3 +112,66 @@ public enum SetupState: Equatable, Sendable {
     case skipped(UserPreferences)
     case failed(UserPreferences)
 }
+
+public extension SubscriptionWorkspace {
+    /// Returns the setup library conclusion only when both scopes are reliable.
+    /// A nil result keeps setup state unchanged for a failed or incomplete load.
+    static func libraryIsEmptyForSetup(
+        current: SubscriptionLibraryState,
+        archived: SubscriptionLibraryState
+    ) -> Bool? {
+        switch (current, archived) {
+        case (.empty(.current), .empty(.archived)):
+            return true
+        case let (.loaded(.current, summaries), .empty(.archived)):
+            return summaries.isEmpty ? nil : false
+        case let (.empty(.current), .loaded(.archived, summaries)):
+            return summaries.isEmpty ? nil : false
+        case let (
+            .loaded(.current, currentSummaries),
+            .loaded(.archived, archivedSummaries)
+        ):
+            return currentSummaries.isEmpty && archivedSummaries.isEmpty
+                ? nil
+                : false
+        default:
+            return nil
+        }
+    }
+
+    /// Initializes setup without treating an unreliable library load as a
+    /// reliable empty or non-empty conclusion.
+    func initializeSetup(
+        currentLibraryState: SubscriptionLibraryState,
+        archivedLibraryState: SubscriptionLibraryState
+    ) {
+        guard case .notLoaded = setupState else { return }
+        guard let libraryIsEmpty = Self.libraryIsEmptyForSetup(
+            current: currentLibraryState,
+            archived: archivedLibraryState
+        ) else {
+            loadSetup(libraryIsEmpty: true)
+            return
+        }
+
+        loadSetup(libraryIsEmpty: libraryIsEmpty)
+        markExistingLibraryAsConfiguredIfNeeded(
+            currentLibraryState: currentLibraryState,
+            archivedLibraryState: archivedLibraryState
+        )
+    }
+
+    /// Persists the completed state for a library that predates preferences.
+    /// Existing incomplete, skipped, or failed setup states remain unchanged.
+    func markExistingLibraryAsConfiguredIfNeeded(
+        currentLibraryState: SubscriptionLibraryState,
+        archivedLibraryState: SubscriptionLibraryState
+    ) {
+        guard Self.libraryIsEmptyForSetup(
+            current: currentLibraryState,
+            archived: archivedLibraryState
+        ) == false else { return }
+        guard case .completed = setupState else { return }
+        completeSetup()
+    }
+}

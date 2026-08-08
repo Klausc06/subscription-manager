@@ -130,6 +130,62 @@ struct UserPreferencesTests {
         #expect(workspace.setupState == .needsSetup(.default))
     }
 
+    @Test("A non-empty library persists completed setup when preferences are absent")
+    @MainActor
+    func nonEmptyLibraryPersistsCompletedSetupWithoutPreferences() throws {
+        let preferences = InMemoryUserPreferencesRepository()
+        let workspace = SubscriptionWorkspace(
+            repository: EmptySubscriptionRepository(),
+            preferencesRepository: preferences
+        )
+
+        workspace.loadSetup(libraryIsEmpty: false)
+        workspace.markExistingLibraryAsConfiguredIfNeeded(
+            currentLibraryState: nonEmptyCurrentLibraryState,
+            archivedLibraryState: .empty(.archived)
+        )
+
+        #expect(try preferences.loadPreferences()?.setupStatus == .completed)
+    }
+
+    @Test("Failed current and archived library loads do not complete setup")
+    @MainActor
+    func failedCurrentAndArchivedLibrariesDoNotCompleteSetup() throws {
+        let preferences = InMemoryUserPreferencesRepository()
+        let workspace = SubscriptionWorkspace(
+            repository: SequencedSubscriptionRepository(
+                responses: [.failure(.unavailable), .failure(.unavailable)]
+            ),
+            preferencesRepository: preferences
+        )
+
+        let states = initializeSetupLikeLibraryView(workspace)
+
+        #expect(states.current == .failed(.current))
+        #expect(states.archived == .failed(.archived))
+        #expect(workspace.setupState == .needsSetup(.default))
+        #expect(try preferences.loadPreferences() == nil)
+    }
+
+    @Test("A failed library load beside an empty scope does not complete setup")
+    @MainActor
+    func failedLibraryBesideEmptyScopeDoesNotCompleteSetup() throws {
+        let preferences = InMemoryUserPreferencesRepository()
+        let workspace = SubscriptionWorkspace(
+            repository: SequencedSubscriptionRepository(
+                responses: [.failure(.unavailable), .success([]), .success([])]
+            ),
+            preferencesRepository: preferences
+        )
+
+        let states = initializeSetupLikeLibraryView(workspace)
+
+        #expect(states.current == .failed(.current))
+        #expect(states.archived == .empty(.archived))
+        #expect(workspace.setupState == .needsSetup(.default))
+        #expect(try preferences.loadPreferences() == nil)
+    }
+
     @Test("A failed preference save keeps setup recoverable")
     @MainActor
     func failedPreferenceSaveKeepsSetupRecoverable() {
@@ -173,4 +229,73 @@ private struct EmptySubscriptionRepository: SubscriptionRepository {
     func deleteSubscription(id: UUID) throws {}
     func listSubscriptions() throws -> [Subscription] { [] }
     func subscription(id: UUID) throws -> Subscription? { nil }
+}
+
+@MainActor
+private final class SequencedSubscriptionRepository: SubscriptionRepository {
+    private var responses: [Result<[Subscription], LibraryRepositoryError>]
+
+    init(responses: [Result<[Subscription], LibraryRepositoryError>]) {
+        self.responses = responses
+    }
+
+    func createSubscription(_ subscription: Subscription) throws {}
+    func updateSubscription(_ subscription: Subscription) throws {}
+    func deleteSubscription(id: UUID) throws {}
+
+    func listSubscriptions() throws -> [Subscription] {
+        let response = responses.isEmpty
+            ? .success([])
+            : responses.removeFirst()
+        return try response.get()
+    }
+
+    func subscription(id: UUID) throws -> Subscription? { nil }
+}
+
+private enum LibraryRepositoryError: Error {
+    case unavailable
+}
+
+@MainActor
+private func initializeSetupLikeLibraryView(
+    _ workspace: SubscriptionWorkspace
+) -> (
+    current: SubscriptionLibraryState,
+    archived: SubscriptionLibraryState
+) {
+    workspace.loadLibrary(scope: .current)
+    let currentState = workspace.libraryState
+    workspace.loadLibrary(scope: .archived)
+    let archivedState = workspace.libraryState
+    workspace.loadLibrary(scope: .current)
+    workspace.initializeSetup(
+        currentLibraryState: currentState,
+        archivedLibraryState: archivedState
+    )
+    return (currentState, archivedState)
+}
+
+private var nonEmptyCurrentLibraryState: SubscriptionLibraryState {
+    let subscription = Subscription(
+        id: UUID(),
+        serviceIdentity: ServiceIdentity(rawValue: "test:existing"),
+        serviceName: "Existing",
+        plan: "Monthly",
+        category: "Other",
+        originalAmount: Money(minorUnits: 999, currency: .usd),
+        billingCycle: .monthly,
+        startDate: Date(timeIntervalSince1970: 0),
+        confirmedNextRenewal: Date(timeIntervalSince1970: 0),
+        managementURL: nil,
+        notes: ""
+    )
+    return .loaded(
+        .current,
+        [SubscriptionSummary(
+            subscription: subscription,
+            status: .active,
+            nextExpectedCharge: nil
+        )]
+    )
 }

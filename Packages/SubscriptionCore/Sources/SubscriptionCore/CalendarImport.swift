@@ -58,6 +58,7 @@ public enum CalendarReconciliationResult: Equatable, Sendable {
     case notConfigured
     case disabled
     case reconciled
+    case partialFailure(failedCount: Int)
     case needsDecision(CalendarReconciliationDecision)
     case unavailable
 }
@@ -67,6 +68,7 @@ public enum CalendarReconciliationState: Equatable, Sendable {
     case disabled
     case reconciling
     case current
+    case partialFailure(failedCount: Int)
     case needsDecision(CalendarReconciliationDecision)
     case unavailable
 
@@ -78,6 +80,8 @@ public enum CalendarReconciliationState: Equatable, Sendable {
             self = .disabled
         case .reconciled:
             self = .current
+        case .partialFailure(let failedCount):
+            self = .partialFailure(failedCount: failedCount)
         case .needsDecision(let decision):
             self = .needsDecision(decision)
         case .unavailable:

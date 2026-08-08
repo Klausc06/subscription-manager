@@ -54,7 +54,18 @@ struct AppDependencies {
     ) -> AppStartupState {
         let schema = Schema([
             SubscriptionRecord.self,
+            ConfirmedChargeRecord.self,
+            PriceChangeRecord.self,
             UserPreferencesRecord.self,
+            CalendarProjectionMappingRecord.self
+        ])
+        let cloudSchema = Schema([
+            SubscriptionRecord.self,
+            ConfirmedChargeRecord.self,
+            PriceChangeRecord.self,
+            UserPreferencesRecord.self
+        ])
+        let localMappingSchema = Schema([
             CalendarProjectionMappingRecord.self
         ])
         let effectiveArguments = (isRunningTests
@@ -99,7 +110,8 @@ struct AppDependencies {
                 ? CloudKitLibrarySyncMonitor()
                 : nil
         ) {
-            let configuration: ModelConfiguration
+            let cloudConfiguration: ModelConfiguration
+            let localMappingConfiguration: ModelConfiguration
             switch selection {
             case .namedUITesting(let token):
                 let rootDirectory: URL
@@ -121,36 +133,77 @@ struct AppDependencies {
                     at: directory,
                     withIntermediateDirectories: true
                 )
-                configuration = ModelConfiguration(
+                cloudConfiguration = ModelConfiguration(
                     "UITesting-\(token)",
-                    schema: schema,
+                    schema: cloudSchema,
                     url: directory.appending(path: "\(token).store"),
                     allowsSave: true,
                     cloudKitDatabase: cloudKitDatabase(
                         for: .namedUITesting(token: token)
                     )
                 )
+                localMappingConfiguration = ModelConfiguration(
+                    "UITesting-\(token)-CalendarMappings",
+                    schema: localMappingSchema,
+                    url: directory.appending(
+                        path: "\(token).calendar-mappings.store"
+                    ),
+                    allowsSave: true,
+                    cloudKitDatabase: .none
+                )
             case .ephemeralUITesting:
-                configuration = ModelConfiguration(
-                    schema: schema,
+                cloudConfiguration = ModelConfiguration(
+                    "EphemeralCloudLibrary",
+                    schema: cloudSchema,
                     isStoredInMemoryOnly: true,
                     cloudKitDatabase: cloudKitDatabase(
                         for: .ephemeralUITesting,
                         hasCloudKitEntitlement: hasCloudKitEntitlement
                     )
                 )
+                localMappingConfiguration = ModelConfiguration(
+                    "EphemeralCalendarMappings",
+                    schema: localMappingSchema,
+                    isStoredInMemoryOnly: true,
+                    cloudKitDatabase: .none
+                )
             case .production:
-                configuration = ModelConfiguration(
-                    schema: schema,
+                cloudConfiguration = ModelConfiguration(
+                    schema: cloudSchema,
                     cloudKitDatabase: cloudKitDatabase(
                         for: .production,
                         hasCloudKitEntitlement: hasCloudKitEntitlement
                     )
                 )
+                let applicationSupportDirectory = try FileManager.default.url(
+                    for: .applicationSupportDirectory,
+                    in: .userDomainMask,
+                    appropriateFor: nil,
+                    create: true
+                ).appending(
+                    path: "SubscriptionManager",
+                    directoryHint: .isDirectory
+                )
+                try FileManager.default.createDirectory(
+                    at: applicationSupportDirectory,
+                    withIntermediateDirectories: true
+                )
+                localMappingConfiguration = ModelConfiguration(
+                    "CalendarProjectionMappings",
+                    schema: localMappingSchema,
+                    url: applicationSupportDirectory.appending(
+                        path: "CalendarProjectionMappings.store"
+                    ),
+                    allowsSave: true,
+                    cloudKitDatabase: .none
+                )
             }
             return try ModelContainer(
                 for: schema,
-                configurations: [configuration]
+                configurations: [
+                    cloudConfiguration,
+                    localMappingConfiguration,
+                ]
             )
         }
     }
@@ -234,29 +287,38 @@ struct AppDependencies {
                 bundled: bundledCatalog,
                 cache: catalogCache
             )
+            let workspace = SubscriptionWorkspace(
+                repository: workspaceRepository,
+                preferencesRepository: preferencesRepository,
+                portableBackupImportRepository:
+                    portableBackupImportRepository,
+                widgetSnapshotPublisher: widgetSnapshotPublisher,
+                catalogRepository: catalogRepository,
+                catalogUpdateSource: GitHubCatalogUpdateSource(),
+                catalogCache: catalogCache,
+                exchangeRateSource: allowsExchangeRateNetworking
+                    ? FrankfurterExchangeRateSource()
+                    : nil,
+                exchangeRateCache: allowsExchangeRateNetworking
+                    ? exchangeRateCache
+                    : nil,
+                syncMonitor: syncMonitor,
+                calendarProjectionImporter: calendarProjectionImporter,
+                calendarProjectionReconciler: calendarProjectionReconciler
+            )
+            if let syncMonitor = syncMonitor as?
+                CloudKitLibrarySyncMonitor
+            {
+                syncMonitor.setWorkspaceReloadHandler {
+                    Task { @MainActor [weak workspace] in
+                        workspace?.loadLibrary()
+                    }
+                }
+            }
             return .ready(
                 AppDependencies(
                     modelContainer: modelContainer,
-                    workspace: SubscriptionWorkspace(
-                        repository: workspaceRepository,
-                        preferencesRepository: preferencesRepository,
-                        portableBackupImportRepository:
-                            portableBackupImportRepository,
-                        widgetSnapshotPublisher: widgetSnapshotPublisher,
-                        catalogRepository: catalogRepository,
-                        catalogUpdateSource: GitHubCatalogUpdateSource(),
-                        catalogCache: catalogCache,
-                        exchangeRateSource: allowsExchangeRateNetworking
-                            ? FrankfurterExchangeRateSource()
-                            : nil,
-                        exchangeRateCache: allowsExchangeRateNetworking
-                            ? exchangeRateCache
-                            : nil,
-                        syncMonitor: syncMonitor,
-                        calendarProjectionImporter: calendarProjectionImporter,
-                        calendarProjectionReconciler:
-                            calendarProjectionReconciler
-                    )
+                    workspace: workspace
                 )
             )
         } catch {

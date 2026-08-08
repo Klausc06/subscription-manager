@@ -212,7 +212,7 @@ private struct MacWindowCommands: Commands {
     private var subscriptionCommandContext
 
     var body: some Commands {
-        CommandGroup(after: .newItem) {
+        CommandGroup(replacing: .newItem) {
             Button("Add Subscription") { post(MacWindowCommand.add) }
                 .keyboardShortcut("n", modifiers: [.command])
                 .disabled(subscriptionCommandContext == nil)
@@ -257,18 +257,21 @@ private struct MacLibraryView: View {
     @ObservedObject var router: MacWindowRouter
 
     @State private var scope: SubscriptionLibraryScope = .current
+    @State private var librarySnapshot: SubscriptionLibraryState =
+        .loading(.current)
     @State private var searchText = ""
+    @State private var isSearchPresented = false
     @State private var sort: SubscriptionTableSort = .serviceName
     @State private var ascending = true
     @State private var selection: Set<UUID> = []
     @State private var addPresentation = MacAddPresentationState()
+    @State private var isSetupPresented = false
     @State private var isPreferencesPresented = false
     @State private var pinActionFailed = false
     @State private var subscriptionPendingDeletion: SubscriptionSummary?
     @State private var directActionError:
         SubscriptionLifecycleActionError?
     @State private var commandTargetID = UUID()
-    @FocusState private var isSearchFocused: Bool
 
     var body: some View {
         NavigationSplitView {
@@ -282,8 +285,11 @@ private struct MacLibraryView: View {
         } content: {
             tableContent
                 .navigationTitle(scope == .current ? "Subscriptions" : "Archived")
-                .searchable(text: $searchText, prompt: "Search Subscriptions")
-                .focused($isSearchFocused)
+                .searchable(
+                    text: $searchText,
+                    isPresented: $isSearchPresented,
+                    prompt: "Search Subscriptions"
+                )
                 .toolbar {
                     ToolbarItemGroup {
                         Button("Add Subscription", systemImage: "plus") {
@@ -292,18 +298,36 @@ private struct MacLibraryView: View {
                                 scope: scope
                             )
                         }
-                        .keyboardShortcut("n", modifiers: [.command])
-
                         Menu("Sort", systemImage: "arrow.up.arrow.down") {
                             ForEach(SubscriptionTableSort.allCases, id: \.rawValue) { value in
-                                Button(sortTitle(for: value)) {
+                                Button {
                                     if sort == value {
                                         ascending.toggle()
                                     } else {
                                         sort = value
                                         ascending = true
                                     }
+                                } label: {
+                                    Label {
+                                        Text(sortTitle(for: value))
+                                    } icon: {
+                                        if sort == value {
+                                            Image(
+                                                systemName: ascending
+                                                    ? "arrow.up"
+                                                    : "arrow.down"
+                                            )
+                                        }
+                                    }
                                 }
+                                .accessibilityValue(
+                                    sort == value
+                                        ? LocalizedStringKey("Selected")
+                                        : LocalizedStringKey("Not selected")
+                                )
+                                .accessibilityAddTraits(
+                                    sort == value ? .isSelected : []
+                                )
                             }
                         }
 
@@ -424,7 +448,7 @@ private struct MacLibraryView: View {
         )) {
             CatalogAddFlowView(workspace: workspace) {
                 addPresentation.complete { completedScope in
-                    workspace.loadLibrary(scope: completedScope)
+                    reloadLibrary(scope: completedScope)
                 }
             }
                 .frame(minWidth: 520, minHeight: 560)
@@ -433,22 +457,34 @@ private struct MacLibraryView: View {
             UserPreferencesView(workspace: workspace) {}
                 .frame(minWidth: 480, minHeight: 460)
         }
+        .sheet(isPresented: $isSetupPresented) {
+            FirstRunSetupView(workspace: workspace) {
+                isSetupPresented = false
+            }
+                .frame(minWidth: 520, minHeight: 560)
+        }
         .task {
             workspace.loadCatalog(locale: locale)
             workspace.reconcileCatalogAssociations(locale: locale)
-            workspace.loadLibrary(scope: scope)
-            let libraryIsEmpty: Bool
-            if case .empty = workspace.libraryState {
-                libraryIsEmpty = true
-            } else {
-                libraryIsEmpty = false
+            reloadLibrary(scope: .current)
+            let currentLibraryState = librarySnapshot
+            reloadLibrary(scope: .archived)
+            let archivedLibraryState = librarySnapshot
+            reloadLibrary(scope: scope)
+            workspace.initializeSetup(
+                currentLibraryState: currentLibraryState,
+                archivedLibraryState: archivedLibraryState
+            )
+            if shouldPresentSetup,
+               !ProcessInfo.processInfo.arguments.contains("--ui-testing")
+            {
+                isSetupPresented = true
             }
-            workspace.loadSetup(libraryIsEmpty: libraryIsEmpty)
             applyPendingRoute()
         }
         .onChange(of: scope) {
             selection.removeAll()
-            workspace.loadLibrary(scope: scope)
+            reloadLibrary()
         }
         .onReceive(NotificationCenter.default.publisher(for: MacWindowCommand.add)) { notification in
             guard handlesCommand(notification) else { return }
@@ -472,7 +508,7 @@ private struct MacLibraryView: View {
         }
         .onReceive(NotificationCenter.default.publisher(for: MacWindowCommand.search)) { notification in
             guard handlesCommand(notification) else { return }
-            isSearchFocused = true
+            isSearchPresented = true
         }
         .onReceive(NotificationCenter.default.publisher(for: MacWindowCommand.settings)) { notification in
             guard handlesCommand(notification) else { return }
@@ -485,8 +521,8 @@ private struct MacLibraryView: View {
 
     @ViewBuilder
     private var tableContent: some View {
-        switch workspace.libraryState {
-        case .loaded:
+        switch librarySnapshot {
+        case .loaded(let stateScope, _) where stateScope == scope:
             Table(visibleSummaries, selection: $selection) {
                 TableColumn("Service") { summary in
                     Text(summary.serviceName)
@@ -554,17 +590,21 @@ private struct MacLibraryView: View {
                 }
             }
             .accessibilityIdentifier("mac.library.table")
-        case .empty:
+        case .empty(let stateScope) where stateScope == scope:
             ContentUnavailableView(
-                scope == .current ? "No Subscriptions" : "No Archived Subscriptions",
+                scope == .current
+                    ? LocalizedStringKey("No Subscriptions")
+                    : LocalizedStringKey("No Archived Subscriptions"),
                 systemImage: scope == .current ? "rectangle.stack" : "archivebox"
             )
-        case .failed:
+        case .failed(let stateScope) where stateScope == scope:
             ContentUnavailableView(
                 "Couldn’t Load Subscriptions",
                 systemImage: "exclamationmark.triangle"
             )
-        case .loading:
+        case .loading(let stateScope) where stateScope == scope:
+            ProgressView("Loading Subscriptions")
+        default:
             ProgressView("Loading Subscriptions")
         }
     }
@@ -589,15 +629,116 @@ private struct MacLibraryView: View {
     }
 
     private var visibleSummaries: [SubscriptionSummary] {
-        guard case .loaded(_, let summaries) = workspace.libraryState else {
+        guard case .loaded(let stateScope, let summaries) = librarySnapshot,
+              stateScope == scope
+        else {
             return []
         }
-        return SubscriptionTableQuery(
-            searchText: searchText,
-            sort: sort,
-            ascending: ascending
-        )
-        .apply(to: summaries)
+        return applyTableQuery(to: summaries)
+    }
+
+    private func applyTableQuery(
+        to summaries: [SubscriptionSummary]
+    ) -> [SubscriptionSummary] {
+        let query = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
+        return summaries
+            .filter { summary in
+                guard !query.isEmpty else { return true }
+                return [summary.serviceName, summary.plan, summary.category]
+                    .contains {
+                        $0.range(
+                            of: query,
+                            options: [.caseInsensitive, .diacriticInsensitive],
+                            range: nil,
+                            locale: locale
+                        ) != nil
+                    }
+            }
+            .sorted { lhs, rhs in
+                switch (lhs.pinnedAt, rhs.pinnedAt) {
+                case let (left?, right?):
+                    if left != right {
+                        return left > right
+                    }
+                    return lhs.id.uuidString < rhs.id.uuidString
+                case (_?, nil):
+                    return true
+                case (nil, _?):
+                    return false
+                case (nil, nil):
+                    break
+                }
+
+                let order = localizedComparison(of: lhs, and: rhs)
+                if order == .orderedSame {
+                    return lhs.id.uuidString < rhs.id.uuidString
+                }
+                return ascending
+                    ? order == .orderedAscending
+                    : order == .orderedDescending
+            }
+    }
+
+    private func localizedComparison(
+        of lhs: SubscriptionSummary,
+        and rhs: SubscriptionSummary
+    ) -> ComparisonResult {
+        switch sort {
+        case .serviceName:
+            return lhs.serviceName.compare(
+                rhs.serviceName,
+                options: [.caseInsensitive, .diacriticInsensitive],
+                range: nil,
+                locale: locale
+            )
+        case .plan:
+            return lhs.plan.compare(
+                rhs.plan,
+                options: [.caseInsensitive, .diacriticInsensitive],
+                range: nil,
+                locale: locale
+            )
+        case .category:
+            return lhs.category.compare(
+                rhs.category,
+                options: [.caseInsensitive, .diacriticInsensitive],
+                range: nil,
+                locale: locale
+            )
+        case .nextRenewal:
+            return lhs.confirmedNextRenewal.compare(rhs.confirmedNextRenewal)
+        case .amount:
+            let currencyOrder = lhs.amount.currency.rawValue.compare(
+                rhs.amount.currency.rawValue,
+                options: [.caseInsensitive, .diacriticInsensitive],
+                range: nil,
+                locale: locale
+            )
+            if currencyOrder != .orderedSame {
+                return currencyOrder
+            }
+            if lhs.amount.minorUnits == rhs.amount.minorUnits {
+                return .orderedSame
+            }
+            return lhs.amount.minorUnits < rhs.amount.minorUnits
+                ? .orderedAscending
+                : .orderedDescending
+        }
+    }
+
+    private func reloadLibrary(scope targetScope: SubscriptionLibraryScope? = nil) {
+        let targetScope = targetScope ?? scope
+        workspace.loadLibrary(scope: targetScope)
+        librarySnapshot = workspace.libraryState
+    }
+
+    private var shouldPresentSetup: Bool {
+        switch workspace.setupState {
+        case .needsSetup, .failed:
+            return true
+        case .notLoaded, .completed, .skipped:
+            return false
+        }
     }
 
     private var selectedSubscriptionsArePinned: Bool {
@@ -636,13 +777,16 @@ private struct MacLibraryView: View {
             failed = failed || workspace.lifecycleActionError != nil
         }
         pinActionFailed = failed
-        workspace.loadLibrary(scope: scope)
+        reloadLibrary()
     }
 
     private func updatePin(id: UUID, pinned: Bool) {
         workspace.clearLifecycleActionError()
         workspace.setPinned(id: id, pinned: pinned)
         pinActionFailed = workspace.lifecycleActionError != nil
+        if !pinActionFailed {
+            reloadLibrary()
+        }
     }
 
     private var deletionConfirmationTitle: LocalizedStringKey {
@@ -690,7 +834,7 @@ private struct MacLibraryView: View {
             }
         }
         directActionError = capturedError
-        workspace.loadLibrary(scope: scope)
+        reloadLibrary()
         selection = failedIDs
     }
 
@@ -713,6 +857,9 @@ private struct MacLibraryView: View {
         beginDirectAction()
         action()
         directActionError = workspace.lifecycleActionError
+        if directActionError == nil {
+            reloadLibrary()
+        }
     }
 
     private func dismissDirectActionError() {

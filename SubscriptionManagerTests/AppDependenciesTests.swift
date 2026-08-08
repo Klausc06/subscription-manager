@@ -60,6 +60,23 @@ private enum Task4MigrationPlan: SchemaMigrationPlan {
     }
 }
 
+private final class ReloadCounter: @unchecked Sendable {
+    private let lock = NSLock()
+    private var storedValue = 0
+
+    var value: Int {
+        lock.lock()
+        defer { lock.unlock() }
+        return storedValue
+    }
+
+    func increment() {
+        lock.lock()
+        storedValue += 1
+        lock.unlock()
+    }
+}
+
 struct AppDependenciesTests {
     @Test("Production SwiftData schema is compatible with CloudKit")
     @MainActor
@@ -75,8 +92,9 @@ struct AppDependenciesTests {
         )
         let schema = Schema([
             SubscriptionRecord.self,
+            ConfirmedChargeRecord.self,
+            PriceChangeRecord.self,
             UserPreferencesRecord.self,
-            CalendarProjectionMappingRecord.self,
         ])
         let configuration = ModelConfiguration(
             "CloudKitCompatibility",
@@ -126,7 +144,137 @@ struct AppDependenciesTests {
         )
 
         #expect(await signedOut.refreshStatus() == .signedOut)
-        #expect(await available.refreshStatus() == .current)
+        #expect(await available.refreshStatus() == .synchronizing)
+    }
+
+    @Test("A completed remote import becomes current and reloads once")
+    @MainActor
+    func completedRemoteImportBecomesCurrentAndReloadsOnce() async {
+        let reloads = ReloadCounter()
+        let monitor = CloudKitLibrarySyncMonitor(
+            accountStatus: { .available },
+            onRemoteImport: { reloads.increment() }
+        )
+        let eventID = UUID(
+            uuidString: "70000000-0000-4000-8000-000000000001"
+        )!
+
+        #expect(await monitor.refreshStatus() == .synchronizing)
+        monitor.notifyRemoteImport(id: eventID)
+        monitor.notifyRemoteImport(id: eventID)
+
+        #expect(await monitor.refreshStatus() == .current)
+        #expect(reloads.value == 1)
+    }
+
+    @Test("AppDependencies routes a completed remote import to workspace reload")
+    @MainActor
+    func completedRemoteImportReloadsWorkspaceLibrary() async throws {
+        let monitor = CloudKitLibrarySyncMonitor(
+            accountStatus: { .available }
+        )
+        let container = try ModelContainer(
+            for: SubscriptionRecord.self,
+            configurations: ModelConfiguration(
+                isStoredInMemoryOnly: true,
+                cloudKitDatabase: .none
+            )
+        )
+        guard case .ready(let dependencies) = AppDependencies.make(
+            syncMonitor: monitor,
+            modelContainer: { container }
+        ) else {
+            Issue.record("Expected a ready application dependency graph")
+            return
+        }
+
+        dependencies.workspace.loadLibrary()
+        let record = SubscriptionRecord(
+            id: UUID(
+                uuidString: "70000000-0000-4000-8000-000000000002"
+            )!
+        )
+        record.serviceName = "Imported remotely"
+        container.mainContext.insert(record)
+        try container.mainContext.save()
+
+        monitor.notifyRemoteImport(
+            id: UUID(uuidString: "70000000-0000-4000-8000-000000000003")!
+        )
+        await Task.yield()
+        await Task.yield()
+
+        guard case .loaded(_, let summaries) = dependencies.workspace.libraryState
+        else {
+            Issue.record("Expected the workspace to reload a loaded library")
+            return
+        }
+        #expect(summaries.count == 1)
+        #expect(summaries.first?.serviceName == "Imported remotely")
+    }
+
+    @Test("Calendar projection mappings use a local-only model configuration")
+    @MainActor
+    func calendarProjectionMappingsUseLocalOnlyConfiguration() throws {
+        let rootDirectory = FileManager.default.temporaryDirectory.appending(
+            path: "SubscriptionManagerConfigurationTests-\(UUID().uuidString)",
+            directoryHint: .isDirectory
+        )
+        defer { try? FileManager.default.removeItem(at: rootDirectory) }
+
+        guard case .ready(let dependencies) = AppDependencies.live(
+            arguments: [
+                "SubscriptionManager",
+                "--ui-testing",
+                "--ui-testing-store",
+                "configuration-ownership",
+            ],
+            storeDirectory: rootDirectory,
+            isRunningTests: false,
+            hasCloudKitEntitlement: false,
+            hasAppGroupEntitlement: false
+        ) else {
+            Issue.record("Expected a ready application dependency graph")
+            return
+        }
+
+        let mappingEntityName = Schema.entityName(
+            for: CalendarProjectionMappingRecord.self
+        )
+        let subscriptionEntityName = Schema.entityName(for: SubscriptionRecord.self)
+        let mappingConfigurations = dependencies.modelContainer.configurations
+            .filter {
+                $0.schema?.entitiesByName[mappingEntityName] != nil
+            }
+        let subscriptionConfigurations = dependencies.modelContainer.configurations
+            .filter {
+                $0.schema?.entitiesByName[subscriptionEntityName] != nil
+            }
+
+        #expect(mappingConfigurations.count == 1)
+        #expect(
+            mappingConfigurations.allSatisfy {
+                $0.cloudKitContainerIdentifier == nil
+            }
+        )
+        #expect(
+            subscriptionConfigurations.allSatisfy {
+                $0.schema?.entitiesByName[mappingEntityName] == nil
+            }
+        )
+
+        let mappingRepository = SwiftDataCalendarProjectionMappingRepository(
+            modelContainer: dependencies.modelContainer
+        )
+        try mappingRepository.saveEventIdentifier(
+            "event-local",
+            for: "projection-local",
+            calendarIdentifier: "calendar-local"
+        )
+        #expect(
+            try mappingRepository.eventIdentifier(for: "projection-local")
+                == "event-local"
+        )
     }
 
     @Test("A named UI testing store is ignored outside UI testing")
@@ -183,6 +331,98 @@ struct AppDependenciesTests {
         ).loadPreferences()
 
         #expect(reloaded == expected)
+    }
+
+    @Test("Duplicate preferences merge into the stable canonical record")
+    @MainActor
+    func duplicatePreferencesMergeDeterministically() throws {
+        let container = try ModelContainer(
+            for: UserPreferencesRecord.self,
+            configurations: ModelConfiguration(
+                isStoredInMemoryOnly: true,
+                cloudKitDatabase: .none
+            )
+        )
+        let context = ModelContext(container)
+        let duplicate = UserPreferencesRecord(
+            id: UUID(uuidString: "FFFFFFFF-FFFF-4FFF-8FFF-FFFFFFFFFFFF")!,
+            primaryCurrencyRawValue: "EUR",
+            calendarProjectionHorizonMonths: 6,
+            hideAmountsInCalendar: true,
+            menuBarModeEnabled: true,
+            appearanceModeRawValue: "dark",
+            setupStatusRawValue: "completed"
+        )
+        let canonical = UserPreferencesRecord(
+            id: UserPreferencesRecord.canonicalID,
+            primaryCurrencyRawValue: "USD",
+            calendarProjectionHorizonMonths: 12,
+            hideAmountsInCalendar: false,
+            menuBarModeEnabled: false,
+            appearanceModeRawValue: "light",
+            setupStatusRawValue: "notCompleted"
+        )
+        context.insert(duplicate)
+        context.insert(canonical)
+        try context.save()
+
+        let repository = SwiftDataUserPreferencesRepository(
+            modelContainer: container
+        )
+        let loaded = try repository.loadPreferences()
+        #expect(
+            loaded == UserPreferences(
+                primaryCurrency: .usd,
+                calendarProjectionHorizon: .twelveMonths,
+                hideAmountsInCalendar: false,
+                menuBarModeEnabled: false,
+                appearanceMode: .light,
+                setupStatus: .notCompleted
+            )
+        )
+
+        let remaining = try context.fetch(
+            FetchDescriptor<UserPreferencesRecord>()
+        )
+        #expect(remaining.count == 2)
+        #expect(
+            remaining.contains { $0.id == UserPreferencesRecord.canonicalID }
+        )
+        #expect(remaining.contains { $0.id == duplicate.id })
+    }
+
+    @Test("Legacy duplicate preferences use a deterministic value tie-break")
+    @MainActor
+    func legacyDuplicatePreferencesUseDeterministicValueTieBreak() throws {
+        let container = try ModelContainer(
+            for: UserPreferencesRecord.self,
+            configurations: ModelConfiguration(
+                isStoredInMemoryOnly: true,
+                cloudKitDatabase: .none
+            )
+        )
+        let first = UserPreferencesRecord(
+            id: UserPreferencesRecord.canonicalID,
+            primaryCurrencyRawValue: "USD"
+        )
+        let second = UserPreferencesRecord(
+            id: UserPreferencesRecord.canonicalID,
+            primaryCurrencyRawValue: "EUR"
+        )
+        let context = ModelContext(container)
+        context.insert(first)
+        context.insert(second)
+        try context.save()
+
+        let loaded = try SwiftDataUserPreferencesRepository(
+            modelContainer: container
+        ).loadPreferences()
+
+        #expect(loaded?.primaryCurrency == .eur)
+        #expect(
+            try context.fetch(FetchDescriptor<UserPreferencesRecord>()).count
+                == 2
+        )
     }
 
     @Test("All appearance modes survive repository rebuilds")

@@ -19,6 +19,7 @@ struct CalendarProjectionCalendar: Equatable {
 struct CalendarEventWriteResult: Equatable {
     let eventIdentifier: String
     let updatedExistingEvent: Bool
+    let didSave: Bool
 }
 
 @MainActor
@@ -33,11 +34,137 @@ enum CalendarEventStoreError: Error {
     case writeFailed
 }
 
+struct EventKitCalendarProjectionManagedFields: Equatable {
+    let title: String
+    let notes: String?
+    let url: URL?
+    let isAllDay: Bool
+    let startDate: Date
+    let endDate: Date
+    let timeZoneIdentifier: String?
+    let alarmOffsets: [TimeInterval]
+    let calendarIdentifier: String?
+}
+
+enum EventKitCalendarProjectionSemantics {
+    static func projectionUIDMarker(for uid: String) -> String {
+        "Subscription Manager Projection UID: \(uid)"
+    }
+
+    static func projectionNotes(for event: CalendarProjectionEvent) -> String {
+        "\(event.notes)\n\n\(projectionUIDMarker(for: event.uid))"
+    }
+
+    static func allDayDates(
+        for projection: CalendarProjectionEvent
+    ) -> (startDate: Date, endDate: Date) {
+        (
+            floatingAllDayDate(
+                projection.startDate,
+                projectionTimeZoneIdentifier: projection.timeZoneIdentifier
+            ),
+            floatingAllDayDate(
+                projection.endDate,
+                projectionTimeZoneIdentifier: projection.timeZoneIdentifier
+            )
+        )
+    }
+
+    static func recoveryInterval(
+        for projection: CalendarProjectionEvent
+    ) -> DateInterval {
+        let dates = allDayDates(for: projection)
+        return DateInterval(start: dates.startDate, end: dates.endDate)
+    }
+
+    static func containsExactProjectionUIDMarker(
+        in notes: String?,
+        uid: String
+    ) -> Bool {
+        notes?.components(separatedBy: .newlines)
+            .contains(projectionUIDMarker(for: uid)) == true
+    }
+
+    static func eventMatchesProjection(
+        _ fields: EventKitCalendarProjectionManagedFields,
+        projection: CalendarProjectionEvent,
+        calendar: CalendarProjectionCalendar
+    ) -> Bool {
+        let projectionTimeZone = TimeZone(
+            identifier: projection.timeZoneIdentifier
+        ) ?? .current
+        return fields.title == projection.title
+            && fields.notes == projectionNotes(for: projection)
+            && fields.url == projection.managementURL
+            && fields.isAllDay
+            && sameDay(
+                fields.startDate,
+                in: NSTimeZone.default,
+                as: projection.startDate,
+                in: projectionTimeZone
+            )
+            && sameDay(
+                fields.endDate,
+                in: NSTimeZone.default,
+                as: projection.endDate,
+                in: projectionTimeZone
+            )
+            && fields.timeZoneIdentifier == projection.timeZoneIdentifier
+            && fields.alarmOffsets
+                == projection.alarmOffsets.map {
+                    TimeInterval($0) * 86_400
+                }
+            && fields.calendarIdentifier == calendar.identifier
+    }
+
+    private static func floatingAllDayDate(
+        _ date: Date,
+        projectionTimeZoneIdentifier: String
+    ) -> Date {
+        var projectionCalendar = Calendar(identifier: .gregorian)
+        projectionCalendar.timeZone = TimeZone(
+            identifier: projectionTimeZoneIdentifier
+        ) ?? .current
+        let components = projectionCalendar.dateComponents(
+            [.year, .month, .day],
+            from: date
+        )
+
+        var defaultCalendar = Calendar(identifier: .gregorian)
+        defaultCalendar.timeZone = NSTimeZone.default
+        return defaultCalendar.date(from: components) ?? date
+    }
+
+    private static func sameDay(
+        _ lhs: Date,
+        in lhsTimeZone: TimeZone,
+        as rhs: Date,
+        in rhsTimeZone: TimeZone
+    ) -> Bool {
+        dayComponents(for: lhs, in: lhsTimeZone)
+            == dayComponents(for: rhs, in: rhsTimeZone)
+    }
+
+    private static func dayComponents(
+        for date: Date,
+        in timeZone: TimeZone
+    ) -> DateComponents {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = timeZone
+        return calendar.dateComponents([.year, .month, .day], from: date)
+    }
+}
+
 @MainActor
 protocol CalendarEventStore {
     func requestFullEventAccess() async -> CalendarEventAccess
     func calendar(identifier: String) -> CalendarProjectionCalendar?
     func eventExists(identifier: String) -> Bool
+    func eventIdentifier(
+        for projectionUID: String,
+        near projection: CalendarProjectionEvent,
+        in calendar: CalendarProjectionCalendar
+    ) -> String?
     func removeEvent(identifier: String) throws
     func createDedicatedCalendar(
         named: String
@@ -126,9 +253,16 @@ final class EventKitCalendarProjectionImporter:
         var failedCount = 0
         for event in events {
             do {
-                let existingIdentifier = try mappingRepository.eventIdentifier(
+                var existingIdentifier = try mappingRepository.eventIdentifier(
                     for: event.uid
                 )
+                if existingIdentifier == nil {
+                    existingIdentifier = eventStore.eventIdentifier(
+                        for: event.uid,
+                        near: event,
+                        in: calendar
+                    )
+                }
                 let write = try eventStore.saveProjectedEvent(
                     event,
                     in: calendar,
@@ -139,10 +273,12 @@ final class EventKitCalendarProjectionImporter:
                     for: event.uid,
                     calendarIdentifier: calendar.identifier
                 )
-                if write.updatedExistingEvent {
-                    updatedCount += 1
-                } else {
-                    createdCount += 1
+                if write.didSave {
+                    if write.updatedExistingEvent {
+                        updatedCount += 1
+                    } else {
+                        createdCount += 1
+                    }
                 }
             } catch {
                 failedCount += 1
@@ -183,8 +319,10 @@ final class EventKitCalendarProjectionImporter:
             return .unavailable
         }
         switch await importProjection(events: events) {
-        case .imported, .partialFailure:
+        case .imported:
             return .reconciled
+        case .partialFailure(_, let failedCount):
+            return .partialFailure(failedCount: failedCount)
         case .accessDenied, .unavailable:
             return .unavailable
         }
@@ -194,6 +332,8 @@ final class EventKitCalendarProjectionImporter:
         events: [CalendarProjectionEvent]
     ) -> CalendarReconciliationResult {
         let calendar: CalendarProjectionCalendar
+        let mappings: [CalendarProjectionEventMapping]
+        var mappedIdentifiers: [String: String] = [:]
         do {
             guard try !mappingRepository.isCalendarSyncDisabled() else {
                 return .disabled
@@ -208,33 +348,47 @@ final class EventKitCalendarProjectionImporter:
             }
             calendar = existing
 
-            let desiredUIDs = Set(events.map(\.uid))
-            for mapping in try mappingRepository.eventMappings()
-            where !desiredUIDs.contains(mapping.projectionUID) {
+            mappings = try mappingRepository.eventMappings()
+            for event in events {
+                if let identifier = try mappingRepository.eventIdentifier(
+                    for: event.uid
+                ) {
+                    mappedIdentifiers[event.uid] = identifier
+                }
+            }
+
+            let missingCount = mappedIdentifiers.values.filter {
+                !eventStore.eventExists(identifier: $0)
+            }.count
+            guard missingCount == 0 else {
+                return .needsDecision(.eventsMissing(count: missingCount))
+            }
+        } catch {
+            return .unavailable
+        }
+
+        var failedCount = 0
+        let desiredUIDs = Set(events.map(\.uid))
+        for mapping in mappings
+        where !desiredUIDs.contains(mapping.projectionUID) {
+            do {
                 try eventStore.removeEvent(identifier: mapping.eventIdentifier)
                 try mappingRepository.removeEventMapping(
                     for: mapping.projectionUID
                 )
+            } catch {
+                failedCount += 1
             }
+        }
 
-            let missingCount = try events.reduce(into: 0) { count, event in
-                guard let identifier = try mappingRepository.eventIdentifier(
-                    for: event.uid
-                ) else {
-                    return
-                }
-                if !eventStore.eventExists(identifier: identifier) {
-                    count += 1
-                }
-            }
-            guard missingCount == 0 else {
-                return .needsDecision(.eventsMissing(count: missingCount))
-            }
-
-            for event in events {
-                let existingIdentifier = try mappingRepository.eventIdentifier(
-                    for: event.uid
-                )
+        for event in events {
+            do {
+                let existingIdentifier = mappedIdentifiers[event.uid]
+                    ?? eventStore.eventIdentifier(
+                        for: event.uid,
+                        near: event,
+                        in: calendar
+                    )
                 let write = try eventStore.saveProjectedEvent(
                     event,
                     in: calendar,
@@ -245,11 +399,14 @@ final class EventKitCalendarProjectionImporter:
                     for: event.uid,
                     calendarIdentifier: calendar.identifier
                 )
+            } catch {
+                failedCount += 1
             }
-            return .reconciled
-        } catch {
-            return .unavailable
         }
+
+        return failedCount == 0
+            ? .reconciled
+            : .partialFailure(failedCount: failedCount)
     }
 }
 
@@ -293,6 +450,33 @@ private final class EventKitCalendarEventStore: CalendarEventStore {
         eventStore.event(withIdentifier: identifier) != nil
     }
 
+    func eventIdentifier(
+        for projectionUID: String,
+        near projection: CalendarProjectionEvent,
+        in calendar: CalendarProjectionCalendar
+    ) -> String? {
+        guard let targetCalendar = eventStore.calendar(
+            withIdentifier: calendar.identifier
+        ) else {
+            return nil
+        }
+        let recoveryInterval = EventKitCalendarProjectionSemantics
+            .recoveryInterval(for: projection)
+        let predicate = eventStore.predicateForEvents(
+            withStart: recoveryInterval.start,
+            end: recoveryInterval.end,
+            calendars: [targetCalendar]
+        )
+        return eventStore.events(matching: predicate).first { event in
+            event.calendar?.calendarIdentifier == calendar.identifier
+                && EventKitCalendarProjectionSemantics
+                    .containsExactProjectionUIDMarker(
+                        in: event.notes,
+                        uid: projectionUID
+                    )
+        }?.eventIdentifier
+    }
+
     func removeEvent(identifier: String) throws {
         guard let event = eventStore.event(withIdentifier: identifier) else {
             return
@@ -327,13 +511,46 @@ private final class EventKitCalendarEventStore: CalendarEventStore {
             throw CalendarEventStoreError.noWritableSource
         }
         let existingEvent = identifier.flatMap(eventStore.event(withIdentifier:))
+        if let existingEvent,
+           EventKitCalendarProjectionSemantics.eventMatchesProjection(
+               EventKitCalendarProjectionManagedFields(
+                   title: existingEvent.title,
+                   notes: existingEvent.notes,
+                   url: existingEvent.url,
+                   isAllDay: existingEvent.isAllDay,
+                   startDate: existingEvent.startDate,
+                   endDate: existingEvent.endDate,
+                   timeZoneIdentifier: existingEvent.timeZone?.identifier,
+                   alarmOffsets: (existingEvent.alarms ?? [])
+                       .map(\.relativeOffset),
+                   calendarIdentifier: existingEvent.calendar?
+                       .calendarIdentifier
+               ),
+               projection: projection,
+               calendar: calendar
+           )
+        {
+            guard let eventIdentifier = existingEvent.eventIdentifier else {
+                throw CalendarEventStoreError.writeFailed
+            }
+            return CalendarEventWriteResult(
+                eventIdentifier: eventIdentifier,
+                updatedExistingEvent: false,
+                didSave: false
+            )
+        }
         let event = existingEvent ?? EKEvent(eventStore: eventStore)
+        let allDayDates = EventKitCalendarProjectionSemantics.allDayDates(
+            for: projection
+        )
         event.title = projection.title
-        event.notes = projectionNotes(for: projection)
+        event.notes = EventKitCalendarProjectionSemantics.projectionNotes(
+            for: projection
+        )
         event.url = projection.managementURL
         event.isAllDay = true
-        event.startDate = projection.startDate
-        event.endDate = projection.endDate
+        event.startDate = allDayDates.startDate
+        event.endDate = allDayDates.endDate
         event.timeZone = TimeZone(identifier: projection.timeZoneIdentifier)
         event.alarms = projection.alarmOffsets.map {
             EKAlarm(relativeOffset: TimeInterval($0 * 86_400))
@@ -345,13 +562,11 @@ private final class EventKitCalendarEventStore: CalendarEventStore {
         }
         return CalendarEventWriteResult(
             eventIdentifier: eventIdentifier,
-            updatedExistingEvent: existingEvent != nil
+            updatedExistingEvent: existingEvent != nil,
+            didSave: true
         )
     }
 
-    private func projectionNotes(for event: CalendarProjectionEvent) -> String {
-        "\(event.notes)\n\nSubscription Manager Projection UID: \(event.uid)"
-    }
 }
 
 @MainActor
@@ -380,7 +595,7 @@ final class SwiftDataCalendarProjectionMappingRepository:
             record.calendarSyncDisabled = disabled
             modelContext.insert(record)
         }
-        try modelContext.save()
+        try saveContext()
     }
 
     func saveCalendarIdentifier(_ identifier: String) throws {
@@ -391,7 +606,7 @@ final class SwiftDataCalendarProjectionMappingRepository:
                 CalendarProjectionMappingRecord(calendarIdentifier: identifier)
             )
         }
-        try modelContext.save()
+        try saveContext()
     }
 
     func eventIdentifier(for projectionUID: String) throws -> String? {
@@ -417,7 +632,7 @@ final class SwiftDataCalendarProjectionMappingRepository:
             return
         }
         modelContext.delete(record)
-        try modelContext.save()
+        try saveContext()
     }
 
     func saveEventIdentifier(
@@ -439,7 +654,16 @@ final class SwiftDataCalendarProjectionMappingRepository:
                 )
             )
         }
-        try modelContext.save()
+        try saveContext()
+    }
+
+    private func saveContext() throws {
+        do {
+            try modelContext.save()
+        } catch {
+            modelContext.rollback()
+            throw error
+        }
     }
 
     private func records() throws -> [CalendarProjectionMappingRecord] {

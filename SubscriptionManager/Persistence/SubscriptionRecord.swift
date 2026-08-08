@@ -21,6 +21,10 @@ final class SubscriptionRecord {
     var notes: String?
     var confirmedChargesData: Data?
     var priceChangesData: Data?
+    @Relationship(deleteRule: .cascade, inverse: \ConfirmedChargeRecord.subscription)
+    var confirmedChargeRecords: [ConfirmedChargeRecord]?
+    @Relationship(deleteRule: .cascade, inverse: \PriceChangeRecord.subscription)
+    var priceChangeRecords: [PriceChangeRecord]?
     var lifecycleRawValue: String?
     var trialFirstPaidChargeAt: Date?
     var cancelledAt: Date?
@@ -84,7 +88,88 @@ final class SubscriptionRecord {
 }
 
 @Model
+final class ConfirmedChargeRecord {
+    var id: UUID = UUID()
+    var sequence: Int = 0
+    var appendOrderDate: Date = Date(timeIntervalSinceReferenceDate: 0)
+    var chargedDate: Date = Date(timeIntervalSinceReferenceDate: 0)
+    var amountMinorUnits: Int64 = 0
+    var currencyRawValue: String = "USD"
+    var sourceScheduledChargeSubscriptionID: UUID?
+    var sourceScheduledChargeYear: Int?
+    var sourceScheduledChargeMonth: Int?
+    var sourceScheduledChargeDay: Int?
+    var subscriptionID: UUID?
+    var subscription: SubscriptionRecord?
+
+    init(
+        id: UUID,
+        sequence: Int,
+        appendOrderDate: Date = Date(timeIntervalSinceReferenceDate: 0),
+        chargedDate: Date,
+        amountMinorUnits: Int64,
+        currencyRawValue: String,
+        sourceScheduledChargeSubscriptionID: UUID? = nil,
+        sourceScheduledChargeYear: Int? = nil,
+        sourceScheduledChargeMonth: Int? = nil,
+        sourceScheduledChargeDay: Int? = nil,
+        subscriptionID: UUID? = nil,
+        subscription: SubscriptionRecord? = nil
+    ) {
+        self.id = id
+        self.sequence = sequence
+        self.appendOrderDate = appendOrderDate
+        self.chargedDate = chargedDate
+        self.amountMinorUnits = amountMinorUnits
+        self.currencyRawValue = currencyRawValue
+        self.sourceScheduledChargeSubscriptionID =
+            sourceScheduledChargeSubscriptionID
+        self.sourceScheduledChargeYear = sourceScheduledChargeYear
+        self.sourceScheduledChargeMonth = sourceScheduledChargeMonth
+        self.sourceScheduledChargeDay = sourceScheduledChargeDay
+        self.subscriptionID = subscriptionID
+        self.subscription = subscription
+    }
+}
+
+@Model
+final class PriceChangeRecord {
+    var id: UUID = UUID()
+    var sequence: Int = 0
+    var appendOrderDate: Date = Date(timeIntervalSinceReferenceDate: 0)
+    var effectiveDate: Date = Date(timeIntervalSinceReferenceDate: 0)
+    var amountMinorUnits: Int64 = 0
+    var currencyRawValue: String = "USD"
+    var subscriptionID: UUID?
+    var subscription: SubscriptionRecord?
+
+    init(
+        id: UUID,
+        sequence: Int,
+        appendOrderDate: Date = Date(timeIntervalSinceReferenceDate: 0),
+        effectiveDate: Date,
+        amountMinorUnits: Int64,
+        currencyRawValue: String,
+        subscriptionID: UUID? = nil,
+        subscription: SubscriptionRecord? = nil
+    ) {
+        self.id = id
+        self.sequence = sequence
+        self.appendOrderDate = appendOrderDate
+        self.effectiveDate = effectiveDate
+        self.amountMinorUnits = amountMinorUnits
+        self.currencyRawValue = currencyRawValue
+        self.subscriptionID = subscriptionID
+        self.subscription = subscription
+    }
+}
+
+@Model
 final class UserPreferencesRecord {
+    static let canonicalID = UUID(
+        uuidString: "00000000-0000-4000-8000-000000000001"
+    )!
+    var id: UUID = UserPreferencesRecord.canonicalID
     var primaryCurrencyRawValue: String = "CNY"
     var calendarProjectionHorizonMonths: Int = 12
     var hideAmountsInCalendar: Bool = false
@@ -93,6 +178,7 @@ final class UserPreferencesRecord {
     var setupStatusRawValue: String = "notCompleted"
 
     init(
+        id: UUID = UserPreferencesRecord.canonicalID,
         primaryCurrencyRawValue: String = "CNY",
         calendarProjectionHorizonMonths: Int = 12,
         hideAmountsInCalendar: Bool = false,
@@ -100,6 +186,7 @@ final class UserPreferencesRecord {
         appearanceModeRawValue: String = "system",
         setupStatusRawValue: String = "notCompleted"
     ) {
+        self.id = id
         self.primaryCurrencyRawValue = primaryCurrencyRawValue
         self.calendarProjectionHorizonMonths =
             calendarProjectionHorizonMonths

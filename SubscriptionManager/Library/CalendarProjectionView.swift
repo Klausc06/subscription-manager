@@ -38,6 +38,7 @@ struct CalendarProjectionView: View {
             CalendarReconciliationStatusView(
                 state: workspace.calendarReconciliationState,
                 onRebuild: rebuildCalendar,
+                onRetry: reconcileCalendar,
                 onDisable: disableCalendar
             )
         }
@@ -118,6 +119,10 @@ struct CalendarProjectionView: View {
         Task { await workspace.rebuildCalendarProjection(locale: locale) }
     }
 
+    private func reconcileCalendar() {
+        Task { await workspace.reconcileCalendarProjection(locale: locale) }
+    }
+
     private func disableCalendar() {
         Task { await workspace.disableCalendarReconciliation() }
     }
@@ -126,6 +131,7 @@ struct CalendarProjectionView: View {
 private struct CalendarReconciliationStatusView: View {
     let state: CalendarReconciliationState
     let onRebuild: () -> Void
+    let onRetry: () -> Void
     let onDisable: () -> Void
 
     var body: some View {
@@ -134,17 +140,48 @@ private struct CalendarReconciliationStatusView: View {
             Section("Calendar Import") {
                 Text("Calendar content was deleted outside Subscription Manager.")
                     .foregroundStyle(.secondary)
+                    .accessibilityIdentifier("calendar.reconciliation.needs-decision")
                 Button("Rebuild Calendar", action: onRebuild)
                     .accessibilityIdentifier("calendar.rebuild")
                 Button("Disable Calendar Sync", role: .destructive, action: onDisable)
                     .accessibilityIdentifier("calendar.disable")
             }
+        case .partialFailure(let failedCount):
+            retrySection(
+                message: failedCount == 1
+                    ? "Calendar sync is incomplete. 1 event failed."
+                    : "Calendar sync is incomplete. \(failedCount) events failed.",
+                errorIdentifier: "calendar.reconciliation.partial",
+                action: onRetry
+            )
+        case .unavailable:
+            retrySection(
+                message: "Calendar sync is unavailable. Check Calendar access and try again.",
+                errorIdentifier: "calendar.reconciliation.unavailable",
+                action: onRebuild
+            )
         case .reconciling:
             Section("Calendar Import") {
                 ProgressView("Reconciling Calendar")
             }
-        case .current, .notConfigured, .disabled, .unavailable:
+        case .current, .notConfigured, .disabled:
             EmptyView()
+        }
+    }
+
+    private func retrySection(
+        message: LocalizedStringKey,
+        errorIdentifier: String,
+        action: @escaping () -> Void
+    ) -> some View {
+        Section("Calendar Import") {
+            Text(message)
+                .foregroundStyle(.secondary)
+                .accessibilityIdentifier(errorIdentifier)
+            Button("Retry Calendar Sync", action: action)
+                .accessibilityIdentifier("calendar.reconciliation.retry")
+            Button("Disable Calendar Sync", role: .destructive, action: onDisable)
+                .accessibilityIdentifier("calendar.disable")
         }
     }
 }

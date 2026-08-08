@@ -19,7 +19,7 @@
 - 目录可选 offer 必须有服务/变体、市场、币种、周期、渠道、标准续费语义、来源和核验日期；促销、资格价、首月价和渠道差异必须分开。
 - Apple 资料只证明当前 SwiftUI/HIG 的 API 和设计原则，不证明固定的 iOS 27 圆角、间距、sheet 高度或日历布局数值。
 - 保留 R2 的 14 条验收基线；本轮不宣称 Round 2 或 Round 3 已完成，直到代码、测试和设备 UI 证据齐全。
-- 不做 iCloud/CloudKit、云端架构或其他用户没有要求的功能；本轮不自动 commit、不 push。
+- 原 Round 3 产品功能不新增 iCloud/CloudKit 或云端架构；方案 A Batch 2 已批准的 SwiftData/CloudKit remediation 仅限其列明的数据完整性修复，不扩展产品功能。本轮不自动 commit、不 push。
 
 ### Implementation isolation rule
 
@@ -53,6 +53,72 @@ Task 6 类别稳定化与分类迁移
 Task 7 目录证据审计与分批数据修正
 Task 8 集成验收：focused → full regression → 设备 UI → 目标反查
 ```
+
+## GitHub review remediation execution（方案 A，已批准）
+
+本节是已批准的 remediation plan，不是从仓库旧 brief 推断出的新产品范围；产品目标、页面边界、货币边界和依赖边界保持不变。Batch 1 已在 `dd6de2cbcfb11e69314e088408113a0d923e8fa3` 完成，下面的 Batch 2–5 仍需用户授权后才能开始。
+
+### 公共流程
+
+1. 主任务按批次先使用 `superpowers:receiving-code-review` 在当前 HEAD 核对 finding 是否仍成立；scope 已锁定时不额外 brainstorming。
+2. 实现 Luna 使用 `tdd` 或 `superpowers:test-driven-development`，先取得故障路径的真实 RED，再做最小 GREEN。实现提示必须写明目标/用户价值、起始 SHA、允许文件、禁止项、failure invariants、技能、RED → GREEN 顺序、focused + batch regression、完成证据和 remote side effects。
+3. 数据、并发或外部系统批次增加 `debug-like-expert`；数据模型迁移增加 `domain-modeling`；SwiftUI 批次增加 `build-ios-apps:swiftui-ui-patterns`。只有 brief 明确要求真实运行时 UI 证据时才使用 `ios-simulator-browser`。
+4. 每批默认一个实现 Luna 加一个独立 Luna Medium 只读 review；验收者只能输出 `APPROVE` 或 `FINDINGS`。finding 必须包含复现、影响、最小修复和永久回归测试。真实 finding 才返回原实现者修复，修复后由同一 Medium reviewer 复核，不增加第三 reviewer。
+5. 每批运行 focused tests，再运行一次批次级 regression；后续批次不得把历史测试结果冒充本轮重跑。fake/mock 必须模拟物理副作用、事务失败、retry/idempotency 和适用的系统语义，不得复制生产算法自证。
+6. 每批结论后立即更新唯一 canonical `.superpowers/sdd/progress.md`。不因置信度自动增加 UI tests、全量审计、Max 或 reviewer；不增加未请求工作流、页面、依赖、币种或功能。GitHub reply/resolve/mark read 只有全部批次验证后且用户当轮授权才可做；push 始终需要用户当轮明确授权。
+
+### Batch 2 — SwiftData/CloudKit 数据完整性
+
+**允许/预期文件：**
+
+- `SubscriptionManager/Persistence/SubscriptionRecord.swift`
+- `SubscriptionManager/Persistence/SwiftDataSubscriptionRepository.swift`
+- `SubscriptionManager/App/AppDependencies.swift`
+- `SubscriptionManager/Sync/CloudKitLibrarySyncMonitor.swift`
+- 对应 repository/dependency/sync tests
+
+**目标与 failure invariants：**
+
+- `ConfirmedCharge`/`PriceChange` 从整块 `Data` 迁移为稳定 ID 的独立 SwiftData records。
+- 旧 `Data` 只作为一次性迁移源；成功保存后不再写旧格式。
+- `CalendarProjectionMappingRecord` 使用 `cloudKitDatabase .none` 的本地 configuration。
+- `UserPreferencesRecord` 使用稳定身份和确定性重复合并；禁止无排序 `fetchLimit=1`。
+- 单条损坏记录保留、不自动删除且不隐藏整个 library；仍返回有效订阅。
+- iCloud account available 不等于 sync current；远端导入后必须触发 workspace reload。
+
+**验收：** 旧库升级后的数量、ID、金额和日期不变；独立追加不覆盖；mapping 不进入 CloudKit；坏记录不拖垮库；没有同步完成证据时不显示 current。
+
+**分工/技能：** Luna XHigh 实现，使用 `superpowers:receiving-code-review`、`domain-modeling`、`debug-like-expert` 和 `tdd`；独立 Luna Medium 使用 `review` 与 `debug-like-expert` 只读验收。只有迁移/CloudKit 语义不能在现有 seam 表达，或一次真实修复后仍有跨层 finding，才允许升级 Max。
+
+**Remote side effects：** 无；不得在本批执行 push、GitHub reply/resolve/mark read 或其他远端操作。
+
+### Batch 3 — 洞察、汇率、续费日期
+
+**预期文件：** `SubscriptionCore.swift`、`ExchangeRates.swift`、`LibraryView.swift`、`SubscriptionWorkspaceTests`。
+
+**目标与验收：** `required quote currencies` 覆盖原价、price changes、confirmed charges 和 display currency；当天 cache 必须含全部币种；`CancellationError` 不写失败时间；磁盘缓存失败使用进程内 attempt state；首尾日计入；expected 覆盖未来 30 天、confirmed 覆盖过去 30 天；月末使用完整时段；Upcoming 使用 billing timezone 且 accessibility 有日期；读取失败与空列表区分。必须覆盖月末中午不漏、1–30 日按 30 天、新币种补请求、失败不伪装空。
+
+**分工/技能：** Luna High 实现，使用 `superpowers:receiving-code-review`、`debug-like-expert` 和 `tdd`；独立 Luna Medium 只读 review。不得添加页面、汇率供应商、依赖、币种或额外审计层。
+
+**Remote side effects：** 无；不得在本批执行 push、GitHub reply/resolve/mark read 或其他远端操作。
+
+### Batch 4 — 首次设置与 macOS 窗口
+
+**预期文件：** `UserPreferences.swift`、`LibraryView.swift`、`SubscriptionManagerApp.swift`、对应 UserPreferences/Mac tests。
+
+**目标与验收：** 非空或仅 archived library 无 preferences 时持久化 completed；setup load failure 在现有界面内重试；preset confirmed 后取消再选不重复；每个 macOS window 拥有独立 scope/snapshot/search/sort；Command-N 单一；修复 locale compare、search focus、sort、accessibility 和 localization。老用户不重进 setup，两个窗口不串状态。
+
+**分工/技能：** Luna High 实现，使用 `superpowers:receiving-code-review`、`tdd` 和 `build-ios-apps:swiftui-ui-patterns`；独立 Luna Medium 只读 review。只有 brief 明确要求真实 UI 行为证据时才使用 `ios-simulator-browser`；不得新增页面、窗口管理框架或 UI test 层。
+
+**Remote side effects：** 无；不得在本批执行 push、GitHub reply/resolve/mark read 或其他远端操作。
+
+### Batch 5 — 便携导出与 GitHub 收尾
+
+**预期文件：** `PortableBackup.swift`、`PortableExportView.swift`、`PortableExportTests`。
+
+**代码目标与验收：** UI 只通过 `SubscriptionWorkspace` 请求 JSON/CSV `Data`；CSV 增加 `record_type`/`renewal_anchor`；空库输出 preferences row；公开 JSON decode 统一校验 schema/version。实现完成后由独立 Luna Medium 只读 review；若现场确认只是单一 encoder seam，可将实现降为 Medium。技能为 `superpowers:receiving-code-review` + `tdd`。
+
+GitHub 收尾与代码实现分离：只有全部批次验证后且用户当轮授权，才可 reply/resolve/mark read；push 始终需要用户当轮明确授权。未获授权前不得执行任何 GitHub 或 remote side effect。
 
 ## Task 0：调研基线、当前实现映射和执行门
 
