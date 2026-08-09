@@ -119,6 +119,8 @@ struct EventKitCalendarProjectionImporterTests {
             )
             let original = calendarEvent(uid: "renewal-1")
             _ = await importer.importProjection(events: [original])
+            let baselineSaveCount = store.saveCount
+            #expect(baselineSaveCount == 1)
 
             var revised = original
             switch field {
@@ -163,7 +165,8 @@ struct EventKitCalendarProjectionImporterTests {
             #expect(
                 await importer.perform(.reconcile([revised])) == .reconciled
             )
-            #expect(store.saveCount == 2)
+            #expect(store.saveCount == baselineSaveCount + 1)
+            #expect(store.savedProjectionEvents.last == revised)
             #expect(store.physicalEventIdentifiers == ["event-1"])
             #expect(
                 try mappings.eventIdentifier(for: original.uid) == "event-1"
@@ -686,6 +689,9 @@ private final class CalendarEventStoreFixture: CalendarEventStore {
         _ mutate: (inout PhysicalCalendarEvent) -> Void
     ) {
         guard var event = physicalEventsByIdentifier[identifier] else {
+            Issue.record(
+                "No physical calendar event \(identifier) to mutate."
+            )
             return
         }
         mutate(&event)

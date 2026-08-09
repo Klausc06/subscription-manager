@@ -2278,6 +2278,33 @@ struct SubscriptionWorkspaceTests {
         #expect(repository.updateAttemptCount == 0)
     }
 
+    @Test("Refreshing before initial load reads the persisted catalog once")
+    @MainActor
+    func refreshBeforeInitialLoadReadsPersistedCatalogOnce() async throws {
+        let preset = catalogPresetFixture(offers: [
+            catalogOfferFixture(id: "monthly", status: .verified),
+        ])
+        let repository = CountingCatalogRepository(presets: [preset])
+        let update = try JSONEncoder().encode(
+            CatalogSnapshot(
+                schemaVersion: CatalogSnapshot.currentSchemaVersion,
+                catalogVersion: 1,
+                presets: [preset]
+            )
+        )
+        let workspace = SubscriptionWorkspace(
+            repository: InMemorySubscriptionRepository(),
+            catalogRepository: repository,
+            catalogUpdateSource: StaticCatalogUpdateSource(data: update),
+            catalogCache: InMemoryCatalogCache()
+        )
+
+        await workspace.refreshCatalog()
+
+        #expect(repository.loadCount == 1)
+        #expect(workspace.catalogDiagnostics?.refreshStatus == .alreadyCurrent)
+    }
+
     @Test("Out-of-order catalog refresh keeps the newer response active")
     @MainActor
     func refreshCatalogRejectsOutOfOrderStaleResponse() async throws {
@@ -3146,7 +3173,10 @@ struct SubscriptionWorkspaceTests {
             id: "research-only",
             status: .reviewRequired
         )
-        let preset = catalogPresetFixture(offers: [offer])
+        let preset = catalogPresetFixture(offers: [
+            offer,
+            catalogOfferFixture(id: "verified-baseline", status: .verified),
+        ])
         let repository = InMemorySubscriptionRepository()
         let workspace = SubscriptionWorkspace(
             repository: repository,
@@ -6823,17 +6853,16 @@ struct SubscriptionWorkspaceTests {
         let repository = InMemorySubscriptionRepository(
             subscriptions: [existing]
         )
+        let now = try actionDate(
+            year: 2026,
+            month: 7,
+            day: 15,
+            hour: 18,
+            calendar: calendar
+        )
         let workspace = SubscriptionWorkspace(
             repository: repository,
-            now: {
-                try! actionDate(
-                    year: 2026,
-                    month: 7,
-                    day: 15,
-                    hour: 18,
-                    calendar: calendar
-                )
-            },
+            now: { now },
             calendar: calendar
         )
 
@@ -7503,6 +7532,24 @@ private struct StaticCatalogRepository: CatalogRepository {
 }
 
 @MainActor
+private final class CountingCatalogRepository: CatalogRepository {
+    private let presets: [CatalogPreset]
+    private(set) var loadCount = 0
+
+    init(presets: [CatalogPreset]) {
+        self.presets = presets
+    }
+
+    func loadSnapshot() throws -> CatalogSnapshot {
+        loadCount += 1
+        return try CatalogSnapshot(
+            schemaVersion: CatalogSnapshot.currentSchemaVersion,
+            presets: presets
+        )
+    }
+}
+
+@MainActor
 private final class StaticCatalogUpdateSource: CatalogUpdateSource {
     var data: Data
     var shouldFail = false
@@ -7704,7 +7751,7 @@ private final class CalendarReconcilerFixture: CalendarProjectionReconciler {
             forKey: callNumber
         ) else {
             Issue.record(
-                "No suspended calendar reconciler call (callNumber) to release."
+                "No suspended calendar reconciler call \(callNumber) to release."
             )
             releasedCallNumbers.insert(callNumber)
             return
@@ -7775,7 +7822,7 @@ private func assertCalendarReconcilerCallStarted(
     let started = await reconciler.waitForCallStart(callNumber)
     guard !started else { return true }
     Issue.record(
-        "Timed out waiting for calendar reconciler call (callNumber) to start."
+        "Timed out waiting for calendar reconciler call \(callNumber) to start."
     )
     reconciler.releaseCall(callNumber)
     return false

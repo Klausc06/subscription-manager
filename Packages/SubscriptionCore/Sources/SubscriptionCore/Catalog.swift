@@ -431,11 +431,13 @@ public struct CatalogSnapshot: Codable, Equatable, Sendable {
                     )
                 }
             }
-            guard !preset.offers.isEmpty else {
+            guard preset.offers.isEmpty || preset.offers.contains(where: {
+                $0.reviewStatus == .verified
+            }) else {
                 throw CatalogLoadError(
                     presetID: identifier,
                     field: .offers,
-                    message: "preset must include at least one fixed-price offer"
+                    message: "preset must include at least one verified offer"
                 )
             }
             var offerIdentifiers = Set<String>()

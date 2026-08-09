@@ -266,6 +266,40 @@ struct CatalogTests {
         assertOffersAreInvalid([offer, offer])
     }
 
+    @Test("Catalog rejects presets without a verified offer")
+    func catalogRejectsPresetsWithoutVerifiedOffer() {
+        let offer = CatalogOffer(
+            id: "pending",
+            planName: CatalogLocalizedText(en: "Pending", zhHans: "待核验"),
+            price: Money(minorUnits: 2_000, currency: .usd),
+            billingInterval: .monthly,
+            market: "US",
+            purchaseChannel: .web,
+            sourceURL: URL(string: "https://example.com/pricing")!,
+            verifiedOn: "2026-08-09",
+            reviewStatus: .reviewRequired
+        )
+
+        assertOffersAreInvalid([offer])
+    }
+
+    @Test("Catalog accepts a service-only preset without offers")
+    func catalogAcceptsServiceOnlyPresetWithoutOffers() throws {
+        let preset = CatalogPreset(
+            id: "service-only",
+            serviceName: CatalogLocalizedText(en: "Service", zhHans: "服务"),
+            category: CatalogLocalizedText(en: "Other", zhHans: "其他"),
+            suggestedInterval: .monthly,
+            managementURL: nil,
+            icon: .other
+        )
+
+        _ = try CatalogSnapshot(
+            schemaVersion: CatalogSnapshot.currentSchemaVersion,
+            presets: [preset]
+        )
+    }
+
     @Test("Catalog rejects zero-price offers")
     func catalogRejectsZeroPriceOffers() {
         assertOffersAreInvalid([

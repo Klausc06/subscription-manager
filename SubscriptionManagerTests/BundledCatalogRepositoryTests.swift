@@ -86,7 +86,9 @@ struct BundledCatalogRepositoryTests {
             "jianying-pro|c-jianying-member-monthly-cn-ios": 2_500,
             "qq-music|a-qq-music-green-diamond-monthly-cn-ios": 1_500,
             "tencent-video|a-tencent-video-vip-monthly-cn-ios": 2_500,
-            "canva-china|c-canva-pro-monthly-cn-web": 3_900,
+            "baidu-netdisk|b-baidu-netdisk-svip-monthly-cn-ios": 2_500,
+            "canva-china|c-canva-pro-monthly-cn-web": 3_000,
+            "canva-china|c-canva-pro-yearly-cn-web": 29_800,
             "youtube-premium|youtube-premium-individual-monthly-us-web": 1_599,
             "youtube-premium|youtube-premium-family-monthly-us-web": 2_699,
             "youtube-premium|youtube-premium-student-monthly-us-web": 899,
@@ -129,6 +131,34 @@ struct BundledCatalogRepositoryTests {
         let bundled = BundledCatalogRepository(data: validCatalogData())
         let repository = CachedCatalogRepository(
             bundled: bundled,
+            cache: cache
+        )
+
+        let snapshot = try repository.loadSnapshot()
+
+        #expect(snapshot.catalogVersion == 1)
+        #expect(repository.catalogSource == .bundled)
+    }
+
+    @Test("A cached preset without a verified offer falls back to the bundle")
+    @MainActor
+    func unverifiedCachedCatalogFallsBackToBundledCatalog() throws {
+        let directory = FileManager.default.temporaryDirectory.appending(
+            path: UUID().uuidString,
+            directoryHint: .isDirectory
+        )
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let cache = FileCatalogCache(directory: directory)
+        let cachedData = String(
+            decoding: validCatalogData(catalogVersion: 2),
+            as: UTF8.self
+        ).replacingOccurrences(
+            of: "\"reviewStatus\": \"verified\"",
+            with: "\"reviewStatus\": \"reviewRequired\""
+        )
+        try cache.storeCatalogData(Data(cachedData.utf8))
+        let repository = CachedCatalogRepository(
+            bundled: BundledCatalogRepository(data: validCatalogData()),
             cache: cache
         )
 
@@ -393,7 +423,20 @@ private func validCatalogData(
           "suggestedInterval": "monthly",
           "managementURL": null,
           "icon": "music",
-          "assetProvenance": { "kind": "originalSymbol", "license": "CC0-1.0", "source": "\(presetID)" }
+          "assetProvenance": { "kind": "originalSymbol", "license": "CC0-1.0", "source": "\(presetID)" },
+          "offers": [
+            {
+              "id": "monthly",
+              "planName": { "en": "Monthly", "zhHans": "月付" },
+              "price": { "minorUnits": 100, "currency": "CNY" },
+              "billingInterval": "monthly",
+              "market": "CN",
+              "purchaseChannel": "web",
+              "sourceURL": "https://example.com/pricing",
+              "verifiedOn": "2026-08-09",
+              "reviewStatus": "verified"
+            }
+          ]
         }
       ]
     }

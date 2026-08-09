@@ -633,6 +633,82 @@ struct SwiftDataSubscriptionRepositoryTests {
         #expect(preferences == originalPreferences)
     }
 
+    @Test("A failed preference save rolls back canonicalization and values")
+    @MainActor
+    func failedPreferenceSaveRollsBackCanonicalizationAndValues() throws {
+        let container = try ModelContainer(
+            for: UserPreferencesRecord.self,
+            configurations: ModelConfiguration(
+                isStoredInMemoryOnly: true,
+                cloudKitDatabase: .none
+            )
+        )
+        let canonical = UserPreferencesRecord(
+            id: UserPreferencesRecord.canonicalID,
+            primaryCurrencyRawValue: "USD",
+            calendarProjectionHorizonMonths: 12,
+            hideAmountsInCalendar: false,
+            menuBarModeEnabled: false,
+            appearanceModeRawValue: "light",
+            setupStatusRawValue: "notCompleted"
+        )
+        let duplicateID = UUID(
+            uuidString: "81000000-0000-4000-8000-000000000001"
+        )!
+        let duplicate = UserPreferencesRecord(
+            id: duplicateID,
+            primaryCurrencyRawValue: "EUR",
+            calendarProjectionHorizonMonths: 6,
+            hideAmountsInCalendar: true,
+            menuBarModeEnabled: true,
+            appearanceModeRawValue: "dark",
+            setupStatusRawValue: "completed"
+        )
+        container.mainContext.insert(canonical)
+        container.mainContext.insert(duplicate)
+        try container.mainContext.save()
+        let repository = SwiftDataUserPreferencesRepository(
+            modelContainer: container,
+            save: { _ in throw SaveFailure.unavailable }
+        )
+
+        #expect(throws: SaveFailure.self) {
+            try repository.savePreferences(
+                UserPreferences(
+                    primaryCurrency: .cny,
+                    calendarProjectionHorizon: .sixMonths,
+                    hideAmountsInCalendar: true,
+                    menuBarModeEnabled: true,
+                    appearanceMode: .system,
+                    setupStatus: .skipped
+                )
+            )
+        }
+
+        let records = try ModelContext(container).fetch(
+            FetchDescriptor<UserPreferencesRecord>()
+        )
+        #expect(records.count == 2)
+        let restoredCanonical = try #require(
+            records.first { $0.id == UserPreferencesRecord.canonicalID }
+        )
+        let restoredDuplicate = try #require(
+            records.first { $0.id == duplicateID }
+        )
+        #expect(restoredCanonical.primaryCurrencyRawValue == "USD")
+        #expect(restoredCanonical.calendarProjectionHorizonMonths == 12)
+        #expect(restoredCanonical.hideAmountsInCalendar == false)
+        #expect(restoredCanonical.menuBarModeEnabled == false)
+        #expect(restoredCanonical.appearanceModeRawValue == "light")
+        #expect(restoredCanonical.setupStatusRawValue == "notCompleted")
+        #expect(restoredDuplicate.primaryCurrencyRawValue == "EUR")
+        #expect(restoredDuplicate.calendarProjectionHorizonMonths == 6)
+        #expect(restoredDuplicate.hideAmountsInCalendar)
+        #expect(restoredDuplicate.menuBarModeEnabled)
+        #expect(restoredDuplicate.appearanceModeRawValue == "dark")
+        #expect(restoredDuplicate.setupStatusRawValue == "completed")
+    }
+
     @Test("Portable restore writes payment history as independent records")
     @MainActor
     func portableRestoreWritesIndependentPaymentHistory() throws {
@@ -706,6 +782,137 @@ struct SwiftDataSubscriptionRepositoryTests {
             try ModelContext(container).fetch(
                 FetchDescriptor<PriceChangeRecord>()
             ).count == 1
+        )
+    }
+
+    @Test("Library listing migrates legacy history from its preloaded batches")
+    @MainActor
+    func libraryListingMigratesLegacyHistoryFromPreloadedBatches() throws {
+        let container = try ModelContainer(
+            for: SubscriptionRecord.self,
+            ConfirmedChargeRecord.self,
+            PriceChangeRecord.self,
+            configurations: ModelConfiguration(
+                isStoredInMemoryOnly: true,
+                cloudKitDatabase: .none
+            )
+        )
+        let subscriptionID = UUID(
+            uuidString: "81500000-0000-4000-8000-000000000001"
+        )!
+        let charge = ConfirmedCharge(
+            id: UUID(uuidString: "81500000-0000-4000-8000-000000000002")!,
+            chargedDate: Date(timeIntervalSince1970: 1_700_000_000),
+            amount: Money(minorUnits: 1_200, currency: .cny)
+        )
+        let priceChange = PriceChange(
+            id: UUID(uuidString: "81500000-0000-4000-8000-000000000003")!,
+            effectiveDate: Date(timeIntervalSince1970: 1_700_086_400),
+            amount: Money(minorUnits: 1_300, currency: .cny)
+        )
+        let record = SubscriptionRecord(
+            id: subscriptionID,
+            confirmedChargesData: try JSONEncoder().encode([charge]),
+            priceChangesData: try JSONEncoder().encode([priceChange])
+        )
+        container.mainContext.insert(record)
+        try container.mainContext.save()
+
+        let subscriptions = try SwiftDataSubscriptionRepository(
+            modelContainer: container
+        ).listSubscriptions()
+
+        let subscription = try #require(subscriptions.first)
+        #expect(subscription.confirmedCharges == [charge])
+        #expect(subscription.priceChanges == [priceChange])
+        let storedRecord = try #require(
+            try ModelContext(container).fetch(
+                FetchDescriptor<SubscriptionRecord>()
+            ).first
+        )
+        #expect(storedRecord.confirmedChargesData == nil)
+        #expect(storedRecord.priceChangesData == nil)
+    }
+
+    @Test("Duplicate physical history rows load as one domain occurrence")
+    @MainActor
+    func duplicatePhysicalHistoryRowsLoadAsOneDomainOccurrence() throws {
+        let container = try ModelContainer(
+            for: SubscriptionRecord.self,
+            ConfirmedChargeRecord.self,
+            PriceChangeRecord.self,
+            configurations: ModelConfiguration(
+                isStoredInMemoryOnly: true,
+                cloudKitDatabase: .none
+            )
+        )
+        let subscription = makeSubscription(
+            id: UUID(uuidString: "82000000-0000-4000-8000-000000000001")!
+        )
+        try SwiftDataSubscriptionRepository(modelContainer: container)
+            .createSubscription(subscription)
+        let context = ModelContext(container)
+        let priceChangeID = UUID(
+            uuidString: "82000000-0000-4000-8000-000000000002"
+        )!
+        let scheduledID = ScheduledChargeID(
+            subscriptionID: subscription.id,
+            year: 2026,
+            month: 8,
+            day: 12
+        )
+        context.insert(
+            PriceChangeRecord(
+                id: priceChangeID,
+                sequence: 0,
+                effectiveDate: subscription.confirmedNextRenewal,
+                amountMinorUnits: 1_100,
+                currencyRawValue: "USD",
+                subscriptionID: subscription.id
+            )
+        )
+        context.insert(
+            PriceChangeRecord(
+                id: priceChangeID,
+                sequence: 1,
+                effectiveDate: subscription.confirmedNextRenewal,
+                amountMinorUnits: 2_200,
+                currencyRawValue: "USD",
+                subscriptionID: subscription.id
+            )
+        )
+        for (index, id) in [
+            UUID(uuidString: "82000000-0000-4000-8000-000000000003")!,
+            UUID(uuidString: "82000000-0000-4000-8000-000000000004")!,
+        ].enumerated() {
+            context.insert(
+                ConfirmedChargeRecord(
+                    id: id,
+                    sequence: index,
+                    chargedDate: subscription.confirmedNextRenewal,
+                    amountMinorUnits: Int64(1_300 + index),
+                    currencyRawValue: "USD",
+                    sourceScheduledChargeSubscriptionID:
+                        scheduledID.subscriptionID,
+                    sourceScheduledChargeYear: scheduledID.year,
+                    sourceScheduledChargeMonth: scheduledID.month,
+                    sourceScheduledChargeDay: scheduledID.day,
+                    subscriptionID: subscription.id
+                )
+            )
+        }
+        try context.save()
+
+        let loaded = try #require(
+            try SwiftDataSubscriptionRepository(modelContainer: container)
+                .subscription(id: subscription.id)
+        )
+        #expect(loaded.priceChanges.count == 1)
+        #expect(loaded.priceChanges.first?.amount.minorUnits == 1_100)
+        #expect(loaded.confirmedCharges.count == 1)
+        #expect(
+            loaded.confirmedCharges.first?.sourceScheduledChargeID
+                == scheduledID
         )
     }
 

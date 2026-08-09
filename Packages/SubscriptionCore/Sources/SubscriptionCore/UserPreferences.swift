@@ -107,6 +107,7 @@ public protocol UserPreferencesRepository {
 
 public enum SetupState: Equatable, Sendable {
     case notLoaded
+    case loadFailed
     case needsSetup(UserPreferences)
     case completed(UserPreferences)
     case skipped(UserPreferences)
@@ -145,12 +146,17 @@ public extension SubscriptionWorkspace {
         currentLibraryState: SubscriptionLibraryState,
         archivedLibraryState: SubscriptionLibraryState
     ) {
-        guard case .notLoaded = setupState else { return }
+        switch setupState {
+        case .notLoaded, .loadFailed:
+            break
+        case .needsSetup, .completed, .skipped, .failed:
+            return
+        }
         guard let libraryIsEmpty = Self.libraryIsEmptyForSetup(
             current: currentLibraryState,
             archived: archivedLibraryState
         ) else {
-            loadSetup(libraryIsEmpty: true)
+            markSetupLoadFailed()
             return
         }
 

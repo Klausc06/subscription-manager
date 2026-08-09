@@ -733,6 +733,7 @@ public final class SubscriptionWorkspace {
     public private(set) var catalogReconciliationError:
         CatalogAssociationReconciliationError? = nil
     public private(set) var setupState: SetupState = .notLoaded
+    public private(set) var setupRevision: UInt64 = 0
     public private(set) var exchangeRateStatus: ExchangeRateStatus = .notLoaded
     public private(set) var insightsState: SpendingInsightsState = .notLoaded
     public private(set) var syncStatus: LibrarySyncStatus = .notLoaded
@@ -860,10 +861,14 @@ public final class SubscriptionWorkspace {
                 return
             } catch {
                 if attempt == 1 {
-                    setupState = .notLoaded
+                    setupState = .loadFailed
                 }
             }
         }
+    }
+
+    func markSetupLoadFailed() {
+        setupState = .loadFailed
     }
 
     public func updatePreferences(
@@ -931,7 +936,7 @@ public final class SubscriptionWorkspace {
 
     private var currentPreferences: UserPreferences {
         switch setupState {
-        case .notLoaded:
+        case .notLoaded, .loadFailed:
             .default
         case .needsSetup(let preferences),
              .completed(let preferences),
@@ -945,10 +950,13 @@ public final class SubscriptionWorkspace {
         _ preferences: UserPreferences,
         stateOnSuccess: ((UserPreferences) -> SetupState)? = nil
     ) {
-        if preferencesRepository != nil,
-           case .notLoaded = setupState
-        {
-            return
+        if preferencesRepository != nil {
+            switch setupState {
+            case .notLoaded, .loadFailed:
+                return
+            case .needsSetup, .completed, .skipped, .failed:
+                break
+            }
         }
         do {
             try preferencesRepository?.savePreferences(preferences)
@@ -957,6 +965,7 @@ public final class SubscriptionWorkspace {
             }
             setupState = stateOnSuccess?(preferences)
                 ?? setupState(for: preferences)
+            setupRevision &+= 1
         } catch {
             setupState = .failed(currentPreferences)
         }
@@ -1398,9 +1407,9 @@ public final class SubscriptionWorkspace {
         }
 
         do {
-            if catalogSnapshot == nil {
-                _ = try catalogRepository.loadSnapshot()
-            }
+            let persistedSnapshot = try catalogSnapshot == nil
+                ? catalogRepository.loadSnapshot()
+                : nil
             let data = try await catalogUpdateSource.fetchCatalogData()
             let candidate = try JSONDecoder().decode(
                 CatalogSnapshot.self,
@@ -1409,6 +1418,8 @@ public final class SubscriptionWorkspace {
             let latestActiveSnapshot: CatalogSnapshot
             if let catalogSnapshot {
                 latestActiveSnapshot = catalogSnapshot
+            } else if let persistedSnapshot {
+                latestActiveSnapshot = persistedSnapshot
             } else {
                 latestActiveSnapshot = try catalogRepository.loadSnapshot()
             }
@@ -2139,6 +2150,10 @@ public final class SubscriptionWorkspace {
         } catch {
             libraryState = .failed(scope)
         }
+    }
+
+    public func reloadLibrary() {
+        loadLibrary(scope: carriedLibraryScope)
     }
 
     public func makeWidgetSnapshot() -> WidgetSnapshot? {
@@ -3129,12 +3144,12 @@ public final class SubscriptionWorkspace {
                     continue
                 }
                 let occurrenceDay = localCalendar.startOfDay(for: occurrence)
-                if occurrenceDay < startDay {
+                if occurrenceDay < startDay
+                    || occurrenceDay < confirmedNextRenewalDay
+                {
                     break
                 }
-                guard occurrenceDay >= confirmedNextRenewalDay,
-                      occurrenceDay <= today
-                else {
+                guard occurrenceDay <= today else {
                     continue
                 }
                 let charge = expectedCharge(

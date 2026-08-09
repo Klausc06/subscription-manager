@@ -112,6 +112,7 @@ struct AppDependencies {
         ) {
             let cloudConfiguration: ModelConfiguration
             let localMappingConfiguration: ModelConfiguration
+            let legacyStoreURL: URL?
             switch selection {
             case .namedUITesting(let token):
                 let rootDirectory: URL
@@ -142,6 +143,7 @@ struct AppDependencies {
                         for: .namedUITesting(token: token)
                     )
                 )
+                legacyStoreURL = directory.appending(path: "\(token).store")
                 localMappingConfiguration = ModelConfiguration(
                     "UITesting-\(token)-CalendarMappings",
                     schema: localMappingSchema,
@@ -152,6 +154,7 @@ struct AppDependencies {
                     cloudKitDatabase: .none
                 )
             case .ephemeralUITesting:
+                legacyStoreURL = nil
                 cloudConfiguration = ModelConfiguration(
                     "EphemeralCloudLibrary",
                     schema: cloudSchema,
@@ -175,6 +178,7 @@ struct AppDependencies {
                         hasCloudKitEntitlement: hasCloudKitEntitlement
                     )
                 )
+                legacyStoreURL = cloudConfiguration.url
                 let applicationSupportDirectory = try FileManager.default.url(
                     for: .applicationSupportDirectory,
                     in: .userDomainMask,
@@ -198,6 +202,14 @@ struct AppDependencies {
                     cloudKitDatabase: .none
                 )
             }
+            if let legacyStoreURL {
+                try migrateLegacyCalendarProjectionMappings(
+                    legacySchema: schema,
+                    legacyStoreURL: legacyStoreURL,
+                    localMappingSchema: localMappingSchema,
+                    localMappingConfiguration: localMappingConfiguration
+                )
+            }
             return try ModelContainer(
                 for: schema,
                 configurations: [
@@ -205,6 +217,85 @@ struct AppDependencies {
                     localMappingConfiguration,
                 ]
             )
+        }
+    }
+
+    private struct LegacyCalendarProjectionMapping {
+        let projectionUID: String
+        let eventIdentifier: String
+        let calendarIdentifier: String
+        let calendarSyncDisabled: Bool
+    }
+
+    private static func migrateLegacyCalendarProjectionMappings(
+        legacySchema: Schema,
+        legacyStoreURL: URL,
+        localMappingSchema: Schema,
+        localMappingConfiguration: ModelConfiguration
+    ) throws {
+        guard FileManager.default.fileExists(atPath: legacyStoreURL.path) else {
+            return
+        }
+
+        let legacyConfiguration = ModelConfiguration(
+            "LegacyCalendarProjectionMappings",
+            schema: legacySchema,
+            url: legacyStoreURL,
+            allowsSave: true,
+            cloudKitDatabase: .none
+        )
+        let legacyContainer = try ModelContainer(
+            for: legacySchema,
+            configurations: [legacyConfiguration]
+        )
+        let legacyContext = ModelContext(legacyContainer)
+        let legacyMappings = try legacyContext.fetch(
+            FetchDescriptor<CalendarProjectionMappingRecord>()
+        ).map {
+            LegacyCalendarProjectionMapping(
+                projectionUID: $0.projectionUID,
+                eventIdentifier: $0.eventIdentifier,
+                calendarIdentifier: $0.calendarIdentifier,
+                calendarSyncDisabled: $0.calendarSyncDisabled
+            )
+        }
+        guard !legacyMappings.isEmpty else { return }
+
+        let localContainer = try ModelContainer(
+            for: localMappingSchema,
+            configurations: [localMappingConfiguration]
+        )
+        let localContext = ModelContext(localContainer)
+        let localMappings = try localContext.fetch(
+            FetchDescriptor<CalendarProjectionMappingRecord>()
+        )
+        var localProjectionUIDs = Set(
+            localMappings.lazy
+                .map(\.projectionUID)
+                .filter { !$0.isEmpty }
+        )
+        var hasLocalMetadata = localMappings.contains {
+            $0.projectionUID.isEmpty
+        }
+
+        for mapping in legacyMappings {
+            if mapping.projectionUID.isEmpty {
+                guard !hasLocalMetadata else { continue }
+                hasLocalMetadata = true
+            } else {
+                guard localProjectionUIDs.insert(mapping.projectionUID).inserted
+                else { continue }
+            }
+            let migrated = CalendarProjectionMappingRecord(
+                projectionUID: mapping.projectionUID,
+                eventIdentifier: mapping.eventIdentifier,
+                calendarIdentifier: mapping.calendarIdentifier
+            )
+            migrated.calendarSyncDisabled = mapping.calendarSyncDisabled
+            localContext.insert(migrated)
+        }
+        if localContext.hasChanges {
+            try localContext.save()
         }
     }
 
@@ -309,9 +400,9 @@ struct AppDependencies {
             if let syncMonitor = syncMonitor as?
                 CloudKitLibrarySyncMonitor
             {
-                syncMonitor.setWorkspaceReloadHandler {
-                    Task { @MainActor [weak workspace] in
-                        workspace?.loadLibrary()
+                syncMonitor.setWorkspaceReloadHandler { [weak workspace] in
+                    await MainActor.run {
+                        workspace?.reloadLibrary()
                     }
                 }
             }

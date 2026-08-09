@@ -125,7 +125,7 @@ struct SubscriptionManagerApp: App {
              .skipped(let preferences),
              .failed(let preferences):
             appearanceMode = preferences.appearanceMode
-        case .notLoaded:
+        case .notLoaded, .loadFailed:
             appearanceMode = .system
         }
         switch appearanceMode {
@@ -466,15 +466,7 @@ private struct MacLibraryView: View {
         .task {
             workspace.loadCatalog(locale: locale)
             workspace.reconcileCatalogAssociations(locale: locale)
-            reloadLibrary(scope: .current)
-            let currentLibraryState = librarySnapshot
-            reloadLibrary(scope: .archived)
-            let archivedLibraryState = librarySnapshot
-            reloadLibrary(scope: scope)
-            workspace.initializeSetup(
-                currentLibraryState: currentLibraryState,
-                archivedLibraryState: archivedLibraryState
-            )
+            loadInitialSetupState()
             if shouldPresentSetup,
                !ProcessInfo.processInfo.arguments.contains("--ui-testing")
             {
@@ -485,6 +477,15 @@ private struct MacLibraryView: View {
         .onChange(of: scope) {
             selection.removeAll()
             reloadLibrary()
+        }
+        .onChange(of: workspace.libraryState) { _, state in
+            guard libraryScope(of: state) == scope else { return }
+            librarySnapshot = state
+        }
+        .onChange(of: workspace.setupState) { _, state in
+            if !setupInteractionIsActive(state) {
+                isSetupPresented = false
+            }
         }
         .onReceive(NotificationCenter.default.publisher(for: MacWindowCommand.add)) { notification in
             guard handlesCommand(notification) else { return }
@@ -516,6 +517,14 @@ private struct MacLibraryView: View {
         }
         .onChange(of: router.destination) { _, _ in
             applyPendingRoute()
+        }
+        .allowsHitTesting(!setupLoadFailed)
+        .overlay {
+            if setupLoadFailed {
+                SetupLoadFailureView(onRetry: loadInitialSetupState)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .background(.background)
+            }
         }
     }
 
@@ -732,12 +741,52 @@ private struct MacLibraryView: View {
         librarySnapshot = workspace.libraryState
     }
 
+    private func loadInitialSetupState() {
+        reloadLibrary(scope: .current)
+        let currentLibraryState = librarySnapshot
+        reloadLibrary(scope: .archived)
+        let archivedLibraryState = librarySnapshot
+        reloadLibrary(scope: scope)
+        workspace.initializeSetup(
+            currentLibraryState: currentLibraryState,
+            archivedLibraryState: archivedLibraryState
+        )
+    }
+
+    private func libraryScope(
+        of state: SubscriptionLibraryState
+    ) -> SubscriptionLibraryScope {
+        switch state {
+        case .loading(let stateScope),
+             .empty(let stateScope),
+             .loaded(let stateScope, _),
+             .failed(let stateScope):
+            stateScope
+        }
+    }
+
     private var shouldPresentSetup: Bool {
         switch workspace.setupState {
         case .needsSetup, .failed:
             return true
-        case .notLoaded, .completed, .skipped:
+        case .notLoaded, .loadFailed, .completed, .skipped:
             return false
+        }
+    }
+
+    private var setupLoadFailed: Bool {
+        if case .loadFailed = workspace.setupState {
+            return true
+        }
+        return false
+    }
+
+    private func setupInteractionIsActive(_ state: SetupState) -> Bool {
+        switch state {
+        case .needsSetup, .failed:
+            true
+        case .notLoaded, .loadFailed, .completed, .skipped:
+            false
         }
     }
 
@@ -868,7 +917,7 @@ private struct MacLibraryView: View {
     }
 
     private func handlesCommand(_ notification: Notification) -> Bool {
-        MacWindowCommandTarget.matches(
+        !setupLoadFailed && MacWindowCommandTarget.matches(
             notificationObject: notification.object,
             targetID: commandTargetID
         )

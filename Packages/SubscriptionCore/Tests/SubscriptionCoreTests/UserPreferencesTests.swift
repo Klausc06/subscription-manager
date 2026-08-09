@@ -163,7 +163,7 @@ struct UserPreferencesTests {
 
         #expect(states.current == .failed(.current))
         #expect(states.archived == .failed(.archived))
-        #expect(workspace.setupState == .needsSetup(.default))
+        #expect(workspace.setupState == .loadFailed)
         #expect(try preferences.loadPreferences() == nil)
     }
 
@@ -182,8 +182,32 @@ struct UserPreferencesTests {
 
         #expect(states.current == .failed(.current))
         #expect(states.archived == .empty(.archived))
-        #expect(workspace.setupState == .needsSetup(.default))
+        #expect(workspace.setupState == .loadFailed)
         #expect(try preferences.loadPreferences() == nil)
+
+        _ = initializeSetupLikeLibraryView(workspace)
+
+        #expect(workspace.setupState == .needsSetup(.default))
+    }
+
+    @Test("A failed preference read blocks setup until retry succeeds")
+    @MainActor
+    func failedPreferenceReadBlocksSetupUntilRetrySucceeds() {
+        let preferences = InMemoryUserPreferencesRepository()
+        preferences.shouldFailLoads = true
+        let workspace = SubscriptionWorkspace(
+            repository: EmptySubscriptionRepository(),
+            preferencesRepository: preferences
+        )
+
+        workspace.loadSetup(libraryIsEmpty: true)
+
+        #expect(workspace.setupState == .loadFailed)
+
+        preferences.shouldFailLoads = false
+        workspace.loadSetup(libraryIsEmpty: true)
+
+        #expect(workspace.setupState == .needsSetup(.default))
     }
 
     @Test("A failed preference save keeps setup recoverable")
@@ -201,14 +225,44 @@ struct UserPreferencesTests {
 
         #expect(workspace.setupState == .failed(.default))
     }
+
+    @Test("Successful setup writes advance the shared revision")
+    @MainActor
+    func successfulSetupWritesAdvanceSharedRevision() {
+        let preferences = InMemoryUserPreferencesRepository()
+        let workspace = SubscriptionWorkspace(
+            repository: EmptySubscriptionRepository(),
+            preferencesRepository: preferences
+        )
+        workspace.loadSetup(libraryIsEmpty: true)
+        let initialRevision = workspace.setupRevision
+
+        workspace.updatePreferences(
+            primaryCurrency: .cny,
+            calendarProjectionHorizon: .twelveMonths
+        )
+
+        #expect(workspace.setupRevision == initialRevision + 1)
+        preferences.shouldFailSaves = true
+
+        workspace.completeSetup()
+
+        #expect(workspace.setupRevision == initialRevision + 1)
+    }
 }
 
 @MainActor
 private final class InMemoryUserPreferencesRepository: UserPreferencesRepository {
     private var preferences: UserPreferences?
+    var shouldFailLoads = false
     var shouldFailSaves = false
 
-    func loadPreferences() throws -> UserPreferences? { preferences }
+    func loadPreferences() throws -> UserPreferences? {
+        if shouldFailLoads {
+            throw InMemoryPreferencesError.loadFailed
+        }
+        return preferences
+    }
 
     func savePreferences(_ preferences: UserPreferences) throws {
         if shouldFailSaves {
@@ -219,6 +273,7 @@ private final class InMemoryUserPreferencesRepository: UserPreferencesRepository
 }
 
 private enum InMemoryPreferencesError: Error {
+    case loadFailed
     case saveFailed
 }
 

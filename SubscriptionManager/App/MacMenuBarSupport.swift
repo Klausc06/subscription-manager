@@ -31,7 +31,7 @@ struct MacMenuBarScene: Scene {
              .skipped(let preferences),
              .failed(let preferences):
             preferences.menuBarModeEnabled
-        case .notLoaded:
+        case .notLoaded, .loadFailed:
             false
         }
     }

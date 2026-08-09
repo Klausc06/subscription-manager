@@ -75,7 +75,7 @@ final class SwiftDataSubscriptionRepository: SubscriptionRepository {
         }
 
         do {
-            try migrateLegacyHistoryIfNeeded(for: record)
+            _ = try migrateLegacyHistoryIfNeeded(for: record)
             let stalePriceChangeIDs = try stalePriceChangeIDs(
                 for: subscription
             )
@@ -129,12 +129,59 @@ final class SwiftDataSubscriptionRepository: SubscriptionRepository {
             )
             var subscriptions: [Subscription] = []
             var needsSave = false
+            var migrationReadyRecords: [SubscriptionRecord] = []
+            var confirmedChargeRecordsBySubscriptionID =
+                groupConfirmedChargeRecordsBySubscriptionID(
+                    try modelContext.fetch(
+                        FetchDescriptor<ConfirmedChargeRecord>()
+                    )
+                )
+            var priceChangeRecordsBySubscriptionID =
+                groupPriceChangeRecordsBySubscriptionID(
+                    try modelContext.fetch(
+                        FetchDescriptor<PriceChangeRecord>()
+                    )
+                )
             for record in records {
                 do {
-                    if try migrateLegacyHistoryIfNeeded(for: record) {
+                    var confirmedChargeRecords =
+                        confirmedChargeRecordsBySubscriptionID[record.id] ?? []
+                    var priceChangeRecords =
+                        priceChangeRecordsBySubscriptionID[record.id] ?? []
+                    if try migrateLegacyHistoryIfNeeded(
+                        for: record,
+                        confirmedChargeRecords: &confirmedChargeRecords,
+                        priceChangeRecords: &priceChangeRecords
+                    ) {
                         needsSave = true
                     }
-                    let result = try makeSubscription(from: record)
+                    confirmedChargeRecordsBySubscriptionID[record.id] =
+                        confirmedChargeRecords
+                    priceChangeRecordsBySubscriptionID[record.id] =
+                        priceChangeRecords
+                    migrationReadyRecords.append(record)
+                } catch {
+                    switch error {
+                    case is DecodingError,
+                         RepositoryError.invalidLifecycleStorage:
+                        Self.logger.error(
+                            "Skipping unreadable subscription record \(record.id.uuidString, privacy: .public): \(String(describing: error), privacy: .public)"
+                        )
+                    default:
+                        throw error
+                    }
+                }
+            }
+            for record in migrationReadyRecords {
+                do {
+                    let result = try makeSubscription(
+                        from: record,
+                        confirmedChargeRecords:
+                            confirmedChargeRecordsBySubscriptionID[record.id]
+                                ?? [],
+                        priceChangeRecords:
+                            priceChangeRecordsBySubscriptionID[record.id] ?? []
+                    )
                     if let backfill = result.billingTimeZoneBackfill {
                         record.billingTimeZoneIdentifier = backfill
                         needsSave = true
@@ -260,7 +307,9 @@ final class SwiftDataSubscriptionRepository: SubscriptionRepository {
     }
 
     private func makeSubscription(
-        from record: SubscriptionRecord
+        from record: SubscriptionRecord,
+        confirmedChargeRecords: [ConfirmedChargeRecord]? = nil,
+        priceChangeRecords: [PriceChangeRecord]? = nil
     ) throws -> (
         subscription: Subscription,
         billingTimeZoneBackfill: String?,
@@ -296,14 +345,12 @@ final class SwiftDataSubscriptionRepository: SubscriptionRepository {
                 from: record,
                 timeZoneIdentifier: timeZoneIdentifier
             )
-        let confirmedCharges = try confirmedCharges(
-            for: record,
-            in: modelContext
-        )
-        let priceChanges = try priceChanges(
-            for: record,
-            in: modelContext
-        )
+        let confirmedCharges = try confirmedChargeRecords.map {
+            canonicalConfirmedCharges(from: $0)
+        } ?? confirmedCharges(for: record, in: modelContext)
+        let priceChanges = try priceChangeRecords.map {
+            canonicalPriceChanges(from: $0)
+        } ?? priceChanges(for: record, in: modelContext)
         let lifecycle = try makeLifecycle(from: record)
 
         let subscription = Subscription(
@@ -347,6 +394,24 @@ final class SwiftDataSubscriptionRepository: SubscriptionRepository {
     private func migrateLegacyHistoryIfNeeded(
         for record: SubscriptionRecord
     ) throws -> Bool {
+        var confirmedChargeRecords = try modelContext.fetch(
+            FetchDescriptor<ConfirmedChargeRecord>()
+        ).filter { belongsTo($0, subscriptionID: record.id) }
+        var priceChangeRecords = try modelContext.fetch(
+            FetchDescriptor<PriceChangeRecord>()
+        ).filter { belongsTo($0, subscriptionID: record.id) }
+        return try migrateLegacyHistoryIfNeeded(
+            for: record,
+            confirmedChargeRecords: &confirmedChargeRecords,
+            priceChangeRecords: &priceChangeRecords
+        )
+    }
+
+    private func migrateLegacyHistoryIfNeeded(
+        for record: SubscriptionRecord,
+        confirmedChargeRecords: inout [ConfirmedChargeRecord],
+        priceChangeRecords: inout [PriceChangeRecord]
+    ) throws -> Bool {
         let legacyCharges: [ConfirmedCharge]?
         if let data = record.confirmedChargesData {
             legacyCharges = try decoder.decode([ConfirmedCharge].self, from: data)
@@ -371,7 +436,8 @@ final class SwiftDataSubscriptionRepository: SubscriptionRepository {
                 legacyCharges,
                 into: record,
                 in: modelContext,
-                preserveInputOrderWhenEmpty: true
+                preserveInputOrderWhenEmpty: true,
+                storedRecords: &confirmedChargeRecords
             )
             record.confirmedChargesData = nil
         }
@@ -380,7 +446,9 @@ final class SwiftDataSubscriptionRepository: SubscriptionRepository {
                 legacyPriceChanges,
                 into: record,
                 in: modelContext,
-                preserveInputOrderWhenEmpty: true
+                preserveInputOrderWhenEmpty: true,
+                preservingIDs: [],
+                storedRecords: &priceChangeRecords
             )
             record.priceChangesData = nil
         }
@@ -393,13 +461,29 @@ final class SwiftDataSubscriptionRepository: SubscriptionRepository {
         in context: ModelContext,
         preserveInputOrderWhenEmpty: Bool = false
     ) throws {
-        let storedRecords = try context.fetch(
+        var storedRecords = try context.fetch(
             FetchDescriptor<ConfirmedChargeRecord>()
         ).filter {
             $0.subscriptionID == record.id
                 || ($0.subscriptionID == nil
                     && $0.subscription?.id == record.id)
         }
+        try mergeConfirmedCharges(
+            charges,
+            into: record,
+            in: context,
+            preserveInputOrderWhenEmpty: preserveInputOrderWhenEmpty,
+            storedRecords: &storedRecords
+        )
+    }
+
+    private func mergeConfirmedCharges(
+        _ charges: [ConfirmedCharge],
+        into record: SubscriptionRecord,
+        in context: ModelContext,
+        preserveInputOrderWhenEmpty: Bool,
+        storedRecords: inout [ConfirmedChargeRecord]
+    ) throws {
         for storedRecord in storedRecords where storedRecord.subscriptionID == nil {
             storedRecord.subscriptionID = record.id
         }
@@ -409,11 +493,12 @@ final class SwiftDataSubscriptionRepository: SubscriptionRepository {
         {
             recordsByID[storedRecord.id] = storedRecord
         }
+        let storedRecordsWereEmpty = storedRecords.isEmpty
         var nextSequence = (storedRecords.map(\.sequence).max() ?? -1) + 1
         for (index, charge) in charges.enumerated() {
             guard recordsByID[charge.id] == nil else { continue }
             let sequence: Int
-            if preserveInputOrderWhenEmpty && storedRecords.isEmpty {
+            if preserveInputOrderWhenEmpty && storedRecordsWereEmpty {
                 sequence = index
             } else {
                 sequence = nextSequence
@@ -435,6 +520,7 @@ final class SwiftDataSubscriptionRepository: SubscriptionRepository {
                 subscription: record
             )
             context.insert(storedRecord)
+            storedRecords.append(storedRecord)
             recordsByID[charge.id] = storedRecord
         }
     }
@@ -446,13 +532,31 @@ final class SwiftDataSubscriptionRepository: SubscriptionRepository {
         preserveInputOrderWhenEmpty: Bool = false,
         preservingIDs: Set<UUID> = []
     ) throws {
-        let storedRecords = try context.fetch(
+        var storedRecords = try context.fetch(
             FetchDescriptor<PriceChangeRecord>()
         ).filter {
             $0.subscriptionID == record.id
                 || ($0.subscriptionID == nil
                     && $0.subscription?.id == record.id)
         }
+        try mergePriceChanges(
+            changes,
+            into: record,
+            in: context,
+            preserveInputOrderWhenEmpty: preserveInputOrderWhenEmpty,
+            preservingIDs: preservingIDs,
+            storedRecords: &storedRecords
+        )
+    }
+
+    private func mergePriceChanges(
+        _ changes: [PriceChange],
+        into record: SubscriptionRecord,
+        in context: ModelContext,
+        preserveInputOrderWhenEmpty: Bool,
+        preservingIDs: Set<UUID>,
+        storedRecords: inout [PriceChangeRecord]
+    ) throws {
         for storedRecord in storedRecords where storedRecord.subscriptionID == nil {
             storedRecord.subscriptionID = record.id
         }
@@ -462,6 +566,7 @@ final class SwiftDataSubscriptionRepository: SubscriptionRepository {
         {
             recordsByID[storedRecord.id] = storedRecord
         }
+        let storedRecordsWereEmpty = storedRecords.isEmpty
         var nextSequence = (storedRecords.map(\.sequence).max() ?? -1) + 1
         for (index, change) in changes.enumerated() {
             if let storedRecord = recordsByID[change.id] {
@@ -472,7 +577,7 @@ final class SwiftDataSubscriptionRepository: SubscriptionRepository {
                 continue
             }
             let sequence: Int
-            if preserveInputOrderWhenEmpty && storedRecords.isEmpty {
+            if preserveInputOrderWhenEmpty && storedRecordsWereEmpty {
                 sequence = index
             } else {
                 sequence = nextSequence
@@ -489,6 +594,7 @@ final class SwiftDataSubscriptionRepository: SubscriptionRepository {
                 subscription: record
             )
             context.insert(storedRecord)
+            storedRecords.append(storedRecord)
             recordsByID[change.id] = storedRecord
         }
     }
@@ -497,8 +603,22 @@ final class SwiftDataSubscriptionRepository: SubscriptionRepository {
         for record: SubscriptionRecord,
         in context: ModelContext
     ) throws -> [ConfirmedCharge] {
-        try context.fetch(FetchDescriptor<ConfirmedChargeRecord>())
-            .filter { belongsTo($0, subscriptionID: record.id) }
+        canonicalConfirmedCharges(
+            from: try context.fetch(FetchDescriptor<ConfirmedChargeRecord>())
+                .filter { belongsTo($0, subscriptionID: record.id) }
+        )
+    }
+
+    private enum ConfirmedChargeCanonicalKey: Hashable {
+        case scheduled(ScheduledChargeID)
+        case unlinked(UUID)
+    }
+
+    private func canonicalConfirmedCharges(
+        from records: [ConfirmedChargeRecord]
+    ) -> [ConfirmedCharge] {
+        var seenKeys = Set<ConfirmedChargeCanonicalKey>()
+        return records
             .sorted {
                 if $0.sequence != $1.sequence {
                     return $0.sequence < $1.sequence
@@ -508,23 +628,13 @@ final class SwiftDataSubscriptionRepository: SubscriptionRepository {
                 }
                 return $0.persistentModelID < $1.persistentModelID
             }
+            .filter { storedRecord in
+                let key = scheduledChargeID(from: storedRecord).map {
+                    ConfirmedChargeCanonicalKey.scheduled($0)
+                } ?? .unlinked(storedRecord.id)
+                return seenKeys.insert(key).inserted
+            }
             .map { storedRecord in
-                let source: ScheduledChargeID?
-                if let subscriptionID =
-                    storedRecord.sourceScheduledChargeSubscriptionID,
-                   let year = storedRecord.sourceScheduledChargeYear,
-                   let month = storedRecord.sourceScheduledChargeMonth,
-                   let day = storedRecord.sourceScheduledChargeDay
-                {
-                    source = ScheduledChargeID(
-                        subscriptionID: subscriptionID,
-                        year: year,
-                        month: month,
-                        day: day
-                    )
-                } else {
-                    source = nil
-                }
                 return ConfirmedCharge(
                     id: storedRecord.id,
                     chargedDate: storedRecord.chargedDate,
@@ -534,7 +644,9 @@ final class SwiftDataSubscriptionRepository: SubscriptionRepository {
                             rawValue: storedRecord.currencyRawValue
                         ) ?? .usd
                     ),
-                    sourceScheduledChargeID: source
+                    sourceScheduledChargeID: scheduledChargeID(
+                        from: storedRecord
+                    )
                 )
             }
     }
@@ -543,8 +655,17 @@ final class SwiftDataSubscriptionRepository: SubscriptionRepository {
         for record: SubscriptionRecord,
         in context: ModelContext
     ) throws -> [PriceChange] {
-        try context.fetch(FetchDescriptor<PriceChangeRecord>())
-            .filter { belongsTo($0, subscriptionID: record.id) }
+        canonicalPriceChanges(
+            from: try context.fetch(FetchDescriptor<PriceChangeRecord>())
+                .filter { belongsTo($0, subscriptionID: record.id) }
+        )
+    }
+
+    private func canonicalPriceChanges(
+        from records: [PriceChangeRecord]
+    ) -> [PriceChange] {
+        var seenIDs = Set<UUID>()
+        return records
             .sorted {
                 if $0.sequence != $1.sequence {
                     return $0.sequence < $1.sequence
@@ -554,6 +675,7 @@ final class SwiftDataSubscriptionRepository: SubscriptionRepository {
                 }
                 return $0.persistentModelID < $1.persistentModelID
             }
+            .filter { seenIDs.insert($0.id).inserted }
             .map { storedRecord in
                 PriceChange(
                     id: storedRecord.id,
@@ -566,6 +688,51 @@ final class SwiftDataSubscriptionRepository: SubscriptionRepository {
                     )
                 )
             }
+    }
+
+    private func scheduledChargeID(
+        from record: ConfirmedChargeRecord
+    ) -> ScheduledChargeID? {
+        guard let subscriptionID =
+            record.sourceScheduledChargeSubscriptionID,
+            let year = record.sourceScheduledChargeYear,
+            let month = record.sourceScheduledChargeMonth,
+            let day = record.sourceScheduledChargeDay
+        else {
+            return nil
+        }
+        return ScheduledChargeID(
+            subscriptionID: subscriptionID,
+            year: year,
+            month: month,
+            day: day
+        )
+    }
+
+    private func groupConfirmedChargeRecordsBySubscriptionID(
+        _ records: [ConfirmedChargeRecord]
+    ) -> [UUID: [ConfirmedChargeRecord]] {
+        var grouped: [UUID: [ConfirmedChargeRecord]] = [:]
+        for record in records {
+            guard let subscriptionID = record.subscriptionID
+                ?? record.subscription?.id
+            else { continue }
+            grouped[subscriptionID, default: []].append(record)
+        }
+        return grouped
+    }
+
+    private func groupPriceChangeRecordsBySubscriptionID(
+        _ records: [PriceChangeRecord]
+    ) -> [UUID: [PriceChangeRecord]] {
+        var grouped: [UUID: [PriceChangeRecord]] = [:]
+        for record in records {
+            guard let subscriptionID = record.subscriptionID
+                ?? record.subscription?.id
+            else { continue }
+            grouped[subscriptionID, default: []].append(record)
+        }
+        return grouped
     }
 
     private func belongsTo(
@@ -607,31 +774,10 @@ final class SwiftDataSubscriptionRepository: SubscriptionRepository {
         for subscriptionID: UUID
     ) throws -> [PriceChange] {
         let context = ModelContext(modelContainer)
-        let record = try context.fetch(
+        let records = try context.fetch(
             FetchDescriptor<PriceChangeRecord>()
         ).filter { belongsTo($0, subscriptionID: subscriptionID) }
-        return record
-            .sorted {
-                if $0.sequence != $1.sequence {
-                    return $0.sequence < $1.sequence
-                }
-                if $0.appendOrderDate != $1.appendOrderDate {
-                    return $0.appendOrderDate < $1.appendOrderDate
-                }
-                return $0.persistentModelID < $1.persistentModelID
-            }
-            .map {
-                PriceChange(
-                    id: $0.id,
-                    effectiveDate: $0.effectiveDate,
-                    amount: Money(
-                        minorUnits: $0.amountMinorUnits,
-                        currency: Currency(
-                            rawValue: $0.currencyRawValue
-                        ) ?? .usd
-                    )
-                )
-            }
+        return canonicalPriceChanges(from: records)
     }
 
     private func rememberPriceChanges(for subscription: Subscription) {
@@ -966,7 +1112,6 @@ final class SwiftDataUserPreferencesRepository: UserPreferencesRepository {
         if canonical.modelContext == nil {
             modelContext.insert(canonical)
         }
-        try save(modelContext)
         return canonical
     }
 }

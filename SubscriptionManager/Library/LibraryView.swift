@@ -55,12 +55,19 @@ struct LibraryView: View {
         .task {
             loadInitialState()
         }
+        .onChange(of: workspace.setupState) { _, state in
+            if !isSetupInteractionActive(state) {
+                isSetupPresented = false
+            }
+        }
         .onOpenURL(perform: openDeepLink)
     }
 
     @ViewBuilder
     private var rootContent: some View {
-        if horizontalSizeClass == .regular {
+        if case .loadFailed = workspace.setupState {
+            SetupLoadFailureView(onRetry: loadInitialState)
+        } else if horizontalSizeClass == .regular {
             wideRoot
         } else {
             compactRoot
@@ -235,7 +242,7 @@ struct LibraryView: View {
         switch workspace.setupState {
         case .needsSetup, .failed:
             true
-        case .notLoaded, .completed, .skipped:
+        case .notLoaded, .loadFailed, .completed, .skipped:
             false
         }
     }
@@ -718,10 +725,12 @@ private struct UpcomingView: View {
             [.year, .month, .day],
             from: item.date
         )
+        var displayCalendar = Calendar(identifier: .gregorian)
+        displayCalendar.timeZone = calendar.timeZone
         guard let year = components.year,
               let month = components.month,
               let day = components.day,
-              let displayDate = calendar.date(
+              let displayDate = displayCalendar.date(
                   from: DateComponents(year: year, month: month, day: day)
               )
         else {
@@ -1135,6 +1144,18 @@ struct FirstRunSetupView: View {
     @State private var selectedPresetIDs: Set<String> = []
     @State private var confirmedPresetIDs: Set<String> = []
     @State private var navigationPath: [String] = []
+    @State private var expectedSetupRevision: UInt64
+
+    init(
+        workspace: SubscriptionWorkspace,
+        onFinished: @escaping () -> Void
+    ) {
+        self.workspace = workspace
+        self.onFinished = onFinished
+        _expectedSetupRevision = State(
+            initialValue: workspace.setupRevision
+        )
+    }
 
     var body: some View {
         NavigationStack(path: $navigationPath) {
@@ -1152,6 +1173,7 @@ struct FirstRunSetupView: View {
                         workspace: workspace,
                         preset: preset,
                         showsCancellationAction: false,
+                        canSave: { setupInteractionIsActive },
                         onSuccessfulSave: {
                             confirmedPresetIDs.insert(presetID)
                             navigationPath.removeAll()
@@ -1162,6 +1184,10 @@ struct FirstRunSetupView: View {
         }
         .task {
             applyWorkspacePreferences()
+        }
+        .onChange(of: workspace.setupRevision) { _, revision in
+            guard revision != expectedSetupRevision else { return }
+            finish()
         }
     }
 
@@ -1207,14 +1233,23 @@ struct FirstRunSetupView: View {
         .toolbar {
             ToolbarItem(placement: .cancellationAction) {
                 Button("Skip for Now") {
+                    guard setupInteractionIsActive else {
+                        finish()
+                        return
+                    }
                     workspace.skipSetup()
                     guard !setupPersistenceFailed else { return }
+                    expectedSetupRevision = workspace.setupRevision
                     finish()
                 }
                 .accessibilityIdentifier("setup.skip")
             }
             ToolbarItem(placement: .confirmationAction) {
                 Button("Continue") {
+                    guard setupInteractionIsActive else {
+                        finish()
+                        return
+                    }
                     workspace.updatePreferences(
                         primaryCurrency: primaryCurrency,
                         calendarProjectionHorizon: horizon
@@ -1222,6 +1257,7 @@ struct FirstRunSetupView: View {
                     if case .failed = workspace.setupState {
                         return
                     }
+                    expectedSetupRevision = workspace.setupRevision
                     workspace.loadCatalog(locale: locale)
                     step = .catalog
                 }
@@ -1277,7 +1313,8 @@ struct FirstRunSetupView: View {
                 NavigationLink {
                     AddSubscriptionView(
                         workspace: workspace,
-                        showsCancellationAction: false
+                        showsCancellationAction: false,
+                        canSave: { setupInteractionIsActive }
                     )
                 } label: {
                     Label("Add Manually Instead", systemImage: "plus")
@@ -1301,8 +1338,13 @@ struct FirstRunSetupView: View {
                     .accessibilityIdentifier("setup.confirm-selected")
 
                     Button("Finish Setup") {
+                        guard setupInteractionIsActive else {
+                            finish()
+                            return
+                        }
                         workspace.completeSetup()
                         guard !setupPersistenceFailed else { return }
+                        expectedSetupRevision = workspace.setupRevision
                         finish()
                     }
                     .disabled(!selectedPresetIDs.isSubset(of: confirmedPresetIDs))
@@ -1373,9 +1415,14 @@ struct FirstRunSetupView: View {
              .failed(let preferences):
             primaryCurrency = preferences.primaryCurrency
             horizon = preferences.calendarProjectionHorizon
-        case .notLoaded:
+        case .notLoaded, .loadFailed:
             break
         }
+    }
+
+    private var setupInteractionIsActive: Bool {
+        workspace.setupRevision == expectedSetupRevision
+            && isSetupInteractionActive(workspace.setupState)
     }
 
     private var setupPersistenceFailed: Bool {
@@ -1969,9 +2016,34 @@ struct UserPreferencesView: View {
             hideAmountsInCalendar = preferences.hideAmountsInCalendar
             menuBarModeEnabled = preferences.menuBarModeEnabled
             appearanceMode = preferences.appearanceMode
-        case .notLoaded:
+        case .notLoaded, .loadFailed:
             break
         }
+    }
+}
+
+struct SetupLoadFailureView: View {
+    let onRetry: () -> Void
+
+    var body: some View {
+        ContentUnavailableView {
+            Label("Couldn’t Load Setup Data", systemImage: "exclamationmark.triangle")
+        } description: {
+            Text("Your library was not changed. Try loading it again.")
+        } actions: {
+            Button("Try Again", action: onRetry)
+                .buttonStyle(.borderedProminent)
+                .accessibilityIdentifier("setup.retry-load")
+        }
+    }
+}
+
+private func isSetupInteractionActive(_ state: SetupState) -> Bool {
+    switch state {
+    case .needsSetup, .failed:
+        true
+    case .notLoaded, .loadFailed, .completed, .skipped:
+        false
     }
 }
 

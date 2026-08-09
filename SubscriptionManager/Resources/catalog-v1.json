@@ -2856,8 +2856,8 @@
           "market": "CN",
           "purchaseChannel": "iOS",
           "sourceURL": "https://apps.apple.com/cn/app/%E7%99%BE%E5%BA%A6%E7%BD%91%E7%9B%98/id547166701",
-          "verifiedOn": "2026-08-01",
-          "reviewStatus": "reviewRequired"
+          "verifiedOn": "2026-08-09",
+          "reviewStatus": "verified"
         }
       ]
     },
@@ -3799,15 +3799,15 @@
             "zhHans": "Canva可画专业版"
           },
           "price": {
-            "minorUnits": 3900,
+            "minorUnits": 3000,
             "currency": "CNY"
           },
           "billingInterval": "monthly",
           "market": "CN",
-          "purchaseChannel": "web",
-          "sourceURL": "https://www.canva.cn/pricing/",
-          "verifiedOn": "2026-08-01",
-          "reviewStatus": "reviewRequired"
+          "purchaseChannel": "iOS",
+          "sourceURL": "https://apps.apple.com/cn/app/id897446215",
+          "verifiedOn": "2026-08-09",
+          "reviewStatus": "verified"
         },
         {
           "id": "c-canva-pro-yearly-cn-web",
@@ -3816,15 +3816,15 @@
             "zhHans": "Canva可画专业版"
           },
           "price": {
-            "minorUnits": 38800,
+            "minorUnits": 29800,
             "currency": "CNY"
           },
           "billingInterval": "yearly",
           "market": "CN",
-          "purchaseChannel": "web",
-          "sourceURL": "https://www.canva.cn/pricing/",
-          "verifiedOn": "2026-08-01",
-          "reviewStatus": "reviewRequired"
+          "purchaseChannel": "iOS",
+          "sourceURL": "https://apps.apple.com/cn/app/id897446215",
+          "verifiedOn": "2026-08-09",
+          "reviewStatus": "verified"
         }
       ]
     },

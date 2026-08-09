@@ -8,12 +8,12 @@ final class CloudKitLibrarySyncMonitor: LibrarySyncMonitor, @unchecked Sendable 
     private let stateLock = NSLock()
     private var hasCompletedSync = false
     private var processedEventIDs = Set<UUID>()
-    private var workspaceReloadHandler: (@Sendable () -> Void)?
+    private var workspaceReloadHandler: (@Sendable () async -> Void)?
     private var eventObserver: NSObjectProtocol?
 
     init(
         accountStatus: @escaping @Sendable () async throws -> CKAccountStatus,
-        onRemoteImport: @escaping @Sendable () -> Void = {}
+        onRemoteImport: @escaping @Sendable () async -> Void = {}
     ) {
         self.accountStatus = accountStatus
         workspaceReloadHandler = onRemoteImport
@@ -29,7 +29,7 @@ final class CloudKitLibrarySyncMonitor: LibrarySyncMonitor, @unchecked Sendable 
 
     convenience init(
         container: CKContainer = .default(),
-        onRemoteImport: @escaping @Sendable () -> Void = {}
+        onRemoteImport: @escaping @Sendable () async -> Void = {}
     ) {
         self.init(
             accountStatus: { try await container.accountStatus() },
@@ -64,35 +64,53 @@ final class CloudKitLibrarySyncMonitor: LibrarySyncMonitor, @unchecked Sendable 
     }
 
     func setWorkspaceReloadHandler(
-        _ handler: @escaping @Sendable () -> Void
+        _ handler: @escaping @Sendable () async -> Void
     ) {
         stateLock.withLock {
             workspaceReloadHandler = handler
         }
     }
 
-    func notifyRemoteImport(id: UUID) {
-        let handler: (@Sendable () -> Void)? = stateLock.withLock {
+    func notifyRemoteImport(id: UUID) async {
+        let handler: (@Sendable () async -> Void)? = stateLock.withLock {
             guard processedEventIDs.insert(id).inserted else {
                 return nil
             }
             hasCompletedSync = true
             return workspaceReloadHandler
         }
-        handler?()
+        await handler?()
+    }
+
+    func notifySuccessfulExport(id: UUID) {
+        stateLock.withLock {
+            guard processedEventIDs.insert(id).inserted else { return }
+            hasCompletedSync = true
+        }
     }
 
     private func handle(notification: Notification) {
         guard let event = notification.userInfo?[
             NSPersistentCloudKitContainer.eventNotificationUserInfoKey
         ] as? NSPersistentCloudKitContainer.Event,
-        event.type == .import,
         event.succeeded,
         event.endDate != nil
         else {
             return
         }
-        notifyRemoteImport(id: event.identifier)
+        switch event.type {
+        case .import:
+            let eventID = event.identifier
+            Task { [weak self] in
+                await self?.notifyRemoteImport(id: eventID)
+            }
+        case .export:
+            notifySuccessfulExport(id: event.identifier)
+        case .setup:
+            break
+        @unknown default:
+            break
+        }
     }
 }
 
