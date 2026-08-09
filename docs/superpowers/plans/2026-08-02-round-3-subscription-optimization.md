@@ -1,5 +1,12 @@
 # SubscriptionManager Round 3 优化实施计划
 
+> **Workflow status (2026-08-09):** This file is retained as historical product
+> and acceptance context. Its Luna routing, reviewer topology, batch execution,
+> and `.superpowers/sdd/progress.md` instructions are superseded by `AGENTS.md`
+> and `docs/agents/production-flow.md` and must not be executed. A current
+> root-cause issue must explicitly cite and revalidate any product requirement
+> reused from this plan.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use `superpowers:subagent-driven-development` for implementation tasks after this plan passes independent review. Each task is bounded, must preserve the global constraints, and must not be widened during execution.
 
 **Goal:** 让用户在一个清楚、轻量、符合系统行为的订阅主流程中看到服务、花费和下一次续费，并能在同一张卡片内完成编辑；同时让目录分类、套餐变体、价格和周期具备可核验的事实基础。

@@ -8,7 +8,8 @@ Issues and PRDs are tracked in GitHub Issues. See `docs/agents/issue-tracker.md`
 
 ### Triage labels
 
-Use the five default triage labels. See `docs/agents/triage-labels.md`.
+Use the two category labels and five default triage-state labels. See
+`docs/agents/triage-labels.md`.
 
 ### Domain docs
 
@@ -24,13 +25,32 @@ This is a single-context repository. See `docs/agents/domain.md`.
 - Work on one requirement at a time. Do not expand scope opportunistically.
 - Do not push without the user's explicit authorization in the current turn.
 
-## Bug-fix execution protocol
+## Production workflow
 
-- The main task owns the boundary, Luna level, status, and final conclusion; implementation and acceptance are separate jobs.
-- Default to the smallest two-task loop: one implementation Luna plus one independent read-only Luna Medium reviewer. Return to the original implementer only for a real reproducible finding; the same Medium reviewer rechecks that finding after the fix. Do not add a third reviewer.
-- Use only `gpt-5.6-luna`: narrow logic or documentation uses Medium or High; cross-Workspace/adapter/persistence uses High or XHigh; SwiftData/CloudKit/schema uses XHigh; Max is only for high-risk architecture review or one XHigh fix that still has a real cross-layer finding.
-- Every implementation prompt must state: goal/user value, starting SHA, allowed files, prohibitions, failure invariants, skills, RED → GREEN order, focused plus batch regression, completion evidence, and remote side effects.
-- Hard implementation gate: obtain a real RED on the failure path first. A test added afterward must be labeled regression, not called RED. Fakes/mocks must model physical side effects, transaction failures, retry/idempotency, and applicable system semantics; they must not copy the production algorithm to prove itself.
-- Acceptance output is only `APPROVE` or `FINDINGS`. A finding must include reproduction, impact, minimal fix, and a permanent regression test.
-- Do not add UI tests, a full audit, Max, or another reviewer merely because of confidence; verify only the current batch brief.
-- Update the single canonical `progress.md` immediately after each batch conclusion.
+Follow `docs/agents/production-flow.md`. It is binding immediately, including
+for the recovery of PR #50.
+
+- One confirmed root cause is one GitHub issue. Link duplicate bot comments to
+  that issue instead of creating another work item.
+- The GitHub issue is the only mutable task record. Do not create a parallel
+  `progress.md` or ledger. Automated-review remediation does not use an
+  umbrella issue.
+- One Codex context owns a root-cause issue continuously through diagnosis,
+  implementation, review findings, `remote_verified`, and issue closure.
+  Different root causes may use different Codex contexts.
+- Route incoming findings through `/triage`; use `/diagnosing-bugs` when the
+  cause is not established; use `/implement` for an approved agent brief.
+  `/implement` uses `/tdd` where a suitable seam exists and ends with the
+  Standards and Spec axes from `/code-review` against a pinned fixed point.
+- The two `/code-review` axes (Standards and Spec) are bounded, read-only review
+  contexts. They do not replace the owning implementation context or modify
+  code.
+- Do not add adjacent features, unrelated tests, UI tests, broad audits, or new
+  verification lanes. Resolve only the current issue's acceptance criteria.
+- Codex may manage root-cause issues and make a scoped local commit after
+  `artifact_verified`. A push, PR creation or update, merge, or comment that
+  summons an external bot requires the user's explicit authorization in the
+  current turn.
+- Ask the user only about product/UX choices or missing authority. Resolve
+  technical choices from the product goals, domain docs, ADRs, and current
+  source, and record the evidence.
