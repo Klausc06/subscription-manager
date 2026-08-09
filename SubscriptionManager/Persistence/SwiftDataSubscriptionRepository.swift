@@ -3,6 +3,81 @@ import OSLog
 import SwiftData
 import SubscriptionCore
 
+enum SubscriptionHistoryRecordScope: Equatable {
+    case all
+    case subscription(UUID)
+}
+
+@MainActor
+protocol SubscriptionHistoryRecordStore {
+    func confirmedChargeRecords(
+        for scope: SubscriptionHistoryRecordScope,
+        in context: ModelContext
+    ) throws -> [ConfirmedChargeRecord]
+
+    func priceChangeRecords(
+        for scope: SubscriptionHistoryRecordScope,
+        in context: ModelContext
+    ) throws -> [PriceChangeRecord]
+}
+
+@MainActor
+struct SwiftDataSubscriptionHistoryRecordStore:
+    SubscriptionHistoryRecordStore
+{
+    func confirmedChargeRecords(
+        for scope: SubscriptionHistoryRecordScope,
+        in context: ModelContext
+    ) throws -> [ConfirmedChargeRecord] {
+        switch scope {
+        case .all:
+            return try context.fetch(
+                FetchDescriptor<ConfirmedChargeRecord>()
+            )
+        case .subscription(let subscriptionID):
+            let lookupID = subscriptionID
+            let scoped = try context.fetch(
+                FetchDescriptor<ConfirmedChargeRecord>(
+                    predicate: #Predicate {
+                        $0.subscriptionID == lookupID
+                    }
+                )
+            )
+            let legacy = try context.fetch(
+                FetchDescriptor<ConfirmedChargeRecord>(
+                    predicate: #Predicate { $0.subscriptionID == nil }
+                )
+            ).filter { $0.subscription?.id == subscriptionID }
+            return scoped + legacy
+        }
+    }
+
+    func priceChangeRecords(
+        for scope: SubscriptionHistoryRecordScope,
+        in context: ModelContext
+    ) throws -> [PriceChangeRecord] {
+        switch scope {
+        case .all:
+            return try context.fetch(FetchDescriptor<PriceChangeRecord>())
+        case .subscription(let subscriptionID):
+            let lookupID = subscriptionID
+            let scoped = try context.fetch(
+                FetchDescriptor<PriceChangeRecord>(
+                    predicate: #Predicate {
+                        $0.subscriptionID == lookupID
+                    }
+                )
+            )
+            let legacy = try context.fetch(
+                FetchDescriptor<PriceChangeRecord>(
+                    predicate: #Predicate { $0.subscriptionID == nil }
+                )
+            ).filter { $0.subscription?.id == subscriptionID }
+            return scoped + legacy
+        }
+    }
+}
+
 @MainActor
 final class SwiftDataSubscriptionRepository: SubscriptionRepository {
     private static let logger = Logger(
@@ -15,6 +90,7 @@ final class SwiftDataSubscriptionRepository: SubscriptionRepository {
     private let defaultBillingTimeZone: () -> TimeZone
     private let appendOrderDate: () -> Date
     private let priceChangeSnapshotLoader: ((UUID) throws -> [PriceChange])?
+    private let historyRecordStore: any SubscriptionHistoryRecordStore
     private let decoder = JSONDecoder()
     private var priceChangeSnapshots: [UUID: [UUID: PriceChange]] = [:]
 
@@ -44,7 +120,9 @@ final class SwiftDataSubscriptionRepository: SubscriptionRepository {
             .autoupdatingCurrent
         },
         appendOrderDate: @escaping () -> Date = Date.init,
-        priceChangeSnapshotLoader: ((UUID) throws -> [PriceChange])? = nil
+        priceChangeSnapshotLoader: ((UUID) throws -> [PriceChange])? = nil,
+        historyRecordStore: any SubscriptionHistoryRecordStore =
+            SwiftDataSubscriptionHistoryRecordStore()
     ) {
         self.modelContainer = modelContainer
         modelContext = ModelContext(modelContainer)
@@ -52,6 +130,7 @@ final class SwiftDataSubscriptionRepository: SubscriptionRepository {
         self.defaultBillingTimeZone = defaultBillingTimeZone
         self.appendOrderDate = appendOrderDate
         self.priceChangeSnapshotLoader = priceChangeSnapshotLoader
+        self.historyRecordStore = historyRecordStore
     }
 
     func createSubscription(_ subscription: Subscription) throws {
@@ -147,14 +226,16 @@ final class SwiftDataSubscriptionRepository: SubscriptionRepository {
             var migrationReadyRecords: [SubscriptionRecord] = []
             var confirmedChargeRecordsBySubscriptionID =
                 groupConfirmedChargeRecordsBySubscriptionID(
-                    try modelContext.fetch(
-                        FetchDescriptor<ConfirmedChargeRecord>()
+                    try historyRecordStore.confirmedChargeRecords(
+                        for: .all,
+                        in: modelContext
                     )
                 )
             var priceChangeRecordsBySubscriptionID =
                 groupPriceChangeRecordsBySubscriptionID(
-                    try modelContext.fetch(
-                        FetchDescriptor<PriceChangeRecord>()
+                    try historyRecordStore.priceChangeRecords(
+                        for: .all,
+                        in: modelContext
                     )
                 )
             for record in records {
@@ -241,8 +322,25 @@ final class SwiftDataSubscriptionRepository: SubscriptionRepository {
             guard let record = try modelContext.fetch(descriptor).first else {
                 return nil
             }
-            var needsSave = try migrateLegacyHistoryIfNeeded(for: record)
-            let result = try makeSubscription(from: record)
+            var confirmedChargeRecords =
+                try historyRecordStore.confirmedChargeRecords(
+                    for: .subscription(id),
+                    in: modelContext
+                )
+            var priceChangeRecords = try historyRecordStore.priceChangeRecords(
+                for: .subscription(id),
+                in: modelContext
+            )
+            var needsSave = try migrateLegacyHistoryIfNeeded(
+                for: record,
+                confirmedChargeRecords: &confirmedChargeRecords,
+                priceChangeRecords: &priceChangeRecords
+            )
+            let result = try makeSubscription(
+                from: record,
+                confirmedChargeRecords: confirmedChargeRecords,
+                priceChangeRecords: priceChangeRecords
+            )
             if let backfill = result.billingTimeZoneBackfill {
                 record.billingTimeZoneIdentifier = backfill
                 needsSave = true
@@ -700,58 +798,24 @@ final class SwiftDataSubscriptionRepository: SubscriptionRepository {
         return grouped
     }
 
-    private func belongsTo(
-        _ record: ConfirmedChargeRecord,
-        subscriptionID: UUID
-    ) -> Bool {
-        record.subscriptionID == subscriptionID
-            || (record.subscriptionID == nil
-                && record.subscription?.id == subscriptionID)
-    }
-
-    private func belongsTo(
-        _ record: PriceChangeRecord,
-        subscriptionID: UUID
-    ) -> Bool {
-        record.subscriptionID == subscriptionID
-            || (record.subscriptionID == nil
-                && record.subscription?.id == subscriptionID)
-    }
-
     private func confirmedChargeRecords(
         for subscriptionID: UUID,
         in context: ModelContext
     ) throws -> [ConfirmedChargeRecord] {
-        let lookupID = subscriptionID
-        let scoped = try context.fetch(
-            FetchDescriptor<ConfirmedChargeRecord>(
-                predicate: #Predicate { $0.subscriptionID == lookupID }
-            )
+        try historyRecordStore.confirmedChargeRecords(
+            for: .subscription(subscriptionID),
+            in: context
         )
-        let legacy = try context.fetch(
-            FetchDescriptor<ConfirmedChargeRecord>(
-                predicate: #Predicate { $0.subscriptionID == nil }
-            )
-        ).filter { belongsTo($0, subscriptionID: subscriptionID) }
-        return scoped + legacy
     }
 
     private func priceChangeRecords(
         for subscriptionID: UUID,
         in context: ModelContext
     ) throws -> [PriceChangeRecord] {
-        let lookupID = subscriptionID
-        let scoped = try context.fetch(
-            FetchDescriptor<PriceChangeRecord>(
-                predicate: #Predicate { $0.subscriptionID == lookupID }
-            )
+        try historyRecordStore.priceChangeRecords(
+            for: .subscription(subscriptionID),
+            in: context
         )
-        let legacy = try context.fetch(
-            FetchDescriptor<PriceChangeRecord>(
-                predicate: #Predicate { $0.subscriptionID == nil }
-            )
-        ).filter { belongsTo($0, subscriptionID: subscriptionID) }
-        return scoped + legacy
     }
 
     private func stalePriceChangeIDs(

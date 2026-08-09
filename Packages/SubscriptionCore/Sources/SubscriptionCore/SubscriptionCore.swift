@@ -142,6 +142,42 @@ public enum PaymentHistoryActionError: Equatable, Sendable {
     case persistenceFailed
 }
 
+internal enum HistoryOccurrenceSearch {
+    /// Returns the newest unconfirmed past occurrence without crossing the
+    /// supplied lower bound. Occurrence dates must move earlier as indexes
+    /// decrease so the lower-bound check can terminate the search.
+    static func firstUnconfirmedPastOccurrence(
+        candidateIndex: Int,
+        lowerBoundDay: Date,
+        todayDay: Date,
+        occurrenceAt: (Int) -> Date?,
+        day: (Date) -> Date,
+        isConfirmed: (Date) -> Bool
+    ) -> Date? {
+        var nextIndex = candidateIndex == Int.max
+            ? candidateIndex
+            : candidateIndex + 1
+        while nextIndex >= 0 {
+            let occurrenceIndex = nextIndex
+            nextIndex = occurrenceIndex == 0 ? -1 : occurrenceIndex - 1
+            guard let occurrence = occurrenceAt(occurrenceIndex) else {
+                continue
+            }
+            let occurrenceDay = day(occurrence)
+            guard occurrenceDay >= lowerBoundDay else {
+                return nil
+            }
+            guard occurrenceDay <= todayDay,
+                  !isConfirmed(occurrence)
+            else {
+                continue
+            }
+            return occurrence
+        }
+        return nil
+    }
+}
+
 public struct Subscription: Codable, Equatable, Identifiable, Sendable {
     public let id: UUID
     public let serviceIdentity: ServiceIdentity
@@ -2447,14 +2483,19 @@ public final class SubscriptionWorkspace {
     public func preparePortableBackupImport(
         _ data: Data
     ) throws -> PortableBackupMergePreview {
-        let backup = try PortableBackupValidator().decode(data)
+        let asOf = now()
+        let backup = try PortableBackupValidator().decode(
+            data,
+            asOf: asOf
+        )
         let localSubscriptions = try repository.listSubscriptions()
         let localPreferences = try preferencesRepository?.loadPreferences()
             ?? currentPreferences
         return try PortableBackupMergePlanner().makePreview(
             backup: backup,
             localSubscriptions: localSubscriptions,
-            localPreferences: localPreferences
+            localPreferences: localPreferences,
+            asOf: asOf
         )
     }
 
@@ -3252,41 +3293,36 @@ public final class SubscriptionWorkspace {
             let confirmedNextRenewalDay = localCalendar.startOfDay(
                 for: subscription.confirmedNextRenewal
             )
-            var missed: ExpectedCharge?
-            for occurrenceIndex in stride(
-                from: candidateIndex + 1,
-                through: 0,
-                by: -1
-            ) {
-                guard let occurrence = scheduledDate(
-                    for: subscription.billingSchedule,
-                    occurrenceIndex: occurrenceIndex,
-                    calendar: localCalendar
-                ) else {
-                    continue
-                }
-                let occurrenceDay = localCalendar.startOfDay(for: occurrence)
-                if occurrenceDay < startDay
-                    || occurrenceDay < confirmedNextRenewalDay
-                {
-                    break
-                }
-                guard occurrenceDay <= today else {
-                    continue
-                }
-                let charge = expectedCharge(
+            let missedOccurrence =
+                HistoryOccurrenceSearch.firstUnconfirmedPastOccurrence(
+                    candidateIndex: candidateIndex,
+                    lowerBoundDay: max(startDay, confirmedNextRenewalDay),
+                    todayDay: today,
+                    occurrenceAt: { occurrenceIndex in
+                        self.scheduledDate(
+                            for: subscription.billingSchedule,
+                            occurrenceIndex: occurrenceIndex,
+                            calendar: localCalendar
+                        )
+                    },
+                    day: localCalendar.startOfDay(for:),
+                    isConfirmed: { occurrence in
+                        let charge = self.expectedCharge(
+                            for: subscription,
+                            scheduledDate: occurrence,
+                            calendar: localCalendar
+                        )
+                        return subscription.confirmedCharges.contains {
+                            $0.sourceScheduledChargeID == charge.id
+                        }
+                    }
+                )
+            if let missedOccurrence {
+                let missed = expectedCharge(
                     for: subscription,
-                    scheduledDate: occurrence,
+                    scheduledDate: missedOccurrence,
                     calendar: localCalendar
                 )
-                if !subscription.confirmedCharges.contains(where: {
-                    $0.sourceScheduledChargeID == charge.id
-                }) {
-                    missed = charge
-                    break
-                }
-            }
-            if let missed {
                 entries.append(.expected(missed))
             }
 

@@ -118,6 +118,38 @@ private struct StubLegacyCalendarProjectionMappingValidator:
 }
 
 struct AppDependenciesTests {
+    @Test("A successful widget snapshot publication reloads the renewal timeline once")
+    @MainActor
+    func successfulPublicationReloadsRenewalTimelineOnce() throws {
+        let suiteName =
+            "SubscriptionManagerTests.WidgetSnapshotPublisher."
+            + UUID().uuidString
+        let defaults = try #require(UserDefaults(suiteName: suiteName))
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+
+        var reloadedKinds: [String] = []
+        let publisher = AppGroupWidgetSnapshotPublisher(
+            suiteName: suiteName,
+            reloadTimelines: { kind in
+                reloadedKinds.append(kind)
+            }
+        )
+        let snapshot = WidgetSnapshot(
+            generatedAt: Date(timeIntervalSince1970: 1_800_000_000),
+            nextRenewal: nil
+        )
+
+        publisher.publish(snapshot)
+
+        let storedSnapshot = WidgetSnapshotStore(defaults: defaults).read()
+        #expect(storedSnapshot == snapshot)
+        #expect(
+            reloadedKinds == [
+                "com.klausc06.SubscriptionManager.renewal",
+            ]
+        )
+    }
+
     @Test("Production SwiftData schema is compatible with CloudKit")
     @MainActor
     func productionSchemaSupportsCloudKit() throws {

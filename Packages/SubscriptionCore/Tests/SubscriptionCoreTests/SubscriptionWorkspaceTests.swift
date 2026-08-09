@@ -1,5 +1,5 @@
 import Foundation
-import SubscriptionCore
+@testable import SubscriptionCore
 import Testing
 
 @Suite("Subscription workspace")
@@ -1061,6 +1061,38 @@ struct SubscriptionWorkspaceTests {
                 )
             ]
         )
+    }
+
+    @Test("History occurrence search stops at the confirmed renewal lower bound")
+    func historyOccurrenceSearchStopsAtConfirmedRenewalLowerBound() {
+        let candidateIndex = 1_000_000
+        let lowerBoundIndex = candidateIndex - 3
+        var probeCount = 0
+        var lowestProbedIndex = Int.max
+
+        let result = HistoryOccurrenceSearch.firstUnconfirmedPastOccurrence(
+            candidateIndex: candidateIndex,
+            lowerBoundDay: Date(
+                timeIntervalSince1970: TimeInterval(lowerBoundIndex)
+            ),
+            todayDay: Date(
+                timeIntervalSince1970: TimeInterval(candidateIndex)
+            ),
+            occurrenceAt: { occurrenceIndex in
+                probeCount += 1
+                lowestProbedIndex = min(lowestProbedIndex, occurrenceIndex)
+                return Date(
+                    timeIntervalSince1970: TimeInterval(occurrenceIndex)
+                )
+            },
+            day: { $0 },
+            isConfirmed: { _ in true }
+        )
+
+        #expect(result == nil)
+        #expect(probeCount > 0)
+        #expect(probeCount <= 6)
+        #expect(lowestProbedIndex >= lowerBoundIndex - 1)
     }
 
     @Test(

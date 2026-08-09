@@ -86,7 +86,10 @@ public enum PortableBackupValidationError: Error, Equatable, Sendable {
 public struct PortableBackupValidator: Sendable {
     public init() {}
 
-    public func decode(_ data: Data) throws -> PortableBackup {
+    public func decode(
+        _ data: Data,
+        asOf: Date
+    ) throws -> PortableBackup {
         let decoder = JSONDecoder()
         decoder.dateDecodingStrategy = PortableBackupDateCoding.decodingStrategy
         let backup: PortableBackup
@@ -95,6 +98,11 @@ public struct PortableBackupValidator: Sendable {
         } catch {
             throw PortableBackupValidationError.malformed
         }
+        try validate(backup, asOf: asOf)
+        return backup
+    }
+
+    func validate(_ backup: PortableBackup, asOf: Date) throws {
         guard backup.schema == PortableBackup.schemaName else {
             throw PortableBackupValidationError.unsupportedSchema
         }
@@ -106,25 +114,143 @@ public struct PortableBackupValidator: Sendable {
         else {
             throw PortableBackupValidationError.duplicateSubscriptionID
         }
-        guard backup.subscriptions.allSatisfy(isValid) else {
-            throw PortableBackupValidationError.invalidSubscription
+
+        var confirmedChargeIDs: Set<UUID> = []
+        var scheduledChargeIDs: Set<ScheduledChargeID> = []
+        var priceChangeIDs: Set<UUID> = []
+        for subscription in backup.subscriptions {
+            guard isValid(
+                subscription,
+                asOf: asOf,
+                confirmedChargeIDs: &confirmedChargeIDs,
+                scheduledChargeIDs: &scheduledChargeIDs,
+                priceChangeIDs: &priceChangeIDs
+            ) else {
+                throw PortableBackupValidationError.invalidSubscription
+            }
         }
-        return backup
     }
 
-    private func isValid(_ subscription: Subscription) -> Bool {
+    private func isValid(
+        _ subscription: Subscription,
+        asOf: Date,
+        confirmedChargeIDs: inout Set<UUID>,
+        scheduledChargeIDs: inout Set<ScheduledChargeID>,
+        priceChangeIDs: inout Set<UUID>
+    ) -> Bool {
         let whitespace = CharacterSet.whitespacesAndNewlines
         guard !subscription.serviceIdentity.rawValue
             .trimmingCharacters(in: whitespace).isEmpty,
               !subscription.serviceName.trimmingCharacters(in: whitespace).isEmpty,
-              !subscription.plan.trimmingCharacters(in: whitespace).isEmpty,
-              !subscription.category.trimmingCharacters(in: whitespace).isEmpty,
               subscription.originalAmount.minorUnits > 0,
               subscription.billingSchedule.interval.isValid,
-              TimeZone(identifier: subscription.billingSchedule.timeZoneIdentifier)
-                != nil,
+              let calendar = BillingCalendar.calendar(
+                  timeZoneIdentifier:
+                    subscription.billingSchedule.timeZoneIdentifier
+              ),
               subscription.billingSchedule.renewalAnchor >= subscription.startDate,
-              subscription.confirmedNextRenewal >= subscription.startDate
+              subscription.confirmedNextRenewal >= subscription.startDate,
+              isValidManagementURL(subscription.managementURL)
+        else {
+            return false
+        }
+
+        let startDay = calendar.startOfDay(for: subscription.startDate)
+        let asOfDay = calendar.startOfDay(for: asOf)
+        switch subscription.lifecycle {
+        case .active:
+            break
+        case .trial(let firstPaidChargeAt):
+            guard firstPaidChargeAt >= subscription.startDate else {
+                return false
+            }
+        case .cancelled(let cancelledAt, let accessUntil):
+            let cancellationDay = calendar.startOfDay(for: cancelledAt)
+            let accessUntilDay = calendar.startOfDay(for: accessUntil)
+            guard cancellationDay <= asOfDay,
+                  accessUntilDay >= cancellationDay
+            else {
+                return false
+            }
+        }
+
+        for charge in subscription.confirmedCharges {
+            guard charge.amount.minorUnits > 0,
+                  calendar.startOfDay(for: charge.chargedDate) <= asOfDay,
+                  confirmedChargeIDs.insert(charge.id).inserted
+            else {
+                return false
+            }
+            if let source = charge.sourceScheduledChargeID {
+                guard source.subscriptionID == subscription.id,
+                      let sourceDate = scheduledDate(
+                          for: source,
+                          calendar: calendar
+                      ),
+                      calendar.startOfDay(for: sourceDate) <= asOfDay,
+                      scheduledChargeIDs.insert(source).inserted
+                else {
+                    return false
+                }
+            }
+        }
+
+        var priceChangeDays: Set<Date> = []
+        for change in subscription.priceChanges {
+            let effectiveDay = calendar.startOfDay(for: change.effectiveDate)
+            guard change.amount.minorUnits > 0,
+                  effectiveDay >= startDay,
+                  priceChangeIDs.insert(change.id).inserted,
+                  priceChangeDays.insert(effectiveDay).inserted
+            else {
+                return false
+            }
+        }
+        return true
+    }
+
+    private func scheduledDate(
+        for source: ScheduledChargeID,
+        calendar: Calendar
+    ) -> Date? {
+        // Schedule edits preserve confirmed history, so an old source cannot
+        // be required to match the current interval or renewal anchor. The
+        // current billing calendar can still prove that its stored components
+        // form a real local day.
+        let components = DateComponents(
+            calendar: calendar,
+            timeZone: calendar.timeZone,
+            year: source.year,
+            month: source.month,
+            day: source.day,
+            hour: 12
+        )
+        guard let date = calendar.date(from: components) else {
+            return nil
+        }
+        let resolved = calendar.dateComponents(
+            [.year, .month, .day],
+            from: date
+        )
+        guard resolved.year == source.year,
+              resolved.month == source.month,
+              resolved.day == source.day
+        else {
+            return nil
+        }
+        return date
+    }
+
+    private func isValidManagementURL(_ url: URL?) -> Bool {
+        guard let url else { return true }
+        guard let components = URLComponents(
+                  url: url,
+                  resolvingAgainstBaseURL: false
+              ),
+              let scheme = components.scheme?.lowercased(),
+              scheme == "http" || scheme == "https",
+              let host = components.host,
+              !host.isEmpty
         else {
             return false
         }
@@ -209,8 +335,10 @@ public struct PortableBackupMergePlanner: Sendable {
     public func makePreview(
         backup: PortableBackup,
         localSubscriptions: [Subscription],
-        localPreferences: UserPreferences
+        localPreferences: UserPreferences,
+        asOf: Date
     ) throws -> PortableBackupMergePreview {
+        try PortableBackupValidator().validate(backup, asOf: asOf)
         let backupIDs = Set(backup.subscriptions.map(\.id))
         let localByID = Dictionary(
             uniqueKeysWithValues: localSubscriptions.map { ($0.id, $0) }
@@ -343,7 +471,27 @@ public struct PortableCSVEncoder: Sendable {
     }
 
     private func escape(_ value: String) -> String {
-        let escaped = value.replacingOccurrences(of: "\"", with: "\"\"")
+        let literal = spreadsheetLiteral(value)
+        let escaped = literal.replacingOccurrences(of: "\"", with: "\"\"")
         return "\"\(escaped)\""
+    }
+
+    /// A leading ASCII apostrophe is the CSV contract for text that a
+    /// spreadsheet could otherwise interpret as a formula. The marker is
+    /// added before the complete original value, so leading whitespace,
+    /// control characters, Unicode, commas, quotes, and line breaks remain
+    /// intact for RFC 4180 readers.
+    private func spreadsheetLiteral(_ value: String) -> String {
+        let ignoredPrefix = CharacterSet.whitespacesAndNewlines.union(
+            .controlCharacters
+        )
+        guard let firstEffectiveScalar = value.unicodeScalars.first(where: {
+            !ignoredPrefix.contains($0)
+        }),
+        "=+-@".unicodeScalars.contains(firstEffectiveScalar)
+        else {
+            return value
+        }
+        return "'\(value)"
     }
 }

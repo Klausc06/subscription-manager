@@ -50,6 +50,211 @@ struct SwiftDataSubscriptionRepositoryTests {
         #expect(subscriptions.isEmpty)
     }
 
+    @Test("Library child-history fetches stay constant as subscription count grows")
+    @MainActor
+    func libraryChildHistoryFetchesStayConstantAsSubscriptionCountGrows()
+        throws
+    {
+        let observations = try [1, 12].map {
+            try libraryChildHistoryFetchObservation(subscriptionCount: $0)
+        }
+
+        #expect(observations == [
+            HistoryRecordFetchObservation(
+                loadedSubscriptionCount: 1,
+                confirmedChargeScopes: [.all],
+                priceChangeScopes: [.all]
+            ),
+            HistoryRecordFetchObservation(
+                loadedSubscriptionCount: 12,
+                confirmedChargeScopes: [.all],
+                priceChangeScopes: [.all]
+            ),
+        ])
+    }
+
+    @Test("Single lookup scopes child history and keeps legacy relationships")
+    @MainActor
+    func singleLookupScopesChildHistoryAndKeepsLegacyRelationships() throws {
+        let targetID = try #require(
+            UUID(uuidString: "58000000-0000-4000-8000-000000000001")
+        )
+        let unrelatedID = try #require(
+            UUID(uuidString: "58000000-0000-4000-8000-000000000002")
+        )
+        let container = try ModelContainer(
+            for: SubscriptionRecord.self,
+            ConfirmedChargeRecord.self,
+            PriceChangeRecord.self,
+            configurations: ModelConfiguration(
+                isStoredInMemoryOnly: true,
+                cloudKitDatabase: .none
+            )
+        )
+        let seedRepository = SwiftDataSubscriptionRepository(
+            modelContainer: container
+        )
+        try seedRepository.createSubscription(
+            makeSubscription(id: targetID)
+        )
+        try seedRepository.createSubscription(
+            makeSubscription(id: unrelatedID)
+        )
+        let context = ModelContext(container)
+        let records = try context.fetch(FetchDescriptor<SubscriptionRecord>())
+        let targetRecord = try #require(
+            records.first { $0.id == targetID }
+        )
+        let unrelatedRecord = try #require(
+            records.first { $0.id == unrelatedID }
+        )
+        let scopedCharge = ConfirmedCharge(
+            id: try #require(
+                UUID(uuidString: "58000000-0000-4000-8000-000000000011")
+            ),
+            chargedDate: Date(timeIntervalSince1970: 1_700_000_000),
+            amount: Money(minorUnits: 1_100, currency: .usd)
+        )
+        let legacyCharge = ConfirmedCharge(
+            id: try #require(
+                UUID(uuidString: "58000000-0000-4000-8000-000000000012")
+            ),
+            chargedDate: Date(timeIntervalSince1970: 1_700_086_400),
+            amount: Money(minorUnits: 1_200, currency: .usd)
+        )
+        let scopedPriceChange = PriceChange(
+            id: try #require(
+                UUID(uuidString: "58000000-0000-4000-8000-000000000021")
+            ),
+            effectiveDate: Date(timeIntervalSince1970: 1_700_172_800),
+            amount: Money(minorUnits: 1_300, currency: .usd)
+        )
+        let legacyPriceChange = PriceChange(
+            id: try #require(
+                UUID(uuidString: "58000000-0000-4000-8000-000000000022")
+            ),
+            effectiveDate: Date(timeIntervalSince1970: 1_700_259_200),
+            amount: Money(minorUnits: 1_400, currency: .usd)
+        )
+        context.insert(
+            ConfirmedChargeRecord(
+                id: scopedCharge.id,
+                sequence: 0,
+                chargedDate: scopedCharge.chargedDate,
+                amountMinorUnits: scopedCharge.amount.minorUnits,
+                currencyRawValue: scopedCharge.amount.currency.rawValue,
+                subscriptionID: targetID,
+                subscription: targetRecord
+            )
+        )
+        context.insert(
+            ConfirmedChargeRecord(
+                id: legacyCharge.id,
+                sequence: 1,
+                chargedDate: legacyCharge.chargedDate,
+                amountMinorUnits: legacyCharge.amount.minorUnits,
+                currencyRawValue: legacyCharge.amount.currency.rawValue,
+                subscription: targetRecord
+            )
+        )
+        context.insert(
+            PriceChangeRecord(
+                id: scopedPriceChange.id,
+                sequence: 0,
+                effectiveDate: scopedPriceChange.effectiveDate,
+                amountMinorUnits: scopedPriceChange.amount.minorUnits,
+                currencyRawValue:
+                    scopedPriceChange.amount.currency.rawValue,
+                subscriptionID: targetID,
+                subscription: targetRecord
+            )
+        )
+        context.insert(
+            PriceChangeRecord(
+                id: legacyPriceChange.id,
+                sequence: 1,
+                effectiveDate: legacyPriceChange.effectiveDate,
+                amountMinorUnits: legacyPriceChange.amount.minorUnits,
+                currencyRawValue:
+                    legacyPriceChange.amount.currency.rawValue,
+                subscription: targetRecord
+            )
+        )
+        context.insert(
+            ConfirmedChargeRecord(
+                id: UUID(),
+                sequence: 0,
+                chargedDate: Date(timeIntervalSince1970: 1_700_345_600),
+                amountMinorUnits: 9_100,
+                currencyRawValue: "USD",
+                subscriptionID: unrelatedID,
+                subscription: unrelatedRecord
+            )
+        )
+        context.insert(
+            ConfirmedChargeRecord(
+                id: UUID(),
+                sequence: 1,
+                chargedDate: Date(timeIntervalSince1970: 1_700_432_000),
+                amountMinorUnits: 9_200,
+                currencyRawValue: "USD",
+                subscription: unrelatedRecord
+            )
+        )
+        context.insert(
+            PriceChangeRecord(
+                id: UUID(),
+                sequence: 0,
+                effectiveDate: Date(timeIntervalSince1970: 1_700_518_400),
+                amountMinorUnits: 9_300,
+                currencyRawValue: "USD",
+                subscriptionID: unrelatedID,
+                subscription: unrelatedRecord
+            )
+        )
+        context.insert(
+            PriceChangeRecord(
+                id: UUID(),
+                sequence: 1,
+                effectiveDate: Date(timeIntervalSince1970: 1_700_604_800),
+                amountMinorUnits: 9_400,
+                currencyRawValue: "USD",
+                subscription: unrelatedRecord
+            )
+        )
+        try context.save()
+        let historyRecordStore = RecordingSubscriptionHistoryRecordStore(
+            wrapping: SwiftDataSubscriptionHistoryRecordStore()
+        )
+        let repository = SwiftDataSubscriptionRepository(
+            modelContainer: container,
+            save: { try $0.save() },
+            historyRecordStore: historyRecordStore
+        )
+
+        let subscription = try #require(
+            try repository.subscription(id: targetID)
+        )
+        let expectedScope = SubscriptionHistoryRecordScope.subscription(
+            targetID
+        )
+
+        #expect(subscription.confirmedCharges == [
+            scopedCharge,
+            legacyCharge,
+        ])
+        #expect(subscription.priceChanges == [
+            scopedPriceChange,
+            legacyPriceChange,
+        ])
+        #expect(
+            historyRecordStore.confirmedChargeScopes == [expectedScope]
+        )
+        #expect(
+            historyRecordStore.priceChangeScopes == [expectedScope]
+        )
+    }
+
     @Test("A created subscription reloads with every source field intact")
     @MainActor
     func createdSubscriptionReloadsWithEverySourceFieldIntact() throws {
@@ -2118,33 +2323,26 @@ struct SwiftDataSubscriptionRepositoryTests {
             notes: ""
         )
 
-        do {
-            guard case .ready(let firstLaunch) = AppDependencies.live(
-                arguments: arguments,
-                storeDirectory: storeDirectory
-            ) else {
-                Issue.record("Expected the first disk-backed launch to be ready")
-                return
-            }
-            firstLaunch.workspace.createSubscription(input)
-        }
-
-        guard case .ready(let relaunchedApp) = AppDependencies.live(
+        try withNamedUITestingDependencies(
             arguments: arguments,
             storeDirectory: storeDirectory
-        ) else {
-            Issue.record("Expected the relaunched app to reopen its store")
-            return
+        ) { firstLaunch in
+            _ = firstLaunch.workspace.createSubscription(input)
         }
-        relaunchedApp.workspace.loadLibrary()
 
-        guard case .loaded(.current, let subscriptions) =
-            relaunchedApp.workspace.libraryState
-        else {
-            Issue.record("Expected the saved subscription after relaunch")
-            return
+        let serviceNames = try withNamedUITestingDependencies(
+            arguments: arguments,
+            storeDirectory: storeDirectory
+        ) { relaunchedApp in
+            relaunchedApp.workspace.loadLibrary()
+            guard case .loaded(.current, let subscriptions) =
+                relaunchedApp.workspace.libraryState
+            else {
+                throw NamedUITestingStoreFixtureError.libraryNotLoaded
+            }
+            return subscriptions.map(\.serviceName)
         }
-        #expect(subscriptions.map(\.serviceName) == ["Example"])
+        #expect(serviceNames == ["Example"])
     }
 
     private func makeSubscription(
@@ -2198,6 +2396,126 @@ struct SwiftDataSubscriptionRepositoryTests {
             isArchived: snapshot.isArchived,
             pinnedAt: snapshot.pinnedAt
         )
+    }
+
+    @MainActor
+    private func libraryChildHistoryFetchObservation(
+        subscriptionCount: Int
+    ) throws -> HistoryRecordFetchObservation {
+        let container = try ModelContainer(
+            for: SubscriptionRecord.self,
+            ConfirmedChargeRecord.self,
+            PriceChangeRecord.self,
+            configurations: ModelConfiguration(
+                isStoredInMemoryOnly: true,
+                cloudKitDatabase: .none
+            )
+        )
+        let seedRepository = SwiftDataSubscriptionRepository(
+            modelContainer: container
+        )
+        for index in 0..<subscriptionCount {
+            let subscription = makeSubscription(
+                id: UUID(),
+                priceChanges: [
+                    PriceChange(
+                        id: UUID(),
+                        effectiveDate: Date(
+                            timeIntervalSince1970: Double(index)
+                        ),
+                        amount: Money(minorUnits: 1, currency: .usd)
+                    ),
+                ]
+            )
+            try seedRepository.createSubscription(
+                replacingPaymentHistory(
+                    in: subscription,
+                    confirmedCharges: [
+                        ConfirmedCharge(
+                            id: UUID(),
+                            chargedDate: Date(
+                                timeIntervalSince1970: Double(index)
+                            ),
+                            amount: Money(minorUnits: 1, currency: .usd)
+                        ),
+                    ]
+                )
+            )
+        }
+        let historyRecordStore = RecordingSubscriptionHistoryRecordStore(
+            wrapping: SwiftDataSubscriptionHistoryRecordStore()
+        )
+        let repository = SwiftDataSubscriptionRepository(
+            modelContainer: container,
+            save: { try $0.save() },
+            historyRecordStore: historyRecordStore
+        )
+
+        let subscriptions = try repository.listSubscriptions()
+
+        return HistoryRecordFetchObservation(
+            loadedSubscriptionCount: subscriptions.count,
+            confirmedChargeScopes:
+                historyRecordStore.confirmedChargeScopes,
+            priceChangeScopes: historyRecordStore.priceChangeScopes
+        )
+    }
+}
+
+private enum NamedUITestingStoreFixtureError: Error {
+    case startupFailed
+    case libraryNotLoaded
+}
+
+@MainActor
+private func withNamedUITestingDependencies<Result>(
+    arguments: [String],
+    storeDirectory: URL,
+    operation: (AppDependencies) throws -> Result
+) throws -> Result {
+    guard case .ready(let dependencies) = AppDependencies.live(
+        arguments: arguments,
+        storeDirectory: storeDirectory
+    ) else {
+        throw NamedUITestingStoreFixtureError.startupFailed
+    }
+    return try operation(dependencies)
+}
+
+private struct HistoryRecordFetchObservation: Equatable {
+    let loadedSubscriptionCount: Int
+    let confirmedChargeScopes: [SubscriptionHistoryRecordScope]
+    let priceChangeScopes: [SubscriptionHistoryRecordScope]
+}
+
+@MainActor
+private final class RecordingSubscriptionHistoryRecordStore:
+    SubscriptionHistoryRecordStore
+{
+    private let wrapped: any SubscriptionHistoryRecordStore
+    private(set) var confirmedChargeScopes: [
+        SubscriptionHistoryRecordScope
+    ] = []
+    private(set) var priceChangeScopes: [SubscriptionHistoryRecordScope] = []
+
+    init(wrapping wrapped: any SubscriptionHistoryRecordStore) {
+        self.wrapped = wrapped
+    }
+
+    func confirmedChargeRecords(
+        for scope: SubscriptionHistoryRecordScope,
+        in context: ModelContext
+    ) throws -> [ConfirmedChargeRecord] {
+        confirmedChargeScopes.append(scope)
+        return try wrapped.confirmedChargeRecords(for: scope, in: context)
+    }
+
+    func priceChangeRecords(
+        for scope: SubscriptionHistoryRecordScope,
+        in context: ModelContext
+    ) throws -> [PriceChangeRecord] {
+        priceChangeScopes.append(scope)
+        return try wrapped.priceChangeRecords(for: scope, in: context)
     }
 }
 

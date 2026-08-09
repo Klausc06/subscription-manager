@@ -17,10 +17,10 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  verify:
-    name: Xcode 27 release verification
+  repository_core:
+    name: Repository and SubscriptionCore
     runs-on: xcode-27
-    timeout-minutes: 75
+    timeout-minutes: 30
 
     steps:
       - name: Check out the exact candidate
@@ -118,10 +118,45 @@ jobs:
             -Xswiftc -warnings-as-errors \
             2>&1 | tee artifacts/subscription-core-tests.log
 
+      - name: Test the release-log verifier
+        shell: bash
+        run: |
+          set -euo pipefail
+          Scripts/verify_release_logs_tests.sh \
+            2>&1 | tee artifacts/release-log-verifier-tests.log
+
+      - name: Verify release logs
+        if: ${{ always() }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+          logs=(artifacts/*.log)
+          Scripts/verify_release_logs.sh "${logs[@]}"
+
+      - name: Preserve repository and Core evidence
+        if: ${{ always() }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: release-gate-repository-core-${{ github.run_attempt }}
+          path: artifacts
+          if-no-files-found: error
+          retention-days: 7
+
+  macos_tests:
+    name: macOS application tests
+    runs-on: xcode-27
+    timeout-minutes: 45
+
+    steps:
+      - name: Check out the exact candidate
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
       - name: Test the macOS application module
         shell: bash
         run: |
           set -euo pipefail
+          mkdir -p artifacts
           xcodebuild test \
             -project SubscriptionManager.xcodeproj \
             -scheme SubscriptionManager \
@@ -136,10 +171,38 @@ jobs:
             GCC_TREAT_WARNINGS_AS_ERRORS=YES \
             2>&1 | tee artifacts/macos-tests.log
 
+      - name: Verify release logs
+        if: ${{ always() }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+          logs=(artifacts/*.log)
+          Scripts/verify_release_logs.sh "${logs[@]}"
+
+      - name: Preserve macOS test evidence
+        if: ${{ always() }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: release-gate-macos-tests-${{ github.run_attempt }}
+          path: artifacts
+          if-no-files-found: error
+          retention-days: 7
+
+  ios_unit_tests:
+    name: iOS application unit tests
+    runs-on: xcode-27
+    timeout-minutes: 45
+
+    steps:
+      - name: Check out the exact candidate
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
       - name: Test the iOS application module
         shell: bash
         run: |
           set -euo pipefail
+          mkdir -p artifacts
           xcodebuild test \
             -project SubscriptionManager.xcodeproj \
             -scheme SubscriptionManager \
@@ -154,10 +217,38 @@ jobs:
             GCC_TREAT_WARNINGS_AS_ERRORS=YES \
             2>&1 | tee artifacts/ios-unit-tests.log
 
+      - name: Verify release logs
+        if: ${{ always() }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+          logs=(artifacts/*.log)
+          Scripts/verify_release_logs.sh "${logs[@]}"
+
+      - name: Preserve iOS unit-test evidence
+        if: ${{ always() }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: release-gate-ios-unit-tests-${{ github.run_attempt }}
+          path: artifacts
+          if-no-files-found: error
+          retention-days: 7
+
+  iphone_ui_tests:
+    name: iPhone UI acceptance tests
+    runs-on: xcode-27
+    timeout-minutes: 120
+
+    steps:
+      - name: Check out the exact candidate
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
       - name: Run the existing iOS UI acceptance suite
         shell: bash
         run: |
           set -euo pipefail
+          mkdir -p artifacts
           xcodebuild test \
             -project SubscriptionManager.xcodeproj \
             -scheme SubscriptionManager \
@@ -172,10 +263,38 @@ jobs:
             GCC_TREAT_WARNINGS_AS_ERRORS=YES \
             2>&1 | tee artifacts/ios-ui-tests.log
 
+      - name: Verify release logs
+        if: ${{ always() }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+          logs=(artifacts/*.log)
+          Scripts/verify_release_logs.sh "${logs[@]}"
+
+      - name: Preserve iPhone UI-test evidence
+        if: ${{ always() }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: release-gate-iphone-ui-tests-${{ github.run_attempt }}
+          path: artifacts
+          if-no-files-found: error
+          retention-days: 7
+
+  ipad_ui_tests:
+    name: iPad adaptive-layout UI test
+    runs-on: xcode-27
+    timeout-minutes: 45
+
+    steps:
+      - name: Check out the exact candidate
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
       - name: Run the iPad-only adaptive layout contract
         shell: bash
         run: |
           set -euo pipefail
+          mkdir -p artifacts
           xcodebuild test \
             -project SubscriptionManager.xcodeproj \
             -scheme SubscriptionManager \
@@ -190,10 +309,38 @@ jobs:
             GCC_TREAT_WARNINGS_AS_ERRORS=YES \
             2>&1 | tee artifacts/ipad-ui-tests.log
 
+      - name: Verify release logs
+        if: ${{ always() }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+          logs=(artifacts/*.log)
+          Scripts/verify_release_logs.sh "${logs[@]}"
+
+      - name: Preserve iPad UI-test evidence
+        if: ${{ always() }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: release-gate-ipad-ui-tests-${{ github.run_attempt }}
+          path: artifacts
+          if-no-files-found: error
+          retention-days: 7
+
+  release_builds:
+    name: Release builds
+    runs-on: xcode-27
+    timeout-minutes: 45
+
+    steps:
+      - name: Check out the exact candidate
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
       - name: Build release products for macOS and iOS
         shell: bash
         run: |
           set -euo pipefail
+          mkdir -p artifacts
           xcodebuild build \
             -project SubscriptionManager.xcodeproj \
             -scheme SubscriptionManager \
@@ -217,56 +364,70 @@ jobs:
             GCC_TREAT_WARNINGS_AS_ERRORS=YES \
             2>&1 | tee artifacts/ios-release.log
 
-      - name: Reject repository build warnings and duplicate runtime definitions
+      - name: Verify release logs
+        if: ${{ always() }}
         shell: bash
         run: |
           set -euo pipefail
           shopt -s nullglob
           logs=(artifacts/*.log)
-          if (( ${#logs[@]} == 0 )); then
-            echo 'No release logs were produced.' >&2
-            exit 1
-          fi
-          set +e
-          grep -n -i -E '(^|[[:space:]])warning:' "${logs[@]}"
-          warning_status=$?
-          set -e
-          case "${warning_status}" in
-            0)
-              echo 'Release-owned build warnings are not allowed.' >&2
-              exit 1
-              ;;
-            1)
-              ;;
-            *)
-              echo 'Could not scan release logs for warnings.' >&2
-              exit "${warning_status}"
-              ;;
-          esac
-          set +e
-          grep -n -E \
-            'Class (_TtC16SubscriptionCore21SubscriptionWorkspace|_TtC16SubscriptionCore19WidgetSnapshotStore) is implemented in both' \
-            "${logs[@]}"
-          duplicate_class_status=$?
-          set -e
-          case "${duplicate_class_status}" in
-            0)
-              echo 'SubscriptionCore runtime definitions must be loaded exactly once.' >&2
-              exit 1
-              ;;
-            1)
-              ;;
-            *)
-              echo 'Could not scan release logs for duplicate runtime definitions.' >&2
-              exit "${duplicate_class_status}"
-              ;;
-          esac
+          Scripts/verify_release_logs.sh "${logs[@]}"
 
-      - name: Preserve verification evidence
-        if: always()
+      - name: Preserve Release-build evidence
+        if: ${{ always() }}
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: release-gate-${{ github.run_attempt }}
+          name: release-gate-release-builds-${{ github.run_attempt }}
+          path: artifacts
+          if-no-files-found: error
+          retention-days: 7
+
+  release_gate:
+    name: Release Gate
+    if: ${{ always() }}
+    needs:
+      - repository_core
+      - macos_tests
+      - ios_unit_tests
+      - iphone_ui_tests
+      - ipad_ui_tests
+      - release_builds
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Require every release verification job to succeed
+        env:
+          REPOSITORY_CORE_RESULT: ${{ needs.repository_core.result }}
+          MACOS_TESTS_RESULT: ${{ needs.macos_tests.result }}
+          IOS_UNIT_TESTS_RESULT: ${{ needs.ios_unit_tests.result }}
+          IPHONE_UI_TESTS_RESULT: ${{ needs.iphone_ui_tests.result }}
+          IPAD_UI_TESTS_RESULT: ${{ needs.ipad_ui_tests.result }}
+          RELEASE_BUILDS_RESULT: ${{ needs.release_builds.result }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p artifacts
+          printf '%s\n' \
+            "repository_core=${REPOSITORY_CORE_RESULT}" \
+            "macos_tests=${MACOS_TESTS_RESULT}" \
+            "ios_unit_tests=${IOS_UNIT_TESTS_RESULT}" \
+            "iphone_ui_tests=${IPHONE_UI_TESTS_RESULT}" \
+            "ipad_ui_tests=${IPAD_UI_TESTS_RESULT}" \
+            "release_builds=${RELEASE_BUILDS_RESULT}" \
+            | tee artifacts/required-job-results.txt
+          [[ "${REPOSITORY_CORE_RESULT}" == "success" ]]
+          [[ "${MACOS_TESTS_RESULT}" == "success" ]]
+          [[ "${IOS_UNIT_TESTS_RESULT}" == "success" ]]
+          [[ "${IPHONE_UI_TESTS_RESULT}" == "success" ]]
+          [[ "${IPAD_UI_TESTS_RESULT}" == "success" ]]
+          [[ "${RELEASE_BUILDS_RESULT}" == "success" ]]
+
+      - name: Preserve aggregate-gate evidence
+        if: ${{ always() }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: release-gate-aggregate-${{ github.run_attempt }}
           path: artifacts
           if-no-files-found: error
           retention-days: 7

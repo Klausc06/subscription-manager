@@ -149,6 +149,46 @@ struct PortableExportTests {
         #expect(decoded.subscriptions.first?.startDate == subscription.startDate)
     }
 
+    @Test("Blank optional metadata survives backup validation and preview")
+    func blankOptionalMetadataSurvivesValidationAndPreview() throws {
+        let subscription = Subscription(
+            id: try #require(
+                UUID(uuidString: "99999999-2222-3333-4444-555555555559")
+            ),
+            serviceIdentity: ServiceIdentity(rawValue: "manual:blank-metadata"),
+            serviceName: "Atlas",
+            plan: "",
+            category: " \n\t ",
+            originalAmount: Money(minorUnits: 999, currency: .usd),
+            billingCycle: .monthly,
+            startDate: Date(timeIntervalSince1970: 1_704_067_200),
+            confirmedNextRenewal: Date(timeIntervalSince1970: 1_706_745_600),
+            billingTimeZoneIdentifier: "UTC",
+            managementURL: nil,
+            notes: ""
+        )
+        let backup = PortableBackup(
+            preferences: .default,
+            subscriptions: [subscription]
+        )
+        let data = try PortableBackupEncoder().encode(backup)
+
+        let validated = try PortableBackupValidator().decode(
+            data,
+            asOf: portableBackupValidationAsOf
+        )
+        let preview = try PortableBackupMergePlanner().makePreview(
+            backup: validated,
+            localSubscriptions: [],
+            localPreferences: .default,
+            asOf: portableBackupValidationAsOf
+        )
+
+        #expect(validated.subscriptions == [subscription])
+        #expect(preview.additions == [subscription])
+        #expect(preview.conflicts.isEmpty)
+    }
+
     @Test("CSV quotes Unicode commas quotes and line breaks with machine money")
     func csvEscapesMachineReadableFields() throws {
         let subscription = Subscription(
@@ -185,6 +225,38 @@ struct PortableExportTests {
         #expect(rows[1][13] == "true")
         #expect(rows[0][14] == "pinned_at")
         #expect(rows[1][14] == "2025-01-04T14:13:20Z")
+    }
+
+    @Test("CSV exports spreadsheet formulas as documented literal text")
+    func csvExportsSpreadsheetFormulasAsLiteralText() throws {
+        let subscription = Subscription(
+            id: try #require(
+                UUID(uuidString: "99999999-2222-3333-4444-555555555560")
+            ),
+            serviceIdentity: ServiceIdentity(rawValue: "manual:csv-literal"),
+            serviceName: "=SUM(1,2), 国际 \"版\"\n续行",
+            plan: " \t+SUM(1,2)",
+            category: "\u{000B}-国际",
+            originalAmount: Money(minorUnits: 1_299, currency: .usd),
+            billingCycle: .monthly,
+            startDate: Date(timeIntervalSince1970: 1_704_067_200),
+            confirmedNextRenewal: Date(timeIntervalSince1970: 1_706_745_600),
+            billingTimeZoneIdentifier: "UTC",
+            managementURL: nil,
+            notes: "\n@quoted \"value\""
+        )
+
+        let data = PortableCSVEncoder().encode(
+            preferences: .default,
+            subscriptions: [subscription]
+        )
+        let rows = try CSVFixtureParser().parse(data)
+
+        #expect(rows[1][1] == "'=SUM(1,2), 国际 \"版\"\n续行")
+        #expect(rows[1][2] == "' \t+SUM(1,2)")
+        #expect(rows[1][3] == "'\u{000B}-国际")
+        #expect(rows[1][4] == "manual:csv-literal")
+        #expect(rows[1][12] == "'\n@quoted \"value\"")
     }
 
     @Test("Workspace export includes archived records without changing the library")
@@ -244,7 +316,10 @@ struct PortableExportTests {
         #expect(
             throws: PortableBackupValidationError.unsupportedSchema
         ) {
-            try PortableBackupValidator().decode(Data(invalidText.utf8))
+            try PortableBackupValidator().decode(
+                Data(invalidText.utf8),
+                asOf: portableBackupValidationAsOf
+            )
         }
 
         let conflictLocal = portableSubscription(
@@ -258,7 +333,8 @@ struct PortableExportTests {
         let preview = try PortableBackupMergePlanner().makePreview(
             backup: backup,
             localSubscriptions: [retainedLocal, conflictLocal, unchanged],
-            localPreferences: .default
+            localPreferences: .default,
+            asOf: portableBackupValidationAsOf
         )
 
         #expect(preview.additions == [addition])
@@ -271,6 +347,182 @@ struct PortableExportTests {
         ])
         #expect(preview.retainedLocalSubscriptionIDs == [retainedLocal.id])
         #expect(preview.preferences == .unchanged)
+    }
+
+    @Test(
+        "Invalid subscription facts are rejected before merge preview"
+    )
+    func invalidSubscriptionFactsAreRejectedBeforePreview() throws {
+        for fixture in InvalidPortableSubscriptionFixture.allCases {
+            let backup = PortableBackup(
+                preferences: .default,
+                subscriptions: [try fixture.makeSubscription()]
+            )
+            let data = try PortableBackupEncoder().encode(backup)
+
+            #expect(
+                throws: PortableBackupValidationError.invalidSubscription
+            ) {
+                try PortableBackupValidator().decode(
+                    data,
+                    asOf: portableBackupValidationAsOf
+                )
+            }
+            #expect(
+                throws: PortableBackupValidationError.invalidSubscription
+            ) {
+                try PortableBackupMergePlanner().makePreview(
+                    backup: backup,
+                    localSubscriptions: [],
+                    localPreferences: .default,
+                    asOf: portableBackupValidationAsOf
+                )
+            }
+        }
+    }
+
+    @Test("Cancellation ordering uses the billing-local day")
+    func cancellationOrderingUsesBillingLocalDay() throws {
+        let subscription = portableSubscription(
+            id: try #require(
+                UUID(uuidString: "88888888-2222-3333-4444-555555555570")
+            ),
+            name: "Same-day cancellation",
+            lifecycle: .cancelled(
+                cancelledAt: Date(timeIntervalSince1970: 1_706_788_800),
+                accessUntil: Date(timeIntervalSince1970: 1_706_745_600)
+            )
+        )
+        let backup = PortableBackup(
+            preferences: .default,
+            subscriptions: [subscription]
+        )
+        let data = try PortableBackupEncoder().encode(backup)
+
+        let validated = try PortableBackupValidator().decode(
+            data,
+            asOf: portableBackupValidationAsOf
+        )
+        let preview = try PortableBackupMergePlanner().makePreview(
+            backup: backup,
+            localSubscriptions: [],
+            localPreferences: .default,
+            asOf: portableBackupValidationAsOf
+        )
+
+        #expect(validated.subscriptions == [subscription])
+        #expect(preview.additions == [subscription])
+    }
+
+    @Test("Historical confirmed source survives a later schedule edit")
+    func historicalConfirmedSourceSurvivesScheduleEdit() throws {
+        let subscriptionID = try #require(
+            UUID(uuidString: "88888888-2222-3333-4444-555555555560")
+        )
+        let currentStart = Date(timeIntervalSince1970: 1_770_336_000)
+        let historicalCharge = ConfirmedCharge(
+            id: try #require(
+                UUID(uuidString: "88888888-2222-3333-4444-555555555561")
+            ),
+            chargedDate: Date(timeIntervalSince1970: 1_706_832_000),
+            amount: Money(minorUnits: 999, currency: .usd),
+            sourceScheduledChargeID: ScheduledChargeID(
+                subscriptionID: subscriptionID,
+                year: 2024,
+                month: 2,
+                day: 1
+            )
+        )
+        let subscription = portableSubscription(
+            id: subscriptionID,
+            name: "Edited schedule",
+            billingSchedule: FixedBillingSchedule(
+                interval: .monthly,
+                renewalAnchor: currentStart,
+                timeZoneIdentifier: "UTC"
+            ),
+            startDate: currentStart,
+            confirmedNextRenewal: Date(
+                timeIntervalSince1970: 1_772_755_200
+            ),
+            confirmedCharges: [historicalCharge]
+        )
+        let backup = PortableBackup(
+            preferences: .default,
+            subscriptions: [subscription]
+        )
+        let data = try PortableBackupEncoder().encode(backup)
+
+        let validated = try PortableBackupValidator().decode(
+            data,
+            asOf: portableBackupValidationAsOf
+        )
+        let preview = try PortableBackupMergePlanner().makePreview(
+            backup: backup,
+            localSubscriptions: [],
+            localPreferences: .default,
+            asOf: portableBackupValidationAsOf
+        )
+
+        #expect(validated.subscriptions == [subscription])
+        #expect(preview.additions == [subscription])
+    }
+
+    @Test("Rejected backup leaves storage and valid preview unchanged")
+    @MainActor
+    func rejectedBackupLeavesStorageAndPreviewUnchanged() throws {
+        let local = portableSubscription(
+            id: try #require(
+                UUID(uuidString: "77777777-2222-3333-4444-555555555550")
+            ),
+            name: "Local"
+        )
+        let validAddition = portableSubscription(
+            id: try #require(
+                UUID(uuidString: "77777777-2222-3333-4444-555555555551")
+            ),
+            name: "Valid addition"
+        )
+        let repository = ExportRepositoryFixture(subscriptions: [local])
+        let importer = RecordingPortableImportRepository()
+        let workspace = SubscriptionWorkspace(
+            repository: repository,
+            portableBackupImportRepository: importer,
+            now: { portableBackupValidationAsOf }
+        )
+        let validData = try PortableBackupEncoder().encode(
+            PortableBackup(
+                preferences: .default,
+                subscriptions: [validAddition]
+            )
+        )
+        let previewBeforeRejection = try workspace
+            .preparePortableBackupImport(validData)
+
+        for fixture in [
+            InvalidPortableSubscriptionFixture.futureScheduledCharge,
+            .futureChargedDate,
+            .futureCancellation,
+        ] {
+            let invalidData = try PortableBackupEncoder().encode(
+                PortableBackup(
+                    preferences: .default,
+                    subscriptions: [try fixture.makeSubscription()]
+                )
+            )
+
+            #expect(
+                throws: PortableBackupValidationError.invalidSubscription
+            ) {
+                try workspace.preparePortableBackupImport(invalidData)
+            }
+        }
+
+        let previewAfterRejection = try workspace
+            .preparePortableBackupImport(validData)
+        #expect(previewAfterRejection == previewBeforeRejection)
+        #expect(try repository.listSubscriptions() == [local])
+        #expect(importer.merges.isEmpty)
     }
 
     @Test("Workspace only submits a fully resolved portable merge")
@@ -289,7 +541,8 @@ struct PortableExportTests {
         let importer = RecordingPortableImportRepository()
         let workspace = SubscriptionWorkspace(
             repository: repository,
-            portableBackupImportRepository: importer
+            portableBackupImportRepository: importer,
+            now: { portableBackupValidationAsOf }
         )
         let data = try PortableBackupEncoder().encode(
             PortableBackup(preferences: .default, subscriptions: [backupVersion, addition])
@@ -353,7 +606,8 @@ struct PortableExportTests {
         )
         let workspace = SubscriptionWorkspace(
             repository: repository,
-            portableBackupImportRepository: importer
+            portableBackupImportRepository: importer,
+            now: { portableBackupValidationAsOf }
         )
         let data = try PortableBackupEncoder().encode(
             PortableBackup(
@@ -495,25 +749,305 @@ private final class ApplyingPortableImportRepository:
     }
 }
 
+private enum InvalidPortableSubscriptionFixture:
+    CaseIterable,
+    Sendable
+{
+    case trialFirstPaidBeforeStart
+    case cancellationAccessBeforeCancellation
+    case futureCancellation
+    case unsupportedManagementURL
+    case nonPositiveConfirmedCharge
+    case duplicateConfirmedChargeID
+    case duplicateScheduledCharge
+    case foreignScheduledCharge
+    case invalidScheduledChargeDate
+    case futureScheduledCharge
+    case futureChargedDate
+    case nonPositivePriceChange
+    case priceChangeBeforeStart
+    case duplicatePriceChangeID
+    case duplicatePriceChangeDay
+
+    func makeSubscription() throws -> Subscription {
+        let subscriptionID = try #require(
+            UUID(uuidString: "88888888-2222-3333-4444-555555555550")
+        )
+        let firstChildID = try #require(
+            UUID(uuidString: "88888888-2222-3333-4444-555555555551")
+        )
+        let secondChildID = try #require(
+            UUID(uuidString: "88888888-2222-3333-4444-555555555552")
+        )
+        let foreignSubscriptionID = try #require(
+            UUID(uuidString: "88888888-2222-3333-4444-555555555553")
+        )
+        let startDate = Date(timeIntervalSince1970: 1_704_067_200)
+        let nextRenewal = Date(timeIntervalSince1970: 1_706_745_600)
+        let scheduledChargeID = ScheduledChargeID(
+            subscriptionID: subscriptionID,
+            year: 2024,
+            month: 2,
+            day: 1
+        )
+
+        switch self {
+        case .trialFirstPaidBeforeStart:
+            return portableSubscription(
+                id: subscriptionID,
+                name: "Invalid trial ordering",
+                startDate: startDate.addingTimeInterval(3_600),
+                confirmedNextRenewal: nextRenewal,
+                lifecycle: .trial(firstPaidChargeAt: startDate)
+            )
+        case .cancellationAccessBeforeCancellation:
+            return portableSubscription(
+                id: subscriptionID,
+                name: "Invalid cancellation ordering",
+                startDate: startDate,
+                confirmedNextRenewal: nextRenewal,
+                lifecycle: .cancelled(
+                    cancelledAt: nextRenewal.addingTimeInterval(3_600),
+                    accessUntil: nextRenewal.addingTimeInterval(-86_400)
+                )
+            )
+        case .futureCancellation:
+            return portableSubscription(
+                id: subscriptionID,
+                name: "Future cancellation",
+                lifecycle: .cancelled(
+                    cancelledAt: portableBackupValidationAsOf
+                        .addingTimeInterval(86_400),
+                    accessUntil: portableBackupValidationAsOf
+                        .addingTimeInterval(172_800)
+                )
+            )
+        case .unsupportedManagementURL:
+            return portableSubscription(
+                id: subscriptionID,
+                name: "Invalid management URL",
+                managementURL: URL(
+                    filePath: "/tmp/portable-backup-invalid-management"
+                )
+            )
+        case .nonPositiveConfirmedCharge:
+            return portableSubscription(
+                id: subscriptionID,
+                name: "Invalid confirmed amount",
+                confirmedCharges: [
+                    ConfirmedCharge(
+                        id: firstChildID,
+                        chargedDate: startDate,
+                        amount: Money(minorUnits: 0, currency: .usd)
+                    )
+                ]
+            )
+        case .duplicateConfirmedChargeID:
+            return portableSubscription(
+                id: subscriptionID,
+                name: "Duplicate confirmed ID",
+                confirmedCharges: [
+                    ConfirmedCharge(
+                        id: firstChildID,
+                        chargedDate: startDate,
+                        amount: Money(minorUnits: 999, currency: .usd)
+                    ),
+                    ConfirmedCharge(
+                        id: firstChildID,
+                        chargedDate: nextRenewal,
+                        amount: Money(minorUnits: 999, currency: .usd)
+                    )
+                ]
+            )
+        case .duplicateScheduledCharge:
+            return portableSubscription(
+                id: subscriptionID,
+                name: "Duplicate scheduled charge",
+                confirmedCharges: [
+                    ConfirmedCharge(
+                        id: firstChildID,
+                        chargedDate: startDate,
+                        amount: Money(minorUnits: 999, currency: .usd),
+                        sourceScheduledChargeID: scheduledChargeID
+                    ),
+                    ConfirmedCharge(
+                        id: secondChildID,
+                        chargedDate: nextRenewal,
+                        amount: Money(minorUnits: 999, currency: .usd),
+                        sourceScheduledChargeID: scheduledChargeID
+                    )
+                ]
+            )
+        case .foreignScheduledCharge:
+            return portableSubscription(
+                id: subscriptionID,
+                name: "Foreign scheduled charge",
+                confirmedCharges: [
+                    ConfirmedCharge(
+                        id: firstChildID,
+                        chargedDate: startDate,
+                        amount: Money(minorUnits: 999, currency: .usd),
+                        sourceScheduledChargeID: ScheduledChargeID(
+                            subscriptionID: foreignSubscriptionID,
+                            year: 2024,
+                            month: 2,
+                            day: 1
+                        )
+                    )
+                ]
+            )
+        case .invalidScheduledChargeDate:
+            return portableSubscription(
+                id: subscriptionID,
+                name: "Invalid scheduled charge date",
+                confirmedCharges: [
+                    ConfirmedCharge(
+                        id: firstChildID,
+                        chargedDate: startDate,
+                        amount: Money(minorUnits: 999, currency: .usd),
+                        sourceScheduledChargeID: ScheduledChargeID(
+                            subscriptionID: subscriptionID,
+                            year: 2024,
+                            month: 2,
+                            day: 30
+                        )
+                    )
+                ]
+            )
+        case .futureScheduledCharge:
+            return portableSubscription(
+                id: subscriptionID,
+                name: "Future scheduled charge",
+                confirmedCharges: [
+                    ConfirmedCharge(
+                        id: firstChildID,
+                        chargedDate: startDate,
+                        amount: Money(minorUnits: 999, currency: .usd),
+                        sourceScheduledChargeID: ScheduledChargeID(
+                            subscriptionID: subscriptionID,
+                            year: 2030,
+                            month: 1,
+                            day: 1
+                        )
+                    )
+                ]
+            )
+        case .futureChargedDate:
+            return portableSubscription(
+                id: subscriptionID,
+                name: "Future charged date",
+                confirmedCharges: [
+                    ConfirmedCharge(
+                        id: firstChildID,
+                        chargedDate: Date(timeIntervalSince1970: 1_893_456_000),
+                        amount: Money(minorUnits: 999, currency: .usd),
+                        sourceScheduledChargeID: ScheduledChargeID(
+                            subscriptionID: subscriptionID,
+                            year: 2024,
+                            month: 1,
+                            day: 1
+                        )
+                    )
+                ]
+            )
+        case .nonPositivePriceChange:
+            return portableSubscription(
+                id: subscriptionID,
+                name: "Invalid price amount",
+                priceChanges: [
+                    PriceChange(
+                        id: firstChildID,
+                        effectiveDate: nextRenewal,
+                        amount: Money(minorUnits: 0, currency: .usd)
+                    )
+                ]
+            )
+        case .priceChangeBeforeStart:
+            return portableSubscription(
+                id: subscriptionID,
+                name: "Price change before start",
+                priceChanges: [
+                    PriceChange(
+                        id: firstChildID,
+                        effectiveDate: startDate.addingTimeInterval(-86_400),
+                        amount: Money(minorUnits: 1_099, currency: .usd)
+                    )
+                ]
+            )
+        case .duplicatePriceChangeID:
+            return portableSubscription(
+                id: subscriptionID,
+                name: "Duplicate price ID",
+                priceChanges: [
+                    PriceChange(
+                        id: firstChildID,
+                        effectiveDate: startDate,
+                        amount: Money(minorUnits: 1_099, currency: .usd)
+                    ),
+                    PriceChange(
+                        id: firstChildID,
+                        effectiveDate: nextRenewal,
+                        amount: Money(minorUnits: 1_199, currency: .usd)
+                    )
+                ]
+            )
+        case .duplicatePriceChangeDay:
+            return portableSubscription(
+                id: subscriptionID,
+                name: "Duplicate price day",
+                priceChanges: [
+                    PriceChange(
+                        id: firstChildID,
+                        effectiveDate: nextRenewal,
+                        amount: Money(minorUnits: 1_099, currency: .usd)
+                    ),
+                    PriceChange(
+                        id: secondChildID,
+                        effectiveDate: nextRenewal.addingTimeInterval(3_600),
+                        amount: Money(minorUnits: 1_199, currency: .usd)
+                    )
+                ]
+            )
+        }
+    }
+}
+
+private let portableBackupValidationAsOf = Date(
+    timeIntervalSince1970: 1_800_000_000
+)
+
 private func portableSubscription(
     id: UUID,
     name: String,
+    plan: String = "Standard",
+    category: String = "Other",
     amount: Money = Money(minorUnits: 999, currency: .usd),
-    confirmedCharges: [ConfirmedCharge] = []
+    billingSchedule: FixedBillingSchedule? = nil,
+    startDate: Date = Date(timeIntervalSince1970: 1_704_067_200),
+    confirmedNextRenewal: Date = Date(timeIntervalSince1970: 1_706_745_600),
+    managementURL: URL? = nil,
+    confirmedCharges: [ConfirmedCharge] = [],
+    priceChanges: [PriceChange] = [],
+    lifecycle: SubscriptionLifecycle = .active
 ) -> Subscription {
     Subscription(
         id: id,
         serviceIdentity: ServiceIdentity(rawValue: name.lowercased()),
         serviceName: name,
-        plan: "Standard",
-        category: "Other",
+        plan: plan,
+        category: category,
         originalAmount: amount,
-        billingCycle: .monthly,
-        startDate: Date(timeIntervalSince1970: 1_704_067_200),
-        confirmedNextRenewal: Date(timeIntervalSince1970: 1_706_745_600),
-        billingTimeZoneIdentifier: "UTC",
-        managementURL: nil,
+        billingSchedule: billingSchedule ?? FixedBillingSchedule(
+            interval: .monthly,
+            renewalAnchor: startDate,
+            timeZoneIdentifier: "UTC"
+        ),
+        startDate: startDate,
+        confirmedNextRenewal: confirmedNextRenewal,
+        managementURL: managementURL,
         notes: "",
-        confirmedCharges: confirmedCharges
+        confirmedCharges: confirmedCharges,
+        priceChanges: priceChanges,
+        lifecycle: lifecycle
     )
 }

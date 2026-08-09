@@ -136,7 +136,7 @@ struct RenewalWidgetView: View {
 }
 
 struct RenewalWidget: Widget {
-    let kind = "com.klausc06.SubscriptionManager.renewal"
+    let kind = WidgetSnapshotStore.renewalWidgetKind
 
     var body: some WidgetConfiguration {
         StaticConfiguration(kind: kind, provider: RenewalWidgetProvider()) { entry in

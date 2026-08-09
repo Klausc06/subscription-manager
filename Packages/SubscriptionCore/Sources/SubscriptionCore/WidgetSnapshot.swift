@@ -46,6 +46,8 @@ public final class WidgetSnapshotStore {
     public static let appGroupIdentifier =
         "group.com.klausc06.SubscriptionManager"
     public static let snapshotKey = "subscription-manager.widget-snapshot"
+    public static let renewalWidgetKind =
+        "com.klausc06.SubscriptionManager.renewal"
 
     private let defaults: UserDefaults
     private let encoder: JSONEncoder
@@ -66,9 +68,11 @@ public final class WidgetSnapshotStore {
         self.init(defaults: defaults)
     }
 
-    public func write(_ snapshot: WidgetSnapshot) {
-        guard let data = try? encoder.encode(snapshot) else { return }
+    @discardableResult
+    public func write(_ snapshot: WidgetSnapshot) -> Bool {
+        guard let data = try? encoder.encode(snapshot) else { return false }
         defaults.set(data, forKey: Self.snapshotKey)
+        return true
     }
 
     public func read() -> WidgetSnapshot? {
