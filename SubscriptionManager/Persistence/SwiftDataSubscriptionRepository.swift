@@ -102,12 +102,14 @@ final class SwiftDataSubscriptionRepository: SubscriptionRepository {
             guard let record = try modelContext.fetch(descriptor).first else {
                 return
             }
-            let charges = try modelContext.fetch(
-                FetchDescriptor<ConfirmedChargeRecord>()
-            ).filter { belongsTo($0, subscriptionID: id) }
-            let priceChanges = try modelContext.fetch(
-                FetchDescriptor<PriceChangeRecord>()
-            ).filter { belongsTo($0, subscriptionID: id) }
+            let charges = try confirmedChargeRecords(
+                for: id,
+                in: modelContext
+            )
+            let priceChanges = try priceChangeRecords(
+                for: id,
+                in: modelContext
+            )
             for charge in charges {
                 modelContext.delete(charge)
             }
@@ -394,12 +396,14 @@ final class SwiftDataSubscriptionRepository: SubscriptionRepository {
     private func migrateLegacyHistoryIfNeeded(
         for record: SubscriptionRecord
     ) throws -> Bool {
-        var confirmedChargeRecords = try modelContext.fetch(
-            FetchDescriptor<ConfirmedChargeRecord>()
-        ).filter { belongsTo($0, subscriptionID: record.id) }
-        var priceChangeRecords = try modelContext.fetch(
-            FetchDescriptor<PriceChangeRecord>()
-        ).filter { belongsTo($0, subscriptionID: record.id) }
+        var confirmedChargeRecords = try confirmedChargeRecords(
+            for: record.id,
+            in: modelContext
+        )
+        var priceChangeRecords = try priceChangeRecords(
+            for: record.id,
+            in: modelContext
+        )
         return try migrateLegacyHistoryIfNeeded(
             for: record,
             confirmedChargeRecords: &confirmedChargeRecords,
@@ -461,13 +465,10 @@ final class SwiftDataSubscriptionRepository: SubscriptionRepository {
         in context: ModelContext,
         preserveInputOrderWhenEmpty: Bool = false
     ) throws {
-        var storedRecords = try context.fetch(
-            FetchDescriptor<ConfirmedChargeRecord>()
-        ).filter {
-            $0.subscriptionID == record.id
-                || ($0.subscriptionID == nil
-                    && $0.subscription?.id == record.id)
-        }
+        var storedRecords = try confirmedChargeRecords(
+            for: record.id,
+            in: context
+        )
         try mergeConfirmedCharges(
             charges,
             into: record,
@@ -532,13 +533,10 @@ final class SwiftDataSubscriptionRepository: SubscriptionRepository {
         preserveInputOrderWhenEmpty: Bool = false,
         preservingIDs: Set<UUID> = []
     ) throws {
-        var storedRecords = try context.fetch(
-            FetchDescriptor<PriceChangeRecord>()
-        ).filter {
-            $0.subscriptionID == record.id
-                || ($0.subscriptionID == nil
-                    && $0.subscription?.id == record.id)
-        }
+        var storedRecords = try priceChangeRecords(
+            for: record.id,
+            in: context
+        )
         try mergePriceChanges(
             changes,
             into: record,
@@ -604,8 +602,7 @@ final class SwiftDataSubscriptionRepository: SubscriptionRepository {
         in context: ModelContext
     ) throws -> [ConfirmedCharge] {
         canonicalConfirmedCharges(
-            from: try context.fetch(FetchDescriptor<ConfirmedChargeRecord>())
-                .filter { belongsTo($0, subscriptionID: record.id) }
+            from: try confirmedChargeRecords(for: record.id, in: context)
         )
     }
 
@@ -656,8 +653,7 @@ final class SwiftDataSubscriptionRepository: SubscriptionRepository {
         in context: ModelContext
     ) throws -> [PriceChange] {
         canonicalPriceChanges(
-            from: try context.fetch(FetchDescriptor<PriceChangeRecord>())
-                .filter { belongsTo($0, subscriptionID: record.id) }
+            from: try priceChangeRecords(for: record.id, in: context)
         )
     }
 
@@ -753,6 +749,42 @@ final class SwiftDataSubscriptionRepository: SubscriptionRepository {
                 && record.subscription?.id == subscriptionID)
     }
 
+    private func confirmedChargeRecords(
+        for subscriptionID: UUID,
+        in context: ModelContext
+    ) throws -> [ConfirmedChargeRecord] {
+        let lookupID = subscriptionID
+        let scoped = try context.fetch(
+            FetchDescriptor<ConfirmedChargeRecord>(
+                predicate: #Predicate { $0.subscriptionID == lookupID }
+            )
+        )
+        let legacy = try context.fetch(
+            FetchDescriptor<ConfirmedChargeRecord>(
+                predicate: #Predicate { $0.subscriptionID == nil }
+            )
+        ).filter { belongsTo($0, subscriptionID: subscriptionID) }
+        return scoped + legacy
+    }
+
+    private func priceChangeRecords(
+        for subscriptionID: UUID,
+        in context: ModelContext
+    ) throws -> [PriceChangeRecord] {
+        let lookupID = subscriptionID
+        let scoped = try context.fetch(
+            FetchDescriptor<PriceChangeRecord>(
+                predicate: #Predicate { $0.subscriptionID == lookupID }
+            )
+        )
+        let legacy = try context.fetch(
+            FetchDescriptor<PriceChangeRecord>(
+                predicate: #Predicate { $0.subscriptionID == nil }
+            )
+        ).filter { belongsTo($0, subscriptionID: subscriptionID) }
+        return scoped + legacy
+    }
+
     private func stalePriceChangeIDs(
         for subscription: Subscription
     ) throws -> Set<UUID> {
@@ -774,9 +806,10 @@ final class SwiftDataSubscriptionRepository: SubscriptionRepository {
         for subscriptionID: UUID
     ) throws -> [PriceChange] {
         let context = ModelContext(modelContainer)
-        let records = try context.fetch(
-            FetchDescriptor<PriceChangeRecord>()
-        ).filter { belongsTo($0, subscriptionID: subscriptionID) }
+        let records = try priceChangeRecords(
+            for: subscriptionID,
+            in: context
+        )
         return canonicalPriceChanges(from: records)
     }
 

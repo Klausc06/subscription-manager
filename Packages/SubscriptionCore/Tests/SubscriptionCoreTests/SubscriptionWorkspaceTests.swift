@@ -1484,7 +1484,7 @@ struct SubscriptionWorkspaceTests {
             providerDate: now,
             fetchedAt: now,
             source: "fixture",
-            rates: [.eur: 1, .usd: 1.2]
+            rates: [.eur: 1, .usd: 1.2, .cny: 8.4]
         )
         let source = RecordingExchangeRateSource(snapshot: refreshed)
         let cache = InMemoryExchangeRateCache(
@@ -1593,6 +1593,49 @@ struct SubscriptionWorkspaceTests {
         #expect(source.requests.count == 1)
         #expect(source.requests.first?.quotes == [.cny])
         #expect(workspace.exchangeRateStatus == .fresh(refreshed))
+    }
+
+    @Test("An incomplete rate response keeps a complete stale snapshot")
+    @MainActor
+    func incompleteRateResponseKeepsCompleteStaleSnapshot() async {
+        let yesterday = Date(timeIntervalSince1970: 1_769_270_400)
+        let now = Date(timeIntervalSince1970: 1_769_356_800)
+        let stale = ExchangeRateSnapshot(
+            base: .eur,
+            providerDate: yesterday,
+            fetchedAt: yesterday,
+            source: "fixture",
+            rates: [.eur: 1, .cny: 8.4]
+        )
+        let incomplete = ExchangeRateSnapshot(
+            base: .eur,
+            providerDate: now,
+            fetchedAt: now,
+            source: "fixture",
+            rates: [.eur: 1]
+        )
+        let source = RecordingExchangeRateSource(snapshot: incomplete)
+        let cache = InMemoryExchangeRateCache(
+            state: ExchangeRateCacheState(
+                snapshot: stale,
+                lastAttemptAt: yesterday
+            )
+        )
+        let workspace = SubscriptionWorkspace(
+            repository: InMemorySubscriptionRepository(),
+            exchangeRateSource: source,
+            exchangeRateCache: cache,
+            now: { now }
+        )
+
+        await workspace.refreshExchangeRates()
+
+        #expect(source.requests.count == 1)
+        #expect(cache.state == ExchangeRateCacheState(
+            snapshot: stale,
+            lastAttemptAt: now
+        ))
+        #expect(workspace.exchangeRateStatus == .stale(stale))
     }
 
     @Test("Rate refresh requests original, price-change, and confirmed currencies")

@@ -233,6 +233,36 @@ struct AppDependencies {
         localMappingSchema: Schema,
         localMappingConfiguration: ModelConfiguration
     ) throws {
+        let localContainer = try ModelContainer(
+            for: localMappingSchema,
+            configurations: [localMappingConfiguration]
+        )
+        let localContext = ModelContext(localContainer)
+        let localMappings = try localContext.fetch(
+            FetchDescriptor<CalendarProjectionMappingRecord>()
+        )
+        if localMappings.contains(where: {
+            $0.projectionUID.isEmpty
+                && $0.legacyMappingMigrationCompleted
+        }) {
+            return
+        }
+        if !localMappings.isEmpty {
+            let localMetadata: CalendarProjectionMappingRecord
+            if let existingMetadata = localMappings.first(where: {
+                $0.projectionUID.isEmpty
+            }) {
+                localMetadata = existingMetadata
+            } else {
+                localMetadata = CalendarProjectionMappingRecord(
+                    calendarIdentifier: ""
+                )
+                localContext.insert(localMetadata)
+            }
+            localMetadata.legacyMappingMigrationCompleted = true
+            try localContext.save()
+            return
+        }
         guard FileManager.default.fileExists(atPath: legacyStoreURL.path) else {
             return
         }
@@ -259,29 +289,18 @@ struct AppDependencies {
                 calendarSyncDisabled: $0.calendarSyncDisabled
             )
         }
-        guard !legacyMappings.isEmpty else { return }
-
-        let localContainer = try ModelContainer(
-            for: localMappingSchema,
-            configurations: [localMappingConfiguration]
-        )
-        let localContext = ModelContext(localContainer)
-        let localMappings = try localContext.fetch(
-            FetchDescriptor<CalendarProjectionMappingRecord>()
-        )
         var localProjectionUIDs = Set(
             localMappings.lazy
                 .map(\.projectionUID)
                 .filter { !$0.isEmpty }
         )
-        var hasLocalMetadata = localMappings.contains {
+        var localMetadata = localMappings.first {
             $0.projectionUID.isEmpty
         }
 
         for mapping in legacyMappings {
             if mapping.projectionUID.isEmpty {
-                guard !hasLocalMetadata else { continue }
-                hasLocalMetadata = true
+                guard localMetadata == nil else { continue }
             } else {
                 guard localProjectionUIDs.insert(mapping.projectionUID).inserted
                 else { continue }
@@ -293,10 +312,19 @@ struct AppDependencies {
             )
             migrated.calendarSyncDisabled = mapping.calendarSyncDisabled
             localContext.insert(migrated)
+            if mapping.projectionUID.isEmpty {
+                localMetadata = migrated
+            }
         }
-        if localContext.hasChanges {
-            try localContext.save()
+        if localMetadata == nil {
+            let metadata = CalendarProjectionMappingRecord(
+                calendarIdentifier: ""
+            )
+            localContext.insert(metadata)
+            localMetadata = metadata
         }
+        localMetadata?.legacyMappingMigrationCompleted = true
+        try localContext.save()
     }
 
     static func make(

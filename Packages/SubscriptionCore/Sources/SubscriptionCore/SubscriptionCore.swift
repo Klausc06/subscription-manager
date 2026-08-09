@@ -785,6 +785,9 @@ public final class SubscriptionWorkspace {
         let day: Date
         let quotes: Set<Currency>
     }
+    private enum ExchangeRateRefreshError: Error {
+        case incompleteSnapshot
+    }
     private var exchangeRateAttempts: Set<ExchangeRateAttemptKey> = []
 
     public init(
@@ -1046,6 +1049,12 @@ public final class SubscriptionWorkspace {
                 base: .eur,
                 quotes: requiredQuotes
             )
+            guard snapshotContainsRequiredCurrencies(
+                snapshot,
+                requiredCurrencies: requiredCurrencies
+            ) else {
+                throw ExchangeRateRefreshError.incompleteSnapshot
+            }
             let state = ExchangeRateCacheState(
                 snapshot: snapshot,
                 lastAttemptAt: attemptedAt

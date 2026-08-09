@@ -149,13 +149,51 @@ struct BundledCatalogRepositoryTests {
         )
         defer { try? FileManager.default.removeItem(at: directory) }
         let cache = FileCatalogCache(directory: directory)
-        let cachedData = String(
+        let originalData = String(
             decoding: validCatalogData(catalogVersion: 2),
             as: UTF8.self
-        ).replacingOccurrences(
+        )
+        #expect(originalData.contains("\"reviewStatus\": \"verified\""))
+        let cachedData = originalData.replacingOccurrences(
             of: "\"reviewStatus\": \"verified\"",
             with: "\"reviewStatus\": \"reviewRequired\""
         )
+        #expect(cachedData != originalData)
+        #expect(
+            cachedData.contains("\"reviewStatus\": \"reviewRequired\"")
+        )
+        try cache.storeCatalogData(Data(cachedData.utf8))
+        let repository = CachedCatalogRepository(
+            bundled: BundledCatalogRepository(data: validCatalogData()),
+            cache: cache
+        )
+
+        let snapshot = try repository.loadSnapshot()
+
+        #expect(snapshot.catalogVersion == 1)
+        #expect(repository.catalogSource == .bundled)
+    }
+
+    @Test("A cached preset without offers falls back to the bundle")
+    @MainActor
+    func emptyOfferCachedCatalogFallsBackToBundledCatalog() throws {
+        let directory = FileManager.default.temporaryDirectory.appending(
+            path: UUID().uuidString,
+            directoryHint: .isDirectory
+        )
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let cache = FileCatalogCache(directory: directory)
+        let originalData = String(
+            decoding: validCatalogData(catalogVersion: 2),
+            as: UTF8.self
+        )
+        #expect(originalData.contains("\"offers\": ["))
+        let cachedData = originalData.replacingOccurrences(
+            of: "\"offers\": [",
+            with: "\"offers\": [], \"ignoredOffers\": ["
+        )
+        #expect(cachedData != originalData)
+        #expect(cachedData.contains("\"offers\": []"))
         try cache.storeCatalogData(Data(cachedData.utf8))
         let repository = CachedCatalogRepository(
             bundled: BundledCatalogRepository(data: validCatalogData()),

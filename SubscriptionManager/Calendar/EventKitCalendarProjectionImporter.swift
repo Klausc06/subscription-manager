@@ -593,7 +593,12 @@ final class SwiftDataCalendarProjectionMappingRepository:
     }
 
     func calendarIdentifier() throws -> String? {
-        try calendarMetadataRecord()?.calendarIdentifier
+        guard let identifier = try calendarMetadataRecord()?.calendarIdentifier,
+              !identifier.isEmpty
+        else {
+            return nil
+        }
+        return identifier
     }
 
     func isCalendarSyncDisabled() throws -> Bool {

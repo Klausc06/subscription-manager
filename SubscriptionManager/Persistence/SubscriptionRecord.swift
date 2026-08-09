@@ -203,14 +203,18 @@ final class CalendarProjectionMappingRecord {
     var eventIdentifier: String = ""
     var calendarIdentifier: String = ""
     var calendarSyncDisabled: Bool = false
+    var legacyMappingMigrationCompleted: Bool = false
 
     init(
         projectionUID: String = "",
         eventIdentifier: String = "",
-        calendarIdentifier: String
+        calendarIdentifier: String,
+        legacyMappingMigrationCompleted: Bool = false
     ) {
         self.projectionUID = projectionUID
         self.eventIdentifier = eventIdentifier
         self.calendarIdentifier = calendarIdentifier
+        self.legacyMappingMigrationCompleted =
+            legacyMappingMigrationCompleted
     }
 }

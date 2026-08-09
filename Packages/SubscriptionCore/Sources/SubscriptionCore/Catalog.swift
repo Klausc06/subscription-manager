@@ -431,7 +431,7 @@ public struct CatalogSnapshot: Codable, Equatable, Sendable {
                     )
                 }
             }
-            guard preset.offers.isEmpty || preset.offers.contains(where: {
+            guard preset.offers.contains(where: {
                 $0.reviewStatus == .verified
             }) else {
                 throw CatalogLoadError(

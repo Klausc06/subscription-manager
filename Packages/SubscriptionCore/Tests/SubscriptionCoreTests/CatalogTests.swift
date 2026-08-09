@@ -283,8 +283,8 @@ struct CatalogTests {
         assertOffersAreInvalid([offer])
     }
 
-    @Test("Catalog accepts a service-only preset without offers")
-    func catalogAcceptsServiceOnlyPresetWithoutOffers() throws {
+    @Test("Catalog rejects a service-only preset without offers")
+    func catalogRejectsServiceOnlyPresetWithoutOffers() {
         let preset = CatalogPreset(
             id: "service-only",
             serviceName: CatalogLocalizedText(en: "Service", zhHans: "服务"),
@@ -294,10 +294,12 @@ struct CatalogTests {
             icon: .other
         )
 
-        _ = try CatalogSnapshot(
-            schemaVersion: CatalogSnapshot.currentSchemaVersion,
-            presets: [preset]
-        )
+        #expect(throws: CatalogLoadError.self) {
+            _ = try CatalogSnapshot(
+                schemaVersion: CatalogSnapshot.currentSchemaVersion,
+                presets: [preset]
+            )
+        }
     }
 
     @Test("Catalog rejects zero-price offers")
@@ -504,14 +506,20 @@ struct CatalogTests {
             category: CatalogLocalizedText(en: "Other", zhHans: "其他"),
             suggestedInterval: .monthly,
             managementURL: nil,
-            icon: .other
+            icon: .other,
+            offers: [verifiedOffer()]
         )
 
-        #expect(throws: CatalogLoadError.self) {
-            try CatalogSnapshot(
+        do {
+            _ = try CatalogSnapshot(
                 schemaVersion: CatalogSnapshot.currentSchemaVersion,
                 presets: [preset, preset]
             )
+            Issue.record("Expected duplicate preset IDs to be rejected")
+        } catch let error as CatalogLoadError {
+            #expect(error.field == .id)
+        } catch {
+            Issue.record("Expected CatalogLoadError, got \(error)")
         }
     }
 
