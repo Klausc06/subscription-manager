@@ -558,12 +558,9 @@ final class SwiftDataSubscriptionRepository: SubscriptionRepository {
         for storedRecord in storedRecords where storedRecord.subscriptionID == nil {
             storedRecord.subscriptionID = record.id
         }
-        var recordsByID: [UUID: PriceChangeRecord] = [:]
-        for storedRecord in storedRecords
-            where recordsByID[storedRecord.id] == nil
-        {
-            recordsByID[storedRecord.id] = storedRecord
-        }
+        var recordsByID = canonicalPriceChangeRecordsByID(
+            from: storedRecords
+        )
         let storedRecordsWereEmpty = storedRecords.isEmpty
         var nextSequence = (storedRecords.map(\.sequence).max() ?? -1) + 1
         for (index, change) in changes.enumerated() {
@@ -662,15 +659,7 @@ final class SwiftDataSubscriptionRepository: SubscriptionRepository {
     ) -> [PriceChange] {
         var seenIDs = Set<UUID>()
         return records
-            .sorted {
-                if $0.sequence != $1.sequence {
-                    return $0.sequence < $1.sequence
-                }
-                if $0.appendOrderDate != $1.appendOrderDate {
-                    return $0.appendOrderDate < $1.appendOrderDate
-                }
-                return $0.persistentModelID < $1.persistentModelID
-            }
+            .sorted(by: priceChangeRecordPrecedes)
             .filter { seenIDs.insert($0.id).inserted }
             .map { storedRecord in
                 PriceChange(
@@ -1370,10 +1359,9 @@ final class SwiftDataPortableBackupImportRepository:
         for storedRecord in storedRecords where !desiredIDs.contains(storedRecord.id) {
             context.delete(storedRecord)
         }
-        var storedByID: [UUID: PriceChangeRecord] = [:]
-        for storedRecord in storedRecords {
-            storedByID[storedRecord.id] = storedRecord
-        }
+        var storedByID = canonicalPriceChangeRecordsByID(
+            from: storedRecords
+        )
         for (sequence, change) in changes.enumerated() {
             let storedRecord: PriceChangeRecord
             if let existing = storedByID[change.id] {
@@ -1400,6 +1388,31 @@ final class SwiftDataPortableBackupImportRepository:
             storedRecord.subscription = record
         }
     }
+}
+
+private func canonicalPriceChangeRecordsByID(
+    from records: [PriceChangeRecord]
+) -> [UUID: PriceChangeRecord] {
+    var recordsByID: [UUID: PriceChangeRecord] = [:]
+    for record in records.sorted(by: priceChangeRecordPrecedes)
+        where recordsByID[record.id] == nil
+    {
+        recordsByID[record.id] = record
+    }
+    return recordsByID
+}
+
+private func priceChangeRecordPrecedes(
+    _ lhs: PriceChangeRecord,
+    _ rhs: PriceChangeRecord
+) -> Bool {
+    if lhs.sequence != rhs.sequence {
+        return lhs.sequence < rhs.sequence
+    }
+    if lhs.appendOrderDate != rhs.appendOrderDate {
+        return lhs.appendOrderDate < rhs.appendOrderDate
+    }
+    return lhs.persistentModelID < rhs.persistentModelID
 }
 
 private enum PortableBackupImportStorageError: Error {

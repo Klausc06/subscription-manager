@@ -28,6 +28,11 @@ market, locale, account context, and purchase channel. Community material is
 discovery evidence only. The retained JSONL status `verified` means verified at
 that record's date and context, not verified today.
 
+The shipped bundled catalog contains only `verified` offers. An unresolved or
+conflicting candidate is omitted from the bundle rather than retained as a
+`reviewRequired` offer; that status remains part of the domain only for safely
+rejecting incompatible or unverified external catalog data.
+
 ## Current repository authority
 
 | Area | Current authority |
@@ -121,17 +126,35 @@ These references support platform APIs and principles. They do not define
 project-specific spacing, radii, calendar dimensions, or an “iOS 27 standard”
 measurement.
 
+### Current volatile catalog adjudications
+
+The following checks were made on 2026-08-09 against the public Apple China
+storefront in a `zh-CN` context without an account:
+
+- Baidu Netdisk, China/iOS: the subscription card and in-app-purchase row both
+  list the monthly auto-renewing Super Member at CNY 25. The CNY 30 amount in
+  the developer-written description conflicts with those transaction surfaces
+  and is treated as stale descriptive copy. The CNY 25 monthly offer remains
+  `verified`: <https://apps.apple.com/cn/app/%E7%99%BE%E5%BA%A6%E7%BD%91%E7%9B%98/id547166701>.
+- Canva China, China/iOS: the in-app-purchase list supports the CNY 30 monthly
+  offer. It also lists same-named annual entries at CNY 298 and CNY 168, so the
+  annual price cannot be mapped to a unique offer and is omitted from the
+  bundled catalog; only the CNY 30 monthly offer is retained:
+  <https://apps.apple.com/cn/app/id897446215>.
+- WeChat Reading: the former CNY 228 annual candidate had no verified bundle
+  status and has been removed rather than shipped as a pending offer.
+
 ### Catalog sources requiring current market/channel verification
 
 - Anthropic: <https://support.anthropic.com/en/articles/11049762-choosing-a-claude-ai-plan>, <https://www.anthropic.com/pricing?subjects=claude&type=product>, <https://support.claude.com/en/articles/10185996-how-to-change-your-pro-plan-from-monthly-to-annual-billing>
-- Baidu Netdisk: <https://yun.baidu.com/buy/center>, <https://yun.baidu.com/disk/vipduty>
+- Baidu Netdisk web channels: <https://yun.baidu.com/buy/center>, <https://yun.baidu.com/disk/vipduty>
 - YouTube: <https://support.google.com/youtube/answer/16475192>, <https://support.google.com/youtube/answer/11417260?hl=en>
 
 The retained research supports plan or product taxonomy only where the dated
 record says so. The old Claude `$240` figure was explicitly rejected as a
-standard offer; no current Claude amount is asserted here. Baidu Netdisk
-product variants and YouTube plan types were supported historically, but their
-amounts remain unresolved without fresh first-party evidence for the exact
-market and purchase channel. The same rule applies to 88VIP, JD PLUS, Sam's
-Club, and every other offer. Historical AI-service candidate lists are
+standard offer; no current Claude amount is asserted here. Baidu Netdisk web
+prices and YouTube plan amounts remain unresolved without fresh first-party
+evidence for the exact market and purchase channel; the Baidu China/iOS finding
+above is limited to that channel. The same rule applies to 88VIP, JD PLUS,
+Sam's Club, and every other offer. Historical AI-service candidate lists are
 discovery scope only and do not authorize catalog additions.

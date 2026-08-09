@@ -778,6 +778,7 @@ public final class SubscriptionWorkspace {
     private var pendingCalendarReconciliationRequest:
         CalendarReconciliationRequest?
     private var catalogSnapshot: CatalogSnapshot?
+    private var catalogRefreshGeneration: UInt64 = 0
     private var catalogLocale = Locale.current
     private var catalogSearchQuery = ""
     private var catalogCategoryID: String?
@@ -1414,6 +1415,8 @@ public final class SubscriptionWorkspace {
         else {
             return
         }
+        catalogRefreshGeneration &+= 1
+        let refreshGeneration = catalogRefreshGeneration
 
         do {
             let persistedSnapshot = try catalogSnapshot == nil
@@ -1451,6 +1454,9 @@ public final class SubscriptionWorkspace {
             )
             refreshCatalogState()
         } catch {
+            guard refreshGeneration == catalogRefreshGeneration else {
+                return
+            }
             if let catalogSnapshot {
                 catalogDiagnostics = CatalogDiagnostics(
                     source: catalogDiagnostics?.source
@@ -1635,6 +1641,7 @@ public final class SubscriptionWorkspace {
         forecastThrough: Date? = nil
     ) -> Bool {
         editingValidationErrors = [:]
+        let scope = carriedLibraryScope
 
         do {
             guard let existing = try repository.subscription(id: id) else {
@@ -1754,7 +1761,7 @@ public final class SubscriptionWorkspace {
             try repository.updateSubscription(editedToPersist)
             markLocalChangesForSync()
             detailState = makeDetail(editedToPersist)
-            loadLibrary()
+            loadLibrary(scope: scope)
             if let forecastThrough {
                 expectedChargesRequest = ExpectedChargesRequest(
                     subscriptionID: id,
@@ -2163,6 +2170,11 @@ public final class SubscriptionWorkspace {
 
     public func reloadLibrary() {
         loadLibrary(scope: carriedLibraryScope)
+    }
+
+    public func reloadPersistedState() {
+        loadLibrary(scope: carriedLibraryScope)
+        reloadRequestedConsumers()
     }
 
     public func makeWidgetSnapshot() -> WidgetSnapshot? {

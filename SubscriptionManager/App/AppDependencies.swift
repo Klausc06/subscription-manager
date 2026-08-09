@@ -430,7 +430,7 @@ struct AppDependencies {
             {
                 syncMonitor.setWorkspaceReloadHandler { [weak workspace] in
                     await MainActor.run {
-                        workspace?.reloadLibrary()
+                        workspace?.reloadPersistedState()
                     }
                 }
             }

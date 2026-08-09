@@ -7,6 +7,7 @@ final class CloudKitLibrarySyncMonitor: LibrarySyncMonitor, @unchecked Sendable 
     private let accountStatus: @Sendable () async throws -> CKAccountStatus
     private let stateLock = NSLock()
     private var hasCompletedSync = false
+    private var hasSyncFailure = false
     private var processedEventIDs = Set<UUID>()
     private var workspaceReloadHandler: (@Sendable () async -> Void)?
     private var eventObserver: NSObjectProtocol?
@@ -49,7 +50,10 @@ final class CloudKitLibrarySyncMonitor: LibrarySyncMonitor, @unchecked Sendable 
             switch status {
             case .available:
                 return stateLock.withLock {
-                    hasCompletedSync ? .current : .synchronizing
+                    if hasSyncFailure {
+                        return .requiresAttention
+                    }
+                    return hasCompletedSync ? .current : .synchronizing
                 }
             case .noAccount:
                 return .signedOut
@@ -77,15 +81,32 @@ final class CloudKitLibrarySyncMonitor: LibrarySyncMonitor, @unchecked Sendable 
                 return nil
             }
             hasCompletedSync = true
+            hasSyncFailure = false
             return workspaceReloadHandler
         }
         await handler?()
     }
 
     func notifySuccessfulExport(id: UUID) {
+        notifySuccessfulEvent(id: id)
+    }
+
+    func notifySuccessfulSetup(id: UUID) {
+        notifySuccessfulEvent(id: id)
+    }
+
+    private func notifySuccessfulEvent(id: UUID) {
         stateLock.withLock {
             guard processedEventIDs.insert(id).inserted else { return }
             hasCompletedSync = true
+            hasSyncFailure = false
+        }
+    }
+
+    func notifyFailedEvent(id: UUID) {
+        stateLock.withLock {
+            guard processedEventIDs.insert(id).inserted else { return }
+            hasSyncFailure = true
         }
     }
 
@@ -93,9 +114,12 @@ final class CloudKitLibrarySyncMonitor: LibrarySyncMonitor, @unchecked Sendable 
         guard let event = notification.userInfo?[
             NSPersistentCloudKitContainer.eventNotificationUserInfoKey
         ] as? NSPersistentCloudKitContainer.Event,
-        event.succeeded,
         event.endDate != nil
         else {
+            return
+        }
+        guard event.succeeded else {
+            notifyFailedEvent(id: event.identifier)
             return
         }
         switch event.type {
@@ -107,7 +131,7 @@ final class CloudKitLibrarySyncMonitor: LibrarySyncMonitor, @unchecked Sendable 
         case .export:
             notifySuccessfulExport(id: event.identifier)
         case .setup:
-            break
+            notifySuccessfulSetup(id: event.identifier)
         @unknown default:
             break
         }

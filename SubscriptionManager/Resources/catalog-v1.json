@@ -1852,23 +1852,6 @@
           "sourceURL": "https://apps.apple.com/cn/app/id952059546",
           "verifiedOn": "2026-08-01",
           "reviewStatus": "verified"
-        },
-        {
-          "id": "a-wechat-reading-year-card-yearly-cn-ios",
-          "planName": {
-            "en": "Year Card",
-            "zhHans": "年卡"
-          },
-          "price": {
-            "minorUnits": 22800,
-            "currency": "CNY"
-          },
-          "billingInterval": "yearly",
-          "market": "CN",
-          "purchaseChannel": "iOS",
-          "sourceURL": "https://apps.apple.com/cn/app/id952059546",
-          "verifiedOn": "2026-08-01",
-          "reviewStatus": "reviewRequired"
         }
       ]
     },
@@ -3803,23 +3786,6 @@
             "currency": "CNY"
           },
           "billingInterval": "monthly",
-          "market": "CN",
-          "purchaseChannel": "iOS",
-          "sourceURL": "https://apps.apple.com/cn/app/id897446215",
-          "verifiedOn": "2026-08-09",
-          "reviewStatus": "verified"
-        },
-        {
-          "id": "c-canva-pro-yearly-cn-web",
-          "planName": {
-            "en": "Canva Pro",
-            "zhHans": "Canva可画专业版"
-          },
-          "price": {
-            "minorUnits": 29800,
-            "currency": "CNY"
-          },
-          "billingInterval": "yearly",
           "market": "CN",
           "purchaseChannel": "iOS",
           "sourceURL": "https://apps.apple.com/cn/app/id897446215",

@@ -903,9 +903,11 @@ struct SwiftDataSubscriptionRepositoryTests {
         }
         try context.save()
 
+        let repository = SwiftDataSubscriptionRepository(
+            modelContainer: container
+        )
         let loaded = try #require(
-            try SwiftDataSubscriptionRepository(modelContainer: container)
-                .subscription(id: subscription.id)
+            try repository.subscription(id: subscription.id)
         )
         #expect(loaded.priceChanges.count == 1)
         #expect(loaded.priceChanges.first?.amount.minorUnits == 1_100)
@@ -914,6 +916,24 @@ struct SwiftDataSubscriptionRepositoryTests {
             loaded.confirmedCharges.first?.sourceScheduledChargeID
                 == scheduledID
         )
+
+        let updatedPriceChange = PriceChange(
+            id: priceChangeID,
+            effectiveDate: subscription.confirmedNextRenewal,
+            amount: Money(minorUnits: 3_300, currency: .usd)
+        )
+        try repository.updateSubscription(
+            replacingPaymentHistory(
+                in: loaded,
+                priceChanges: [updatedPriceChange]
+            )
+        )
+
+        let reloaded = try #require(
+            try SwiftDataSubscriptionRepository(modelContainer: container)
+                .subscription(id: subscription.id)
+        )
+        #expect(reloaded.priceChanges == [updatedPriceChange])
     }
 
     @Test("A walking-skeleton record remains readable after schema expansion")

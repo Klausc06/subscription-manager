@@ -2348,7 +2348,7 @@ struct SubscriptionWorkspaceTests {
         #expect(workspace.catalogDiagnostics?.refreshStatus == .alreadyCurrent)
     }
 
-    @Test("Out-of-order catalog refresh keeps the newer response active")
+    @Test("Out-of-order catalog failure keeps the newer response active")
     @MainActor
     func refreshCatalogRejectsOutOfOrderStaleResponse() async throws {
         let bundled = catalogPresetFixture(
@@ -2427,13 +2427,13 @@ struct SubscriptionWorkspaceTests {
 
         source.release(version: 3)
         await v3Refresh.value
-        source.release(version: 2)
+        source.fail(version: 2)
         await v2Refresh.value
 
         #expect(workspace.catalogDiagnostics == CatalogDiagnostics(
             source: .cached,
             version: 3,
-            refreshStatus: .alreadyCurrent
+            refreshStatus: .updated
         ))
         #expect(workspace.catalogState == .loaded(
             categories: [CatalogCategory(
@@ -4170,6 +4170,51 @@ struct SubscriptionWorkspaceTests {
         }
         #expect(archived.map(\.id) == [archivedID])
         #expect(archived.first?.nextExpectedCharge == nil)
+    }
+
+    @Test("Editing an archived subscription preserves the archived library scope")
+    @MainActor
+    func editingArchivedSubscriptionPreservesArchivedScope() throws {
+        let subscription = makeSubscription(
+            id: UUID(
+                uuidString: "25000000-0000-0000-0000-000000000002"
+            )!,
+            lifecycle: .cancelled(
+                cancelledAt: Date(timeIntervalSince1970: 1_770_000_000),
+                accessUntil: Date(timeIntervalSince1970: 1_780_000_000)
+            ),
+            isArchived: true
+        )
+        let repository = InMemorySubscriptionRepository(
+            subscriptions: [subscription]
+        )
+        let workspace = SubscriptionWorkspace(repository: repository)
+        workspace.loadLibrary(scope: .archived)
+
+        let didSave = workspace.editSubscription(
+            id: subscription.id,
+            input: SubscriptionEditInput(
+                serviceName: "Edited archived service",
+                plan: subscription.plan,
+                category: subscription.category,
+                amount: subscription.amount(
+                    onBillingDay: subscription.confirmedNextRenewal
+                ),
+                billingSchedule: subscription.billingSchedule,
+                startDate: subscription.startDate,
+                confirmedNextRenewal: subscription.confirmedNextRenewal,
+                managementURL: subscription.managementURL,
+                notes: subscription.notes
+            )
+        )
+
+        #expect(didSave)
+        guard case .loaded(.archived, let summaries) = workspace.libraryState
+        else {
+            Issue.record("Expected the archived library scope after editing")
+            return
+        }
+        #expect(summaries.map(\.serviceName) == ["Edited archived service"])
     }
 
     @Test("Archiving refreshes the currently selected library scope")
@@ -7655,6 +7700,18 @@ private final class SuspendedCatalogUpdateSource: CatalogUpdateSource {
         pending.continuation.resume(returning: responses.removeValue(
             forKey: version
         )!)
+    }
+
+    func fail(version: Int) {
+        guard let index = pendingFetches.firstIndex(where: {
+            $0.version == version
+        }) else {
+            preconditionFailure("No suspended fetch for catalog version \(version)")
+        }
+        let pending = pendingFetches.remove(at: index)
+        pending.continuation.resume(
+            throwing: NSError(domain: "CatalogUpdateFixture", code: version)
+        )
     }
 
     private func resumeSatisfiedWaiters() {

@@ -167,9 +167,9 @@ struct AppDependenciesTests {
         #expect(reloads.value == 1)
     }
 
-    @Test("AppDependencies routes a completed remote import to workspace reload")
+    @Test("A remote import preserves archived scope and reloads requested consumers")
     @MainActor
-    func completedRemoteImportReloadsWorkspaceLibrary() async throws {
+    func completedRemoteImportReloadsArchivedWorkspaceState() async throws {
         let monitor = CloudKitLibrarySyncMonitor(
             accountStatus: { .available }
         )
@@ -188,27 +188,49 @@ struct AppDependenciesTests {
             return
         }
 
-        dependencies.workspace.loadLibrary()
-        let record = SubscriptionRecord(
+        let archivedRecord = SubscriptionRecord(
             id: UUID(
                 uuidString: "70000000-0000-4000-8000-000000000002"
             )!
         )
-        record.serviceName = "Imported remotely"
-        container.mainContext.insert(record)
+        archivedRecord.serviceName = "Before remote import"
+        archivedRecord.isArchived = true
+        let currentRecord = SubscriptionRecord(
+            id: UUID(
+                uuidString: "70000000-0000-4000-8000-000000000008"
+            )!
+        )
+        currentRecord.serviceName = "Current record"
+        container.mainContext.insert(archivedRecord)
+        container.mainContext.insert(currentRecord)
+        try container.mainContext.save()
+
+        dependencies.workspace.loadLibrary(scope: .archived)
+        dependencies.workspace.loadSubscription(id: archivedRecord.id)
+
+        archivedRecord.serviceName = "Imported remotely"
         try container.mainContext.save()
 
         await monitor.notifyRemoteImport(
             id: UUID(uuidString: "70000000-0000-4000-8000-000000000003")!
         )
 
-        guard case .loaded(_, let summaries) = dependencies.workspace.libraryState
+        guard case .loaded(.archived, let summaries) =
+            dependencies.workspace.libraryState
         else {
-            Issue.record("Expected the workspace to reload a loaded library")
+            Issue.record("Expected the workspace to retain archived scope")
             return
         }
         #expect(summaries.count == 1)
+        #expect(summaries.first?.id == archivedRecord.id)
         #expect(summaries.first?.serviceName == "Imported remotely")
+        guard case .loaded(let subscription, _, _) =
+            dependencies.workspace.detailState
+        else {
+            Issue.record("Expected the requested detail to reload")
+            return
+        }
+        #expect(subscription.serviceName == "Imported remotely")
     }
 
     @Test("A completed export becomes current without reloading")
@@ -227,6 +249,42 @@ struct AppDependenciesTests {
 
         #expect(await monitor.refreshStatus() == .current)
         #expect(reloads.value == 0)
+    }
+
+    @Test("A completed setup becomes current without reloading")
+    @MainActor
+    func completedSetupBecomesCurrentWithoutReloading() async {
+        let reloads = ReloadCounter()
+        let monitor = CloudKitLibrarySyncMonitor(
+            accountStatus: { .available },
+            onRemoteImport: { reloads.increment() }
+        )
+
+        #expect(await monitor.refreshStatus() == .synchronizing)
+        monitor.notifySuccessfulSetup(
+            id: UUID(uuidString: "70000000-0000-4000-8000-000000000005")!
+        )
+
+        #expect(await monitor.refreshStatus() == .current)
+        #expect(reloads.value == 0)
+    }
+
+    @Test("A failed terminal event requires attention until a later success")
+    @MainActor
+    func failedTerminalEventRequiresAttentionUntilSuccess() async {
+        let monitor = CloudKitLibrarySyncMonitor(
+            accountStatus: { .available }
+        )
+
+        monitor.notifyFailedEvent(
+            id: UUID(uuidString: "70000000-0000-4000-8000-000000000006")!
+        )
+        #expect(await monitor.refreshStatus() == .requiresAttention)
+
+        monitor.notifySuccessfulExport(
+            id: UUID(uuidString: "70000000-0000-4000-8000-000000000007")!
+        )
+        #expect(await monitor.refreshStatus() == .current)
     }
 
     @Test("Calendar projection mappings use a local-only model configuration")

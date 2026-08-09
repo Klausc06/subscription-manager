@@ -37,13 +37,14 @@ struct BundledCatalogRepositoryTests {
         })
     }
 
-    @Test("Bundled catalog offers have positive amounts and complete money intervals")
+    @Test("Bundled catalog contains only verified offers with complete prices")
     @MainActor
-    func bundledCatalogOffersHaveCompleteMoneyIntervals() throws {
+    func bundledCatalogOffersAreVerifiedAndHaveCompletePrices() throws {
         let snapshot = try BundledCatalogRepository().loadSnapshot()
         let offers = snapshot.presets.flatMap(\.offers)
 
-        #expect(offers.count == 192)
+        #expect(offers.count == 190)
+        #expect(offers.allSatisfy { $0.reviewStatus == .verified })
         #expect(offers.allSatisfy { offer in
             offer.price.minorUnits > 0
                 && !offer.price.currency.rawValue.isEmpty
@@ -88,7 +89,6 @@ struct BundledCatalogRepositoryTests {
             "tencent-video|a-tencent-video-vip-monthly-cn-ios": 2_500,
             "baidu-netdisk|b-baidu-netdisk-svip-monthly-cn-ios": 2_500,
             "canva-china|c-canva-pro-monthly-cn-web": 3_000,
-            "canva-china|c-canva-pro-yearly-cn-web": 29_800,
             "youtube-premium|youtube-premium-individual-monthly-us-web": 1_599,
             "youtube-premium|youtube-premium-family-monthly-us-web": 2_699,
             "youtube-premium|youtube-premium-student-monthly-us-web": 899,
