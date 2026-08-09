@@ -7,12 +7,15 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		06FA47DA3EFD3D21838EC875 /* SubscriptionDraftTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 48E3B17F5393CC846EF0E1CF /* SubscriptionDraftTests.swift */; };
 		07BD717C844F32E7282360A2 /* SubscriptionLookupTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3ED395A87C6661BAAA9E98BB /* SubscriptionLookupTests.swift */; };
 		08A4E57068D41F3F857F3327 /* SubscriptionCore in Frameworks */ = {isa = PBXBuildFile; productRef = 2EE7A221C94060E2B403FAB3 /* SubscriptionCore */; };
 		097A44BB974631E88BE97758 /* CatalogOfferSelectionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = DBD964E5A45925EC35E3893B /* CatalogOfferSelectionTests.swift */; };
 		0B04FE82A821F3CEA01F23B7 /* PortableExportView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 164F6C4095D2303AF7680828 /* PortableExportView.swift */; };
 		0E185A93103BA6D997423247 /* SubscriptionIntentService.swift in Sources */ = {isa = PBXBuildFile; fileRef = CD9C6628BCAE93A6DD412A1A /* SubscriptionIntentService.swift */; };
+		0E86AD379625F773C972EC38 /* BillingDateTaskView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 44AE796EC987FE00823AEFD4 /* BillingDateTaskView.swift */; };
 		1542C108546F4227953D1C2E /* BundledCatalogRepositoryTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E8E32D343532C15910A82133 /* BundledCatalogRepositoryTests.swift */; };
+		1F05DF1DF4A0CE6BF63B6C89 /* RecoveryLocalizationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 05B1EBC56F8861DB98D10F90 /* RecoveryLocalizationTests.swift */; };
 		236AEB231AC8952E646F449C /* MacMenuBarPresentation.swift in Sources */ = {isa = PBXBuildFile; fileRef = B59E02688F86D67614CE694A /* MacMenuBarPresentation.swift */; };
 		28984F46B98D36A9E90C9FE2 /* Localizable.xcstrings in Resources */ = {isa = PBXBuildFile; fileRef = C0A423C4110A0F526EE23D14 /* Localizable.xcstrings */; };
 		289E4CBB05784C2181F2A79F /* MacWindowRouterTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3220F13255F0E1FBFAE282B1 /* MacWindowRouterTests.swift */; };
@@ -23,17 +26,18 @@
 		44CD78EEA1938E991A1C14E0 /* SubscriptionIntents.swift in Sources */ = {isa = PBXBuildFile; fileRef = 53F413C34F01EE96E98A703B /* SubscriptionIntents.swift */; };
 		4A33B8E2AB570E0350B57B34 /* SubscriptionManagerWidget.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 66E23744D45A7495B51097E2 /* SubscriptionManagerWidget.appex */; platformFilter = ios; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		4C12D90EEC1CC642D35E22A2 /* SubscriptionDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6F7965D45867F28DAFB96A5D /* SubscriptionDetailView.swift */; };
+		4F36DC430DC28369E276D6B9 /* ConfirmChargeEligibilityTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B0198E5B371AFE2C54EAD5CD /* ConfirmChargeEligibilityTests.swift */; };
 		5138A3C0873B818E437C9E73 /* BillingScheduleSupportTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 281DD0B72B27FD70F009F38A /* BillingScheduleSupportTests.swift */; };
 		51B20289CC5385F1DFDA4536 /* CATALOG_METADATA_LICENSE.md in Resources */ = {isa = PBXBuildFile; fileRef = CF73BE31E7CBFDDF0AED3F4F /* CATALOG_METADATA_LICENSE.md */; };
 		54723BACD6E59DC50EEFDCED /* SwiftDataSubscriptionRepository.swift in Sources */ = {isa = PBXBuildFile; fileRef = 58208DD28479A9E167C08113 /* SwiftDataSubscriptionRepository.swift */; };
 		573D19E1A08508BA1865924A /* EventKitCalendarProjectionImporter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0842A2D743C1E14345B79D96 /* EventKitCalendarProjectionImporter.swift */; };
+		58B72352085815D9533B35D4 /* SubscriptionDraft.swift in Sources */ = {isa = PBXBuildFile; fileRef = F739FEA6F1795C611154165F /* SubscriptionDraft.swift */; };
 		5A00649C395B2B471599C013 /* RecordCancellationView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 53CF076D96FF1C31ED7EC2A2 /* RecordCancellationView.swift */; };
 		5EFACBCB58F5A772FF61FF4B /* SubscriptionManagerApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 03DFA150363397FA01C93872 /* SubscriptionManagerApp.swift */; };
 		626F0533A4DF2230483BA384 /* CatalogAlphabetIndexTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 05BBB5AC4394BF7E865300C5 /* CatalogAlphabetIndexTests.swift */; };
 		665528E003EC11A9189C1B7D /* InfoPlist.xcstrings in Resources */ = {isa = PBXBuildFile; fileRef = 4D90D49FB3AEDF62EFA48202 /* InfoPlist.xcstrings */; };
 		6660C4236F0802CD6EA713D1 /* MoneyFormatting.swift in Sources */ = {isa = PBXBuildFile; fileRef = C3C019FF49A9B77C9987C82B /* MoneyFormatting.swift */; };
 		71D3C438264BA1B8C68FE357 /* SubscriptionFormSupport.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2CAE4BF38A7217C53E4C047F /* SubscriptionFormSupport.swift */; };
-		73C2C4432A240F796882FCD9 /* SubscriptionCore in Frameworks */ = {isa = PBXBuildFile; productRef = 30FD0B5354BE8274C66402A8 /* SubscriptionCore */; };
 		73E4D9C5EAE129D2A72C26FC /* FileCatalogCache.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5B719388CA82311FED0FEB46 /* FileCatalogCache.swift */; };
 		7C34EDA2D016C0D45A4E6D05 /* SubscriptionAppEntity.swift in Sources */ = {isa = PBXBuildFile; fileRef = 828D5E066B7CE82218F88BFF /* SubscriptionAppEntity.swift */; };
 		82667428542FCEE4B628F595 /* CatalogOfferSelection.swift in Sources */ = {isa = PBXBuildFile; fileRef = FC8A2E38EC05A9DE6A60E28B /* CatalogOfferSelection.swift */; };
@@ -43,9 +47,6 @@
 		8E78AFCD49FF2D2EEBC82BEE /* EventKitCalendarProjectionImporterTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0ADA9475AF293852B7FA737C /* EventKitCalendarProjectionImporterTests.swift */; };
 		8EA7BB43625DAD67A72EDBA4 /* SubscriptionIntentServiceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4BB3CC1FBA7074325EA61DC3 /* SubscriptionIntentServiceTests.swift */; };
 		95DD1A1B26E3AC5313818053 /* AddSubscriptionView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3E375325DBD112A5F485EF3F /* AddSubscriptionView.swift */; };
-		A1B2C3D4E5F60718293A4B5C /* ConfirmChargeEligibility.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F60718293A4B5D /* ConfirmChargeEligibility.swift */; };
-		A1F0E201F0E201F0E201F0E2 /* RecoveryLocalizationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1F0E202F0E201F0E201F0E2 /* RecoveryLocalizationTests.swift */; };
-		1A2B3C4D5E6F708192A3B4C5 /* BillingDateTaskView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A2B3C4D5E6F708192A3B4C6 /* BillingDateTaskView.swift */; };
 		964962A62D11B3CCB4389E47 /* SubscriptionManagerWidget.swift in Sources */ = {isa = PBXBuildFile; fileRef = 53D835B74581775DBE9B5313 /* SubscriptionManagerWidget.swift */; };
 		9C86757EC90F9573E7228788 /* Localizable.xcstrings in Resources */ = {isa = PBXBuildFile; fileRef = 0AB60CE097AABC95DB396296 /* Localizable.xcstrings */; };
 		A105480E30F53C6D44A30A8F /* BillingScheduleSupport.swift in Sources */ = {isa = PBXBuildFile; fileRef = 54AE7D1E07F1BF787F9E1BEF /* BillingScheduleSupport.swift */; };
@@ -63,14 +64,12 @@
 		D32F728952DAC6B8747123D8 /* MacMenuBarSupport.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D36CEA8D99EFB69ED4ED3A3 /* MacMenuBarSupport.swift */; };
 		D5FE413ECB49E303A5EE9F07 /* catalog-v1.json in Resources */ = {isa = PBXBuildFile; fileRef = 1DB077A74E0C9E4C7BB81F81 /* catalog-v1.json */; };
 		DEC01EB4E532BAC0F3359C00 /* PortableRestoreView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3D462734DE864FE8B34F0EFE /* PortableRestoreView.swift */; };
+		E1796CF7DD72261483D257B8 /* SubscriptionEditorSections.swift in Sources */ = {isa = PBXBuildFile; fileRef = 716C3B7A12BEED2F9CBF22B0 /* SubscriptionEditorSections.swift */; };
 		E3EC37D5EF593651F866C788 /* SubscriptionRow.swift in Sources */ = {isa = PBXBuildFile; fileRef = F24364E7E6897202F27AAE1B /* SubscriptionRow.swift */; };
-		E7A1C7B8D4B34FA8A9C4D301 /* SubscriptionDraft.swift in Sources */ = {isa = PBXBuildFile; fileRef = E7A1C7B8D4B34FA8A9C4D302 /* SubscriptionDraft.swift */; };
 		F227D20F28F63E3A1A7D0681 /* SubscriptionManagerUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4C522F69323C0F092E76973D /* SubscriptionManagerUITests.swift */; };
+		F3C7A4E4041F38C489F6149B /* ConfirmChargeEligibility.swift in Sources */ = {isa = PBXBuildFile; fileRef = 74A6765C46714FF6898D0D68 /* ConfirmChargeEligibility.swift */; };
 		F67C63EB88D910146E613A1A /* ManagementURLValidationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A40A43B15F2DC8026034E7B6 /* ManagementURLValidationTests.swift */; };
-		A1B2C3D4E5F60718293A4B5E /* ConfirmChargeEligibilityTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F60718293A4B5F /* ConfirmChargeEligibilityTests.swift */; };
-		2A3B4C5D6E7F8091A2B3C4D5 /* SubscriptionEditorSections.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2A3B4C5D6E7F8091A2B3C4D6 /* SubscriptionEditorSections.swift */; };
 		FE9D2A03AAAF24FCBDC2CEA0 /* AppDependenciesTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 178B2F8071F3AA4EEB4EF445 /* AppDependenciesTests.swift */; };
-		E7A1C7B8D4B34FA8A9C4D303 /* SubscriptionDraftTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E7A1C7B8D4B34FA8A9C4D304 /* SubscriptionDraftTests.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -113,6 +112,7 @@
 
 /* Begin PBXFileReference section */
 		03DFA150363397FA01C93872 /* SubscriptionManagerApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SubscriptionManagerApp.swift; sourceTree = "<group>"; };
+		05B1EBC56F8861DB98D10F90 /* RecoveryLocalizationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecoveryLocalizationTests.swift; sourceTree = "<group>"; };
 		05BBB5AC4394BF7E865300C5 /* CatalogAlphabetIndexTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CatalogAlphabetIndexTests.swift; sourceTree = "<group>"; };
 		0842A2D743C1E14345B79D96 /* EventKitCalendarProjectionImporter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EventKitCalendarProjectionImporter.swift; sourceTree = "<group>"; };
 		0AB60CE097AABC95DB396296 /* Localizable.xcstrings */ = {isa = PBXFileReference; lastKnownFileType = text.json.xcstrings; path = Localizable.xcstrings; sourceTree = "<group>"; };
@@ -123,22 +123,19 @@
 		178B2F8071F3AA4EEB4EF445 /* AppDependenciesTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDependenciesTests.swift; sourceTree = "<group>"; };
 		1D36CEA8D99EFB69ED4ED3A3 /* MacMenuBarSupport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MacMenuBarSupport.swift; sourceTree = "<group>"; };
 		1D994A995E43724CEF005FA7 /* MoneyFormattingTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MoneyFormattingTests.swift; sourceTree = "<group>"; };
-		2A3B4C5D6E7F8091A2B3C4D6 /* SubscriptionEditorSections.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SubscriptionEditorSections.swift; sourceTree = "<group>"; };
 		1DB077A74E0C9E4C7BB81F81 /* catalog-v1.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = "catalog-v1.json"; sourceTree = "<group>"; };
 		281DD0B72B27FD70F009F38A /* BillingScheduleSupportTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BillingScheduleSupportTests.swift; sourceTree = "<group>"; };
 		2CAE4BF38A7217C53E4C047F /* SubscriptionFormSupport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SubscriptionFormSupport.swift; sourceTree = "<group>"; };
 		3220F13255F0E1FBFAE282B1 /* MacWindowRouterTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MacWindowRouterTests.swift; sourceTree = "<group>"; };
 		33F67B88372C24F8FA06E7F1 /* EditSubscriptionView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EditSubscriptionView.swift; sourceTree = "<group>"; };
-		1A2B3C4D5E6F708192A3B4C6 /* BillingDateTaskView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BillingDateTaskView.swift; sourceTree = "<group>"; };
 		3D462734DE864FE8B34F0EFE /* PortableRestoreView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PortableRestoreView.swift; sourceTree = "<group>"; };
 		3E375325DBD112A5F485EF3F /* AddSubscriptionView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AddSubscriptionView.swift; sourceTree = "<group>"; };
 		3ED395A87C6661BAAA9E98BB /* SubscriptionLookupTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SubscriptionLookupTests.swift; sourceTree = "<group>"; };
 		417B504B82A0927D26DDDB31 /* SubscriptionManagerUITests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = SubscriptionManagerUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		433C5876A0B42C2F728CB2BA /* ConfirmChargeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConfirmChargeView.swift; sourceTree = "<group>"; };
-		A1B2C3D4E5F60718293A4B5D /* ConfirmChargeEligibility.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConfirmChargeEligibility.swift; sourceTree = "<group>"; };
+		44AE796EC987FE00823AEFD4 /* BillingDateTaskView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BillingDateTaskView.swift; sourceTree = "<group>"; };
+		48E3B17F5393CC846EF0E1CF /* SubscriptionDraftTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SubscriptionDraftTests.swift; sourceTree = "<group>"; };
 		4BB3CC1FBA7074325EA61DC3 /* SubscriptionIntentServiceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SubscriptionIntentServiceTests.swift; sourceTree = "<group>"; };
-		A1B2C3D4E5F60718293A4B5F /* ConfirmChargeEligibilityTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConfirmChargeEligibilityTests.swift; sourceTree = "<group>"; };
-		A1F0E202F0E201F0E201F0E2 /* RecoveryLocalizationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecoveryLocalizationTests.swift; sourceTree = "<group>"; };
 		4C0A8035198E253EFD0921C9 /* SubscriptionLifecycleSupport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SubscriptionLifecycleSupport.swift; sourceTree = "<group>"; };
 		4C522F69323C0F092E76973D /* SubscriptionManagerUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SubscriptionManagerUITests.swift; sourceTree = "<group>"; };
 		4C641E399B272135737B7EF9 /* CloudKitLibrarySyncMonitor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CloudKitLibrarySyncMonitor.swift; sourceTree = "<group>"; };
@@ -154,6 +151,8 @@
 		66E23744D45A7495B51097E2 /* SubscriptionManagerWidget.appex */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = "wrapper.app-extension"; path = SubscriptionManagerWidget.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		6F44B60853F624BFCF8B2F53 /* SwiftDataSubscriptionRepositoryTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SwiftDataSubscriptionRepositoryTests.swift; sourceTree = "<group>"; };
 		6F7965D45867F28DAFB96A5D /* SubscriptionDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SubscriptionDetailView.swift; sourceTree = "<group>"; };
+		716C3B7A12BEED2F9CBF22B0 /* SubscriptionEditorSections.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SubscriptionEditorSections.swift; sourceTree = "<group>"; };
+		74A6765C46714FF6898D0D68 /* ConfirmChargeEligibility.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConfirmChargeEligibility.swift; sourceTree = "<group>"; };
 		80BE4889FA614AABADFAC968 /* SubscriptionManager.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = SubscriptionManager.entitlements; sourceTree = "<group>"; };
 		828D5E066B7CE82218F88BFF /* SubscriptionAppEntity.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SubscriptionAppEntity.swift; sourceTree = "<group>"; };
 		8D1784DAF6D526C287B9B8CF /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
@@ -163,6 +162,7 @@
 		A51067E214337D512DCE7E15 /* SubscriptionManager.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = SubscriptionManager.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		A93524FB8A11100D270A0930 /* ReactivateSubscriptionView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReactivateSubscriptionView.swift; sourceTree = "<group>"; };
 		AF747C52A83452ED127F1113 /* CatalogAlphabetIndex.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CatalogAlphabetIndex.swift; sourceTree = "<group>"; };
+		B0198E5B371AFE2C54EAD5CD /* ConfirmChargeEligibilityTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConfirmChargeEligibilityTests.swift; sourceTree = "<group>"; };
 		B59E02688F86D67614CE694A /* MacMenuBarPresentation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MacMenuBarPresentation.swift; sourceTree = "<group>"; };
 		BC563C5D4CFE9FE1F0148C35 /* SubscriptionCore */ = {isa = PBXFileReference; lastKnownFileType = folder; name = SubscriptionCore; path = Packages/SubscriptionCore; sourceTree = SOURCE_ROOT; };
 		BF78C8D1470F9E0A4F09112F /* WidgetSnapshotPublisher.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WidgetSnapshotPublisher.swift; sourceTree = "<group>"; };
@@ -174,24 +174,15 @@
 		CF73BE31E7CBFDDF0AED3F4F /* CATALOG_METADATA_LICENSE.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = CATALOG_METADATA_LICENSE.md; sourceTree = "<group>"; };
 		DBD964E5A45925EC35E3893B /* CatalogOfferSelectionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CatalogOfferSelectionTests.swift; sourceTree = "<group>"; };
 		E06ED39F4F3A5F168380926E /* GitHubCatalogUpdateSource.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GitHubCatalogUpdateSource.swift; sourceTree = "<group>"; };
-		E7A1C7B8D4B34FA8A9C4D302 /* SubscriptionDraft.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SubscriptionDraft.swift; sourceTree = "<group>"; };
-		E7A1C7B8D4B34FA8A9C4D304 /* SubscriptionDraftTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SubscriptionDraftTests.swift; sourceTree = "<group>"; };
 		E8E32D343532C15910A82133 /* BundledCatalogRepositoryTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BundledCatalogRepositoryTests.swift; sourceTree = "<group>"; };
 		F24364E7E6897202F27AAE1B /* SubscriptionRow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SubscriptionRow.swift; sourceTree = "<group>"; };
 		F6158744F9B1B175056E79CA /* BundledCatalogRepository.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BundledCatalogRepository.swift; sourceTree = "<group>"; };
+		F739FEA6F1795C611154165F /* SubscriptionDraft.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SubscriptionDraft.swift; sourceTree = "<group>"; };
 		F97E335435D4B5871F1A384F /* MacMenuBarPresentationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MacMenuBarPresentationTests.swift; sourceTree = "<group>"; };
 		FC8A2E38EC05A9DE6A60E28B /* CatalogOfferSelection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CatalogOfferSelection.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
-		283069763F899FC288C5E9BD /* Frameworks */ = {
-			isa = PBXFrameworksBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-				73C2C4432A240F796882FCD9 /* SubscriptionCore in Frameworks */,
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-		};
 		4C42055694A559E7BEC3B2B6 /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
@@ -293,11 +284,11 @@
 			isa = PBXGroup;
 			children = (
 				3E375325DBD112A5F485EF3F /* AddSubscriptionView.swift */,
-				1A2B3C4D5E6F708192A3B4C6 /* BillingDateTaskView.swift */,
+				44AE796EC987FE00823AEFD4 /* BillingDateTaskView.swift */,
 				54AE7D1E07F1BF787F9E1BEF /* BillingScheduleSupport.swift */,
 				C0EAF91956261FDFF4C91AAD /* CalendarProjectionView.swift */,
+				74A6765C46714FF6898D0D68 /* ConfirmChargeEligibility.swift */,
 				433C5876A0B42C2F728CB2BA /* ConfirmChargeView.swift */,
-				A1B2C3D4E5F60718293A4B5D /* ConfirmChargeEligibility.swift */,
 				33F67B88372C24F8FA06E7F1 /* EditSubscriptionView.swift */,
 				15EA34A86C81D0560BC4A8A0 /* LibraryView.swift */,
 				C3C019FF49A9B77C9987C82B /* MoneyFormatting.swift */,
@@ -306,8 +297,8 @@
 				A93524FB8A11100D270A0930 /* ReactivateSubscriptionView.swift */,
 				53CF076D96FF1C31ED7EC2A2 /* RecordCancellationView.swift */,
 				6F7965D45867F28DAFB96A5D /* SubscriptionDetailView.swift */,
-				E7A1C7B8D4B34FA8A9C4D302 /* SubscriptionDraft.swift */,
-				2A3B4C5D6E7F8091A2B3C4D6 /* SubscriptionEditorSections.swift */,
+				F739FEA6F1795C611154165F /* SubscriptionDraft.swift */,
+				716C3B7A12BEED2F9CBF22B0 /* SubscriptionEditorSections.swift */,
 				2CAE4BF38A7217C53E4C047F /* SubscriptionFormSupport.swift */,
 				4C0A8035198E253EFD0921C9 /* SubscriptionLifecycleSupport.swift */,
 				F24364E7E6897202F27AAE1B /* SubscriptionRow.swift */,
@@ -342,14 +333,14 @@
 				E8E32D343532C15910A82133 /* BundledCatalogRepositoryTests.swift */,
 				05BBB5AC4394BF7E865300C5 /* CatalogAlphabetIndexTests.swift */,
 				DBD964E5A45925EC35E3893B /* CatalogOfferSelectionTests.swift */,
-				A1B2C3D4E5F60718293A4B5F /* ConfirmChargeEligibilityTests.swift */,
+				B0198E5B371AFE2C54EAD5CD /* ConfirmChargeEligibilityTests.swift */,
 				0ADA9475AF293852B7FA737C /* EventKitCalendarProjectionImporterTests.swift */,
 				F97E335435D4B5871F1A384F /* MacMenuBarPresentationTests.swift */,
 				3220F13255F0E1FBFAE282B1 /* MacWindowRouterTests.swift */,
 				A40A43B15F2DC8026034E7B6 /* ManagementURLValidationTests.swift */,
 				1D994A995E43724CEF005FA7 /* MoneyFormattingTests.swift */,
-				A1F0E202F0E201F0E201F0E2 /* RecoveryLocalizationTests.swift */,
-				E7A1C7B8D4B34FA8A9C4D304 /* SubscriptionDraftTests.swift */,
+				05B1EBC56F8861DB98D10F90 /* RecoveryLocalizationTests.swift */,
+				48E3B17F5393CC846EF0E1CF /* SubscriptionDraftTests.swift */,
 				4BB3CC1FBA7074325EA61DC3 /* SubscriptionIntentServiceTests.swift */,
 				3ED395A87C6661BAAA9E98BB /* SubscriptionLookupTests.swift */,
 				6F44B60853F624BFCF8B2F53 /* SwiftDataSubscriptionRepositoryTests.swift */,
@@ -448,7 +439,6 @@
 			buildConfigurationList = 57181758D9D60D941937DCFC /* Build configuration list for PBXNativeTarget "SubscriptionManagerTests" */;
 			buildPhases = (
 				B8726DBC44A1417F0E5B276B /* Sources */,
-				283069763F899FC288C5E9BD /* Frameworks */,
 			);
 			buildRules = (
 			);
@@ -457,7 +447,6 @@
 			);
 			name = SubscriptionManagerTests;
 			packageProductDependencies = (
-				30FD0B5354BE8274C66402A8 /* SubscriptionCore */,
 			);
 			productName = SubscriptionManagerTests;
 			productReference = 99D687DDF8D151CB8B4AB595 /* SubscriptionManagerTests.xctest */;
@@ -557,8 +546,8 @@
 			buildActionMask = 2147483647;
 			files = (
 				95DD1A1B26E3AC5313818053 /* AddSubscriptionView.swift in Sources */,
-				1A2B3C4D5E6F708192A3B4C5 /* BillingDateTaskView.swift in Sources */,
 				8BDFDA89FC3799D7A394A305 /* AppDependencies.swift in Sources */,
+				0E86AD379625F773C972EC38 /* BillingDateTaskView.swift in Sources */,
 				A105480E30F53C6D44A30A8F /* BillingScheduleSupport.swift in Sources */,
 				B3BF2675BDDE0A05AF595127 /* BundledCatalogRepository.swift in Sources */,
 				D0321047EAB970503FB76AD5 /* CalendarProjectionView.swift in Sources */,
@@ -566,8 +555,8 @@
 				A66C78E13D3580B57945C076 /* CatalogBrowserView.swift in Sources */,
 				82667428542FCEE4B628F595 /* CatalogOfferSelection.swift in Sources */,
 				401275AD1970EE4B07820785 /* CloudKitLibrarySyncMonitor.swift in Sources */,
+				F3C7A4E4041F38C489F6149B /* ConfirmChargeEligibility.swift in Sources */,
 				410E3FCE6503EF3C58F48873 /* ConfirmChargeView.swift in Sources */,
-				A1B2C3D4E5F60718293A4B5C /* ConfirmChargeEligibility.swift in Sources */,
 				CF6E7CA71A3B6B192FC10E3D /* EditSubscriptionView.swift in Sources */,
 				573D19E1A08508BA1865924A /* EventKitCalendarProjectionImporter.swift in Sources */,
 				73E4D9C5EAE129D2A72C26FC /* FileCatalogCache.swift in Sources */,
@@ -582,8 +571,8 @@
 				5A00649C395B2B471599C013 /* RecordCancellationView.swift in Sources */,
 				7C34EDA2D016C0D45A4E6D05 /* SubscriptionAppEntity.swift in Sources */,
 				4C12D90EEC1CC642D35E22A2 /* SubscriptionDetailView.swift in Sources */,
-				E7A1C7B8D4B34FA8A9C4D301 /* SubscriptionDraft.swift in Sources */,
-				2A3B4C5D6E7F8091A2B3C4D5 /* SubscriptionEditorSections.swift in Sources */,
+				58B72352085815D9533B35D4 /* SubscriptionDraft.swift in Sources */,
+				E1796CF7DD72261483D257B8 /* SubscriptionEditorSections.swift in Sources */,
 				71D3C438264BA1B8C68FE357 /* SubscriptionFormSupport.swift in Sources */,
 				0E185A93103BA6D997423247 /* SubscriptionIntentService.swift in Sources */,
 				44CD78EEA1938E991A1C14E0 /* SubscriptionIntents.swift in Sources */,
@@ -613,17 +602,17 @@
 				1542C108546F4227953D1C2E /* BundledCatalogRepositoryTests.swift in Sources */,
 				626F0533A4DF2230483BA384 /* CatalogAlphabetIndexTests.swift in Sources */,
 				097A44BB974631E88BE97758 /* CatalogOfferSelectionTests.swift in Sources */,
+				4F36DC430DC28369E276D6B9 /* ConfirmChargeEligibilityTests.swift in Sources */,
 				8E78AFCD49FF2D2EEBC82BEE /* EventKitCalendarProjectionImporterTests.swift in Sources */,
 				396F89532A0E8717BA33BD50 /* MacMenuBarPresentationTests.swift in Sources */,
 				289E4CBB05784C2181F2A79F /* MacWindowRouterTests.swift in Sources */,
 				F67C63EB88D910146E613A1A /* ManagementURLValidationTests.swift in Sources */,
 				CD2E291B88ADA438114AEA63 /* MoneyFormattingTests.swift in Sources */,
-				E7A1C7B8D4B34FA8A9C4D303 /* SubscriptionDraftTests.swift in Sources */,
+				1F05DF1DF4A0CE6BF63B6C89 /* RecoveryLocalizationTests.swift in Sources */,
+				06FA47DA3EFD3D21838EC875 /* SubscriptionDraftTests.swift in Sources */,
 				8EA7BB43625DAD67A72EDBA4 /* SubscriptionIntentServiceTests.swift in Sources */,
 				07BD717C844F32E7282360A2 /* SubscriptionLookupTests.swift in Sources */,
 				C90E83DF13A2B2073C083FBF /* SwiftDataSubscriptionRepositoryTests.swift in Sources */,
-				A1B2C3D4E5F60718293A4B5E /* ConfirmChargeEligibilityTests.swift in Sources */,
-				A1F0E201F0E201F0E201F0E2 /* RecoveryLocalizationTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -803,6 +792,7 @@
 					"@executable_path/Frameworks",
 					"@loader_path/Frameworks",
 				);
+				LM_SKIP_METADATA_EXTRACTION = YES;
 				PRODUCT_BUNDLE_IDENTIFIER = com.klausc06.SubscriptionManagerUITests;
 				SDKROOT = auto;
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
@@ -931,6 +921,7 @@
 					"@executable_path/Frameworks",
 					"@loader_path/Frameworks",
 				);
+				LM_SKIP_METADATA_EXTRACTION = YES;
 				PRODUCT_BUNDLE_IDENTIFIER = com.klausc06.SubscriptionManagerUITests;
 				SDKROOT = auto;
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
@@ -1027,10 +1018,6 @@
 
 /* Begin XCSwiftPackageProductDependency section */
 		2EE7A221C94060E2B403FAB3 /* SubscriptionCore */ = {
-			isa = XCSwiftPackageProductDependency;
-			productName = SubscriptionCore;
-		};
-		30FD0B5354BE8274C66402A8 /* SubscriptionCore */ = {
 			isa = XCSwiftPackageProductDependency;
 			productName = SubscriptionCore;
 		};

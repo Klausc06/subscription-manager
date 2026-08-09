@@ -135,8 +135,11 @@ struct PortableExportTests {
         )
         let numericDate = "1704067200"
         let legacyDate = "\"2024-01-01T00:00:00Z\""
+        let encodedBackup = try #require(
+            String(data: data, encoding: .utf8)
+        )
         let legacyData = Data(
-            String(decoding: data, as: UTF8.self)
+            encodedBackup
                 .replacingOccurrences(of: numericDate, with: legacyDate)
                 .utf8
         )

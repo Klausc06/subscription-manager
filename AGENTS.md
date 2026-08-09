@@ -1,45 +1,46 @@
-# Repository Agent Guide
+# Subscription Manager
+
+Tracks personal subscriptions. The subscription library is authoritative; Calendar is a projection of that library.
+
+## Reads
+
+- Product boundary → `docs/product-goal.md`
+- Domain terms → `CONTEXT.md` when editing domain behavior
+- Architecture → matching file in `docs/adr/` when changing structure
+- Evidence → `docs/evidence-index.md` for catalog, price, market, channel, or eligibility claims
+- Ship flow → `docs/agents/production-flow.md` for intake through remote verification
+
+## Commands
+
+- Core behavior: `swift test --package-path Packages/SubscriptionCore`
+- App / UI / adapters:
+  ```sh
+  xcodebuild \
+    -project SubscriptionManager.xcodeproj \
+    -scheme SubscriptionManager \
+    -destination 'platform=iOS Simulator,name=iPhone 17 Pro,OS=latest' \
+    test
+  ```
+
+## Work
+
+- Choose the simplest complete native solution that best achieves the approved product outcome.
+- One requirement at a time.
+- Treat catalog facts as verified only with current primary-source evidence.
+- Keep catalog selections editable; route UI to persistence and EventKit through `SubscriptionWorkspace`.
+- Ask before push.
+
+## Verification (before done)
+
+Report each item with evidence, or mark it open:
+
+1. Requirement / issue under change identified
+2. Matching tests run (`SubscriptionCore` and/or app suite as appropriate) with output cited
+3. Catalog or schedule claims tied to current evidence rules when touched
+4. Touched paths listed; push only after explicit approval
 
 ## Agent skills
 
-### Issue tracker
-
-Issues and PRDs are tracked in GitHub Issues. See `docs/agents/issue-tracker.md`.
-
-### Triage labels
-
-Use the two category labels and five default triage-state labels. See
-`docs/agents/triage-labels.md`.
-
-### Domain docs
-
-This is a single-context repository. See `docs/agents/domain.md`.
-
-### Product and evidence
-
-- `docs/product-goal.md` is the current product boundary.
-- `CONTEXT.md` defines canonical domain terms and invariants.
-- `docs/adr/` records durable technical decisions.
-- `docs/evidence-index.md` identifies current source authority and retained
-  historical evidence.
-
-## Product execution guardrails
-
-- Before every plan or change, state in one sentence which user step it removes or what direct value it adds.
-- Over-design is the first gate: when the existing structure can deliver it, do not add pages, state, abstractions, caches, or explanation layers.
-- Follow `docs/product-goal.md`; historical research and completion claims do
-  not authorize new product behavior.
-- Never turn an unknown catalog fact into a verified fact. Volatile price,
-  market, channel, or eligibility claims require current primary-source
-  evidence as defined in `docs/evidence-index.md`.
-- Keep catalog selections editable and never attach an alias to the wrong
-  service identity merely to produce a match.
-- Work on one requirement at a time. Do not expand scope opportunistically.
-- Do not push without the user's explicit authorization in the current turn.
-
-## Production workflow
-
-`docs/agents/production-flow.md` is binding and owns intake, issue routing,
-implementation, review, commit, and remote-verification procedure.
-`docs/agents/issue-tracker.md` owns GitHub task authority and authorization
-boundaries.
+- Issue tracker → `docs/agents/issue-tracker.md`
+- Triage labels → `docs/agents/triage-labels.md`
+- Domain docs → `docs/agents/domain.md`

@@ -4087,6 +4087,387 @@ struct SubscriptionWorkspaceTests {
         #expect(workspace.libraryState == .empty(.current))
     }
 
+    @Test("Remote import reloads synced preferences before requested consumers")
+    @MainActor
+    func remoteImportReloadsSyncedPreferencesBeforeRequestedConsumers() async throws {
+        let calendar = utcCalendar()
+        let now = try actionDate(
+            year: 2026,
+            month: 1,
+            day: 15,
+            hour: 12,
+            calendar: calendar
+        )
+        let renewal = try actionDate(
+            year: 2026,
+            month: 2,
+            day: 1,
+            hour: 12,
+            calendar: calendar
+        )
+        let preferences = CalendarPreferencesFixture(
+            preferences: UserPreferences(
+                primaryCurrency: .cny,
+                calendarProjectionHorizon: .twelveMonths,
+                hideAmountsInCalendar: false,
+                setupStatus: .completed
+            )
+        )
+        let subscriptionID = try #require(
+            UUID(
+                uuidString: "41000000-0000-4000-8000-000000000001"
+            )
+        )
+        let workspace = SubscriptionWorkspace(
+            repository: InMemorySubscriptionRepository(
+                subscriptions: [
+                    makeSubscription(
+                        id: subscriptionID,
+                        billingSchedule: FixedBillingSchedule(
+                            interval: .monthly,
+                            renewalAnchor: renewal,
+                            timeZoneIdentifier: "UTC"
+                        ),
+                        confirmedNextRenewal: renewal,
+                        originalAmount: Money(
+                            minorUnits: 1_299,
+                            currency: .usd
+                        )
+                    ),
+                ]
+            ),
+            preferencesRepository: preferences,
+            now: { now },
+            calendar: calendar
+        )
+        workspace.loadLibrary()
+        workspace.loadSetup(libraryIsEmpty: false)
+        #expect(
+            workspace.loadCalendarProjection(
+                locale: Locale(identifier: "en_US")
+            )
+        )
+        #expect(
+            workspace.calendarProjection.first?.notes.contains("12.99") == true
+        )
+        let importedPreferences = UserPreferences(
+            primaryCurrency: .usd,
+            calendarProjectionHorizon: .sixMonths,
+            hideAmountsInCalendar: true,
+            menuBarModeEnabled: true,
+            appearanceMode: .dark,
+            setupStatus: .skipped
+        )
+        preferences.replaceWithRemote(importedPreferences)
+
+        await workspace.reloadAfterRemoteImport()
+
+        #expect(workspace.setupState == .skipped(importedPreferences))
+        #expect(
+            workspace.calendarProjection.first?.notes.contains("12.99") == false
+        )
+        #expect(preferences.saveCount == 0)
+    }
+
+    @Test("Remote import refreshes newly required rates before active insights")
+    @MainActor
+    func remoteImportRefreshesNewRatesBeforeActiveInsights() async throws {
+        let now = Date(timeIntervalSince1970: 1_769_356_800)
+        let renewal = now.addingTimeInterval(86_400)
+        let subscriptionID = try #require(
+            UUID(
+                uuidString: "41000000-0000-4000-8000-000000000002"
+            )
+        )
+        let repository = InMemorySubscriptionRepository(
+            subscriptions: [
+                makeSubscription(
+                    id: subscriptionID,
+                    billingSchedule: FixedBillingSchedule(
+                        interval: .monthly,
+                        renewalAnchor: renewal,
+                        timeZoneIdentifier: "UTC"
+                    ),
+                    confirmedNextRenewal: renewal,
+                    originalAmount: Money(
+                        minorUnits: 840,
+                        currency: .cny
+                    )
+                ),
+            ]
+        )
+        let refreshedSnapshot = ExchangeRateSnapshot(
+            base: .eur,
+            providerDate: now,
+            fetchedAt: now,
+            source: "fixture",
+            rates: [.eur: 1, .usd: 1.2, .cny: 8.4]
+        )
+        let source = RecordingExchangeRateSource(
+            snapshot: refreshedSnapshot
+        )
+        let workspace = SubscriptionWorkspace(
+            repository: repository,
+            preferencesRepository: CalendarPreferencesFixture(
+                preferences: UserPreferences(
+                    primaryCurrency: .cny,
+                    calendarProjectionHorizon: .twelveMonths,
+                    setupStatus: .completed
+                )
+            ),
+            exchangeRateSource: source,
+            exchangeRateCache: InMemoryExchangeRateCache(
+                state: ExchangeRateCacheState(
+                    snapshot: ExchangeRateSnapshot(
+                        base: .eur,
+                        providerDate: now,
+                        fetchedAt: now,
+                        source: "fixture",
+                        rates: [.eur: 1, .cny: 8.4]
+                    ),
+                    lastAttemptAt: now
+                )
+            ),
+            now: { now },
+            calendar: utcCalendar()
+        )
+        workspace.loadSetup(libraryIsEmpty: false)
+        await workspace.refreshExchangeRates()
+        workspace.loadInsights(
+            mode: .expected,
+            from: now,
+            through: now.addingTimeInterval(172_800)
+        )
+        #expect(
+            workspace.insightsState.availableValue?.selectedRangeTotal
+                == Money(minorUnits: 840, currency: .cny)
+        )
+        #expect(source.requests.isEmpty)
+        try repository.updateSubscription(
+            makeSubscription(
+                id: subscriptionID,
+                billingSchedule: FixedBillingSchedule(
+                    interval: .monthly,
+                    renewalAnchor: renewal,
+                    timeZoneIdentifier: "UTC"
+                ),
+                confirmedNextRenewal: renewal,
+                originalAmount: Money(minorUnits: 120, currency: .usd)
+            )
+        )
+
+        await workspace.reloadAfterRemoteImport()
+
+        #expect(source.requests.map(\.quotes) == [[.cny, .usd]])
+        #expect(workspace.exchangeRateStatus == .fresh(refreshedSnapshot))
+        #expect(
+            workspace.insightsState.availableValue?.selectedRangeTotal
+                == Money(minorUnits: 840, currency: .cny)
+        )
+    }
+
+    @Test("Out-of-order remote import rates keep the newer imported state")
+    @MainActor
+    func remoteImportRejectsOutOfOrderExchangeRateResponse() async throws {
+        let now = Date(timeIntervalSince1970: 1_769_356_800)
+        let renewal = now.addingTimeInterval(86_400)
+        let subscriptionID = try #require(
+            UUID(
+                uuidString: "41000000-0000-4000-8000-000000000005"
+            )
+        )
+        let repository = InMemorySubscriptionRepository(
+            subscriptions: [
+                makeSubscription(
+                    id: subscriptionID,
+                    billingSchedule: FixedBillingSchedule(
+                        interval: .monthly,
+                        renewalAnchor: renewal,
+                        timeZoneIdentifier: "UTC"
+                    ),
+                    confirmedNextRenewal: renewal,
+                    originalAmount: Money(
+                        minorUnits: 120,
+                        currency: .usd
+                    )
+                ),
+            ]
+        )
+        let olderSnapshot = ExchangeRateSnapshot(
+            base: .eur,
+            providerDate: now,
+            fetchedAt: now,
+            source: "older-import",
+            rates: [.eur: 1, .usd: 1.2, .cny: 7]
+        )
+        let newerSnapshot = ExchangeRateSnapshot(
+            base: .eur,
+            providerDate: now,
+            fetchedAt: now,
+            source: "newer-import",
+            rates: [.eur: 1, .cny: 8.4]
+        )
+        let source = SuspendedExchangeRateSource(
+            responses: [
+                [.cny, .usd]: olderSnapshot,
+                [.cny]: newerSnapshot,
+            ]
+        )
+        let cache = InMemoryExchangeRateCache(state: nil)
+        let workspace = SubscriptionWorkspace(
+            repository: repository,
+            preferencesRepository: CalendarPreferencesFixture(
+                preferences: UserPreferences(
+                    primaryCurrency: .cny,
+                    calendarProjectionHorizon: .twelveMonths,
+                    setupStatus: .completed
+                )
+            ),
+            exchangeRateSource: source,
+            exchangeRateCache: cache,
+            now: { now },
+            calendar: utcCalendar()
+        )
+        workspace.loadSetup(libraryIsEmpty: false)
+        workspace.loadInsights(
+            mode: .expected,
+            from: now,
+            through: now.addingTimeInterval(172_800)
+        )
+
+        let olderImport = Task { @MainActor in
+            await workspace.reloadAfterRemoteImport()
+        }
+        await source.waitForSuspendedFetches(count: 1)
+        try repository.updateSubscription(
+            makeSubscription(
+                id: subscriptionID,
+                billingSchedule: FixedBillingSchedule(
+                    interval: .monthly,
+                    renewalAnchor: renewal,
+                    timeZoneIdentifier: "UTC"
+                ),
+                confirmedNextRenewal: renewal,
+                originalAmount: Money(
+                    minorUnits: 100,
+                    currency: .eur
+                )
+            )
+        )
+        let newerImport = Task { @MainActor in
+            await workspace.reloadAfterRemoteImport()
+        }
+        await source.waitForSuspendedFetches(count: 2)
+
+        source.release(quotes: [.cny])
+        await newerImport.value
+        source.release(quotes: [.cny, .usd])
+        await olderImport.value
+
+        #expect(source.requests == [[.cny, .usd], [.cny]])
+        #expect(workspace.exchangeRateStatus == .fresh(newerSnapshot))
+        #expect(cache.state?.snapshot == newerSnapshot)
+        #expect(
+            workspace.insightsState.availableValue?.selectedRangeTotal
+                == Money(minorUnits: 840, currency: .cny)
+        )
+    }
+
+    @Test("Remote preference deletion uses completed defaults for a nonempty library")
+    @MainActor
+    func remotePreferenceDeletionUsesCompletedDefaultsForNonemptyLibrary() async throws {
+        let preferences = CalendarPreferencesFixture(
+            preferences: UserPreferences(
+                primaryCurrency: .usd,
+                calendarProjectionHorizon: .sixMonths,
+                setupStatus: .skipped
+            )
+        )
+        let subscriptionID = try #require(
+            UUID(
+                uuidString: "41000000-0000-4000-8000-000000000003"
+            )
+        )
+        let workspace = SubscriptionWorkspace(
+            repository: InMemorySubscriptionRepository(
+                subscriptions: [makeSubscription(id: subscriptionID)]
+            ),
+            preferencesRepository: preferences
+        )
+        workspace.loadLibrary()
+        workspace.loadSetup(libraryIsEmpty: false)
+        #expect(workspace.setupState.requiresSetupInteraction == false)
+        preferences.replaceWithRemote(nil)
+
+        await workspace.reloadAfterRemoteImport()
+
+        #expect(workspace.setupState == .completed(.default))
+        #expect(workspace.setupRevision == 1)
+        #expect(preferences.saveCount == 0)
+    }
+
+    @Test("Remote preference deletion uses setup defaults for an empty library")
+    @MainActor
+    func remotePreferenceDeletionUsesSetupDefaultsForEmptyLibrary() async {
+        let preferences = CalendarPreferencesFixture(
+            preferences: UserPreferences(
+                primaryCurrency: .usd,
+                calendarProjectionHorizon: .sixMonths,
+                setupStatus: .skipped
+            )
+        )
+        let workspace = SubscriptionWorkspace(
+            repository: EmptySubscriptionRepository(),
+            preferencesRepository: preferences
+        )
+        workspace.loadLibrary()
+        workspace.loadSetup(libraryIsEmpty: true)
+        preferences.replaceWithRemote(nil)
+
+        await workspace.reloadAfterRemoteImport()
+
+        #expect(workspace.libraryState == .empty(.current))
+        #expect(workspace.setupState == .needsSetup(.default))
+        #expect(workspace.setupRevision == 1)
+        #expect(preferences.saveCount == 0)
+    }
+
+    @Test("Remote preference deletion does not turn a failed library into onboarding")
+    @MainActor
+    func remotePreferenceDeletionPreservesFailedLibraryUncertainty() async throws {
+        let preferences = CalendarPreferencesFixture(
+            preferences: UserPreferences(
+                primaryCurrency: .usd,
+                calendarProjectionHorizon: .sixMonths,
+                setupStatus: .completed
+            )
+        )
+        let subscriptionID = try #require(
+            UUID(
+                uuidString: "41000000-0000-4000-8000-000000000004"
+            )
+        )
+        let repository = InMemorySubscriptionRepository(
+            subscriptions: [makeSubscription(id: subscriptionID)]
+        )
+        let workspace = SubscriptionWorkspace(
+            repository: repository,
+            preferencesRepository: preferences
+        )
+        workspace.loadLibrary()
+        workspace.loadSetup(libraryIsEmpty: false)
+        repository.failure = .list
+        preferences.replaceWithRemote(nil)
+
+        await workspace.reloadAfterRemoteImport()
+
+        #expect(workspace.libraryState == .failed(.current))
+        #expect(workspace.setupState == .loadFailed)
+        #expect(workspace.setupState.requiresSetupInteraction == false)
+        #expect(workspace.setupRevision == 1)
+        #expect(preferences.saveCount == 0)
+    }
+
     @Test("A repository failure produces a recoverable library state")
     @MainActor
     func repositoryFailureProducesFailedState() {
@@ -7055,17 +7436,16 @@ struct SubscriptionWorkspaceTests {
         let repository = InMemorySubscriptionRepository(
             subscriptions: [existing]
         )
+        let now = try actionDate(
+            year: 2026,
+            month: 7,
+            day: 15,
+            hour: 12,
+            calendar: calendar
+        )
         let workspace = SubscriptionWorkspace(
             repository: repository,
-            now: {
-                try! actionDate(
-                    year: 2026,
-                    month: 7,
-                    day: 15,
-                    hour: 12,
-                    calendar: calendar
-                )
-            },
+            now: { now },
             calendar: calendar
         )
         workspace.editSubscription(
@@ -7173,17 +7553,16 @@ struct SubscriptionWorkspaceTests {
         let repository = InMemorySubscriptionRepository(
             subscriptions: [existing]
         )
+        let now = try actionDate(
+            year: 2026,
+            month: 7,
+            day: 15,
+            hour: 12,
+            calendar: calendar
+        )
         let workspace = SubscriptionWorkspace(
             repository: repository,
-            now: {
-                try! actionDate(
-                    year: 2026,
-                    month: 7,
-                    day: 15,
-                    hour: 12,
-                    calendar: calendar
-                )
-            },
+            now: { now },
             calendar: calendar
         )
         let editedAmount = Money(minorUnits: 1_500, currency: .usd)
@@ -7761,6 +8140,70 @@ private final class RecordingExchangeRateSource: ExchangeRateSource {
     }
 }
 
+@MainActor
+private final class SuspendedExchangeRateSource: ExchangeRateSource {
+    private struct PendingFetch {
+        let quotes: Set<Currency>
+        let continuation: CheckedContinuation<ExchangeRateSnapshot, Never>
+    }
+
+    private var responses: [Set<Currency>: ExchangeRateSnapshot]
+    private var pendingFetches: [PendingFetch] = []
+    private var suspendedFetchWaiters: [
+        (count: Int, continuation: CheckedContinuation<Void, Never>)
+    ] = []
+    private(set) var requests: [Set<Currency>] = []
+
+    init(responses: [Set<Currency>: ExchangeRateSnapshot]) {
+        self.responses = responses
+    }
+
+    func fetchRates(
+        base: Currency,
+        quotes: Set<Currency>
+    ) async throws -> ExchangeRateSnapshot {
+        precondition(base == .eur)
+        requests.append(quotes)
+        return await withCheckedContinuation { continuation in
+            pendingFetches.append(
+                PendingFetch(quotes: quotes, continuation: continuation)
+            )
+            resumeSatisfiedWaiters()
+        }
+    }
+
+    func waitForSuspendedFetches(count: Int) async {
+        guard pendingFetches.count < count else { return }
+        await withCheckedContinuation { continuation in
+            suspendedFetchWaiters.append((count, continuation))
+        }
+    }
+
+    func release(quotes: Set<Currency>) {
+        guard let index = pendingFetches.firstIndex(where: {
+            $0.quotes == quotes
+        }),
+        let response = responses.removeValue(forKey: quotes)
+        else {
+            preconditionFailure("No suspended exchange-rate fetch for \(quotes)")
+        }
+        let pending = pendingFetches.remove(at: index)
+        pending.continuation.resume(returning: response)
+    }
+
+    private func resumeSatisfiedWaiters() {
+        let ready = suspendedFetchWaiters.filter {
+            pendingFetches.count >= $0.count
+        }
+        suspendedFetchWaiters.removeAll {
+            pendingFetches.count >= $0.count
+        }
+        for waiter in ready {
+            waiter.continuation.resume()
+        }
+    }
+}
+
 private enum ExchangeRateFixtureError: Error {
     case offline
     case cacheSaveFailed
@@ -7769,7 +8212,8 @@ private enum ExchangeRateFixtureError: Error {
 
 @MainActor
 private final class CalendarPreferencesFixture: UserPreferencesRepository {
-    private var preferences: UserPreferences
+    private var preferences: UserPreferences?
+    private(set) var saveCount = 0
 
     init(preferences: UserPreferences) {
         self.preferences = preferences
@@ -7780,6 +8224,11 @@ private final class CalendarPreferencesFixture: UserPreferencesRepository {
     }
 
     func savePreferences(_ preferences: UserPreferences) throws {
+        saveCount += 1
+        self.preferences = preferences
+    }
+
+    func replaceWithRemote(_ preferences: UserPreferences?) {
         self.preferences = preferences
     }
 }

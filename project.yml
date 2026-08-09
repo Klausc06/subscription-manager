@@ -3,6 +3,7 @@ name: SubscriptionManager
 options:
   bundleIdPrefix: com.klausc06
   createIntermediateGroups: true
+  minimumXcodeGenVersion: 2.46.0
   deploymentTarget:
     iOS: "27.0"
     macOS: "27.0"
@@ -49,6 +50,16 @@ targets:
         UIBackgroundModes:
           - remote-notification
         NSCalendarsFullAccessUsageDescription: Subscription Manager uses full Calendar access only after you choose Import to Calendar, so it can keep your dedicated renewal calendar free of duplicate events.
+        UISupportedInterfaceOrientations:
+          - UIInterfaceOrientationPortrait
+          - UIInterfaceOrientationPortraitUpsideDown
+          - UIInterfaceOrientationLandscapeLeft
+          - UIInterfaceOrientationLandscapeRight
+        "UISupportedInterfaceOrientations~ipad":
+          - UIInterfaceOrientationPortrait
+          - UIInterfaceOrientationPortraitUpsideDown
+          - UIInterfaceOrientationLandscapeLeft
+          - UIInterfaceOrientationLandscapeRight
         CFBundleURLTypes:
           - CFBundleURLSchemes:
               - subscription-manager
@@ -89,7 +100,6 @@ targets:
       - path: SubscriptionManagerTests
     dependencies:
       - target: SubscriptionManager
-      - package: SubscriptionCore
     settings:
       base:
         "BUNDLE_LOADER[sdk=macosx*]": "$(TEST_HOST)"
@@ -115,6 +125,7 @@ targets:
         "CODE_SIGN_STYLE[sdk=macosx*]": Manual
         "DEVELOPMENT_TEAM[sdk=macosx*]": ""
         GENERATE_INFOPLIST_FILE: true
+        LM_SKIP_METADATA_EXTRACTION: "YES"
         PRODUCT_BUNDLE_IDENTIFIER: com.klausc06.SubscriptionManagerUITests
 
 schemes:

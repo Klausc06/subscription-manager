@@ -4,11 +4,15 @@ import Foundation
 import SubscriptionCore
 
 final class CloudKitLibrarySyncMonitor: LibrarySyncMonitor, @unchecked Sendable {
+    // A recent FIFO window keeps terminal-event deduplication bounded without
+    // retaining an unbounded history of CloudKit event IDs.
+    private static let processedEventCapacity = 256
     private let accountStatus: @Sendable () async throws -> CKAccountStatus
     private let stateLock = NSLock()
     private var hasCompletedSync = false
     private var hasSyncFailure = false
     private var processedEventIDs = Set<UUID>()
+    private var processedEventOrder = [UUID]()
     private var workspaceReloadHandler: (@Sendable () async -> Void)?
     private var eventObserver: NSObjectProtocol?
 
@@ -77,7 +81,7 @@ final class CloudKitLibrarySyncMonitor: LibrarySyncMonitor, @unchecked Sendable 
 
     func notifyRemoteImport(id: UUID) async {
         let handler: (@Sendable () async -> Void)? = stateLock.withLock {
-            guard processedEventIDs.insert(id).inserted else {
+            guard rememberProcessedEventID(id) else {
                 return nil
             }
             hasCompletedSync = true
@@ -97,7 +101,7 @@ final class CloudKitLibrarySyncMonitor: LibrarySyncMonitor, @unchecked Sendable 
 
     private func notifySuccessfulEvent(id: UUID) {
         stateLock.withLock {
-            guard processedEventIDs.insert(id).inserted else { return }
+            guard rememberProcessedEventID(id) else { return }
             hasCompletedSync = true
             hasSyncFailure = false
         }
@@ -105,9 +109,22 @@ final class CloudKitLibrarySyncMonitor: LibrarySyncMonitor, @unchecked Sendable 
 
     func notifyFailedEvent(id: UUID) {
         stateLock.withLock {
-            guard processedEventIDs.insert(id).inserted else { return }
+            guard rememberProcessedEventID(id) else { return }
             hasSyncFailure = true
         }
+    }
+
+    private func rememberProcessedEventID(_ id: UUID) -> Bool {
+        guard !processedEventIDs.contains(id) else {
+            return false
+        }
+        if processedEventIDs.count == Self.processedEventCapacity {
+            let evictedID = processedEventOrder.removeFirst()
+            processedEventIDs.remove(evictedID)
+        }
+        processedEventIDs.insert(id)
+        processedEventOrder.append(id)
+        return true
     }
 
     private func handle(notification: Notification) {

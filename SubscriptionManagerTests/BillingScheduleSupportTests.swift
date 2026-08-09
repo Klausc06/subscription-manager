@@ -213,6 +213,50 @@ struct BillingScheduleSupportTests {
         #expect(actual == expected)
     }
 
+    @Test("Billing-local days use Gregorian components for display calendars")
+    func billingLocalDayUsesGregorianComponentsForDisplayCalendar() throws {
+        let billingTimeZone = try #require(
+            TimeZone(identifier: "Asia/Tokyo")
+        )
+        let displayTimeZone = try #require(
+            TimeZone(identifier: "America/Los_Angeles")
+        )
+        var instantCalendar = Calendar(identifier: .gregorian)
+        instantCalendar.timeZone = try #require(TimeZone(identifier: "UTC"))
+        let instant = try #require(
+            instantCalendar.date(
+                from: DateComponents(
+                    year: 2026,
+                    month: 8,
+                    day: 1,
+                    hour: 23,
+                    minute: 30
+                )
+            )
+        )
+
+        var displayCalendar = Calendar(identifier: .islamicCivil)
+        displayCalendar.timeZone = displayTimeZone
+
+        // Keep the expected date independent from the calendar used to display it.
+        var expectedGregorianCalendar = Calendar(identifier: .gregorian)
+        expectedGregorianCalendar.timeZone = displayTimeZone
+        let expectedGregorianDate = try #require(
+            expectedGregorianCalendar.date(
+                from: DateComponents(year: 2026, month: 8, day: 2)
+            )
+        )
+        let expected = displayCalendar.startOfDay(for: expectedGregorianDate)
+
+        let actual = billingLocalDay(
+            instant,
+            billingTimeZoneIdentifier: billingTimeZone.identifier,
+            displayCalendar: displayCalendar
+        )
+
+        #expect(actual == expected)
+    }
+
     @Test("An overflowing custom week default is rejected without trapping")
     func overflowingCustomWeekDoesNotTrap() {
         let anchor = Date(timeIntervalSince1970: 1_800_000_000)

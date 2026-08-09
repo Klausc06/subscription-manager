@@ -50,7 +50,10 @@ struct AppDependencies {
         hasCloudKitEntitlement: Bool =
             AppRuntimeEntitlements.hasCloudKitContainer,
         hasAppGroupEntitlement: Bool =
-            AppRuntimeEntitlements.hasAppGroup
+            AppRuntimeEntitlements.hasAppGroup,
+        legacyCalendarProjectionMappingValidator:
+            any LegacyCalendarProjectionMappingValidating =
+                EventKitLegacyCalendarProjectionMappingValidator()
     ) -> AppStartupState {
         let schema = Schema([
             SubscriptionRecord.self,
@@ -207,7 +210,8 @@ struct AppDependencies {
                     legacySchema: schema,
                     legacyStoreURL: legacyStoreURL,
                     localMappingSchema: localMappingSchema,
-                    localMappingConfiguration: localMappingConfiguration
+                    localMappingConfiguration: localMappingConfiguration,
+                    validator: legacyCalendarProjectionMappingValidator
                 )
             }
             return try ModelContainer(
@@ -231,7 +235,8 @@ struct AppDependencies {
         legacySchema: Schema,
         legacyStoreURL: URL,
         localMappingSchema: Schema,
-        localMappingConfiguration: ModelConfiguration
+        localMappingConfiguration: ModelConfiguration,
+        validator: any LegacyCalendarProjectionMappingValidating
     ) throws {
         let localContainer = try ModelContainer(
             for: localMappingSchema,
@@ -263,7 +268,9 @@ struct AppDependencies {
             try localContext.save()
             return
         }
-        guard FileManager.default.fileExists(atPath: legacyStoreURL.path) else {
+        guard validator.availability == .available,
+              FileManager.default.fileExists(atPath: legacyStoreURL.path)
+        else {
             return
         }
 
@@ -289,42 +296,75 @@ struct AppDependencies {
                 calendarSyncDisabled: $0.calendarSyncDisabled
             )
         }
-        var localProjectionUIDs = Set(
-            localMappings.lazy
-                .map(\.projectionUID)
-                .filter { !$0.isEmpty }
+        let orderedLegacyMappings = legacyMappings.sorted(
+            by: legacyMappingPrecedes
         )
-        var localMetadata = localMappings.first {
+        let selectedCalendarIdentifier = orderedLegacyMappings.first(where: {
             $0.projectionUID.isEmpty
-        }
-
-        for mapping in legacyMappings {
-            if mapping.projectionUID.isEmpty {
-                guard localMetadata == nil else { continue }
-            } else {
-                guard localProjectionUIDs.insert(mapping.projectionUID).inserted
-                else { continue }
-            }
-            let migrated = CalendarProjectionMappingRecord(
-                projectionUID: mapping.projectionUID,
-                eventIdentifier: mapping.eventIdentifier,
-                calendarIdentifier: mapping.calendarIdentifier
-            )
-            migrated.calendarSyncDisabled = mapping.calendarSyncDisabled
-            localContext.insert(migrated)
-            if mapping.projectionUID.isEmpty {
-                localMetadata = migrated
-            }
-        }
-        if localMetadata == nil {
+                && !$0.calendarIdentifier.isEmpty
+                && validator.containsCalendar(identifier: $0.calendarIdentifier)
+        })?.calendarIdentifier ?? orderedLegacyMappings.first(where: {
+            !$0.calendarIdentifier.isEmpty
+                && validator.containsCalendar(identifier: $0.calendarIdentifier)
+        })?.calendarIdentifier
+        guard let selectedCalendarIdentifier else {
             let metadata = CalendarProjectionMappingRecord(
                 calendarIdentifier: ""
             )
+            metadata.legacyMappingMigrationCompleted = true
             localContext.insert(metadata)
-            localMetadata = metadata
+            try localContext.save()
+            return
         }
-        localMetadata?.legacyMappingMigrationCompleted = true
+
+        let metadata = CalendarProjectionMappingRecord(
+            calendarIdentifier: selectedCalendarIdentifier
+        )
+        metadata.calendarSyncDisabled = orderedLegacyMappings.contains {
+            $0.projectionUID.isEmpty
+                && $0.calendarIdentifier == selectedCalendarIdentifier
+                && $0.calendarSyncDisabled
+        }
+        metadata.legacyMappingMigrationCompleted = true
+        localContext.insert(metadata)
+
+        var migratedProjectionUIDs = Set<String>()
+        for mapping in orderedLegacyMappings where !mapping.projectionUID.isEmpty {
+            guard mapping.calendarIdentifier == selectedCalendarIdentifier,
+                  !mapping.eventIdentifier.isEmpty,
+                  validator.containsEvent(
+                      identifier: mapping.eventIdentifier,
+                      inCalendarWithIdentifier: selectedCalendarIdentifier
+                  ),
+                  migratedProjectionUIDs.insert(mapping.projectionUID).inserted
+            else {
+                continue
+            }
+            localContext.insert(
+                CalendarProjectionMappingRecord(
+                    projectionUID: mapping.projectionUID,
+                    eventIdentifier: mapping.eventIdentifier,
+                    calendarIdentifier: selectedCalendarIdentifier
+                )
+            )
+        }
         try localContext.save()
+    }
+
+    private static func legacyMappingPrecedes(
+        _ lhs: LegacyCalendarProjectionMapping,
+        _ rhs: LegacyCalendarProjectionMapping
+    ) -> Bool {
+        if lhs.calendarIdentifier != rhs.calendarIdentifier {
+            return lhs.calendarIdentifier < rhs.calendarIdentifier
+        }
+        if lhs.projectionUID != rhs.projectionUID {
+            return lhs.projectionUID < rhs.projectionUID
+        }
+        if lhs.eventIdentifier != rhs.eventIdentifier {
+            return lhs.eventIdentifier < rhs.eventIdentifier
+        }
+        return lhs.calendarSyncDisabled && !rhs.calendarSyncDisabled
     }
 
     static func make(
@@ -429,9 +469,7 @@ struct AppDependencies {
                 CloudKitLibrarySyncMonitor
             {
                 syncMonitor.setWorkspaceReloadHandler { [weak workspace] in
-                    await MainActor.run {
-                        workspace?.reloadPersistedState()
-                    }
+                    await workspace?.reloadAfterRemoteImport()
                 }
             }
             return .ready(

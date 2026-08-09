@@ -10,6 +10,24 @@ enum CalendarEventAccess: Equatable {
     case unavailable
 }
 
+enum LegacyCalendarProjectionMappingValidationAvailability: Equatable {
+    case available
+    case unavailable
+}
+
+@MainActor
+protocol LegacyCalendarProjectionMappingValidating {
+    var availability: LegacyCalendarProjectionMappingValidationAvailability {
+        get
+    }
+
+    func containsCalendar(identifier: String) -> Bool
+    func containsEvent(
+        identifier: String,
+        inCalendarWithIdentifier calendarIdentifier: String
+    ) -> Bool
+}
+
 @MainActor
 struct CalendarProjectionCalendar: Equatable {
     let identifier: String
@@ -198,6 +216,12 @@ final class EventKitCalendarProjectionImporter:
 {
     private static let calendarTitle = "Subscription Manager"
 
+    private enum EventIdentifierResolution {
+        case mapped(String)
+        case recovered(String, replacingMappedIdentifier: Bool)
+        case missing(hadMappedIdentifier: Bool)
+    }
+
     private let eventStore: any CalendarEventStore
     private let mappingRepository: any CalendarProjectionMappingRepository
 
@@ -253,15 +277,17 @@ final class EventKitCalendarProjectionImporter:
         var failedCount = 0
         for event in events {
             do {
-                var existingIdentifier = try mappingRepository.eventIdentifier(
-                    for: event.uid
+                let resolution = try resolveEventIdentifier(
+                    for: event,
+                    in: calendar
                 )
-                if existingIdentifier == nil {
-                    existingIdentifier = eventStore.eventIdentifier(
-                        for: event.uid,
-                        near: event,
-                        in: calendar
-                    )
+                let existingIdentifier: String?
+                switch resolution {
+                case .mapped(let identifier),
+                     .recovered(let identifier, _):
+                    existingIdentifier = identifier
+                case .missing:
+                    existingIdentifier = nil
                 }
                 let write = try eventStore.saveProjectedEvent(
                     event,
@@ -351,23 +377,23 @@ final class EventKitCalendarProjectionImporter:
             mappings = try mappingRepository.eventMappings()
             var missingCount = 0
             for event in events {
-                if let identifier = try mappingRepository.eventIdentifier(
-                    for: event.uid
-                ) {
-                    if eventStore.eventExists(identifier: identifier) {
-                        mappedIdentifiers[event.uid] = identifier
-                    } else if let recoveredIdentifier = eventStore.eventIdentifier(
-                        for: event.uid,
-                        near: event,
-                        in: calendar
-                    ) {
+                switch try resolveEventIdentifier(for: event, in: calendar) {
+                case .mapped(let identifier):
+                    mappedIdentifiers[event.uid] = identifier
+                case .recovered(
+                    let recoveredIdentifier,
+                    let replacingMappedIdentifier
+                ):
+                    if replacingMappedIdentifier {
                         try mappingRepository.saveEventIdentifier(
                             recoveredIdentifier,
                             for: event.uid,
                             calendarIdentifier: calendar.identifier
                         )
-                        mappedIdentifiers[event.uid] = recoveredIdentifier
-                    } else {
+                    }
+                    mappedIdentifiers[event.uid] = recoveredIdentifier
+                case .missing(let hadMappedIdentifier):
+                    if hadMappedIdentifier {
                         missingCount += 1
                     }
                 }
@@ -421,6 +447,31 @@ final class EventKitCalendarProjectionImporter:
             ? .reconciled
             : .partialFailure(failedCount: failedCount)
     }
+
+    private func resolveEventIdentifier(
+        for event: CalendarProjectionEvent,
+        in calendar: CalendarProjectionCalendar
+    ) throws -> EventIdentifierResolution {
+        let mappedIdentifier = try mappingRepository.eventIdentifier(
+            for: event.uid
+        )
+        if let mappedIdentifier,
+           eventStore.eventExists(identifier: mappedIdentifier)
+        {
+            return .mapped(mappedIdentifier)
+        }
+        if let recoveredIdentifier = eventStore.eventIdentifier(
+            for: event.uid,
+            near: event,
+            in: calendar
+        ) {
+            return .recovered(
+                recoveredIdentifier,
+                replacingMappedIdentifier: mappedIdentifier != nil
+            )
+        }
+        return .missing(hadMappedIdentifier: mappedIdentifier != nil)
+    }
 }
 
 @MainActor
@@ -429,6 +480,36 @@ final class UnavailableCalendarProjectionImporter: CalendarProjectionImporter {
         events: [CalendarProjectionEvent]
     ) async -> CalendarProjectionImportResult {
         .unavailable
+    }
+}
+
+@MainActor
+final class EventKitLegacyCalendarProjectionMappingValidator:
+    LegacyCalendarProjectionMappingValidating
+{
+    private let eventStore: EKEventStore
+
+    init(eventStore: EKEventStore = EKEventStore()) {
+        self.eventStore = eventStore
+    }
+
+    var availability: LegacyCalendarProjectionMappingValidationAvailability {
+        EKEventStore.authorizationStatus(for: .event) == .fullAccess
+            ? .available
+            : .unavailable
+    }
+
+    func containsCalendar(identifier: String) -> Bool {
+        eventStore.calendar(withIdentifier: identifier)?
+            .allowsContentModifications == true
+    }
+
+    func containsEvent(
+        identifier: String,
+        inCalendarWithIdentifier calendarIdentifier: String
+    ) -> Bool {
+        eventStore.event(withIdentifier: identifier)?
+            .calendar?.calendarIdentifier == calendarIdentifier
     }
 }
 

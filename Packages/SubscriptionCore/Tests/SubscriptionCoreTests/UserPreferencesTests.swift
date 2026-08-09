@@ -266,6 +266,80 @@ struct UserPreferencesTests {
         #expect(workspace.setupState == .needsSetup(.default))
     }
 
+    @Test(
+        "A recovered preference read preserves an existing library without a redundant write"
+    )
+    @MainActor
+    func recoveredPreferenceReadPreservesExistingLibraryWithoutRedundantWrite() throws {
+        let storedPreferences = UserPreferences(
+            primaryCurrency: .eur,
+            calendarProjectionHorizon: .sixMonths,
+            hideAmountsInCalendar: true,
+            menuBarModeEnabled: true,
+            appearanceMode: .dark,
+            setupStatus: .completed
+        )
+        let preferences = InMemoryUserPreferencesRepository(
+            preferences: storedPreferences
+        )
+        preferences.shouldFailLoads = true
+
+        let subscription = Subscription(
+            id: UUID(),
+            serviceIdentity: ServiceIdentity(rawValue: "test:recovery"),
+            serviceName: "Recovery",
+            plan: "Monthly",
+            category: "Other",
+            originalAmount: Money(minorUnits: 1_299, currency: .eur),
+            billingCycle: .monthly,
+            startDate: Date(timeIntervalSince1970: 0),
+            confirmedNextRenewal: Date(timeIntervalSince1970: 0),
+            managementURL: nil,
+            notes: ""
+        )
+        let repository = InMemorySubscriptionRepository(
+            subscriptions: [subscription]
+        )
+        let workspace = SubscriptionWorkspace(
+            repository: repository,
+            preferencesRepository: preferences
+        )
+
+        workspace.loadLibrary(scope: .current)
+        let currentState = workspace.libraryState
+        workspace.loadLibrary(scope: .archived)
+        let archivedState = workspace.libraryState
+        workspace.loadLibrary(scope: .current)
+        workspace.initializeSetup(
+            currentLibraryState: currentState,
+            archivedLibraryState: archivedState
+        )
+
+        let currentSummaries = try #require(currentLibrarySummaries(in: currentState))
+        let currentSummary = try #require(currentSummaries.first)
+        #expect(currentSummary.id == subscription.id)
+        #expect(workspace.libraryState == currentState)
+        #expect(workspace.setupState == .loadFailed)
+        #expect(!workspace.setupState.requiresSetupInteraction)
+        #expect(preferences.saveCount == 0)
+
+        preferences.shouldFailLoads = false
+        workspace.initializeSetup(
+            currentLibraryState: currentState,
+            archivedLibraryState: archivedState
+        )
+
+        #expect(workspace.setupState == .completed(storedPreferences))
+        #expect(try preferences.loadPreferences() == storedPreferences)
+        #expect(preferences.saveCount == 0)
+        let recoveredSummaries = try #require(
+            currentLibrarySummaries(in: workspace.libraryState)
+        )
+        let recoveredSummary = try #require(recoveredSummaries.first)
+        #expect(recoveredSummary.id == subscription.id)
+        #expect(recoveredSummary.serviceName == subscription.serviceName)
+    }
+
     @Test("A failed preference save keeps setup recoverable")
     @MainActor
     func failedPreferenceSaveKeepsSetupRecoverable() {
@@ -310,8 +384,13 @@ struct UserPreferencesTests {
 @MainActor
 private final class InMemoryUserPreferencesRepository: UserPreferencesRepository {
     private var preferences: UserPreferences?
+    private(set) var saveCount = 0
     var shouldFailLoads = false
     var shouldFailSaves = false
+
+    init(preferences: UserPreferences? = nil) {
+        self.preferences = preferences
+    }
 
     func loadPreferences() throws -> UserPreferences? {
         if shouldFailLoads {
@@ -321,6 +400,7 @@ private final class InMemoryUserPreferencesRepository: UserPreferencesRepository
     }
 
     func savePreferences(_ preferences: UserPreferences) throws {
+        saveCount += 1
         if shouldFailSaves {
             throw InMemoryPreferencesError.saveFailed
         }
@@ -340,6 +420,39 @@ private struct EmptySubscriptionRepository: SubscriptionRepository {
     func deleteSubscription(id: UUID) throws {}
     func listSubscriptions() throws -> [Subscription] { [] }
     func subscription(id: UUID) throws -> Subscription? { nil }
+}
+
+@MainActor
+private final class InMemorySubscriptionRepository: SubscriptionRepository {
+    private var subscriptions: [Subscription]
+
+    init(subscriptions: [Subscription]) {
+        self.subscriptions = subscriptions
+    }
+
+    func createSubscription(_ subscription: Subscription) throws {
+        subscriptions.append(subscription)
+    }
+
+    func updateSubscription(_ subscription: Subscription) throws {
+        guard let index = subscriptions.firstIndex(where: { $0.id == subscription.id })
+        else {
+            return
+        }
+        subscriptions[index] = subscription
+    }
+
+    func deleteSubscription(id: UUID) throws {
+        subscriptions.removeAll { $0.id == id }
+    }
+
+    func listSubscriptions() throws -> [Subscription] {
+        subscriptions
+    }
+
+    func subscription(id: UUID) throws -> Subscription? {
+        subscriptions.first { $0.id == id }
+    }
 }
 
 @MainActor
@@ -409,4 +522,13 @@ private var nonEmptyCurrentLibraryState: SubscriptionLibraryState {
             nextExpectedCharge: nil
         )]
     )
+}
+
+private func currentLibrarySummaries(
+    in state: SubscriptionLibraryState
+) -> [SubscriptionSummary]? {
+    guard case let .loaded(.current, summaries) = state else {
+        return nil
+    }
+    return summaries
 }

@@ -56,22 +56,74 @@ struct MacWindowRouterTests {
         )
     }
 
-    #if os(macOS)
-    @Test("Add Subscription replaces the default New Window command")
-    func addSubscriptionReplacesDefaultNewWindowCommand() throws {
-        let testFile = URL(fileURLWithPath: #filePath)
-        let sourceURL = testFile
-            .deletingLastPathComponent()
-            .deletingLastPathComponent()
-            .appendingPathComponent(
-                "SubscriptionManager/App/SubscriptionManagerApp.swift"
-            )
-        let source = try String(contentsOf: sourceURL, encoding: .utf8)
+    @Test("A shared setup write invalidates a stale second window")
+    func setupInteractionRevisionInvalidatesStaleWindow() {
+        let initialPreferences = UserPreferences.default
+        let initialState = SetupState.needsSetup(initialPreferences)
+        let firstWindowExpectedRevision: UInt64 = 0
+        let secondWindowExpectedRevision: UInt64 = 0
 
-        #expect(source.contains("CommandGroup(replacing: .newItem)"))
-        #expect(!source.contains("CommandGroup(after: .newItem)"))
+        #expect(
+            SetupSheetPresentation.isSetupInteractionActive(
+                for: initialState,
+                expectedSetupRevision: firstWindowExpectedRevision,
+                currentSetupRevision: 0
+            )
+        )
+        #expect(
+            SetupSheetPresentation.isSetupInteractionActive(
+                for: initialState,
+                expectedSetupRevision: secondWindowExpectedRevision,
+                currentSetupRevision: 0
+            )
+        )
+
+        let updatedPreferences = UserPreferences(
+            primaryCurrency: .usd,
+            calendarProjectionHorizon: .twelveMonths,
+            setupStatus: .notCompleted
+        )
+        let stateAfterFirstWindowWrite = SetupState.needsSetup(
+            updatedPreferences
+        )
+        let sharedRevisionAfterFirstWindowWrite: UInt64 = 1
+
+        #expect(
+            SetupSheetPresentation.isSetupInteractionActive(
+                for: stateAfterFirstWindowWrite,
+                expectedSetupRevision: sharedRevisionAfterFirstWindowWrite,
+                currentSetupRevision: sharedRevisionAfterFirstWindowWrite
+            )
+        )
+        #expect(
+            !SetupSheetPresentation.isSetupInteractionActive(
+                for: stateAfterFirstWindowWrite,
+                expectedSetupRevision: secondWindowExpectedRevision,
+                currentSetupRevision: sharedRevisionAfterFirstWindowWrite
+            )
+        )
+
+        let completedPreferences = UserPreferences(
+            primaryCurrency: .usd,
+            calendarProjectionHorizon: .twelveMonths,
+            setupStatus: .completed
+        )
+        #expect(
+            !SetupSheetPresentation.shouldPresent(
+                for: .completed(completedPreferences),
+                permitsSetupPresentation: true
+            )
+        )
+        #expect(
+            !SetupSheetPresentation.isSetupInteractionActive(
+                for: .completed(completedPreferences),
+                expectedSetupRevision: sharedRevisionAfterFirstWindowWrite,
+                currentSetupRevision: sharedRevisionAfterFirstWindowWrite
+            )
+        )
     }
 
+    #if os(macOS)
     @Test("A Mac command only matches its focused window")
     func commandTargetsOnlyFocusedWindow() {
         let focusedWindow = UUID()

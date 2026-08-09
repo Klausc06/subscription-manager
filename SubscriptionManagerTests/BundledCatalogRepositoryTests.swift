@@ -151,9 +151,11 @@ struct BundledCatalogRepositoryTests {
         )
         defer { try? FileManager.default.removeItem(at: directory) }
         let cache = FileCatalogCache(directory: directory)
-        let originalData = String(
-            decoding: validCatalogData(catalogVersion: 2),
-            as: UTF8.self
+        let originalData = try #require(
+            String(
+                data: validCatalogData(catalogVersion: 2),
+                encoding: .utf8
+            )
         )
         #expect(originalData.contains("\"reviewStatus\": \"verified\""))
         let cachedData = originalData.replacingOccurrences(
@@ -185,9 +187,11 @@ struct BundledCatalogRepositoryTests {
         )
         defer { try? FileManager.default.removeItem(at: directory) }
         let cache = FileCatalogCache(directory: directory)
-        let originalData = String(
-            decoding: validCatalogData(catalogVersion: 2),
-            as: UTF8.self
+        let originalData = try #require(
+            String(
+                data: validCatalogData(catalogVersion: 2),
+                encoding: .utf8
+            )
         )
         #expect(originalData.contains("\"offers\": ["))
         let cachedData = originalData.replacingOccurrences(

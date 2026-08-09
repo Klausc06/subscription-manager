@@ -1002,7 +1002,7 @@ struct SubscriptionDraftTests {
         timeZoneIdentifier: String = "UTC"
     ) throws -> Date {
         let timeZone = try #require(TimeZone(identifier: timeZoneIdentifier))
-        var calendar = BillingCalendar.calendar(timeZone: timeZone)
+        let calendar = BillingCalendar.calendar(timeZone: timeZone)
         return try #require(
             calendar.date(
                 from: DateComponents(

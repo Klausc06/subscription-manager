@@ -46,6 +46,7 @@ struct EventKitCalendarProjectionImporterTests {
         #expect(store.physicalEventIdentifiers == ["event-1"])
         #expect(try mappings.eventIdentifier(for: "renewal-1") == "event-1")
         #expect(store.saveCount == 1)
+        #expect(store.eventIdentifierLookupCount == 1)
         #expect(store.savedProjectionEvents == events)
     }
 
@@ -281,6 +282,57 @@ struct EventKitCalendarProjectionImporterTests {
             )
         ])
         #expect(store.saveCount == 0)
+    }
+
+    @Test("Direct import recovers a stale mapped identifier before saving")
+    func directImportRecoversStaleMappedIdentifier() async throws {
+        let event = calendarEvent(uid: "renewal-1")
+        let dates = EventKitCalendarProjectionSemantics.allDayDates(
+            for: event
+        )
+        let store = CalendarEventStoreFixture(access: .granted)
+        store.seedCalendar(identifier: "calendar-1")
+        store.seedPhysicalEvent(
+            PhysicalCalendarEvent(
+                identifier: "event-rotated",
+                calendarIdentifier: "calendar-1",
+                title: "Outdated title",
+                notes: "Outdated notes\n\n"
+                    + EventKitCalendarProjectionSemantics
+                    .projectionUIDMarker(for: event.uid),
+                url: event.managementURL,
+                isAllDay: true,
+                startDate: dates.startDate,
+                endDate: dates.endDate,
+                timeZoneIdentifier: event.timeZoneIdentifier,
+                alarmOffsets: event.alarmOffsets
+            )
+        )
+        let mappings = CalendarMappingFixture()
+        mappings.seedCalendarIdentifier("calendar-1")
+        mappings.seedEventIdentifier("event-stale", for: event.uid)
+        let importer = EventKitCalendarProjectionImporter(
+            eventStore: store,
+            mappingRepository: mappings
+        )
+
+        let result = await importer.importProjection(events: [event])
+
+        #expect(
+            result == .imported(
+                CalendarProjectionImportSummary(
+                    createdCount: 0,
+                    updatedCount: 1
+                )
+            )
+        )
+        #expect(store.physicalEventIdentifiers == ["event-rotated"])
+        #expect(store.savedEventIdentifiers == ["event-rotated"])
+        #expect(store.savedProjectionEvents == [event])
+        #expect(
+            try mappings.eventIdentifier(for: event.uid) == "event-rotated"
+        )
+        #expect(store.saveCount == 1)
     }
 
     @Test("Denied access creates no calendar or events")
@@ -647,6 +699,7 @@ private final class CalendarEventStoreFixture: CalendarEventStore {
     var accessRequestCount = 0
     var calendarCreationCount = 0
     var saveCount = 0
+    var eventIdentifierLookupCount = 0
     var failingUIDs: Set<String>
     let allowsCalendarCreation: Bool
     private var calendar: CalendarProjectionCalendar?
@@ -726,6 +779,7 @@ private final class CalendarEventStoreFixture: CalendarEventStore {
         near projection: CalendarProjectionEvent,
         in calendar: CalendarProjectionCalendar
     ) -> String? {
+        eventIdentifierLookupCount += 1
         let recoveryInterval = EventKitCalendarProjectionSemantics
             .recoveryInterval(for: projection)
         return physicalEventsByIdentifier.values.first { event in
@@ -840,6 +894,10 @@ private final class CalendarMappingFixture: CalendarProjectionMappingRepository 
 
     func seedCalendarIdentifier(_ identifier: String) {
         calendarID = identifier
+    }
+
+    func seedEventIdentifier(_ identifier: String, for projectionUID: String) {
+        eventIDs[projectionUID] = identifier
     }
 
     func eventIdentifier(for projectionUID: String) throws -> String? {

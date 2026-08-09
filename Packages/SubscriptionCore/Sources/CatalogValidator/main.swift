@@ -51,10 +51,16 @@ struct CatalogValidator {
         from path: String
     ) throws -> [CatalogAuditRow] {
         let data = try Data(contentsOf: URL(filePath: path))
+        guard let contents = String(data: data, encoding: .utf8) else {
+            throw CatalogAuditError(
+                lineNumber: nil,
+                message: "manifest is not valid UTF-8"
+            )
+        }
         let decoder = JSONDecoder()
         var rows: [CatalogAuditRow] = []
 
-        for (lineNumber, line) in String(decoding: data, as: UTF8.self)
+        for (lineNumber, line) in contents
             .split(whereSeparator: \.isNewline)
             .enumerated()
         {

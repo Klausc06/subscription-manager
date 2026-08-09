@@ -501,16 +501,19 @@ final class SwiftDataSubscriptionRepository: SubscriptionRepository {
         for storedRecord in storedRecords where storedRecord.subscriptionID == nil {
             storedRecord.subscriptionID = record.id
         }
-        var recordsByID: [UUID: ConfirmedChargeRecord] = [:]
-        for storedRecord in storedRecords
-            where recordsByID[storedRecord.id] == nil
-        {
-            recordsByID[storedRecord.id] = storedRecord
+        let canonicalization = canonicalConfirmedChargeRecords(
+            from: storedRecords
+        )
+        for losingRecord in canonicalization.losingRecords {
+            context.delete(losingRecord)
         }
+        storedRecords = canonicalization.orderedRecords
+        var recordsByKey = canonicalization.recordsByKey
         let storedRecordsWereEmpty = storedRecords.isEmpty
         var nextSequence = (storedRecords.map(\.sequence).max() ?? -1) + 1
         for (index, charge) in charges.enumerated() {
-            guard recordsByID[charge.id] == nil else { continue }
+            let key = confirmedChargeCanonicalKey(from: charge)
+            guard recordsByKey[key] == nil else { continue }
             let sequence: Int
             if preserveInputOrderWhenEmpty && storedRecordsWereEmpty {
                 sequence = index
@@ -535,7 +538,7 @@ final class SwiftDataSubscriptionRepository: SubscriptionRepository {
             )
             context.insert(storedRecord)
             storedRecords.append(storedRecord)
-            recordsByID[charge.id] = storedRecord
+            recordsByKey[key] = storedRecord
         }
     }
 
@@ -571,9 +574,14 @@ final class SwiftDataSubscriptionRepository: SubscriptionRepository {
         for storedRecord in storedRecords where storedRecord.subscriptionID == nil {
             storedRecord.subscriptionID = record.id
         }
-        var recordsByID = canonicalPriceChangeRecordsByID(
+        let canonicalization = canonicalPriceChangeRecords(
             from: storedRecords
         )
+        for losingRecord in canonicalization.losingRecords {
+            context.delete(losingRecord)
+        }
+        storedRecords = canonicalization.orderedRecords
+        var recordsByID = canonicalization.recordsByID
         let storedRecordsWereEmpty = storedRecords.isEmpty
         var nextSequence = (storedRecords.map(\.sequence).max() ?? -1) + 1
         for (index, change) in changes.enumerated() {
@@ -616,31 +624,11 @@ final class SwiftDataSubscriptionRepository: SubscriptionRepository {
         )
     }
 
-    private enum ConfirmedChargeCanonicalKey: Hashable {
-        case scheduled(ScheduledChargeID)
-        case unlinked(UUID)
-    }
-
     private func canonicalConfirmedCharges(
         from records: [ConfirmedChargeRecord]
     ) -> [ConfirmedCharge] {
-        var seenKeys = Set<ConfirmedChargeCanonicalKey>()
-        return records
-            .sorted {
-                if $0.sequence != $1.sequence {
-                    return $0.sequence < $1.sequence
-                }
-                if $0.appendOrderDate != $1.appendOrderDate {
-                    return $0.appendOrderDate < $1.appendOrderDate
-                }
-                return $0.persistentModelID < $1.persistentModelID
-            }
-            .filter { storedRecord in
-                let key = scheduledChargeID(from: storedRecord).map {
-                    ConfirmedChargeCanonicalKey.scheduled($0)
-                } ?? .unlinked(storedRecord.id)
-                return seenKeys.insert(key).inserted
-            }
+        canonicalConfirmedChargeRecords(from: records)
+            .orderedRecords
             .map { storedRecord in
                 return ConfirmedCharge(
                     id: storedRecord.id,
@@ -670,10 +658,8 @@ final class SwiftDataSubscriptionRepository: SubscriptionRepository {
     private func canonicalPriceChanges(
         from records: [PriceChangeRecord]
     ) -> [PriceChange] {
-        var seenIDs = Set<UUID>()
-        return records
-            .sorted(by: priceChangeRecordPrecedes)
-            .filter { seenIDs.insert($0.id).inserted }
+        canonicalPriceChangeRecords(from: records)
+            .orderedRecords
             .map { storedRecord in
                 PriceChange(
                     id: storedRecord.id,
@@ -686,25 +672,6 @@ final class SwiftDataSubscriptionRepository: SubscriptionRepository {
                     )
                 )
             }
-    }
-
-    private func scheduledChargeID(
-        from record: ConfirmedChargeRecord
-    ) -> ScheduledChargeID? {
-        guard let subscriptionID =
-            record.sourceScheduledChargeSubscriptionID,
-            let year = record.sourceScheduledChargeYear,
-            let month = record.sourceScheduledChargeMonth,
-            let day = record.sourceScheduledChargeDay
-        else {
-            return nil
-        }
-        return ScheduledChargeID(
-            subscriptionID: subscriptionID,
-            year: year,
-            month: month,
-            day: day
-        )
     }
 
     private func groupConfirmedChargeRecordsBySubscriptionID(
@@ -794,9 +761,7 @@ final class SwiftDataSubscriptionRepository: SubscriptionRepository {
             return []
         }
         let current = try currentPriceChanges(for: subscription.id)
-        let currentByID = Dictionary(
-            uniqueKeysWithValues: current.map { ($0.id, $0) }
-        )
+        let currentByID = canonicalPriceChangesByID(from: current)
         return Set(
             snapshot.compactMap { id, observed in
                 currentByID[id] == observed ? nil : id
@@ -829,10 +794,8 @@ final class SwiftDataSubscriptionRepository: SubscriptionRepository {
         _ priceChanges: [PriceChange],
         for subscriptionID: UUID
     ) {
-        priceChangeSnapshots[subscriptionID] = Dictionary(
-            uniqueKeysWithValues: priceChanges.map {
-                ($0.id, $0)
-            }
+        priceChangeSnapshots[subscriptionID] = canonicalPriceChangesByID(
+            from: priceChanges
         )
     }
 
@@ -1321,17 +1284,27 @@ final class SwiftDataPortableBackupImportRepository:
                 || ($0.subscriptionID == nil
                     && $0.subscription?.id == record.id)
         }
-        let desiredIDs = Set(charges.map(\.id))
-        for storedRecord in storedRecords where !desiredIDs.contains(storedRecord.id) {
+        let canonicalization = canonicalConfirmedChargeRecords(
+            from: storedRecords
+        )
+        let desiredKeys = Set(charges.map {
+            confirmedChargeCanonicalKey(from: $0)
+        })
+        for losingRecord in canonicalization.losingRecords {
+            context.delete(losingRecord)
+        }
+        for (key, storedRecord) in canonicalization.recordsByKey
+            where !desiredKeys.contains(key)
+        {
             context.delete(storedRecord)
         }
-        var storedByID: [UUID: ConfirmedChargeRecord] = [:]
-        for storedRecord in storedRecords {
-            storedByID[storedRecord.id] = storedRecord
+        var storedByKey = canonicalization.recordsByKey.filter {
+            desiredKeys.contains($0.key)
         }
         for (sequence, charge) in charges.enumerated() {
+            let key = confirmedChargeCanonicalKey(from: charge)
             let storedRecord: ConfirmedChargeRecord
-            if let existing = storedByID[charge.id] {
+            if let existing = storedByKey[key] {
                 storedRecord = existing
             } else {
                 storedRecord = ConfirmedChargeRecord(
@@ -1345,8 +1318,9 @@ final class SwiftDataPortableBackupImportRepository:
                     subscription: record
                 )
                 context.insert(storedRecord)
-                storedByID[charge.id] = storedRecord
+                storedByKey[key] = storedRecord
             }
+            storedRecord.id = charge.id
             storedRecord.sequence = sequence
             storedRecord.chargedDate = charge.chargedDate
             storedRecord.amountMinorUnits = charge.amount.minorUnits
@@ -1374,13 +1348,21 @@ final class SwiftDataPortableBackupImportRepository:
                 || ($0.subscriptionID == nil
                     && $0.subscription?.id == record.id)
         }
-        let desiredIDs = Set(changes.map(\.id))
-        for storedRecord in storedRecords where !desiredIDs.contains(storedRecord.id) {
-            context.delete(storedRecord)
-        }
-        var storedByID = canonicalPriceChangeRecordsByID(
+        let canonicalization = canonicalPriceChangeRecords(
             from: storedRecords
         )
+        let desiredIDs = Set(changes.map(\.id))
+        for losingRecord in canonicalization.losingRecords {
+            context.delete(losingRecord)
+        }
+        for (id, storedRecord) in canonicalization.recordsByID
+            where !desiredIDs.contains(id)
+        {
+            context.delete(storedRecord)
+        }
+        var storedByID = canonicalization.recordsByID.filter {
+            desiredIDs.contains($0.key)
+        }
         for (sequence, change) in changes.enumerated() {
             let storedRecord: PriceChangeRecord
             if let existing = storedByID[change.id] {
@@ -1409,16 +1391,126 @@ final class SwiftDataPortableBackupImportRepository:
     }
 }
 
-private func canonicalPriceChangeRecordsByID(
-    from records: [PriceChangeRecord]
-) -> [UUID: PriceChangeRecord] {
-    var recordsByID: [UUID: PriceChangeRecord] = [:]
-    for record in records.sorted(by: priceChangeRecordPrecedes)
-        where recordsByID[record.id] == nil
-    {
-        recordsByID[record.id] = record
+private enum ConfirmedChargeCanonicalKey: Hashable {
+    case scheduled(ScheduledChargeID)
+    case unlinked(UUID)
+}
+
+private struct ConfirmedChargeRecordCanonicalization {
+    let orderedRecords: [ConfirmedChargeRecord]
+    let recordsByKey: [
+        ConfirmedChargeCanonicalKey: ConfirmedChargeRecord
+    ]
+    let losingRecords: [ConfirmedChargeRecord]
+}
+
+private func canonicalConfirmedChargeRecords(
+    from records: [ConfirmedChargeRecord]
+) -> ConfirmedChargeRecordCanonicalization {
+    var orderedRecords: [ConfirmedChargeRecord] = []
+    var recordsByKey: [
+        ConfirmedChargeCanonicalKey: ConfirmedChargeRecord
+    ] = [:]
+    var losingRecords: [ConfirmedChargeRecord] = []
+    for record in records.sorted(by: confirmedChargeRecordPrecedes) {
+        let key = confirmedChargeCanonicalKey(from: record)
+        if recordsByKey[key] == nil {
+            orderedRecords.append(record)
+            recordsByKey[key] = record
+        } else {
+            losingRecords.append(record)
+        }
     }
-    return recordsByID
+    return ConfirmedChargeRecordCanonicalization(
+        orderedRecords: orderedRecords,
+        recordsByKey: recordsByKey,
+        losingRecords: losingRecords
+    )
+}
+
+private func confirmedChargeCanonicalKey(
+    from record: ConfirmedChargeRecord
+) -> ConfirmedChargeCanonicalKey {
+    scheduledChargeID(from: record).map {
+        .scheduled($0)
+    } ?? .unlinked(record.id)
+}
+
+private func confirmedChargeCanonicalKey(
+    from charge: ConfirmedCharge
+) -> ConfirmedChargeCanonicalKey {
+    charge.sourceScheduledChargeID.map {
+        .scheduled($0)
+    } ?? .unlinked(charge.id)
+}
+
+private func scheduledChargeID(
+    from record: ConfirmedChargeRecord
+) -> ScheduledChargeID? {
+    guard let subscriptionID =
+        record.sourceScheduledChargeSubscriptionID,
+        let year = record.sourceScheduledChargeYear,
+        let month = record.sourceScheduledChargeMonth,
+        let day = record.sourceScheduledChargeDay
+    else {
+        return nil
+    }
+    return ScheduledChargeID(
+        subscriptionID: subscriptionID,
+        year: year,
+        month: month,
+        day: day
+    )
+}
+
+private func confirmedChargeRecordPrecedes(
+    _ lhs: ConfirmedChargeRecord,
+    _ rhs: ConfirmedChargeRecord
+) -> Bool {
+    if lhs.sequence != rhs.sequence {
+        return lhs.sequence < rhs.sequence
+    }
+    if lhs.appendOrderDate != rhs.appendOrderDate {
+        return lhs.appendOrderDate < rhs.appendOrderDate
+    }
+    return lhs.persistentModelID < rhs.persistentModelID
+}
+
+private struct PriceChangeRecordCanonicalization {
+    let orderedRecords: [PriceChangeRecord]
+    let recordsByID: [UUID: PriceChangeRecord]
+    let losingRecords: [PriceChangeRecord]
+}
+
+private func canonicalPriceChangeRecords(
+    from records: [PriceChangeRecord]
+) -> PriceChangeRecordCanonicalization {
+    var orderedRecords: [PriceChangeRecord] = []
+    var recordsByID: [UUID: PriceChangeRecord] = [:]
+    var losingRecords: [PriceChangeRecord] = []
+    for record in records.sorted(by: priceChangeRecordPrecedes) {
+        if recordsByID[record.id] == nil {
+            orderedRecords.append(record)
+            recordsByID[record.id] = record
+        } else {
+            losingRecords.append(record)
+        }
+    }
+    return PriceChangeRecordCanonicalization(
+        orderedRecords: orderedRecords,
+        recordsByID: recordsByID,
+        losingRecords: losingRecords
+    )
+}
+
+private func canonicalPriceChangesByID(
+    from changes: [PriceChange]
+) -> [UUID: PriceChange] {
+    var changesByID: [UUID: PriceChange] = [:]
+    for change in changes {
+        changesByID[change.id] = change
+    }
+    return changesByID
 }
 
 private func priceChangeRecordPrecedes(

@@ -755,6 +755,14 @@ public final class SubscriptionWorkspace {
     private let identifierGenerator: () -> UUID
     private let now: () -> Date
     private let calendar: Calendar
+    private enum SetupPreferencesLoadResult {
+        case unknown
+        case missing
+        case stored
+        case failed
+    }
+    private var setupPreferencesLoadResult: SetupPreferencesLoadResult =
+        .unknown
     private enum CalendarReconciliationRequest {
         case reconcile(Locale)
         case rebuild(Locale)
@@ -789,6 +797,7 @@ public final class SubscriptionWorkspace {
     private enum ExchangeRateRefreshError: Error {
         case incompleteSnapshot
     }
+    private var exchangeRateRefreshGeneration: UInt64 = 0
     private var exchangeRateAttempts: Set<ExchangeRateAttemptKey> = []
 
     public init(
@@ -844,16 +853,30 @@ public final class SubscriptionWorkspace {
     }
 
     public func loadSetup(libraryIsEmpty: Bool) {
+        loadSetup(
+            libraryIsEmptyWhenPreferencesAreMissing: libraryIsEmpty
+        )
+    }
+
+    private func loadSetup(
+        libraryIsEmptyWhenPreferencesAreMissing: Bool?
+    ) {
         let fallback = UserPreferences.default
         for attempt in 0..<2 {
             do {
                 let storedPreferences = try preferencesRepository?.loadPreferences()
                 guard let preferences = storedPreferences else {
-                    setupState = libraryIsEmpty
+                    setupPreferencesLoadResult = .missing
+                    guard let libraryIsEmptyWhenPreferencesAreMissing else {
+                        setupState = .loadFailed
+                        return
+                    }
+                    setupState = libraryIsEmptyWhenPreferencesAreMissing
                         ? .needsSetup(fallback)
                         : .completed(fallback)
                     return
                 }
+                setupPreferencesLoadResult = .stored
                 switch preferences.setupStatus {
                 case .notCompleted:
                     setupState = .needsSetup(preferences)
@@ -865,6 +888,7 @@ public final class SubscriptionWorkspace {
                 return
             } catch {
                 if attempt == 1 {
+                    setupPreferencesLoadResult = .failed
                     setupState = .loadFailed
                 }
             }
@@ -927,6 +951,7 @@ public final class SubscriptionWorkspace {
     /// first-run library. A failed persistence attempt remains observable,
     /// but must not send that existing library through onboarding.
     func completeExistingLibrarySetup() {
+        guard case .missing = setupPreferencesLoadResult else { return }
         persistPreferences(
             UserPreferences(
                 primaryCurrency: currentPreferences.primaryCurrency,
@@ -1001,6 +1026,7 @@ public final class SubscriptionWorkspace {
             try preferencesRepository?.savePreferences(preferences)
             if preferencesRepository != nil {
                 markLocalChangesForSync()
+                setupPreferencesLoadResult = .stored
             }
             setupState = stateOnSuccess?(preferences)
                 ?? setupState(for: preferences)
@@ -1027,6 +1053,8 @@ public final class SubscriptionWorkspace {
     }
 
     public func refreshExchangeRates() async {
+        exchangeRateRefreshGeneration &+= 1
+        let refreshGeneration = exchangeRateRefreshGeneration
         let cachedState = try? exchangeRateCache?.loadState()
         guard let subscriptions = try? repository.listSubscriptions() else {
             exchangeRateStatus = .unavailable
@@ -1086,6 +1114,9 @@ public final class SubscriptionWorkspace {
                 base: .eur,
                 quotes: requiredQuotes
             )
+            guard refreshGeneration == exchangeRateRefreshGeneration else {
+                return
+            }
             guard snapshotContainsRequiredCurrencies(
                 snapshot,
                 requiredCurrencies: requiredCurrencies
@@ -1103,11 +1134,17 @@ public final class SubscriptionWorkspace {
             }
             exchangeRateStatus = .fresh(snapshot)
         } catch is CancellationError {
+            guard refreshGeneration == exchangeRateRefreshGeneration else {
+                return
+            }
             exchangeRateStatus = cacheIsComplete
                 ? cachedState?.snapshot.map(ExchangeRateStatus.stale)
                     ?? .unavailable
                 : .unavailable
         } catch {
+            guard refreshGeneration == exchangeRateRefreshGeneration else {
+                return
+            }
             exchangeRateAttempts.insert(attemptKey)
             let state = ExchangeRateCacheState(
                 snapshot: cachedState?.snapshot,
@@ -2208,9 +2245,37 @@ public final class SubscriptionWorkspace {
         loadLibrary(scope: carriedLibraryScope)
     }
 
-    public func reloadPersistedState() {
-        loadLibrary(scope: carriedLibraryScope)
+    public func reloadAfterRemoteImport() async {
+        let scope = carriedLibraryScope
+        loadLibrary(scope: scope)
+        reloadPreferencesAfterRemoteImport()
+        if insightsRequest != nil {
+            await refreshExchangeRates()
+        }
         reloadRequestedConsumers()
+    }
+
+    private func reloadPreferencesAfterRemoteImport() {
+        guard preferencesRepository != nil else { return }
+        let previousState = setupState
+        loadSetup(
+            libraryIsEmptyWhenPreferencesAreMissing:
+                libraryIsEmptyAfterRemoteImport
+        )
+        if setupState != previousState {
+            setupRevision &+= 1
+        }
+    }
+
+    private var libraryIsEmptyAfterRemoteImport: Bool? {
+        switch libraryState {
+        case .loaded:
+            false
+        case .empty:
+            try? repository.listSubscriptions().isEmpty
+        case .loading, .failed:
+            nil
+        }
     }
 
     public func makeWidgetSnapshot() -> WidgetSnapshot? {

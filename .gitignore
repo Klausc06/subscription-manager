@@ -4,6 +4,9 @@
 .omo/
 work/
 outputs/
+artifacts/
+__pycache__/
+*.py[cod]
 
 # Xcode
 DerivedData/

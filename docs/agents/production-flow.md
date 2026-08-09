@@ -87,6 +87,20 @@ Run the focused test or check during each implementation slice. Run the
 repository's existing complete test suite once at the end when it is available
 and relevant; do not create an additional suite or audit lane.
 
+The repository release verifier also enforces mechanically reviewable source
+policy: structured inputs and entitlements must parse, every English and
+Simplified Chinese string-catalog leaf must be translated and non-empty, Swift
+production and test code must not use `try!`, and repository UTF-8 input must
+not be accepted through lossy `String(decoding:)` conversion. The verifier
+conservatively rejects executable calls carrying the `decoding:as:` argument
+signature, including qualified, explicit-initializer, contextual, and aliased
+spellings, as well as compound references to `init(decoding:as:)`. Use explicit
+error propagation and failable UTF-8 decoding instead. The verifier also uses
+the compiler's syntax tree to require the macOS command set to be installed on
+the app scene and to replace, rather than append after, the default New Window
+command. This structural policy belongs in the release verifier instead of an
+XCTest that opens repository source files at runtime.
+
 Before committing, run the two axes defined by `/code-review` against the
 complete candidate diff from the pinned starting commit. The repository's
 commit-after-verification policy requires this pre-commit adapter instead of

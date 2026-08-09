@@ -13,6 +13,15 @@ enum SetupSheetPresentation {
     ) -> Bool {
         permitsSetupPresentation && state.requiresSetupInteraction
     }
+
+    static func isSetupInteractionActive(
+        for state: SetupState,
+        expectedSetupRevision: UInt64,
+        currentSetupRevision: UInt64
+    ) -> Bool {
+        expectedSetupRevision == currentSetupRevision
+            && state.requiresSetupInteraction
+    }
 }
 
 struct LibraryView: View {
@@ -681,8 +690,12 @@ private struct UpcomingView: View {
                     subscriptionID: item.subscriptionID,
                     serviceName: item.serviceName,
                     date: billingLocalDay(
-                        for: item,
-                        subscriptionsByID: subscriptionsByID
+                        item.date,
+                        billingTimeZoneIdentifier:
+                            subscriptionsByID[item.subscriptionID]?
+                            .billingSchedule.timeZoneIdentifier
+                            ?? TimeZone.autoupdatingCurrent.identifier,
+                        displayCalendar: calendar
                     ),
                     amount: item.amount
                 )
@@ -712,35 +725,6 @@ private struct UpcomingView: View {
                 ($0.id, $0)
             }
         )
-    }
-
-    private func billingLocalDay(
-        for item: UpcomingTimelineItem,
-        subscriptionsByID: [UUID: Subscription]
-    ) -> Date {
-        let timeZoneIdentifier = subscriptionsByID[item.subscriptionID]?
-            .billingSchedule.timeZoneIdentifier
-            ?? TimeZone.autoupdatingCurrent.identifier
-        var billingCalendar = Calendar(identifier: .gregorian)
-        billingCalendar.timeZone = billingTimeZone(
-            identifier: timeZoneIdentifier
-        )
-        let components = billingCalendar.dateComponents(
-            [.year, .month, .day],
-            from: item.date
-        )
-        var displayCalendar = Calendar(identifier: .gregorian)
-        displayCalendar.timeZone = calendar.timeZone
-        guard let year = components.year,
-              let month = components.month,
-              let day = components.day,
-              let displayDate = displayCalendar.date(
-                  from: DateComponents(year: year, month: month, day: day)
-              )
-        else {
-            return calendar.startOfDay(for: item.date)
-        }
-        return calendar.startOfDay(for: displayDate)
     }
 
     private var hasUpcomingFailure: Bool {
@@ -1426,8 +1410,11 @@ struct FirstRunSetupView: View {
     }
 
     private var setupInteractionIsActive: Bool {
-        workspace.setupRevision == expectedSetupRevision
-            && isSetupInteractionActive(workspace.setupState)
+        SetupSheetPresentation.isSetupInteractionActive(
+            for: workspace.setupState,
+            expectedSetupRevision: expectedSetupRevision,
+            currentSetupRevision: workspace.setupRevision
+        )
     }
 
     private var setupPersistenceFailed: Bool {
@@ -2039,10 +2026,6 @@ struct SetupLoadFailureView: View {
                 .accessibilityIdentifier("setup.retry-load")
         }
     }
-}
-
-private func isSetupInteractionActive(_ state: SetupState) -> Bool {
-    state.requiresSetupInteraction
 }
 
 private struct SyncStatusView: View {
