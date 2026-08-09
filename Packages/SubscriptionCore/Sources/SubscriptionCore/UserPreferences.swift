@@ -112,6 +112,36 @@ public enum SetupState: Equatable, Sendable {
     case completed(UserPreferences)
     case skipped(UserPreferences)
     case failed(UserPreferences)
+    /// The library already contains subscriptions, so setup is complete for
+    /// interaction purposes. Persisting that inferred completion can retry
+    /// later without reopening first-run setup.
+    case configurationSaveFailed(UserPreferences)
+}
+
+public extension SetupState {
+    var requiresSetupInteraction: Bool {
+        switch self {
+        case .needsSetup:
+            true
+        case .failed(let preferences):
+            preferences.setupStatus == .notCompleted
+        case .notLoaded,
+             .loadFailed,
+             .completed,
+             .skipped,
+             .configurationSaveFailed:
+            false
+        }
+    }
+
+    var hasPreferenceSaveFailure: Bool {
+        switch self {
+        case .failed, .configurationSaveFailed:
+            true
+        case .notLoaded, .loadFailed, .needsSetup, .completed, .skipped:
+            false
+        }
+    }
 }
 
 public extension SubscriptionWorkspace {
@@ -149,7 +179,11 @@ public extension SubscriptionWorkspace {
         switch setupState {
         case .notLoaded, .loadFailed:
             break
-        case .needsSetup, .completed, .skipped, .failed:
+        case .needsSetup,
+             .completed,
+             .skipped,
+             .failed,
+             .configurationSaveFailed:
             return
         }
         guard let libraryIsEmpty = Self.libraryIsEmptyForSetup(
@@ -178,6 +212,6 @@ public extension SubscriptionWorkspace {
             archived: archivedLibraryState
         ) == false else { return }
         guard case .completed = setupState else { return }
-        completeSetup()
+        completeExistingLibrarySetup()
     }
 }

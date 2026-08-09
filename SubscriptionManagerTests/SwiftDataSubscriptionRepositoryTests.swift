@@ -14,6 +14,10 @@ struct SwiftDataSubscriptionRepositoryTests {
         case unavailable
     }
 
+    private enum PriceChangeSnapshotFailure: Error {
+        case unavailable
+    }
+
     @Test("A store initialization failure remains renderable")
     @MainActor
     func storeInitializationFailureIsRecoverable() {
@@ -384,6 +388,122 @@ struct SwiftDataSubscriptionRepositoryTests {
         )
 
         #expect(merged.priceChanges == [newerChange])
+    }
+
+    @Test("A durable update does not query price changes after saving")
+    @MainActor
+    func durableUpdateDoesNotPerformFalliblePostSaveSnapshotLoad() throws {
+        let subscriptionID = UUID(
+            uuidString: "0A0A0A0A-0000-4000-8000-000000000014"
+        )!
+        let originalChange = PriceChange(
+            id: UUID(
+                uuidString: "0A0A0A0A-0000-4000-8000-000000000015"
+            )!,
+            effectiveDate: Date(timeIntervalSince1970: 1_700_000_000),
+            amount: Money(minorUnits: 1_201, currency: .usd)
+        )
+        let updatedChange = PriceChange(
+            id: originalChange.id,
+            effectiveDate: Date(timeIntervalSince1970: 1_700_086_400),
+            amount: Money(minorUnits: 1_299, currency: .usd)
+        )
+        let original = makeSubscription(
+            id: subscriptionID,
+            priceChanges: [originalChange]
+        )
+        let container = try ModelContainer(
+            for: SubscriptionRecord.self,
+            configurations: ModelConfiguration(
+                isStoredInMemoryOnly: true,
+                cloudKitDatabase: .none
+            )
+        )
+        try SwiftDataSubscriptionRepository(modelContainer: container)
+            .createSubscription(original)
+
+        let repository = SwiftDataSubscriptionRepository(
+            modelContainer: container,
+            save: { try $0.save() },
+            priceChangeSnapshotLoader: { _ in
+                throw PriceChangeSnapshotFailure.unavailable
+            }
+        )
+        try repository.updateSubscription(
+            replacingPaymentHistory(
+                in: original,
+                priceChanges: [updatedChange]
+            )
+        )
+
+        let persisted = try #require(
+            try SwiftDataSubscriptionRepository(modelContainer: container)
+                .subscription(id: subscriptionID)
+        )
+        #expect(persisted.priceChanges == [updatedChange])
+    }
+
+    @Test("A merged update remembers the persisted price changes for the next conflict")
+    @MainActor
+    func mergedUpdateRemembersPersistedPriceChangesForTheNextConflict() throws {
+        let subscriptionID = UUID(
+            uuidString: "0A0A0A0A-0000-4000-8000-000000000016"
+        )!
+        let priceChangeID = UUID(
+            uuidString: "0A0A0A0A-0000-4000-8000-000000000017"
+        )!
+        let originalChange = PriceChange(
+            id: priceChangeID,
+            effectiveDate: Date(timeIntervalSince1970: 1_700_000_000),
+            amount: Money(minorUnits: 1_201, currency: .usd)
+        )
+        let externallyMergedChange = PriceChange(
+            id: priceChangeID,
+            effectiveDate: Date(timeIntervalSince1970: 1_700_086_400),
+            amount: Money(minorUnits: 1_299, currency: .usd)
+        )
+        let original = makeSubscription(
+            id: subscriptionID,
+            priceChanges: [originalChange]
+        )
+        let container = try ModelContainer(
+            for: SubscriptionRecord.self,
+            configurations: ModelConfiguration(
+                isStoredInMemoryOnly: true,
+                cloudKitDatabase: .none
+            )
+        )
+        try SwiftDataSubscriptionRepository(modelContainer: container)
+            .createSubscription(original)
+
+        let repository = SwiftDataSubscriptionRepository(
+            modelContainer: container
+        )
+        _ = try #require(try repository.subscription(id: subscriptionID))
+
+        try SwiftDataSubscriptionRepository(modelContainer: container)
+            .updateSubscription(
+                replacingPaymentHistory(
+                    in: original,
+                    priceChanges: [externallyMergedChange]
+                )
+            )
+        try repository.updateSubscription(original)
+
+        try SwiftDataSubscriptionRepository(modelContainer: container)
+            .updateSubscription(original)
+        try repository.updateSubscription(
+            replacingPaymentHistory(
+                in: original,
+                priceChanges: [externallyMergedChange]
+            )
+        )
+
+        let persisted = try #require(
+            try SwiftDataSubscriptionRepository(modelContainer: container)
+                .subscription(id: subscriptionID)
+        )
+        #expect(persisted.priceChanges == [originalChange])
     }
 
     @Test("Updating a subscription mutates one record and keeps confirmed history")

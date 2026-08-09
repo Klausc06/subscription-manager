@@ -123,7 +123,8 @@ struct SubscriptionManagerApp: App {
         case .needsSetup(let preferences),
              .completed(let preferences),
              .skipped(let preferences),
-             .failed(let preferences):
+             .failed(let preferences),
+             .configurationSaveFailed(let preferences):
             appearanceMode = preferences.appearanceMode
         case .notLoaded, .loadFailed:
             appearanceMode = .system
@@ -467,11 +468,6 @@ private struct MacLibraryView: View {
             workspace.loadCatalog(locale: locale)
             workspace.reconcileCatalogAssociations(locale: locale)
             loadInitialSetupState()
-            if shouldPresentSetup,
-               !ProcessInfo.processInfo.arguments.contains("--ui-testing")
-            {
-                isSetupPresented = true
-            }
             applyPendingRoute()
         }
         .onChange(of: scope) {
@@ -483,9 +479,7 @@ private struct MacLibraryView: View {
             librarySnapshot = state
         }
         .onChange(of: workspace.setupState) { _, state in
-            if !setupInteractionIsActive(state) {
-                isSetupPresented = false
-            }
+            synchronizeSetupPresentation(for: state)
         }
         .onReceive(NotificationCenter.default.publisher(for: MacWindowCommand.add)) { notification in
             guard handlesCommand(notification) else { return }
@@ -751,6 +745,7 @@ private struct MacLibraryView: View {
             currentLibraryState: currentLibraryState,
             archivedLibraryState: archivedLibraryState
         )
+        synchronizeSetupPresentation()
     }
 
     private func libraryScope(
@@ -765,13 +760,14 @@ private struct MacLibraryView: View {
         }
     }
 
-    private var shouldPresentSetup: Bool {
-        switch workspace.setupState {
-        case .needsSetup, .failed:
-            return true
-        case .notLoaded, .loadFailed, .completed, .skipped:
-            return false
-        }
+    private func synchronizeSetupPresentation(
+        for state: SetupState? = nil
+    ) {
+        isSetupPresented = SetupSheetPresentation.shouldPresent(
+            for: state ?? workspace.setupState,
+            permitsSetupPresentation: !ProcessInfo.processInfo.arguments
+                .contains("--ui-testing")
+        )
     }
 
     private var setupLoadFailed: Bool {
@@ -779,15 +775,6 @@ private struct MacLibraryView: View {
             return true
         }
         return false
-    }
-
-    private func setupInteractionIsActive(_ state: SetupState) -> Bool {
-        switch state {
-        case .needsSetup, .failed:
-            true
-        case .notLoaded, .loadFailed, .completed, .skipped:
-            false
-        }
     }
 
     private var selectedSubscriptionsArePinned: Bool {

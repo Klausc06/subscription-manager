@@ -4,6 +4,58 @@ import Testing
 @testable import SubscriptionManager
 
 struct MacWindowRouterTests {
+    @Test("Setup presentation policy distinguishes incomplete and completed setup failures")
+    func setupPresentationPolicyDistinguishesFailureStates() {
+        let preferences = UserPreferences.default
+        let completedPreferences = UserPreferences(
+            primaryCurrency: .cny,
+            calendarProjectionHorizon: .twelveMonths,
+            setupStatus: .completed
+        )
+        let skippedPreferences = UserPreferences(
+            primaryCurrency: .cny,
+            calendarProjectionHorizon: .twelveMonths,
+            setupStatus: .skipped
+        )
+
+        #expect(
+            SetupSheetPresentation.shouldPresent(
+                for: .needsSetup(preferences),
+                permitsSetupPresentation: true
+            )
+        )
+        #expect(
+            !SetupSheetPresentation.shouldPresent(
+                for: .failed(completedPreferences),
+                permitsSetupPresentation: true
+            )
+        )
+        #expect(
+            !SetupSheetPresentation.shouldPresent(
+                for: .failed(skippedPreferences),
+                permitsSetupPresentation: true
+            )
+        )
+        #expect(
+            SetupSheetPresentation.shouldPresent(
+                for: .failed(preferences),
+                permitsSetupPresentation: true
+            )
+        )
+        #expect(
+            !SetupSheetPresentation.shouldPresent(
+                for: .configurationSaveFailed(completedPreferences),
+                permitsSetupPresentation: true
+            )
+        )
+        #expect(
+            !SetupSheetPresentation.shouldPresent(
+                for: .needsSetup(preferences),
+                permitsSetupPresentation: false
+            )
+        )
+    }
+
     #if os(macOS)
     @Test("Add Subscription replaces the default New Window command")
     func addSubscriptionReplacesDefaultNewWindowCommand() throws {

@@ -882,6 +882,13 @@ public final class SubscriptionWorkspace {
         menuBarModeEnabled: Bool? = nil,
         appearanceMode: AppearanceMode? = nil
     ) {
+        let previousPreferences = currentPreferences
+        let retainsExistingLibraryConfigurationFailure: Bool
+        if case .configurationSaveFailed = setupState {
+            retainsExistingLibraryConfigurationFailure = true
+        } else {
+            retainsExistingLibraryConfigurationFailure = false
+        }
         persistPreferences(
             UserPreferences(
                 primaryCurrency: primaryCurrency,
@@ -893,7 +900,12 @@ public final class SubscriptionWorkspace {
                 appearanceMode: appearanceMode
                     ?? currentPreferences.appearanceMode,
                 setupStatus: currentPreferences.setupStatus
-            )
+            ),
+            stateOnFailure: { _ in
+                retainsExistingLibraryConfigurationFailure
+                    ? .configurationSaveFailed(previousPreferences)
+                    : .failed(previousPreferences)
+            }
         )
         reloadInsightsIfNeeded()
     }
@@ -908,6 +920,23 @@ public final class SubscriptionWorkspace {
                 appearanceMode: currentPreferences.appearanceMode,
                 setupStatus: .completed
             )
+        )
+    }
+
+    /// Marks setup complete when existing subscriptions prove this is not a
+    /// first-run library. A failed persistence attempt remains observable,
+    /// but must not send that existing library through onboarding.
+    func completeExistingLibrarySetup() {
+        persistPreferences(
+            UserPreferences(
+                primaryCurrency: currentPreferences.primaryCurrency,
+                calendarProjectionHorizon: currentPreferences.calendarProjectionHorizon,
+                hideAmountsInCalendar: currentPreferences.hideAmountsInCalendar,
+                menuBarModeEnabled: currentPreferences.menuBarModeEnabled,
+                appearanceMode: currentPreferences.appearanceMode,
+                setupStatus: .completed
+            ),
+            stateOnFailure: { .configurationSaveFailed($0) }
         )
     }
 
@@ -945,20 +974,26 @@ public final class SubscriptionWorkspace {
         case .needsSetup(let preferences),
              .completed(let preferences),
              .skipped(let preferences),
-             .failed(let preferences):
+             .failed(let preferences),
+             .configurationSaveFailed(let preferences):
             preferences
         }
     }
 
     private func persistPreferences(
         _ preferences: UserPreferences,
-        stateOnSuccess: ((UserPreferences) -> SetupState)? = nil
+        stateOnSuccess: ((UserPreferences) -> SetupState)? = nil,
+        stateOnFailure: ((UserPreferences) -> SetupState)? = nil
     ) {
         if preferencesRepository != nil {
             switch setupState {
             case .notLoaded, .loadFailed:
                 return
-            case .needsSetup, .completed, .skipped, .failed:
+            case .needsSetup,
+                 .completed,
+                 .skipped,
+                 .failed,
+                 .configurationSaveFailed:
                 break
             }
         }
@@ -971,7 +1006,8 @@ public final class SubscriptionWorkspace {
                 ?? setupState(for: preferences)
             setupRevision &+= 1
         } catch {
-            setupState = .failed(currentPreferences)
+            setupState = stateOnFailure?(preferences)
+                ?? .failed(currentPreferences)
         }
     }
 

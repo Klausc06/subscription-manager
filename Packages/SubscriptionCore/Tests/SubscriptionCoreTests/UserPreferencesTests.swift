@@ -148,6 +148,62 @@ struct UserPreferencesTests {
         #expect(try preferences.loadPreferences()?.setupStatus == .completed)
     }
 
+    @Test("An existing library stays out of first-run setup when automatic preference persistence fails")
+    @MainActor
+    func existingLibraryStaysUsableWhenAutomaticConfigurationSaveFails() throws {
+        let preferences = InMemoryUserPreferencesRepository()
+        let workspace = SubscriptionWorkspace(
+            repository: EmptySubscriptionRepository(),
+            preferencesRepository: preferences
+        )
+        workspace.loadSetup(libraryIsEmpty: false)
+        preferences.shouldFailSaves = true
+
+        workspace.markExistingLibraryAsConfiguredIfNeeded(
+            currentLibraryState: nonEmptyCurrentLibraryState,
+            archivedLibraryState: .empty(.archived)
+        )
+
+        let completedPreferences = UserPreferences(
+            primaryCurrency: .cny,
+            calendarProjectionHorizon: .twelveMonths,
+            setupStatus: .completed
+        )
+        #expect(
+            workspace.setupState
+                == .configurationSaveFailed(completedPreferences)
+        )
+        #expect(!workspace.setupState.requiresSetupInteraction)
+        #expect(workspace.setupState.hasPreferenceSaveFailure)
+
+        workspace.updatePreferences(
+            primaryCurrency: .usd,
+            calendarProjectionHorizon: .sixMonths
+        )
+
+        #expect(
+            workspace.setupState
+                == .configurationSaveFailed(completedPreferences)
+        )
+        #expect(!workspace.setupState.requiresSetupInteraction)
+        #expect(workspace.setupState.hasPreferenceSaveFailure)
+
+        preferences.shouldFailSaves = false
+        workspace.updatePreferences(
+            primaryCurrency: .usd,
+            calendarProjectionHorizon: .sixMonths
+        )
+
+        let recoveredPreferences = UserPreferences(
+            primaryCurrency: .usd,
+            calendarProjectionHorizon: .sixMonths,
+            setupStatus: .completed
+        )
+        #expect(workspace.setupState == .completed(recoveredPreferences))
+        #expect(try preferences.loadPreferences() == recoveredPreferences)
+        #expect(!workspace.setupState.hasPreferenceSaveFailure)
+    }
+
     @Test("Failed current and archived library loads do not complete setup")
     @MainActor
     func failedCurrentAndArchivedLibrariesDoNotCompleteSetup() throws {

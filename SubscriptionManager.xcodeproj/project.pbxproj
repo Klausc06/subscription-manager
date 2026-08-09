@@ -44,6 +44,7 @@
 		8EA7BB43625DAD67A72EDBA4 /* SubscriptionIntentServiceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4BB3CC1FBA7074325EA61DC3 /* SubscriptionIntentServiceTests.swift */; };
 		95DD1A1B26E3AC5313818053 /* AddSubscriptionView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3E375325DBD112A5F485EF3F /* AddSubscriptionView.swift */; };
 		A1B2C3D4E5F60718293A4B5C /* ConfirmChargeEligibility.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F60718293A4B5D /* ConfirmChargeEligibility.swift */; };
+		A1F0E201F0E201F0E201F0E2 /* RecoveryLocalizationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1F0E202F0E201F0E201F0E2 /* RecoveryLocalizationTests.swift */; };
 		1A2B3C4D5E6F708192A3B4C5 /* BillingDateTaskView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A2B3C4D5E6F708192A3B4C6 /* BillingDateTaskView.swift */; };
 		964962A62D11B3CCB4389E47 /* SubscriptionManagerWidget.swift in Sources */ = {isa = PBXBuildFile; fileRef = 53D835B74581775DBE9B5313 /* SubscriptionManagerWidget.swift */; };
 		9C86757EC90F9573E7228788 /* Localizable.xcstrings in Resources */ = {isa = PBXBuildFile; fileRef = 0AB60CE097AABC95DB396296 /* Localizable.xcstrings */; };
@@ -137,6 +138,7 @@
 		A1B2C3D4E5F60718293A4B5D /* ConfirmChargeEligibility.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConfirmChargeEligibility.swift; sourceTree = "<group>"; };
 		4BB3CC1FBA7074325EA61DC3 /* SubscriptionIntentServiceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SubscriptionIntentServiceTests.swift; sourceTree = "<group>"; };
 		A1B2C3D4E5F60718293A4B5F /* ConfirmChargeEligibilityTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConfirmChargeEligibilityTests.swift; sourceTree = "<group>"; };
+		A1F0E202F0E201F0E201F0E2 /* RecoveryLocalizationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecoveryLocalizationTests.swift; sourceTree = "<group>"; };
 		4C0A8035198E253EFD0921C9 /* SubscriptionLifecycleSupport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SubscriptionLifecycleSupport.swift; sourceTree = "<group>"; };
 		4C522F69323C0F092E76973D /* SubscriptionManagerUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SubscriptionManagerUITests.swift; sourceTree = "<group>"; };
 		4C641E399B272135737B7EF9 /* CloudKitLibrarySyncMonitor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CloudKitLibrarySyncMonitor.swift; sourceTree = "<group>"; };
@@ -346,6 +348,7 @@
 				3220F13255F0E1FBFAE282B1 /* MacWindowRouterTests.swift */,
 				A40A43B15F2DC8026034E7B6 /* ManagementURLValidationTests.swift */,
 				1D994A995E43724CEF005FA7 /* MoneyFormattingTests.swift */,
+				A1F0E202F0E201F0E201F0E2 /* RecoveryLocalizationTests.swift */,
 				E7A1C7B8D4B34FA8A9C4D304 /* SubscriptionDraftTests.swift */,
 				4BB3CC1FBA7074325EA61DC3 /* SubscriptionIntentServiceTests.swift */,
 				3ED395A87C6661BAAA9E98BB /* SubscriptionLookupTests.swift */,
@@ -620,6 +623,7 @@
 				07BD717C844F32E7282360A2 /* SubscriptionLookupTests.swift in Sources */,
 				C90E83DF13A2B2073C083FBF /* SwiftDataSubscriptionRepositoryTests.swift in Sources */,
 				A1B2C3D4E5F60718293A4B5E /* ConfirmChargeEligibilityTests.swift in Sources */,
+				A1F0E201F0E201F0E201F0E2 /* RecoveryLocalizationTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

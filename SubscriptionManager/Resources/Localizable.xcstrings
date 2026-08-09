@@ -137,6 +137,12 @@
         }
       }
     },
+    "Couldn’t Load Setup Data" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Couldn’t Load Setup Data" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "无法加载设置数据" } }
+      }
+    },
     "Currency" : {
       "localizations" : {
         "en" : { "stringUnit" : { "state" : "translated", "value" : "Currency" } },
@@ -814,6 +820,7 @@
     "Only the selected additions and explicitly resolved conflicts will change." : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Only the selected additions and explicitly resolved conflicts will change." } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "只有选中的新增项目和已明确处理的冲突会发生更改。" } } } },
     "This backup could not be restored. Choose a valid JSON backup." : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "This backup could not be restored. Choose a valid JSON backup." } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "无法恢复此备份，请选择有效的 JSON 备份。" } } } },
     "Restore failed. Your library was not changed." : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Restore failed. Your library was not changed." } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "恢复失败，订阅库未被更改。" } } } },
+    "Your library was not changed. Try loading it again." : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Your library was not changed. Try loading it again." } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "订阅库未被更改，请重新加载。" } } } },
     "Create offline copies of your subscriptions and preferences. Exports include archived subscriptions, but never device Calendar identifiers or iCloud data." : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Create offline copies of your subscriptions and preferences. Exports include archived subscriptions, but never device Calendar identifiers or iCloud data." } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "创建订阅和偏好的离线副本。导出包含已归档订阅，但绝不包含设备日历标识符或 iCloud 数据。" } } } },
     "Couldn’t create the export. Try again." : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Couldn’t create the export. Try again." } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "无法创建导出文件，请重试。" } } } },
     "Hide Amounts in Calendar" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Hide Amounts in Calendar" } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "在日历中隐藏金额" } } } },
@@ -826,6 +833,7 @@
     "Importing Calendar Events" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Importing Calendar Events" } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "正在导入日历事件" } } } },
     "No writable Calendar source is available. You can still export an ICS file." : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "No writable Calendar source is available. You can still export an ICS file." } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "没有可写入的日历来源；你仍可导出 ICS 文件。" } } } },
     "Retry Calendar Import" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Retry Calendar Import" } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "重试导入日历" } } } },
+    "Retry Calendar Sync" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Retry Calendar Sync" } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "重试同步日历" } } } },
     "Rebuild Calendar" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Rebuild Calendar" } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "重建日历" } } } },
     "Disable Calendar Sync" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Disable Calendar Sync" } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "停用日历同步" } } } },
     "Reconciling Calendar" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Reconciling Calendar" } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "正在同步日历" } } } },

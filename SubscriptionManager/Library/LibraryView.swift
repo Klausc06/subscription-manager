@@ -6,6 +6,15 @@ import Charts
 import UIKit
 #endif
 
+enum SetupSheetPresentation {
+    static func shouldPresent(
+        for state: SetupState,
+        permitsSetupPresentation: Bool
+    ) -> Bool {
+        permitsSetupPresentation && state.requiresSetupInteraction
+    }
+}
+
 struct LibraryView: View {
     private enum RootDestination: Hashable {
         case subscriptions
@@ -56,9 +65,7 @@ struct LibraryView: View {
             loadInitialState()
         }
         .onChange(of: workspace.setupState) { _, state in
-            if !isSetupInteractionActive(state) {
-                isSetupPresented = false
-            }
+            synchronizeSetupPresentation(for: state)
         }
         .onOpenURL(perform: openDeepLink)
     }
@@ -212,7 +219,6 @@ struct LibraryView: View {
 
     private func loadInitialState() {
         let arguments = ProcessInfo.processInfo.arguments
-        let allowsUITestOnboarding = arguments.contains("--ui-testing-onboarding")
         let isUITesting = arguments.contains("--ui-testing")
         let opensArchivedLibrary = isUITesting
             && arguments.contains("--ui-testing-open-archived-library")
@@ -231,20 +237,18 @@ struct LibraryView: View {
             currentLibraryState: currentLibraryState,
             archivedLibraryState: archivedLibraryState
         )
-        if shouldPresentSetup,
-           !isUITesting || allowsUITestOnboarding
-        {
-            isSetupPresented = true
-        }
+        synchronizeSetupPresentation()
     }
 
-    private var shouldPresentSetup: Bool {
-        switch workspace.setupState {
-        case .needsSetup, .failed:
-            true
-        case .notLoaded, .loadFailed, .completed, .skipped:
-            false
-        }
+    private func synchronizeSetupPresentation(
+        for state: SetupState? = nil
+    ) {
+        let arguments = ProcessInfo.processInfo.arguments
+        isSetupPresented = SetupSheetPresentation.shouldPresent(
+            for: state ?? workspace.setupState,
+            permitsSetupPresentation: !arguments.contains("--ui-testing")
+                || arguments.contains("--ui-testing-onboarding")
+        )
     }
 
 }
@@ -1412,7 +1416,8 @@ struct FirstRunSetupView: View {
         case .needsSetup(let preferences),
              .completed(let preferences),
              .skipped(let preferences),
-             .failed(let preferences):
+             .failed(let preferences),
+             .configurationSaveFailed(let preferences):
             primaryCurrency = preferences.primaryCurrency
             horizon = preferences.calendarProjectionHorizon
         case .notLoaded, .loadFailed:
@@ -1999,10 +2004,7 @@ struct UserPreferencesView: View {
     }
 
     private var isSetupSaveFailure: Bool {
-        if case .failed = workspace.setupState {
-            return true
-        }
-        return false
+        workspace.setupState.hasPreferenceSaveFailure
     }
 
     private func applyWorkspacePreferences() {
@@ -2010,7 +2012,8 @@ struct UserPreferencesView: View {
         case .needsSetup(let preferences),
              .completed(let preferences),
              .skipped(let preferences),
-             .failed(let preferences):
+             .failed(let preferences),
+             .configurationSaveFailed(let preferences):
             primaryCurrency = preferences.primaryCurrency
             horizon = preferences.calendarProjectionHorizon
             hideAmountsInCalendar = preferences.hideAmountsInCalendar
@@ -2039,12 +2042,7 @@ struct SetupLoadFailureView: View {
 }
 
 private func isSetupInteractionActive(_ state: SetupState) -> Bool {
-    switch state {
-    case .needsSetup, .failed:
-        true
-    case .notLoaded, .loadFailed, .completed, .skipped:
-        false
-    }
+    state.requiresSetupInteraction
 }
 
 private struct SyncStatusView: View {

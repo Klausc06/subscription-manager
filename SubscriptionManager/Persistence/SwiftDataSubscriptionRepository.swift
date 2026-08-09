@@ -14,6 +14,7 @@ final class SwiftDataSubscriptionRepository: SubscriptionRepository {
     private let save: (ModelContext) throws -> Void
     private let defaultBillingTimeZone: () -> TimeZone
     private let appendOrderDate: () -> Date
+    private let priceChangeSnapshotLoader: ((UUID) throws -> [PriceChange])?
     private let decoder = JSONDecoder()
     private var priceChangeSnapshots: [UUID: [UUID: PriceChange]] = [:]
 
@@ -42,13 +43,15 @@ final class SwiftDataSubscriptionRepository: SubscriptionRepository {
         defaultBillingTimeZone: @escaping () -> TimeZone = {
             .autoupdatingCurrent
         },
-        appendOrderDate: @escaping () -> Date = Date.init
+        appendOrderDate: @escaping () -> Date = Date.init,
+        priceChangeSnapshotLoader: ((UUID) throws -> [PriceChange])? = nil
     ) {
         self.modelContainer = modelContainer
         modelContext = ModelContext(modelContainer)
         self.save = save
         self.defaultBillingTimeZone = defaultBillingTimeZone
         self.appendOrderDate = appendOrderDate
+        self.priceChangeSnapshotLoader = priceChangeSnapshotLoader
     }
 
     func createSubscription(_ subscription: Subscription) throws {
@@ -84,8 +87,18 @@ final class SwiftDataSubscriptionRepository: SubscriptionRepository {
                 to: record,
                 preservingPriceChangeIDs: stalePriceChangeIDs
             )
+            // Capture the actual merged state before committing. No fallible
+            // work may remain after save: callers must never be told an
+            // update failed once its new subscription data is durable.
+            let persistedPriceChanges = try priceChanges(
+                for: record,
+                in: modelContext
+            )
             try save(modelContext)
-            try rememberCurrentPriceChanges(for: subscription.id)
+            rememberPriceChanges(
+                persistedPriceChanges,
+                for: subscription.id
+            )
         } catch {
             modelContext.rollback()
             throw error
@@ -794,6 +807,9 @@ final class SwiftDataSubscriptionRepository: SubscriptionRepository {
     private func currentPriceChanges(
         for subscriptionID: UUID
     ) throws -> [PriceChange] {
+        if let priceChangeSnapshotLoader {
+            return try priceChangeSnapshotLoader(subscriptionID)
+        }
         let context = ModelContext(modelContainer)
         let records = try priceChangeRecords(
             for: subscriptionID,
@@ -803,17 +819,20 @@ final class SwiftDataSubscriptionRepository: SubscriptionRepository {
     }
 
     private func rememberPriceChanges(for subscription: Subscription) {
-        priceChangeSnapshots[subscription.id] = Dictionary(
-            uniqueKeysWithValues: subscription.priceChanges.map {
-                ($0.id, $0)
-            }
+        rememberPriceChanges(
+            subscription.priceChanges,
+            for: subscription.id
         )
     }
 
-    private func rememberCurrentPriceChanges(for subscriptionID: UUID) throws {
-        let current = try currentPriceChanges(for: subscriptionID)
+    private func rememberPriceChanges(
+        _ priceChanges: [PriceChange],
+        for subscriptionID: UUID
+    ) {
         priceChangeSnapshots[subscriptionID] = Dictionary(
-            uniqueKeysWithValues: current.map { ($0.id, $0) }
+            uniqueKeysWithValues: priceChanges.map {
+                ($0.id, $0)
+            }
         )
     }
 

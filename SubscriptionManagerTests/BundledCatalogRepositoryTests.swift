@@ -7,7 +7,9 @@ struct BundledCatalogRepositoryTests {
     @Test("Bundled catalog JSON decodes")
     @MainActor
     func bundledCatalogJSONDecodes() throws {
-        _ = try BundledCatalogRepository().loadSnapshot()
+        let snapshot = try BundledCatalogRepository().loadSnapshot()
+
+        #expect(snapshot.catalogVersion == 12)
     }
 
     @Test("Bundled catalog has no empty offers")
