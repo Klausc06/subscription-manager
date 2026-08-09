@@ -4,17 +4,25 @@
 
 - **Subscription Library**: The person's authoritative collection of tracked
   subscriptions. Calendar is a projection of this library, never its source.
-- **Subscription Workspace**: The application seam used by SwiftUI and future
-  widgets, App Intents, and menu-bar surfaces to issue commands and read
+- **Subscription Workspace**: The application seam used by SwiftUI, widgets,
+  App Intents, and menu-bar surfaces to issue commands and read
   user-observable state.
 - **Subscription Repository**: The persistence boundary used by the workspace.
-  The production repository is local SwiftData; application tests use
-  in-memory implementations.
-- **Subscription Summary**: The smallest stable, identifiable representation
-  needed to list a subscription. Later tickets add user-facing fields
-  additively.
+  The production repository is SwiftData and can use the app's private
+  CloudKit configuration; application tests use in-memory implementations.
+- **Subscription Summary**: The stable user-facing projection of a tracked
+  subscription: identity and name, optional plan and category, original and
+  effective amount, schedule, confirmed renewal, effective status, next
+  expected charge, and pin state.
 - **Adapter**: An injected boundary between the workspace and an external
   concern such as catalog data, exchange rates, Calendar, or synchronization.
+- **Catalog Preset**: A stable service identity and localized metadata offered
+  by the bundled catalog. A preset can have zero or more market- and
+  channel-specific offers without inventing a price.
+- **Catalog Offer**: A market-, purchase-channel-, currency-, amount-, and
+  billing-interval-specific option associated with a Catalog Preset. Its
+  verification state records whether it can be adopted automatically or needs
+  review.
 - **Fixed Billing Schedule**: A positive calendar interval, renewal anchor,
   and billing time zone that deterministically define expected charges.
   _Avoid_: Billing cycle.
@@ -56,5 +64,7 @@
 
 ## Current invariant
 
-A fresh local store is a valid Subscription Library and is represented as an
-empty, usable state rather than an error or onboarding requirement.
+The Subscription Library remains authoritative whether first-run setup is
+needed, completed, skipped, or failed. Setup and preferences never become a
+second source of subscription facts, and a failed or incomplete load is not
+represented as a trustworthy empty library.

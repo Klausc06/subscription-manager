@@ -5,11 +5,11 @@
 
 ## Context
 
-The product has several native surfaces and eventually integrates with
-SwiftData, private CloudKit, a preset catalog, daily exchange rates, EventKit,
-widgets, App Intents, and a Mac menu-bar extra. Letting each surface coordinate
-those systems would produce different behavior and make eventual-consistency
-bugs difficult to reproduce.
+The product has several native surfaces and integrates with SwiftData, private
+CloudKit, a preset catalog, exchange-rate snapshots, EventKit, widgets, App
+Intents, and a Mac menu-bar extra. Letting each surface coordinate those systems
+would produce different behavior and make eventual-consistency bugs difficult
+to reproduce.
 
 ## Decision
 
@@ -27,10 +27,10 @@ The workspace receives narrow injected adapters for:
 6. synchronization status and delivery;
 7. portable exports.
 
-Only the subscription repository has executable requirements in the walking
-skeleton. Each later adapter gains the smallest functional interface in the
-ticket that first consumes it. This avoids inventing speculative APIs while
-preserving the dependency direction from day one.
+Each adapter exposes only the functional interface required by its current
+consumer. New behavior extends these boundaries only when an approved issue
+requires it. This avoids speculative APIs while preserving the dependency
+direction.
 
 Production implementations live outside `SubscriptionCore`. Behavioral tests
 use in-memory adapters and assert workspace state rather than framework object
@@ -40,7 +40,7 @@ tests.
 ## Consequences
 
 - SwiftUI, widgets, App Intents, and the menu-bar extra share one behavior.
-- The empty library can be tested without SwiftData.
+- Workspace behavior can be tested without SwiftData.
 - SwiftData can be validated independently with an in-memory container.
 - CloudKit and Calendar remain independent, replaceable, eventually consistent
   systems.
