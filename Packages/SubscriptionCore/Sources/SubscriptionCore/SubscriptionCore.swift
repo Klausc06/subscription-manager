@@ -569,6 +569,13 @@ public enum SubscriptionLibraryState: Equatable, Sendable {
     case failed(SubscriptionLibraryScope)
 }
 
+public enum UpcomingTimelineState: Equatable, Sendable {
+    case notLoaded
+    case empty
+    case loaded([UpcomingTimelineItem])
+    case failed
+}
+
 public enum SubscriptionTableSort: String, CaseIterable, Codable, Sendable {
     case serviceName
     case plan
@@ -709,6 +716,8 @@ public final class SubscriptionWorkspace {
         [SubscriptionCreationField: SubscriptionCreationValidationError] = [:]
     public private(set) var expectedCharges: [ExpectedCharge]?
     public private(set) var upcomingTimeline: [UpcomingTimelineItem] = []
+    public private(set) var upcomingTimelineState: UpcomingTimelineState =
+        .notLoaded
     public private(set) var calendarProjection: [CalendarProjectionEvent] = []
     public private(set) var calendarImportState: CalendarImportState =
         .notRequested
@@ -724,6 +733,7 @@ public final class SubscriptionWorkspace {
     public private(set) var catalogReconciliationError:
         CatalogAssociationReconciliationError? = nil
     public private(set) var setupState: SetupState = .notLoaded
+    public private(set) var setupRevision: UInt64 = 0
     public private(set) var exchangeRateStatus: ExchangeRateStatus = .notLoaded
     public private(set) var insightsState: SpendingInsightsState = .notLoaded
     public private(set) var syncStatus: LibrarySyncStatus = .notLoaded
@@ -745,14 +755,41 @@ public final class SubscriptionWorkspace {
     private let identifierGenerator: () -> UUID
     private let now: () -> Date
     private let calendar: Calendar
+    private enum CalendarReconciliationRequest {
+        case reconcile(Locale)
+        case rebuild(Locale)
+        case disable
+
+        var priority: Int {
+            switch self {
+            case .reconcile:
+                1
+            case .rebuild:
+                2
+            case .disable:
+                3
+            }
+        }
+    }
     private var expectedChargesRequest: ExpectedChargesRequest?
     private var insightsRequest: InsightsRequest?
     private var upcomingTimelineRequest: UpcomingTimelineRequest?
     private var calendarProjectionLocale: Locale?
+    private var pendingCalendarReconciliationRequest:
+        CalendarReconciliationRequest?
     private var catalogSnapshot: CatalogSnapshot?
+    private var catalogRefreshGeneration: UInt64 = 0
     private var catalogLocale = Locale.current
     private var catalogSearchQuery = ""
     private var catalogCategoryID: String?
+    private struct ExchangeRateAttemptKey: Hashable {
+        let day: Date
+        let quotes: Set<Currency>
+    }
+    private enum ExchangeRateRefreshError: Error {
+        case incompleteSnapshot
+    }
+    private var exchangeRateAttempts: Set<ExchangeRateAttemptKey> = []
 
     public init(
         repository: any SubscriptionRepository,
@@ -808,25 +845,34 @@ public final class SubscriptionWorkspace {
 
     public func loadSetup(libraryIsEmpty: Bool) {
         let fallback = UserPreferences.default
-        do {
-            let storedPreferences = try preferencesRepository?.loadPreferences()
-            guard let preferences = storedPreferences else {
-                setupState = libraryIsEmpty
-                    ? .needsSetup(fallback)
-                    : .completed(fallback)
+        for attempt in 0..<2 {
+            do {
+                let storedPreferences = try preferencesRepository?.loadPreferences()
+                guard let preferences = storedPreferences else {
+                    setupState = libraryIsEmpty
+                        ? .needsSetup(fallback)
+                        : .completed(fallback)
+                    return
+                }
+                switch preferences.setupStatus {
+                case .notCompleted:
+                    setupState = .needsSetup(preferences)
+                case .completed:
+                    setupState = .completed(preferences)
+                case .skipped:
+                    setupState = .skipped(preferences)
+                }
                 return
+            } catch {
+                if attempt == 1 {
+                    setupState = .loadFailed
+                }
             }
-            switch preferences.setupStatus {
-            case .notCompleted:
-                setupState = .needsSetup(preferences)
-            case .completed:
-                setupState = .completed(preferences)
-            case .skipped:
-                setupState = .skipped(preferences)
-            }
-        } catch {
-            setupState = .failed(fallback)
         }
+    }
+
+    func markSetupLoadFailed() {
+        setupState = .loadFailed
     }
 
     public func updatePreferences(
@@ -836,6 +882,13 @@ public final class SubscriptionWorkspace {
         menuBarModeEnabled: Bool? = nil,
         appearanceMode: AppearanceMode? = nil
     ) {
+        let previousPreferences = currentPreferences
+        let retainsExistingLibraryConfigurationFailure: Bool
+        if case .configurationSaveFailed = setupState {
+            retainsExistingLibraryConfigurationFailure = true
+        } else {
+            retainsExistingLibraryConfigurationFailure = false
+        }
         persistPreferences(
             UserPreferences(
                 primaryCurrency: primaryCurrency,
@@ -847,7 +900,12 @@ public final class SubscriptionWorkspace {
                 appearanceMode: appearanceMode
                     ?? currentPreferences.appearanceMode,
                 setupStatus: currentPreferences.setupStatus
-            )
+            ),
+            stateOnFailure: { _ in
+                retainsExistingLibraryConfigurationFailure
+                    ? .configurationSaveFailed(previousPreferences)
+                    : .failed(previousPreferences)
+            }
         )
         reloadInsightsIfNeeded()
     }
@@ -862,6 +920,23 @@ public final class SubscriptionWorkspace {
                 appearanceMode: currentPreferences.appearanceMode,
                 setupStatus: .completed
             )
+        )
+    }
+
+    /// Marks setup complete when existing subscriptions prove this is not a
+    /// first-run library. A failed persistence attempt remains observable,
+    /// but must not send that existing library through onboarding.
+    func completeExistingLibrarySetup() {
+        persistPreferences(
+            UserPreferences(
+                primaryCurrency: currentPreferences.primaryCurrency,
+                calendarProjectionHorizon: currentPreferences.calendarProjectionHorizon,
+                hideAmountsInCalendar: currentPreferences.hideAmountsInCalendar,
+                menuBarModeEnabled: currentPreferences.menuBarModeEnabled,
+                appearanceMode: currentPreferences.appearanceMode,
+                setupStatus: .completed
+            ),
+            stateOnFailure: { .configurationSaveFailed($0) }
         )
     }
 
@@ -894,20 +969,34 @@ public final class SubscriptionWorkspace {
 
     private var currentPreferences: UserPreferences {
         switch setupState {
-        case .notLoaded:
+        case .notLoaded, .loadFailed:
             .default
         case .needsSetup(let preferences),
              .completed(let preferences),
              .skipped(let preferences),
-             .failed(let preferences):
+             .failed(let preferences),
+             .configurationSaveFailed(let preferences):
             preferences
         }
     }
 
     private func persistPreferences(
         _ preferences: UserPreferences,
-        stateOnSuccess: ((UserPreferences) -> SetupState)? = nil
+        stateOnSuccess: ((UserPreferences) -> SetupState)? = nil,
+        stateOnFailure: ((UserPreferences) -> SetupState)? = nil
     ) {
+        if preferencesRepository != nil {
+            switch setupState {
+            case .notLoaded, .loadFailed:
+                return
+            case .needsSetup,
+                 .completed,
+                 .skipped,
+                 .failed,
+                 .configurationSaveFailed:
+                break
+            }
+        }
         do {
             try preferencesRepository?.savePreferences(preferences)
             if preferencesRepository != nil {
@@ -915,8 +1004,10 @@ public final class SubscriptionWorkspace {
             }
             setupState = stateOnSuccess?(preferences)
                 ?? setupState(for: preferences)
+            setupRevision &+= 1
         } catch {
-            setupState = .failed(currentPreferences)
+            setupState = stateOnFailure?(preferences)
+                ?? .failed(currentPreferences)
         }
     }
 
@@ -937,7 +1028,27 @@ public final class SubscriptionWorkspace {
 
     public func refreshExchangeRates() async {
         let cachedState = try? exchangeRateCache?.loadState()
+        guard let subscriptions = try? repository.listSubscriptions() else {
+            exchangeRateStatus = .unavailable
+            return
+        }
+        let requiredCurrencies = Set(
+            subscriptions.flatMap { subscription in
+                [subscription.originalAmount.currency]
+                    + subscription.priceChanges.map(\.amount.currency)
+                    + subscription.confirmedCharges.map(\.amount.currency)
+            }
+        )
+            .union([currentPreferences.primaryCurrency])
+        let requiredQuotes = requiredCurrencies.subtracting([.eur])
+        let cacheIsComplete = cachedState?.snapshot.map {
+            snapshotContainsRequiredCurrencies(
+                $0,
+                requiredCurrencies: requiredCurrencies
+            )
+        } ?? false
         if let cachedState,
+           cacheIsComplete,
            calendar.isDate(
                cachedState.lastAttemptAt
                    ?? cachedState.snapshot?.fetchedAt
@@ -953,42 +1064,69 @@ public final class SubscriptionWorkspace {
             return
         }
 
-        guard let exchangeRateSource else {
-            exchangeRateStatus = cachedState?.snapshot.map(
-                ExchangeRateStatus.stale
-            ) ?? .unavailable
+        let attemptKey = ExchangeRateAttemptKey(
+            day: calendar.startOfDay(for: now()),
+            quotes: requiredQuotes
+        )
+        if exchangeRateAttempts.contains(attemptKey) {
             return
         }
 
-        let subscriptions = (try? repository.listSubscriptions()) ?? []
-        let quotes = Set(
-            subscriptions.map {
-                $0.amount(onBillingDay: $0.confirmedNextRenewal).currency
-            }
-        )
-            .union([currentPreferences.primaryCurrency])
-            .subtracting([.eur])
+        guard let exchangeRateSource else {
+            exchangeRateStatus = cacheIsComplete
+                ? cachedState?.snapshot.map(ExchangeRateStatus.stale)
+                    ?? .unavailable
+                : .unavailable
+            return
+        }
+
         let attemptedAt = now()
         do {
             let snapshot = try await exchangeRateSource.fetchRates(
                 base: .eur,
-                quotes: quotes
+                quotes: requiredQuotes
             )
+            guard snapshotContainsRequiredCurrencies(
+                snapshot,
+                requiredCurrencies: requiredCurrencies
+            ) else {
+                throw ExchangeRateRefreshError.incompleteSnapshot
+            }
             let state = ExchangeRateCacheState(
                 snapshot: snapshot,
                 lastAttemptAt: attemptedAt
             )
-            try? exchangeRateCache?.saveState(state)
+            do {
+                try exchangeRateCache?.saveState(state)
+            } catch {
+                exchangeRateAttempts.insert(attemptKey)
+            }
             exchangeRateStatus = .fresh(snapshot)
+        } catch is CancellationError {
+            exchangeRateStatus = cacheIsComplete
+                ? cachedState?.snapshot.map(ExchangeRateStatus.stale)
+                    ?? .unavailable
+                : .unavailable
         } catch {
+            exchangeRateAttempts.insert(attemptKey)
             let state = ExchangeRateCacheState(
                 snapshot: cachedState?.snapshot,
                 lastAttemptAt: attemptedAt
             )
             try? exchangeRateCache?.saveState(state)
-            exchangeRateStatus = cachedState?.snapshot.map(
-                ExchangeRateStatus.stale
-            ) ?? .unavailable
+            exchangeRateStatus = cacheIsComplete
+                ? cachedState?.snapshot.map(ExchangeRateStatus.stale)
+                    ?? .unavailable
+                : .unavailable
+        }
+    }
+
+    private func snapshotContainsRequiredCurrencies(
+        _ snapshot: ExchangeRateSnapshot,
+        requiredCurrencies: Set<Currency>
+    ) -> Bool {
+        requiredCurrencies.allSatisfy { currency in
+            currency == snapshot.base || snapshot.rates[currency] != nil
         }
     }
 
@@ -1110,7 +1248,8 @@ public final class SubscriptionWorkspace {
             .sorted { $0.category.localizedCompare($1.category) == .orderedAscending }
         let dayCount = max(
             1,
-            calendar.dateComponents([.day], from: from, to: through).day ?? 0
+            (calendar.dateComponents([.day], from: from, to: through).day ?? 0)
+                + 1
         )
         let annualizedMinorUnits = NSDecimalNumber(
             decimal: Decimal(totalMinorUnits) / Decimal(dayCount) * 365
@@ -1312,23 +1451,31 @@ public final class SubscriptionWorkspace {
         else {
             return
         }
+        catalogRefreshGeneration &+= 1
+        let refreshGeneration = catalogRefreshGeneration
 
         do {
-            let activeSnapshot: CatalogSnapshot
-            if let catalogSnapshot {
-                activeSnapshot = catalogSnapshot
-            } else {
-                activeSnapshot = try catalogRepository.loadSnapshot()
-            }
+            let persistedSnapshot = try catalogSnapshot == nil
+                ? catalogRepository.loadSnapshot()
+                : nil
             let data = try await catalogUpdateSource.fetchCatalogData()
             let candidate = try JSONDecoder().decode(
                 CatalogSnapshot.self,
                 from: data
             )
-            guard candidate.catalogVersion > activeSnapshot.catalogVersion else {
+            let latestActiveSnapshot: CatalogSnapshot
+            if let catalogSnapshot {
+                latestActiveSnapshot = catalogSnapshot
+            } else if let persistedSnapshot {
+                latestActiveSnapshot = persistedSnapshot
+            } else {
+                latestActiveSnapshot = try catalogRepository.loadSnapshot()
+            }
+            guard candidate.catalogVersion > latestActiveSnapshot.catalogVersion else {
                 catalogDiagnostics = CatalogDiagnostics(
-                    source: catalogRepository.catalogSource,
-                    version: activeSnapshot.catalogVersion,
+                    source: catalogDiagnostics?.source
+                        ?? catalogRepository.catalogSource,
+                    version: latestActiveSnapshot.catalogVersion,
                     refreshStatus: .alreadyCurrent
                 )
                 return
@@ -1343,9 +1490,13 @@ public final class SubscriptionWorkspace {
             )
             refreshCatalogState()
         } catch {
+            guard refreshGeneration == catalogRefreshGeneration else {
+                return
+            }
             if let catalogSnapshot {
                 catalogDiagnostics = CatalogDiagnostics(
-                    source: catalogRepository.catalogSource,
+                    source: catalogDiagnostics?.source
+                        ?? catalogRepository.catalogSource,
                     version: catalogSnapshot.catalogVersion,
                     refreshStatus: .failed
                 )
@@ -1526,6 +1677,7 @@ public final class SubscriptionWorkspace {
         forecastThrough: Date? = nil
     ) -> Bool {
         editingValidationErrors = [:]
+        let scope = carriedLibraryScope
 
         do {
             guard let existing = try repository.subscription(id: id) else {
@@ -1551,6 +1703,13 @@ public final class SubscriptionWorkspace {
                 return false
             }
             let localCalendar = billingLocalCalendar(timeZone: timeZone)
+            guard !existing.priceChanges.contains(where: {
+                localCalendar.startOfDay(for: $0.effectiveDate)
+                    < localCalendar.startOfDay(for: normalizedStartDate)
+            }) else {
+                editingValidationErrors[.billingSchedule] = .beforeStartDate
+                return false
+            }
             let confirmedNextRenewal: Date
             let renewalAnchor: Date
             switch existing.lifecycle {
@@ -1638,7 +1797,7 @@ public final class SubscriptionWorkspace {
             try repository.updateSubscription(editedToPersist)
             markLocalChangesForSync()
             detailState = makeDetail(editedToPersist)
-            loadLibrary()
+            loadLibrary(scope: scope)
             if let forecastThrough {
                 expectedChargesRequest = ExpectedChargesRequest(
                     subscriptionID: id,
@@ -1795,6 +1954,7 @@ public final class SubscriptionWorkspace {
                 $0.sourceScheduledChargeID == sourceScheduledChargeID
             }) else {
                 detailState = makeDetail(existing)
+                reloadRequestedConsumers()
                 return
             }
 
@@ -1877,7 +2037,6 @@ public final class SubscriptionWorkspace {
             reloadRequestedConsumers()
         } catch {
             paymentHistoryActionError = .persistenceFailed
-            detailState = .failed
         }
     }
 
@@ -2021,6 +2180,7 @@ public final class SubscriptionWorkspace {
             markLocalChangesForSync()
 
             detailState = .notFound
+            paymentHistory = []
             expectedCharges = refreshedExpectedCharges
             if clearsExpectedCharges {
                 expectedChargesRequest = nil
@@ -2042,6 +2202,15 @@ public final class SubscriptionWorkspace {
         } catch {
             libraryState = .failed(scope)
         }
+    }
+
+    public func reloadLibrary() {
+        loadLibrary(scope: carriedLibraryScope)
+    }
+
+    public func reloadPersistedState() {
+        loadLibrary(scope: carriedLibraryScope)
+        reloadRequestedConsumers()
     }
 
     public func makeWidgetSnapshot() -> WidgetSnapshot? {
@@ -2087,9 +2256,11 @@ public final class SubscriptionWorkspace {
                 detailState = makeDetail(subscription)
             } else {
                 detailState = .notFound
+                paymentHistory = []
             }
         } catch {
             detailState = .failed
+            paymentHistory = []
         }
     }
 
@@ -2135,9 +2306,12 @@ public final class SubscriptionWorkspace {
             through: through
         )
         do {
-            upcomingTimeline = try upcomingRenewals(from: from, through: through)
+            let timeline = try upcomingRenewals(from: from, through: through)
+            upcomingTimeline = timeline
+            upcomingTimelineState = timeline.isEmpty ? .empty : .loaded(timeline)
         } catch {
             upcomingTimeline = []
+            upcomingTimelineState = .failed
         }
     }
 
@@ -2160,7 +2334,8 @@ public final class SubscriptionWorkspace {
             }
     }
 
-    public func loadCalendarProjection(locale: Locale) {
+    @discardableResult
+    public func loadCalendarProjection(locale: Locale) -> Bool {
         calendarProjectionLocale = locale
         let horizon = calendar.date(
             byAdding: .month,
@@ -2183,8 +2358,10 @@ public final class SubscriptionWorkspace {
                     }
                     return lhs.uid < rhs.uid
                 }
+            return true
         } catch {
             calendarProjection = []
+            return false
         }
     }
 
@@ -2262,50 +2439,80 @@ public final class SubscriptionWorkspace {
     }
 
     public func reconcileCalendarProjection(locale: Locale) async {
-        guard calendarReconciliationState != .reconciling else { return }
-        guard let calendarProjectionReconciler else {
-            calendarReconciliationState = .notConfigured
-            return
-        }
-        loadCalendarProjection(locale: locale)
-        calendarReconciliationState = .reconciling
-        let result = await calendarProjectionReconciler.perform(
-            .reconcile(calendarProjection)
-        )
-        calendarReconciliationState = CalendarReconciliationState(result: result)
+        await enqueueCalendarReconciliation(.reconcile(locale))
     }
 
     public func rebuildCalendarProjection(locale: Locale) async {
-        await performCalendarReconciliation(.rebuild([]), locale: locale)
+        await enqueueCalendarReconciliation(.rebuild(locale))
     }
 
     public func disableCalendarReconciliation() async {
-        guard let calendarProjectionReconciler else {
+        await enqueueCalendarReconciliation(.disable)
+    }
+
+    private func enqueueCalendarReconciliation(
+        _ request: CalendarReconciliationRequest
+    ) async {
+        guard calendarProjectionReconciler != nil else {
             calendarReconciliationState = .notConfigured
             return
         }
+        guard calendarReconciliationState != .reconciling else {
+            pendingCalendarReconciliationRequest =
+                coalescedCalendarReconciliationRequest(
+                    pending: pendingCalendarReconciliationRequest,
+                    incoming: request
+                )
+            return
+        }
         calendarReconciliationState = .reconciling
-        let result = await calendarProjectionReconciler.perform(.disable)
-        calendarReconciliationState = CalendarReconciliationState(result: result)
+
+        var request = request
+        while true {
+            let result = await performCalendarReconciliation(request)
+            guard let pending = pendingCalendarReconciliationRequest else {
+                calendarReconciliationState = CalendarReconciliationState(
+                    result: result
+                )
+                return
+            }
+            pendingCalendarReconciliationRequest = nil
+            request = pending
+        }
+    }
+
+    private func coalescedCalendarReconciliationRequest(
+        pending: CalendarReconciliationRequest?,
+        incoming: CalendarReconciliationRequest
+    ) -> CalendarReconciliationRequest {
+        guard let pending else { return incoming }
+        return incoming.priority >= pending.priority ? incoming : pending
     }
 
     private func performCalendarReconciliation(
-        _ command: CalendarReconciliationCommand,
-        locale: Locale
-    ) async {
-        guard calendarReconciliationState != .reconciling,
-              let calendarProjectionReconciler
-        else { return }
-        loadCalendarProjection(locale: locale)
-        calendarReconciliationState = .reconciling
-        let command = switch command {
-        case .rebuild:
-            CalendarReconciliationCommand.rebuild(calendarProjection)
-        default:
-            command
+        _ request: CalendarReconciliationRequest
+    ) async -> CalendarReconciliationResult {
+        guard let calendarProjectionReconciler else {
+            return .notConfigured
         }
-        let result = await calendarProjectionReconciler.perform(command)
-        calendarReconciliationState = CalendarReconciliationState(result: result)
+        switch request {
+        case .reconcile(let locale):
+            guard loadCalendarProjection(locale: locale) else {
+                return .unavailable
+            }
+            return await calendarProjectionReconciler.perform(
+                .reconcile(calendarProjection)
+            )
+        case .rebuild(let locale):
+            guard loadCalendarProjection(locale: locale) else {
+                return .unavailable
+            }
+            return await calendarProjectionReconciler.perform(
+                .rebuild(calendarProjection)
+            )
+        case .disable:
+            return await calendarProjectionReconciler.perform(.disable)
+        }
     }
 
     private func validate(
@@ -2976,32 +3183,44 @@ public final class SubscriptionWorkspace {
                 onOrAfter: today,
                 calendar: localCalendar
             )
-            let missed = (candidateIndex...(candidateIndex + 1)).compactMap {
-                scheduledDate(
+            let startDay = localCalendar.startOfDay(for: subscription.startDate)
+            let confirmedNextRenewalDay = localCalendar.startOfDay(
+                for: subscription.confirmedNextRenewal
+            )
+            var missed: ExpectedCharge?
+            for occurrenceIndex in stride(
+                from: candidateIndex + 1,
+                through: 0,
+                by: -1
+            ) {
+                guard let occurrence = scheduledDate(
                     for: subscription.billingSchedule,
-                    occurrenceIndex: $0,
+                    occurrenceIndex: occurrenceIndex,
                     calendar: localCalendar
-                )
-            }
-            .filter {
-                let occurrenceDay = localCalendar.startOfDay(for: $0)
-                return occurrenceDay >= localCalendar.startOfDay(
-                    for: subscription.startDate
-                ) && occurrenceDay <= today
-            }
-            .map {
-                expectedCharge(
+                ) else {
+                    continue
+                }
+                let occurrenceDay = localCalendar.startOfDay(for: occurrence)
+                if occurrenceDay < startDay
+                    || occurrenceDay < confirmedNextRenewalDay
+                {
+                    break
+                }
+                guard occurrenceDay <= today else {
+                    continue
+                }
+                let charge = expectedCharge(
                     for: subscription,
-                    scheduledDate: $0,
+                    scheduledDate: occurrence,
                     calendar: localCalendar
                 )
-            }
-            .filter { charge in
-                !subscription.confirmedCharges.contains {
+                if !subscription.confirmedCharges.contains(where: {
                     $0.sourceScheduledChargeID == charge.id
+                }) {
+                    missed = charge
+                    break
                 }
             }
-            .max { $0.scheduledDate < $1.scheduledDate }
             if let missed {
                 entries.append(.expected(missed))
             }
@@ -3011,9 +3230,10 @@ public final class SubscriptionWorkspace {
                 value: 1,
                 to: today
             ) ?? today
+            let nextLowerBound = max(tomorrow, confirmedNextRenewalDay)
             let nextIndex = estimatedOccurrenceIndex(
                 for: subscription.billingSchedule,
-                onOrAfter: tomorrow,
+                onOrAfter: nextLowerBound,
                 calendar: localCalendar
             )
             let next = (nextIndex...(nextIndex + 2)).compactMap {
@@ -3023,7 +3243,7 @@ public final class SubscriptionWorkspace {
                     calendar: localCalendar
                 )
             }
-            .filter { $0 >= tomorrow }
+            .filter { $0 >= nextLowerBound }
             .map {
                 expectedCharge(
                     for: subscription,
@@ -3044,9 +3264,15 @@ public final class SubscriptionWorkspace {
         return entries.sorted { lhs, rhs in
             let left = historySortKey(lhs)
             let right = historySortKey(rhs)
-            return left.date == right.date
-                ? left.kindOrder < right.kindOrder
-                : left.date < right.date
+            let leftDay = localCalendar.startOfDay(for: left.date)
+            let rightDay = localCalendar.startOfDay(for: right.date)
+            if leftDay != rightDay {
+                return leftDay < rightDay
+            }
+            if left.kindOrder != right.kindOrder {
+                return left.kindOrder < right.kindOrder
+            }
+            return left.date < right.date
         }
     }
 

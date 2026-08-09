@@ -137,6 +137,12 @@
         }
       }
     },
+    "Couldn’t Load Setup Data" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Couldn’t Load Setup Data" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "无法加载设置数据" } }
+      }
+    },
     "Currency" : {
       "localizations" : {
         "en" : { "stringUnit" : { "state" : "translated", "value" : "Currency" } },
@@ -760,10 +766,12 @@
     "Add Manually" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Add Manually" } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "手动添加" } } } },
     "Browse Catalog" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Browse Catalog" } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "浏览目录" } } } },
     "Catalog" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Catalog" } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "目录" } } } },
+    "Catalog version %lld · %@" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Catalog version %lld · %@" } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "目录版本 %lld · %@" } } } },
     "Bundled" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Bundled" } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "内置" } } } },
     "Updated" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Updated" } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "已更新" } } } },
     "Check for Catalog Updates" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Check for Catalog Updates" } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "检查目录更新" } } } },
     "Couldn’t update the catalog. Your offline catalog is still available." : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Couldn’t update the catalog. Your offline catalog is still available." } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "无法更新目录，离线目录仍然可用。" } } } },
+    "Confirm" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Confirm" } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "确认" } } } },
     "Confirm Subscription" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Confirm Subscription" } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "确认订阅信息" } } } },
     "Couldn’t Load Catalog" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Couldn’t Load Catalog" } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "无法加载目录" } } } },
     "Loading Catalog" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Loading Catalog" } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "正在加载目录" } } } },
@@ -779,6 +787,8 @@
     "No Upcoming Charges" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "No Upcoming Charges" } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "没有即将到期的扣费" } } } },
     "Today" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Today" } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "今天" } } } },
     "Upcoming" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Upcoming" } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "即将到期" } } } },
+    "Upcoming Unavailable" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Upcoming Unavailable" } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "即将续费暂不可用" } } } },
+    "Renewals could not be loaded. Try again later." : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Renewals could not be loaded. Try again later." } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "无法加载续费信息，请稍后重试。" } } } },
     "Add Manually Instead" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Add Manually Instead" } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "改为手动添加" } } } },
     "Back" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Back" } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "返回" } } } },
     "Calendar Projection" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Calendar Projection" } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "日历预测周期" } } } },
@@ -810,6 +820,7 @@
     "Only the selected additions and explicitly resolved conflicts will change." : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Only the selected additions and explicitly resolved conflicts will change." } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "只有选中的新增项目和已明确处理的冲突会发生更改。" } } } },
     "This backup could not be restored. Choose a valid JSON backup." : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "This backup could not be restored. Choose a valid JSON backup." } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "无法恢复此备份，请选择有效的 JSON 备份。" } } } },
     "Restore failed. Your library was not changed." : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Restore failed. Your library was not changed." } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "恢复失败，订阅库未被更改。" } } } },
+    "Your library was not changed. Try loading it again." : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Your library was not changed. Try loading it again." } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "订阅库未被更改，请重新加载。" } } } },
     "Create offline copies of your subscriptions and preferences. Exports include archived subscriptions, but never device Calendar identifiers or iCloud data." : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Create offline copies of your subscriptions and preferences. Exports include archived subscriptions, but never device Calendar identifiers or iCloud data." } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "创建订阅和偏好的离线副本。导出包含已归档订阅，但绝不包含设备日历标识符或 iCloud 数据。" } } } },
     "Couldn’t create the export. Try again." : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Couldn’t create the export. Try again." } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "无法创建导出文件，请重试。" } } } },
     "Hide Amounts in Calendar" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Hide Amounts in Calendar" } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "在日历中隐藏金额" } } } },
@@ -822,9 +833,12 @@
     "Importing Calendar Events" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Importing Calendar Events" } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "正在导入日历事件" } } } },
     "No writable Calendar source is available. You can still export an ICS file." : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "No writable Calendar source is available. You can still export an ICS file." } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "没有可写入的日历来源；你仍可导出 ICS 文件。" } } } },
     "Retry Calendar Import" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Retry Calendar Import" } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "重试导入日历" } } } },
+    "Retry Calendar Sync" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Retry Calendar Sync" } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "重试同步日历" } } } },
     "Rebuild Calendar" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Rebuild Calendar" } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "重建日历" } } } },
     "Disable Calendar Sync" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Disable Calendar Sync" } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "停用日历同步" } } } },
     "Reconciling Calendar" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Reconciling Calendar" } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "正在同步日历" } } } },
+    "Calendar sync is incomplete. 1 event failed." : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Calendar sync is incomplete. 1 event failed." } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "日历同步未完成，1 个事件同步失败。" } } } },
+    "Calendar sync is incomplete. %lld events failed." : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Calendar sync is incomplete. %lld events failed." } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "日历同步未完成，%lld 个事件同步失败。" } } } },
     "Some Calendar events could not be imported. Try again to add the missing events." : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Some Calendar events could not be imported. Try again to add the missing events." } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "部分日历事件未能导入；请重试以添加缺失事件。" } } } },
     "This will add the previewed renewal events to a dedicated Subscription Manager calendar." : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "This will add the previewed renewal events to a dedicated Subscription Manager calendar." } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "这会将预览中的续费事件添加到专用的 Subscription Manager 日历。" } } } },
     "Renewals in your selected planning period appear here." : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Renewals in your selected planning period appear here." } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "所选规划周期内的续费会显示在这里。" } } } },

@@ -96,6 +96,7 @@ struct CatalogOfferMatcherTests {
                 makePreset(
                     offers: [
                         makeOffer(reviewStatus: .reviewRequired),
+                        makeOffer(id: "verified-nonmatch", price: 999),
                     ]
                 ),
             ]

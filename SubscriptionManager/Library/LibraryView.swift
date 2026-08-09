@@ -6,6 +6,15 @@ import Charts
 import UIKit
 #endif
 
+enum SetupSheetPresentation {
+    static func shouldPresent(
+        for state: SetupState,
+        permitsSetupPresentation: Bool
+    ) -> Bool {
+        permitsSetupPresentation && state.requiresSetupInteraction
+    }
+}
+
 struct LibraryView: View {
     private enum RootDestination: Hashable {
         case subscriptions
@@ -55,12 +64,17 @@ struct LibraryView: View {
         .task {
             loadInitialState()
         }
+        .onChange(of: workspace.setupState) { _, state in
+            synchronizeSetupPresentation(for: state)
+        }
         .onOpenURL(perform: openDeepLink)
     }
 
     @ViewBuilder
     private var rootContent: some View {
-        if horizontalSizeClass == .regular {
+        if case .loadFailed = workspace.setupState {
+            SetupLoadFailureView(onRetry: loadInitialState)
+        } else if horizontalSizeClass == .regular {
             wideRoot
         } else {
             compactRoot
@@ -205,7 +219,6 @@ struct LibraryView: View {
 
     private func loadInitialState() {
         let arguments = ProcessInfo.processInfo.arguments
-        let allowsUITestOnboarding = arguments.contains("--ui-testing-onboarding")
         let isUITesting = arguments.contains("--ui-testing")
         let opensArchivedLibrary = isUITesting
             && arguments.contains("--ui-testing-open-archived-library")
@@ -215,20 +228,29 @@ struct LibraryView: View {
         workspace.loadCatalog(locale: locale)
         workspace.reconcileCatalogAssociations(locale: locale)
         rootLibraryScope = initialLibraryScope
+        workspace.loadLibrary(scope: .current)
+        let currentLibraryState = workspace.libraryState
+        workspace.loadLibrary(scope: .archived)
+        let archivedLibraryState = workspace.libraryState
         workspace.loadLibrary(scope: initialLibraryScope)
-        let libraryIsEmpty: Bool
-        if case .empty(.current) = workspace.libraryState {
-            libraryIsEmpty = true
-        } else {
-            libraryIsEmpty = false
-        }
-        workspace.loadSetup(libraryIsEmpty: libraryIsEmpty)
-        if case .needsSetup = workspace.setupState,
-           !isUITesting || allowsUITestOnboarding
-        {
-            isSetupPresented = true
-        }
+        workspace.initializeSetup(
+            currentLibraryState: currentLibraryState,
+            archivedLibraryState: archivedLibraryState
+        )
+        synchronizeSetupPresentation()
     }
+
+    private func synchronizeSetupPresentation(
+        for state: SetupState? = nil
+    ) {
+        let arguments = ProcessInfo.processInfo.arguments
+        isSetupPresented = SetupSheetPresentation.shouldPresent(
+            for: state ?? workspace.setupState,
+            permitsSetupPresentation: !arguments.contains("--ui-testing")
+                || arguments.contains("--ui-testing-onboarding")
+        )
+    }
+
 }
 
 private struct InsightsView: View {
@@ -304,14 +326,33 @@ private struct InsightsView: View {
         }
         .task(id: mode) {
             await workspace.refreshExchangeRates()
+            let calendar = Calendar.current
+            let today = calendar.startOfDay(for: Date())
+            let rangeStart = mode == .expected
+                ? today
+                : calendar.date(
+                    byAdding: .day,
+                    value: -29,
+                    to: today
+                ) ?? today
+            let finalDay = mode == .expected
+                ? calendar.date(
+                    byAdding: .day,
+                    value: 29,
+                    to: today
+                ) ?? today
+                : today
+            let rangeEnd = calendar.dateInterval(of: .day, for: finalDay).flatMap {
+                calendar.date(
+                    byAdding: .nanosecond,
+                    value: -1,
+                    to: $0.end
+                )
+            } ?? finalDay
             workspace.loadInsights(
                 mode: mode,
-                from: Calendar.current.startOfDay(for: Date()),
-                through: Calendar.current.date(
-                    byAdding: .day,
-                    value: 30,
-                    to: Calendar.current.startOfDay(for: Date())
-                ) ?? Date()
+                from: rangeStart,
+                through: rangeEnd
             )
         }
     }
@@ -360,11 +401,9 @@ private struct UpcomingView: View {
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     var body: some View {
-        let subscriptionsByID = Dictionary(
-            uniqueKeysWithValues: ((try? workspace.subscriptions()) ?? []).map {
-                ($0.id, $0)
-            }
-        )
+        let subscriptionsByID = self.subscriptionsByID()
+        let projection = makeProjection(subscriptionsByID: subscriptionsByID)
+        let selectedDayItems = selectedDayItems(in: projection)
         NavigationStack {
             GeometryReader { geometry in
                 List {
@@ -403,10 +442,22 @@ private struct UpcomingView: View {
                         EdgeInsets(top: 8, leading: 0, bottom: 8, trailing: 0)
                     )
 
-                    monthOverview(availableWidth: geometry.size.width)
+                    monthOverview(
+                        availableWidth: geometry.size.width,
+                        projection: projection
+                    )
 
                     Section {
-                        if selectedDayItems.isEmpty {
+                        if hasUpcomingFailure {
+                            ContentUnavailableView(
+                                "Upcoming Unavailable",
+                                systemImage: "exclamationmark.triangle",
+                                description: Text(
+                                    "Renewals could not be loaded. Try again later."
+                                )
+                            )
+                            .accessibilityIdentifier("upcoming.agenda.failed")
+                        } else if selectedDayItems.isEmpty {
                             ContentUnavailableView(
                                 "No Charges This Day",
                                 systemImage: "calendar",
@@ -425,7 +476,13 @@ private struct UpcomingView: View {
                                 )
                                 HStack(alignment: .firstTextBaseline, spacing: 12) {
                                     NavigationLink(value: item.subscriptionID) {
-                                        UpcomingTimelineRow(item: item)
+                                        UpcomingTimelineRow(
+                                            item: item,
+                                            billingTimeZoneIdentifier:
+                                                subscriptionsByID[item.subscriptionID]?
+                                                .billingSchedule.timeZoneIdentifier
+                                                ?? TimeZone.autoupdatingCurrent.identifier
+                                        )
                                     }
                                     .frame(maxWidth: .infinity, alignment: .leading)
                                     .accessibilityIdentifier(
@@ -497,9 +554,23 @@ private struct UpcomingView: View {
     }
 
     @ViewBuilder
-    private func monthOverview(availableWidth: CGFloat) -> some View {
+    private func monthOverview(
+        availableWidth: CGFloat,
+        projection: UpcomingCalendarProjection
+    ) -> some View {
 #if os(iOS)
-        if canUseNativeMonthCalendar(availableWidth: availableWidth) {
+        if hasUpcomingFailure {
+            Section {
+                ContentUnavailableView(
+                    "Upcoming Unavailable",
+                    systemImage: "exclamationmark.triangle",
+                    description: Text(
+                        "Renewals could not be loaded. Try again later."
+                    )
+                )
+                .accessibilityIdentifier("upcoming.month.failed")
+            }
+        } else if canUseNativeMonthCalendar(availableWidth: availableWidth) {
             Section {
                 UpcomingMonthCalendar(
                     selectedDay: $selectedDay,
@@ -522,14 +593,29 @@ private struct UpcomingView: View {
                 EdgeInsets(top: 0, leading: 0, bottom: 0, trailing: 0)
             )
         } else {
-            groupedDayList
+            groupedDayList(projection: projection)
         }
 #else
-        groupedDayList
+        if hasUpcomingFailure {
+            Section {
+                ContentUnavailableView(
+                    "Upcoming Unavailable",
+                    systemImage: "exclamationmark.triangle",
+                    description: Text(
+                        "Renewals could not be loaded. Try again later."
+                    )
+                )
+                .accessibilityIdentifier("upcoming.month.failed")
+            }
+        } else {
+            groupedDayList(projection: projection)
+        }
 #endif
     }
 
-    private var groupedDayList: some View {
+    private func groupedDayList(
+        projection: UpcomingCalendarProjection
+    ) -> some View {
         Section("Days") {
             if projection.days.isEmpty {
                 ContentUnavailableView(
@@ -583,28 +669,113 @@ private struct UpcomingView: View {
         calendar.dateInterval(of: .month, for: displayedMonth)
     }
 
-    private var projection: UpcomingCalendarProjection {
+    private func makeProjection(
+        subscriptionsByID: [UUID: Subscription]
+    ) -> UpcomingCalendarProjection {
         UpcomingCalendarProjection(
             monthContaining: displayedMonth,
-            items: workspace.upcomingTimeline,
+            items: workspace.upcomingTimeline.map { item in
+                UpcomingTimelineItem(
+                    id: item.id,
+                    kind: item.kind,
+                    subscriptionID: item.subscriptionID,
+                    serviceName: item.serviceName,
+                    date: billingLocalDay(
+                        for: item,
+                        subscriptionsByID: subscriptionsByID
+                    ),
+                    amount: item.amount
+                )
+            },
             calendar: calendar
         )
     }
 
-    private var selectedDayItems: [UpcomingTimelineItem] {
-        projection.days.first(where: { $0.date == selectedDay })?.items ?? []
+    private func selectedDayItems(
+        in projection: UpcomingCalendarProjection
+    ) -> [UpcomingTimelineItem] {
+        let selectedIDs = Set(
+            projection.days.first(where: { $0.date == selectedDay })?
+                .items.map(\.id) ?? []
+        )
+        return workspace.upcomingTimeline
+            .filter { selectedIDs.contains($0.id) }
+            .sorted { lhs, rhs in
+                if lhs.date != rhs.date { return lhs.date < rhs.date }
+                return lhs.id < rhs.id
+            }
+    }
+
+    private func subscriptionsByID() -> [UUID: Subscription] {
+        Dictionary(
+            uniqueKeysWithValues: ((try? workspace.subscriptions()) ?? []).map {
+                ($0.id, $0)
+            }
+        )
+    }
+
+    private func billingLocalDay(
+        for item: UpcomingTimelineItem,
+        subscriptionsByID: [UUID: Subscription]
+    ) -> Date {
+        let timeZoneIdentifier = subscriptionsByID[item.subscriptionID]?
+            .billingSchedule.timeZoneIdentifier
+            ?? TimeZone.autoupdatingCurrent.identifier
+        var billingCalendar = Calendar(identifier: .gregorian)
+        billingCalendar.timeZone = billingTimeZone(
+            identifier: timeZoneIdentifier
+        )
+        let components = billingCalendar.dateComponents(
+            [.year, .month, .day],
+            from: item.date
+        )
+        var displayCalendar = Calendar(identifier: .gregorian)
+        displayCalendar.timeZone = calendar.timeZone
+        guard let year = components.year,
+              let month = components.month,
+              let day = components.day,
+              let displayDate = displayCalendar.date(
+                  from: DateComponents(year: year, month: month, day: day)
+              )
+        else {
+            return calendar.startOfDay(for: item.date)
+        }
+        return calendar.startOfDay(for: displayDate)
+    }
+
+    private var hasUpcomingFailure: Bool {
+        if case .failed = workspace.upcomingTimelineState {
+            return true
+        }
+        return false
     }
 
     private func loadTimeline() {
         guard let monthInterval else { return }
         let lastDay = calendar.date(
-            byAdding: .day,
+            byAdding: .nanosecond,
             value: -1,
             to: monthInterval.end
+        ) ?? monthInterval.end
+        let queryStart = calendar.date(
+            byAdding: .day,
+            value: -2,
+            to: monthInterval.start
         ) ?? monthInterval.start
-        workspace.loadUpcomingTimeline(from: monthInterval.start, through: lastDay)
+        let queryEnd = calendar.date(
+            byAdding: .day,
+            value: 2,
+            to: lastDay
+        ) ?? lastDay
+        workspace.loadUpcomingTimeline(
+            from: queryStart,
+            through: queryEnd
+        )
 
         if selectsFirstChargeAfterMonthChange {
+            let projection = makeProjection(
+                subscriptionsByID: subscriptionsByID()
+            )
             selectedDay = projection.days.first?.date ?? monthInterval.start
             selectsFirstChargeAfterMonthChange = false
         }
@@ -897,6 +1068,7 @@ private struct UpcomingConfirmationPresentation: Identifiable {
 
 private struct UpcomingTimelineRow: View {
     let item: UpcomingTimelineItem
+    let billingTimeZoneIdentifier: String
 
     var body: some View {
         HStack(alignment: .firstTextBaseline, spacing: 10) {
@@ -920,7 +1092,13 @@ private struct UpcomingTimelineRow: View {
                 Text(formattedMoney(item.amount))
                     .lineLimit(1)
                     .minimumScaleFactor(0.8)
-                Text(item.date, format: .dateTime.month().day().year())
+                Text(
+                    formattedBillingDate(
+                        item.date,
+                        timeZoneIdentifier: billingTimeZoneIdentifier,
+                        locale: .current
+                    )
+                )
                     .font(.footnote)
                     .foregroundStyle(.secondary)
                     .lineLimit(1)
@@ -932,7 +1110,12 @@ private struct UpcomingTimelineRow: View {
         .accessibilityElement(children: .combine)
         .accessibilityLabel(
             "\(item.serviceName), \(statusAccessibilityText), "
-                + "\(formattedMoney(item.amount))"
+                + "\(formattedMoney(item.amount)), "
+                + formattedBillingDate(
+                    item.date,
+                    timeZoneIdentifier: billingTimeZoneIdentifier,
+                    locale: .current
+                )
         )
     }
 
@@ -947,7 +1130,7 @@ private struct UpcomingTimelineRow: View {
     }
 }
 
-private struct FirstRunSetupView: View {
+struct FirstRunSetupView: View {
     private enum Step {
         case preferences
         case catalog
@@ -965,6 +1148,18 @@ private struct FirstRunSetupView: View {
     @State private var selectedPresetIDs: Set<String> = []
     @State private var confirmedPresetIDs: Set<String> = []
     @State private var navigationPath: [String] = []
+    @State private var expectedSetupRevision: UInt64
+
+    init(
+        workspace: SubscriptionWorkspace,
+        onFinished: @escaping () -> Void
+    ) {
+        self.workspace = workspace
+        self.onFinished = onFinished
+        _expectedSetupRevision = State(
+            initialValue: workspace.setupRevision
+        )
+    }
 
     var body: some View {
         NavigationStack(path: $navigationPath) {
@@ -982,6 +1177,7 @@ private struct FirstRunSetupView: View {
                         workspace: workspace,
                         preset: preset,
                         showsCancellationAction: false,
+                        canSave: { setupInteractionIsActive },
                         onSuccessfulSave: {
                             confirmedPresetIDs.insert(presetID)
                             navigationPath.removeAll()
@@ -992,6 +1188,10 @@ private struct FirstRunSetupView: View {
         }
         .task {
             applyWorkspacePreferences()
+        }
+        .onChange(of: workspace.setupRevision) { _, revision in
+            guard revision != expectedSetupRevision else { return }
+            finish()
         }
     }
 
@@ -1037,14 +1237,23 @@ private struct FirstRunSetupView: View {
         .toolbar {
             ToolbarItem(placement: .cancellationAction) {
                 Button("Skip for Now") {
+                    guard setupInteractionIsActive else {
+                        finish()
+                        return
+                    }
                     workspace.skipSetup()
                     guard !setupPersistenceFailed else { return }
+                    expectedSetupRevision = workspace.setupRevision
                     finish()
                 }
                 .accessibilityIdentifier("setup.skip")
             }
             ToolbarItem(placement: .confirmationAction) {
                 Button("Continue") {
+                    guard setupInteractionIsActive else {
+                        finish()
+                        return
+                    }
                     workspace.updatePreferences(
                         primaryCurrency: primaryCurrency,
                         calendarProjectionHorizon: horizon
@@ -1052,6 +1261,7 @@ private struct FirstRunSetupView: View {
                     if case .failed = workspace.setupState {
                         return
                     }
+                    expectedSetupRevision = workspace.setupRevision
                     workspace.loadCatalog(locale: locale)
                     step = .catalog
                 }
@@ -1089,8 +1299,8 @@ private struct FirstRunSetupView: View {
                     }
                     .accessibilityValue(
                         selectedPresetIDs.contains(preset.id)
-                            ? "Selected"
-                            : "Not selected"
+                            ? LocalizedStringKey("Selected")
+                            : LocalizedStringKey("Not selected")
                     )
                     .accessibilityIdentifier("setup.preset.\(preset.id)")
                 }
@@ -1107,7 +1317,8 @@ private struct FirstRunSetupView: View {
                 NavigationLink {
                     AddSubscriptionView(
                         workspace: workspace,
-                        showsCancellationAction: false
+                        showsCancellationAction: false,
+                        canSave: { setupInteractionIsActive }
                     )
                 } label: {
                     Label("Add Manually Instead", systemImage: "plus")
@@ -1131,8 +1342,13 @@ private struct FirstRunSetupView: View {
                     .accessibilityIdentifier("setup.confirm-selected")
 
                     Button("Finish Setup") {
+                        guard setupInteractionIsActive else {
+                            finish()
+                            return
+                        }
                         workspace.completeSetup()
                         guard !setupPersistenceFailed else { return }
+                        expectedSetupRevision = workspace.setupRevision
                         finish()
                     }
                     .disabled(!selectedPresetIDs.isSubset(of: confirmedPresetIDs))
@@ -1200,12 +1416,18 @@ private struct FirstRunSetupView: View {
         case .needsSetup(let preferences),
              .completed(let preferences),
              .skipped(let preferences),
-             .failed(let preferences):
+             .failed(let preferences),
+             .configurationSaveFailed(let preferences):
             primaryCurrency = preferences.primaryCurrency
             horizon = preferences.calendarProjectionHorizon
-        case .notLoaded:
+        case .notLoaded, .loadFailed:
             break
         }
+    }
+
+    private var setupInteractionIsActive: Bool {
+        workspace.setupRevision == expectedSetupRevision
+            && isSetupInteractionActive(workspace.setupState)
     }
 
     private var setupPersistenceFailed: Bool {
@@ -1773,15 +1995,16 @@ struct UserPreferencesView: View {
                 }
             }
         }
-        .accessibilityValue(isSelected ? "Selected" : "Not selected")
+        .accessibilityValue(
+            isSelected
+                ? LocalizedStringKey("Selected")
+                : LocalizedStringKey("Not selected")
+        )
         .accessibilityIdentifier(identifier)
     }
 
     private var isSetupSaveFailure: Bool {
-        if case .failed = workspace.setupState {
-            return true
-        }
-        return false
+        workspace.setupState.hasPreferenceSaveFailure
     }
 
     private func applyWorkspacePreferences() {
@@ -1789,16 +2012,37 @@ struct UserPreferencesView: View {
         case .needsSetup(let preferences),
              .completed(let preferences),
              .skipped(let preferences),
-             .failed(let preferences):
+             .failed(let preferences),
+             .configurationSaveFailed(let preferences):
             primaryCurrency = preferences.primaryCurrency
             horizon = preferences.calendarProjectionHorizon
             hideAmountsInCalendar = preferences.hideAmountsInCalendar
             menuBarModeEnabled = preferences.menuBarModeEnabled
             appearanceMode = preferences.appearanceMode
-        case .notLoaded:
+        case .notLoaded, .loadFailed:
             break
         }
     }
+}
+
+struct SetupLoadFailureView: View {
+    let onRetry: () -> Void
+
+    var body: some View {
+        ContentUnavailableView {
+            Label("Couldn’t Load Setup Data", systemImage: "exclamationmark.triangle")
+        } description: {
+            Text("Your library was not changed. Try loading it again.")
+        } actions: {
+            Button("Try Again", action: onRetry)
+                .buttonStyle(.borderedProminent)
+                .accessibilityIdentifier("setup.retry-load")
+        }
+    }
+}
+
+private func isSetupInteractionActive(_ state: SetupState) -> Bool {
+    state.requiresSetupInteraction
 }
 
 private struct SyncStatusView: View {

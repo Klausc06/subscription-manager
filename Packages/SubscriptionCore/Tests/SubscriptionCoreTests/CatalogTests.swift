@@ -61,7 +61,8 @@ struct CatalogTests {
             suggestedInterval: .monthly,
             managementURL: nil,
             icon: .productivity,
-            categoryID: "ai"
+            categoryID: "ai",
+            offers: [verifiedOffer()]
         )
         let productivity = CatalogPreset(
             id: "wps-office",
@@ -70,7 +71,8 @@ struct CatalogTests {
             suggestedInterval: .monthly,
             managementURL: nil,
             icon: .productivity,
-            categoryID: "productivity"
+            categoryID: "productivity",
+            offers: [verifiedOffer(id: "productivity-monthly-us-web")]
         )
         let snapshot = try CatalogSnapshot(
             schemaVersion: CatalogSnapshot.currentSchemaVersion,
@@ -129,6 +131,61 @@ struct CatalogTests {
         }
     }
 
+    @Test("Catalog rejects preset identifiers with surrounding whitespace")
+    func catalogRejectsPresetIdentifiersWithSurroundingWhitespace() {
+        for id in [
+            " chatgpt",
+            "chatgpt ",
+            "\nchatgpt",
+            "chatgpt\n",
+            "\tchatgpt\t",
+            "   \n\t"
+        ] {
+            do {
+                _ = try CatalogSnapshot(
+                    schemaVersion: CatalogSnapshot.currentSchemaVersion,
+                    presets: [
+                        CatalogPreset(
+                            id: id,
+                            serviceName: CatalogLocalizedText(
+                                en: "Example",
+                                zhHans: "示例"
+                            ),
+                            category: CatalogLocalizedText(
+                                en: "Other",
+                                zhHans: "其他"
+                            ),
+                            suggestedInterval: .monthly,
+                            managementURL: nil,
+                            icon: .other,
+                            assetProvenance: CatalogAssetProvenance(
+                                kind: .originalSymbol,
+                                license: "CC0-1.0",
+                                source: id.trimmingCharacters(
+                                    in: .whitespacesAndNewlines
+                                )
+                            )
+                        )
+                    ]
+                )
+                Issue.record("Expected padded preset ID to be rejected: \(id.debugDescription)")
+            } catch let error as CatalogLoadError {
+                #expect(error.field == .id)
+            } catch {
+                Issue.record("Expected CatalogLoadError, got \(error)")
+            }
+        }
+
+        do {
+            _ = try CatalogSnapshot(
+                schemaVersion: CatalogSnapshot.currentSchemaVersion,
+                presets: [catalogPreset(id: "chatgpt")]
+            )
+        } catch {
+            Issue.record("Expected clean preset ID to be accepted, got \(error)")
+        }
+    }
+
     @Test("Catalog canonicalizes legacy preset identifiers")
     func catalogCanonicalizesLegacyPresetIdentifiers() throws {
         let preset = CatalogPreset(
@@ -138,7 +195,8 @@ struct CatalogTests {
             suggestedInterval: .monthly,
             managementURL: URL(string: "https://chatgpt.com/"),
             icon: .productivity,
-            legacyPresetIDs: ["chatgpt-plus"]
+            legacyPresetIDs: ["chatgpt-plus"],
+            offers: [verifiedOffer()]
         )
         let snapshot = try CatalogSnapshot(
             schemaVersion: CatalogSnapshot.currentSchemaVersion,
@@ -148,6 +206,30 @@ struct CatalogTests {
         #expect(snapshot.canonicalPresetID(for: "chatgpt") == "chatgpt")
         #expect(snapshot.canonicalPresetID(for: "chatgpt-plus") == "chatgpt")
         #expect(snapshot.canonicalPresetID(for: "unknown") == nil)
+    }
+
+    @Test("Catalog rejects hostless preset management URLs")
+    func catalogRejectsHostlessPresetManagementURLs() {
+        for rawURL in ["https:/account", "https:javascript:alert(1)"] {
+            guard let managementURL = URL(string: rawURL) else {
+                Issue.record("Expected URL to be constructible: \(rawURL)")
+                continue
+            }
+
+            do {
+                _ = try CatalogSnapshot(
+                    schemaVersion: CatalogSnapshot.currentSchemaVersion,
+                    presets: [catalogPreset(managementURL: managementURL)]
+                )
+                Issue.record(
+                    "Expected hostless management URL to be rejected: \(rawURL)"
+                )
+            } catch let error as CatalogLoadError {
+                #expect(error.field == .managementURL)
+            } catch {
+                Issue.record("Expected CatalogLoadError, got \(error)")
+            }
+        }
     }
 
     @Test("Verified catalog offers round-trip with provenance")
@@ -182,6 +264,42 @@ struct CatalogTests {
         let offer = verifiedOffer(id: "duplicate")
 
         assertOffersAreInvalid([offer, offer])
+    }
+
+    @Test("Catalog rejects presets without a verified offer")
+    func catalogRejectsPresetsWithoutVerifiedOffer() {
+        let offer = CatalogOffer(
+            id: "pending",
+            planName: CatalogLocalizedText(en: "Pending", zhHans: "待核验"),
+            price: Money(minorUnits: 2_000, currency: .usd),
+            billingInterval: .monthly,
+            market: "US",
+            purchaseChannel: .web,
+            sourceURL: URL(string: "https://example.com/pricing")!,
+            verifiedOn: "2026-08-09",
+            reviewStatus: .reviewRequired
+        )
+
+        assertOffersAreInvalid([offer])
+    }
+
+    @Test("Catalog rejects a service-only preset without offers")
+    func catalogRejectsServiceOnlyPresetWithoutOffers() {
+        let preset = CatalogPreset(
+            id: "service-only",
+            serviceName: CatalogLocalizedText(en: "Service", zhHans: "服务"),
+            category: CatalogLocalizedText(en: "Other", zhHans: "其他"),
+            suggestedInterval: .monthly,
+            managementURL: nil,
+            icon: .other
+        )
+
+        #expect(throws: CatalogLoadError.self) {
+            _ = try CatalogSnapshot(
+                schemaVersion: CatalogSnapshot.currentSchemaVersion,
+                presets: [preset]
+            )
+        }
     }
 
     @Test("Catalog rejects zero-price offers")
@@ -272,7 +390,8 @@ struct CatalogTests {
                 kind: .originalSymbol,
                 license: "CC0-1.0",
                 source: "music.example"
-            )
+            ),
+            offers: [verifiedOffer()]
         )
 
         let snapshot = try CatalogSnapshot(
@@ -299,7 +418,8 @@ struct CatalogTests {
             ),
             suggestedInterval: .monthly,
             managementURL: URL(string: "https://example.com/manage"),
-            icon: .music
+            icon: .music,
+            offers: [verifiedOffer()]
         )
         let snapshot = try CatalogSnapshot(
             schemaVersion: CatalogSnapshot.currentSchemaVersion,
@@ -320,6 +440,33 @@ struct CatalogTests {
         )
     }
 
+    @Test("Catalog search matches unaccented localized text")
+    func searchMatchesUnaccentedLocalizedText() throws {
+        let cafe = CatalogPreset(
+            id: "cafe.example",
+            serviceName: CatalogLocalizedText(
+                en: "Café",
+                zhHans: "咖啡馆"
+            ),
+            category: CatalogLocalizedText(en: "Food", zhHans: "餐饮"),
+            suggestedInterval: .monthly,
+            managementURL: URL(string: "https://example.com/manage"),
+            icon: .other,
+            offers: [verifiedOffer()]
+        )
+        let snapshot = try CatalogSnapshot(
+            schemaVersion: CatalogSnapshot.currentSchemaVersion,
+            presets: [cafe]
+        )
+
+        #expect(
+            snapshot.search(
+                query: "cafe",
+                locale: Locale(identifier: "en")
+            ) == [cafe]
+        )
+    }
+
     @Test("Catalog search includes explicit service aliases")
     func searchIncludesAliases() throws {
         let membership = CatalogPreset(
@@ -335,7 +482,8 @@ struct CatalogTests {
             suggestedInterval: .yearly,
             managementURL: URL(string: "https://www.taobao.com/"),
             icon: .membership,
-            matchAliases: ["88VIP"]
+            matchAliases: ["88VIP"],
+            offers: [verifiedOffer()]
         )
         let snapshot = try CatalogSnapshot(
             schemaVersion: CatalogSnapshot.currentSchemaVersion,
@@ -358,30 +506,38 @@ struct CatalogTests {
             category: CatalogLocalizedText(en: "Other", zhHans: "其他"),
             suggestedInterval: .monthly,
             managementURL: nil,
-            icon: .other
+            icon: .other,
+            offers: [verifiedOffer()]
         )
 
-        #expect(throws: CatalogLoadError.self) {
-            try CatalogSnapshot(
+        do {
+            _ = try CatalogSnapshot(
                 schemaVersion: CatalogSnapshot.currentSchemaVersion,
                 presets: [preset, preset]
             )
+            Issue.record("Expected duplicate preset IDs to be rejected")
+        } catch let error as CatalogLoadError {
+            #expect(error.field == .id)
+        } catch {
+            Issue.record("Expected CatalogLoadError, got \(error)")
         }
     }
 
     private func catalogPreset(
+        id: String = "example",
+        managementURL: URL? = nil,
         offers: [CatalogOffer] = [],
         matchAliases: [String] = []
     ) -> CatalogPreset {
         CatalogPreset(
-            id: "example",
+            id: id,
             serviceName: CatalogLocalizedText(en: "Example", zhHans: "示例"),
             category: CatalogLocalizedText(en: "Other", zhHans: "其他"),
             suggestedInterval: .monthly,
-            managementURL: nil,
+            managementURL: managementURL,
             icon: .other,
             matchAliases: matchAliases,
-            offers: offers
+            offers: offers.isEmpty ? [verifiedOffer()] : offers
         )
     }
 

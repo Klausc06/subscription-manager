@@ -23,6 +23,7 @@ struct AddSubscriptionView: View {
     @Environment(\.locale) private var locale
 
     let workspace: SubscriptionWorkspace
+    private let canSave: () -> Bool
     private let onSuccessfulSave: (() -> Void)?
     private let showsCancellationAction: Bool
     private let now: Date
@@ -39,9 +40,11 @@ struct AddSubscriptionView: View {
         workspace: SubscriptionWorkspace,
         preset: CatalogPreset? = nil,
         showsCancellationAction: Bool = true,
+        canSave: @escaping () -> Bool = { true },
         onSuccessfulSave: (() -> Void)? = nil
     ) {
         self.workspace = workspace
+        self.canSave = canSave
         self.onSuccessfulSave = onSuccessfulSave
         self.showsCancellationAction = showsCancellationAction
 
@@ -269,6 +272,10 @@ struct AddSubscriptionView: View {
     }
 
     private func save() {
+        guard canSave() else {
+            dismiss()
+            return
+        }
         didAttemptSave = true
         saveFailed = false
 

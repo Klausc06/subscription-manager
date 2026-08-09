@@ -29,9 +29,10 @@ struct MacMenuBarScene: Scene {
         case .needsSetup(let preferences),
              .completed(let preferences),
              .skipped(let preferences),
-             .failed(let preferences):
+             .failed(let preferences),
+             .configurationSaveFailed(let preferences):
             preferences.menuBarModeEnabled
-        case .notLoaded:
+        case .notLoaded, .loadFailed:
             false
         }
     }
