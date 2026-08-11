@@ -5,7 +5,7 @@ struct ConfirmChargeView: View {
     @Environment(\.dismiss) private var dismiss
 
     let workspace: SubscriptionWorkspace
-    let subscription: Subscription
+    let subscriptionID: UUID
 
     @State private var scheduledDate: Date
     @State private var chargedDate: Date
@@ -15,11 +15,10 @@ struct ConfirmChargeView: View {
 
     init(
         workspace: SubscriptionWorkspace,
-        subscription: Subscription,
         expectedOccurrence: ExpectedCharge
     ) {
         self.workspace = workspace
-        self.subscription = subscription
+        subscriptionID = expectedOccurrence.subscriptionID
         let date = expectedOccurrence.scheduledDate
         let amount = expectedOccurrence.amount
         _scheduledDate = State(initialValue: date)
@@ -90,7 +89,7 @@ struct ConfirmChargeView: View {
             return
         }
         workspace.confirmCharge(
-            id: subscription.id,
+            id: subscriptionID,
             scheduledDate: scheduledDate,
             chargedDate: chargedDate,
             amount: amount

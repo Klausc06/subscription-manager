@@ -4,6 +4,24 @@ import Testing
 @testable import SubscriptionManager
 
 struct CatalogAlphabetIndexTests {
+    @Test("Cancelled catalog index highlights cannot expire newer selections")
+    func cancelledHighlightExpirationDoesNotComplete() async {
+        let expiration = Task {
+            await CatalogIndexHighlightExpiration.wait(for: .seconds(30))
+        }
+
+        expiration.cancel()
+
+        #expect(await expiration.value == false)
+    }
+
+    @Test("Completed catalog index highlights may expire")
+    func completedHighlightExpirationCompletes() async {
+        #expect(
+            await CatalogIndexHighlightExpiration.wait(for: .zero)
+        )
+    }
+
     @Test("Catalog index groups localized names by represented initial")
     func groupsLocalizedNames() {
         let sections = CatalogIndexProjection.sections(

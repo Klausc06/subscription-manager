@@ -2,13 +2,22 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from Scripts.verify_repository import (
-    DuplicateJSONKey,
-    has_complete_translation,
-    load_json,
-    verify_mac_new_item_command,
-    verify_source,
-)
+if __package__:
+    from .verify_repository import (
+        DuplicateJSONKey,
+        has_complete_translation,
+        load_json,
+        verify_mac_new_item_command,
+        verify_source,
+    )
+else:
+    from verify_repository import (
+        DuplicateJSONKey,
+        has_complete_translation,
+        load_json,
+        verify_mac_new_item_command,
+        verify_source,
+    )
 
 
 class RepositoryVerificationTests(unittest.TestCase):

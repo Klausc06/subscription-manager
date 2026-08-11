@@ -70,7 +70,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          python3 -m unittest Scripts.verify_repository_tests \
+          python3 Scripts/verify_repository_tests.py \
             2>&1 | tee artifacts/repository-verification-tests.log
           python3 Scripts/verify_repository.py \
             2>&1 | tee artifacts/repository-verification.log

@@ -372,15 +372,18 @@ struct EventKitCalendarProjectionImporterTests {
         #expect(store.savedEventIdentifiers.isEmpty)
     }
 
-    @Test("Partial write retries only the missing projection")
-    func partialWriteCanRetryWithoutDuplicates() async {
+    @Test(
+        "A multi-event import reads one mapping snapshot and retries only the failure"
+    )
+    func multiEventImportUsesOneMappingSnapshotAndPreservesRetry() async {
         let store = CalendarEventStoreFixture(
             access: .granted,
             failingUIDs: ["renewal-2"]
         )
+        let mappings = CalendarMappingFixture()
         let importer = EventKitCalendarProjectionImporter(
             eventStore: store,
-            mappingRepository: CalendarMappingFixture()
+            mappingRepository: mappings
         )
         let events = [
             calendarEvent(uid: "renewal-1"),
@@ -388,6 +391,9 @@ struct EventKitCalendarProjectionImporterTests {
         ]
 
         let partialResult = await importer.importProjection(events: events)
+        #expect(mappings.eventMappingsReadCount == 1)
+        #expect(mappings.eventIdentifierReadCount == 0)
+
         store.failingUIDs.removeAll()
         let retryResult = await importer.importProjection(events: events)
 
@@ -409,6 +415,8 @@ struct EventKitCalendarProjectionImporterTests {
             )
         )
         #expect(store.savedEventIdentifiers.count == 2)
+        #expect(mappings.eventMappingsReadCount == 2)
+        #expect(mappings.eventIdentifierReadCount == 0)
     }
 
     @Test("Rebuild preserves partial import failure")
@@ -506,6 +514,30 @@ struct EventKitCalendarProjectionImporterTests {
 
         #expect(result == .unavailable)
         #expect(store.saveCount == 0)
+    }
+
+    @Test("Reconciliation searches once for each unmapped projection")
+    func reconciliationSearchesEachUnmappedProjectionOnce() async throws {
+        let store = CalendarEventStoreFixture(access: .granted)
+        store.seedCalendar(identifier: "calendar-1")
+        let mappings = CalendarMappingFixture()
+        mappings.seedCalendarIdentifier("calendar-1")
+        let importer = EventKitCalendarProjectionImporter(
+            eventStore: store,
+            mappingRepository: mappings
+        )
+        let events = [
+            calendarEvent(uid: "renewal-1"),
+            calendarEvent(uid: "renewal-2"),
+        ]
+
+        let result = await importer.perform(.reconcile(events))
+
+        #expect(result == .reconciled)
+        #expect(mappings.eventMappingsReadCount == 1)
+        #expect(mappings.eventIdentifierReadCount == 0)
+        #expect(store.eventIdentifierLookupCount == events.count)
+        #expect(store.savedProjectionEvents == events)
     }
 
     @Test("Retry recovers an event when mapping persistence failed after save")
@@ -879,6 +911,8 @@ private final class CalendarMappingFixture: CalendarProjectionMappingRepository 
     var failNextEventMappingSave = false
     var failNextEventMappingRemovalSave = false
     var failEventMappingsRead = false
+    private(set) var eventIdentifierReadCount = 0
+    private(set) var eventMappingsReadCount = 0
 
     func calendarIdentifier() throws -> String? { calendarID }
 
@@ -901,10 +935,12 @@ private final class CalendarMappingFixture: CalendarProjectionMappingRepository 
     }
 
     func eventIdentifier(for projectionUID: String) throws -> String? {
-        eventIDs[projectionUID]
+        eventIdentifierReadCount += 1
+        return eventIDs[projectionUID]
     }
 
     func eventMappings() throws -> [CalendarProjectionEventMapping] {
+        eventMappingsReadCount += 1
         if failEventMappingsRead {
             throw CalendarEventStoreError.writeFailed
         }

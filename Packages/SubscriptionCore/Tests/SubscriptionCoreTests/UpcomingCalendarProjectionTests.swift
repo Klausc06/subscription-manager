@@ -63,7 +63,9 @@ struct UpcomingCalendarProjectionTests {
             subscriptionID: subscriptionID,
             serviceName: "Example",
             date: date,
-            amount: Money(minorUnits: 999, currency: .usd)
+            amount: Money(minorUnits: 999, currency: .usd),
+            billingTimeZoneIdentifier: "UTC",
+            scheduledChargeID: nil
         )
     }
 

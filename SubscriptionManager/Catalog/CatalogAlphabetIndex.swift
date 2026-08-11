@@ -66,6 +66,19 @@ enum CatalogIndexProjection {
     }
 }
 
+enum CatalogIndexHighlightExpiration {
+    static func wait(
+        for duration: Duration = .milliseconds(600)
+    ) async -> Bool {
+        do {
+            try await Task.sleep(for: duration)
+            return !Task.isCancelled
+        } catch {
+            return false
+        }
+    }
+}
+
 struct CatalogAlphabetIndex: View {
     let letters: [String]
     let onSelect: (String) -> Void
@@ -122,10 +135,14 @@ struct CatalogAlphabetIndex: View {
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("catalog.alphabet-index")
         .task(id: activeLetter) {
-            guard activeLetter != nil else {
+            guard let selectedLetter = activeLetter else {
                 return
             }
-            try? await Task.sleep(for: .milliseconds(600))
+            guard await CatalogIndexHighlightExpiration.wait(),
+                  activeLetter == selectedLetter
+            else {
+                return
+            }
             activeLetter = nil
         }
     }

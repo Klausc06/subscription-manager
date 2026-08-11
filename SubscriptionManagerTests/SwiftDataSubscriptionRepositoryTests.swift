@@ -711,6 +711,389 @@ struct SwiftDataSubscriptionRepositoryTests {
         #expect(persisted.priceChanges == [originalChange])
     }
 
+    @Test(
+        "A successful delete forgets its price-change snapshot before the same ID is recreated"
+    )
+    @MainActor
+    func successfulDeleteForgetsPriceChangeSnapshotBeforeSameIDIsRecreated()
+        throws
+    {
+        let subscriptionID = try #require(
+            UUID(uuidString: "0A0A0A0A-0000-4000-8000-000000000018")
+        )
+        let priceChangeID = try #require(
+            UUID(uuidString: "0A0A0A0A-0000-4000-8000-000000000019")
+        )
+        let originalChange = PriceChange(
+            id: priceChangeID,
+            effectiveDate: Date(timeIntervalSince1970: 1_700_000_000),
+            amount: Money(minorUnits: 1_201, currency: .usd)
+        )
+        let recreatedChange = PriceChange(
+            id: priceChangeID,
+            effectiveDate: Date(timeIntervalSince1970: 1_700_086_400),
+            amount: Money(minorUnits: 1_299, currency: .usd)
+        )
+        let requestedChange = PriceChange(
+            id: priceChangeID,
+            effectiveDate: Date(timeIntervalSince1970: 1_700_172_800),
+            amount: Money(minorUnits: 1_399, currency: .cny)
+        )
+        let original = makeSubscription(
+            id: subscriptionID,
+            priceChanges: [originalChange]
+        )
+        let recreated = replacingPaymentHistory(
+            in: original,
+            priceChanges: [recreatedChange]
+        )
+        let requestedUpdate = replacingPaymentHistory(
+            in: recreated,
+            priceChanges: [requestedChange]
+        )
+        let container = try ModelContainer(
+            for: SubscriptionRecord.self,
+            ConfirmedChargeRecord.self,
+            PriceChangeRecord.self,
+            configurations: ModelConfiguration(
+                isStoredInMemoryOnly: true,
+                cloudKitDatabase: .none
+            )
+        )
+        try SwiftDataSubscriptionRepository(modelContainer: container)
+            .createSubscription(original)
+        var snapshotLoaderCalls: [UUID] = []
+        let repository = SwiftDataSubscriptionRepository(
+            modelContainer: container,
+            save: { try $0.save() },
+            priceChangeSnapshotLoader: { id in
+                snapshotLoaderCalls.append(id)
+                return try SwiftDataSubscriptionRepository(
+                    modelContainer: container
+                ).subscription(id: id)?.priceChanges ?? []
+            }
+        )
+        _ = try #require(try repository.subscription(id: subscriptionID))
+
+        try repository.deleteSubscription(id: subscriptionID)
+        try SwiftDataSubscriptionRepository(modelContainer: container)
+            .createSubscription(recreated)
+        try repository.updateSubscription(requestedUpdate)
+
+        #expect(snapshotLoaderCalls.isEmpty)
+        let persisted = try #require(
+            try SwiftDataSubscriptionRepository(modelContainer: container)
+                .subscription(id: subscriptionID)
+        )
+        #expect(persisted.priceChanges == [requestedChange])
+    }
+
+    @Test(
+        "A missing single read forgets its price-change snapshot before the same ID is recreated"
+    )
+    @MainActor
+    func missingSingleReadForgetsPriceChangeSnapshotBeforeSameIDIsRecreated()
+        throws
+    {
+        let subscriptionID = try #require(
+            UUID(uuidString: "0A0A0A0A-0000-4000-8000-00000000001A")
+        )
+        let priceChangeID = try #require(
+            UUID(uuidString: "0A0A0A0A-0000-4000-8000-00000000001B")
+        )
+        let originalChange = PriceChange(
+            id: priceChangeID,
+            effectiveDate: Date(timeIntervalSince1970: 1_701_000_000),
+            amount: Money(minorUnits: 2_201, currency: .usd)
+        )
+        let recreatedChange = PriceChange(
+            id: priceChangeID,
+            effectiveDate: Date(timeIntervalSince1970: 1_701_086_400),
+            amount: Money(minorUnits: 2_299, currency: .usd)
+        )
+        let requestedChange = PriceChange(
+            id: priceChangeID,
+            effectiveDate: Date(timeIntervalSince1970: 1_701_172_800),
+            amount: Money(minorUnits: 2_399, currency: .cny)
+        )
+        let original = makeSubscription(
+            id: subscriptionID,
+            priceChanges: [originalChange]
+        )
+        let recreated = replacingPaymentHistory(
+            in: original,
+            priceChanges: [recreatedChange]
+        )
+        let requestedUpdate = replacingPaymentHistory(
+            in: recreated,
+            priceChanges: [requestedChange]
+        )
+        let container = try ModelContainer(
+            for: SubscriptionRecord.self,
+            ConfirmedChargeRecord.self,
+            PriceChangeRecord.self,
+            configurations: ModelConfiguration(
+                isStoredInMemoryOnly: true,
+                cloudKitDatabase: .none
+            )
+        )
+        try SwiftDataSubscriptionRepository(modelContainer: container)
+            .createSubscription(original)
+        var snapshotLoaderCalls: [UUID] = []
+        let repository = SwiftDataSubscriptionRepository(
+            modelContainer: container,
+            save: { try $0.save() },
+            priceChangeSnapshotLoader: { id in
+                snapshotLoaderCalls.append(id)
+                return try SwiftDataSubscriptionRepository(
+                    modelContainer: container
+                ).subscription(id: id)?.priceChanges ?? []
+            }
+        )
+        _ = try #require(try repository.subscription(id: subscriptionID))
+        try repository.updateSubscription(original)
+        #expect(snapshotLoaderCalls == [subscriptionID])
+        snapshotLoaderCalls.removeAll()
+
+        try SwiftDataSubscriptionRepository(modelContainer: container)
+            .deleteSubscription(id: subscriptionID)
+        #expect(try repository.subscription(id: subscriptionID) == nil)
+        try SwiftDataSubscriptionRepository(modelContainer: container)
+            .createSubscription(recreated)
+        try repository.updateSubscription(requestedUpdate)
+
+        #expect(snapshotLoaderCalls.isEmpty)
+        let persisted = try #require(
+            try SwiftDataSubscriptionRepository(modelContainer: container)
+                .subscription(id: subscriptionID)
+        )
+        #expect(persisted.priceChanges == [requestedChange])
+    }
+
+    @Test(
+        "A successful library read prunes snapshots for externally deleted subscriptions"
+    )
+    @MainActor
+    func successfulLibraryReadPrunesSnapshotsForExternallyDeletedSubscriptions()
+        throws
+    {
+        let subscriptionID = try #require(
+            UUID(uuidString: "0A0A0A0A-0000-4000-8000-00000000001C")
+        )
+        let priceChangeID = try #require(
+            UUID(uuidString: "0A0A0A0A-0000-4000-8000-00000000001D")
+        )
+        let originalChange = PriceChange(
+            id: priceChangeID,
+            effectiveDate: Date(timeIntervalSince1970: 1_702_000_000),
+            amount: Money(minorUnits: 3_201, currency: .usd)
+        )
+        let recreatedChange = PriceChange(
+            id: priceChangeID,
+            effectiveDate: Date(timeIntervalSince1970: 1_702_086_400),
+            amount: Money(minorUnits: 3_299, currency: .usd)
+        )
+        let requestedChange = PriceChange(
+            id: priceChangeID,
+            effectiveDate: Date(timeIntervalSince1970: 1_702_172_800),
+            amount: Money(minorUnits: 3_399, currency: .cny)
+        )
+        let original = makeSubscription(
+            id: subscriptionID,
+            priceChanges: [originalChange]
+        )
+        let recreated = replacingPaymentHistory(
+            in: original,
+            priceChanges: [recreatedChange]
+        )
+        let requestedUpdate = replacingPaymentHistory(
+            in: recreated,
+            priceChanges: [requestedChange]
+        )
+        let container = try ModelContainer(
+            for: SubscriptionRecord.self,
+            ConfirmedChargeRecord.self,
+            PriceChangeRecord.self,
+            configurations: ModelConfiguration(
+                isStoredInMemoryOnly: true,
+                cloudKitDatabase: .none
+            )
+        )
+        try SwiftDataSubscriptionRepository(modelContainer: container)
+            .createSubscription(original)
+        var snapshotLoaderCalls: [UUID] = []
+        let repository = SwiftDataSubscriptionRepository(
+            modelContainer: container,
+            save: { try $0.save() },
+            priceChangeSnapshotLoader: { id in
+                snapshotLoaderCalls.append(id)
+                return try SwiftDataSubscriptionRepository(
+                    modelContainer: container
+                ).subscription(id: id)?.priceChanges ?? []
+            }
+        )
+        #expect(try repository.listSubscriptions() == [original])
+        try repository.updateSubscription(original)
+        #expect(snapshotLoaderCalls == [subscriptionID])
+        snapshotLoaderCalls.removeAll()
+
+        try SwiftDataSubscriptionRepository(modelContainer: container)
+            .deleteSubscription(id: subscriptionID)
+        #expect(try repository.listSubscriptions().isEmpty)
+        try SwiftDataSubscriptionRepository(modelContainer: container)
+            .createSubscription(recreated)
+        try repository.updateSubscription(requestedUpdate)
+
+        #expect(snapshotLoaderCalls.isEmpty)
+        let persisted = try #require(
+            try SwiftDataSubscriptionRepository(modelContainer: container)
+                .subscription(id: subscriptionID)
+        )
+        #expect(persisted.priceChanges == [requestedChange])
+    }
+
+    @Test(
+        "A failed delete save retains its price-change snapshot for a later conflict"
+    )
+    @MainActor
+    func failedDeleteSaveRetainsPriceChangeSnapshotForLaterConflict() throws {
+        let subscriptionID = try #require(
+            UUID(uuidString: "0A0A0A0A-0000-4000-8000-00000000001E")
+        )
+        let priceChangeID = try #require(
+            UUID(uuidString: "0A0A0A0A-0000-4000-8000-00000000001F")
+        )
+        let originalChange = PriceChange(
+            id: priceChangeID,
+            effectiveDate: Date(timeIntervalSince1970: 1_703_000_000),
+            amount: Money(minorUnits: 4_201, currency: .usd)
+        )
+        let externalChange = PriceChange(
+            id: priceChangeID,
+            effectiveDate: Date(timeIntervalSince1970: 1_703_086_400),
+            amount: Money(minorUnits: 4_299, currency: .cny)
+        )
+        let original = makeSubscription(
+            id: subscriptionID,
+            priceChanges: [originalChange]
+        )
+        let externallyUpdated = replacingPaymentHistory(
+            in: original,
+            priceChanges: [externalChange]
+        )
+        let container = try ModelContainer(
+            for: SubscriptionRecord.self,
+            ConfirmedChargeRecord.self,
+            PriceChangeRecord.self,
+            configurations: ModelConfiguration(
+                isStoredInMemoryOnly: true,
+                cloudKitDatabase: .none
+            )
+        )
+        try SwiftDataSubscriptionRepository(modelContainer: container)
+            .createSubscription(original)
+        var shouldFailSave = true
+        let repository = SwiftDataSubscriptionRepository(
+            modelContainer: container,
+            save: { context in
+                if shouldFailSave {
+                    throw SaveFailure.unavailable
+                }
+                try context.save()
+            }
+        )
+        let staleSnapshot = try #require(
+            try repository.subscription(id: subscriptionID)
+        )
+
+        #expect(throws: SaveFailure.self) {
+            try repository.deleteSubscription(id: subscriptionID)
+        }
+        shouldFailSave = false
+        try SwiftDataSubscriptionRepository(modelContainer: container)
+            .updateSubscription(externallyUpdated)
+        try repository.updateSubscription(staleSnapshot)
+
+        let persisted = try #require(
+            try SwiftDataSubscriptionRepository(modelContainer: container)
+                .subscription(id: subscriptionID)
+        )
+        #expect(persisted.priceChanges == [externalChange])
+    }
+
+    @Test(
+        "An unreadable persisted row retains its price-change snapshot during a library read"
+    )
+    @MainActor
+    func unreadablePersistedRowRetainsSnapshotDuringLibraryRead() throws {
+        let subscriptionID = try #require(
+            UUID(uuidString: "0A0A0A0A-0000-4000-8000-000000000020")
+        )
+        let priceChangeID = try #require(
+            UUID(uuidString: "0A0A0A0A-0000-4000-8000-000000000021")
+        )
+        let originalChange = PriceChange(
+            id: priceChangeID,
+            effectiveDate: Date(timeIntervalSince1970: 1_704_000_000),
+            amount: Money(minorUnits: 5_201, currency: .usd)
+        )
+        let externalChange = PriceChange(
+            id: priceChangeID,
+            effectiveDate: Date(timeIntervalSince1970: 1_704_086_400),
+            amount: Money(minorUnits: 5_299, currency: .cny)
+        )
+        let original = makeSubscription(
+            id: subscriptionID,
+            priceChanges: [originalChange]
+        )
+        let externallyUpdated = replacingPaymentHistory(
+            in: original,
+            priceChanges: [externalChange]
+        )
+        let container = try ModelContainer(
+            for: SubscriptionRecord.self,
+            ConfirmedChargeRecord.self,
+            PriceChangeRecord.self,
+            configurations: ModelConfiguration(
+                isStoredInMemoryOnly: true,
+                cloudKitDatabase: .none
+            )
+        )
+        try SwiftDataSubscriptionRepository(modelContainer: container)
+            .createSubscription(original)
+        let repository = SwiftDataSubscriptionRepository(
+            modelContainer: container
+        )
+        let initialLibrary = try repository.listSubscriptions()
+        #expect(initialLibrary == [original])
+        let staleSnapshot = try #require(initialLibrary.first)
+
+        let recordContext = ModelContext(container)
+        let record = try #require(
+            try recordContext.fetch(FetchDescriptor<SubscriptionRecord>())
+                .first(where: { $0.id == subscriptionID })
+        )
+        record.lifecycleRawValue = "paused"
+        try recordContext.save()
+
+        #expect(try repository.listSubscriptions().isEmpty)
+
+        record.lifecycleRawValue = "active"
+        record.trialFirstPaidChargeAt = nil
+        record.cancelledAt = nil
+        record.accessUntil = nil
+        try recordContext.save()
+        try SwiftDataSubscriptionRepository(modelContainer: container)
+            .updateSubscription(externallyUpdated)
+        try repository.updateSubscription(staleSnapshot)
+
+        let persisted = try #require(
+            try SwiftDataSubscriptionRepository(modelContainer: container)
+                .subscription(id: subscriptionID)
+        )
+        #expect(persisted.priceChanges == [externalChange])
+    }
+
     @Test("Updating a subscription mutates one record and keeps confirmed history")
     @MainActor
     func updateMutatesOneRecordAndKeepsConfirmedHistory() throws {
@@ -1108,6 +1491,31 @@ struct SwiftDataSubscriptionRepositoryTests {
                 FetchDescriptor<PriceChangeRecord>()
             ).count == 1
         )
+    }
+
+    @Test(
+        "Portable restore preloads mixed child history once and keeps legacy relationships"
+    )
+    @MainActor
+    func portableRestorePreloadsMixedChildHistoryOnceAndKeepsLegacyRelationships()
+        throws
+    {
+        let observations = try [1, 4].map {
+            try portableImportHistoryFetchObservation(itemCount: $0)
+        }
+
+        #expect(observations == [
+            HistoryRecordFetchObservation(
+                loadedSubscriptionCount: 2,
+                confirmedChargeScopes: [.all],
+                priceChangeScopes: [.all]
+            ),
+            HistoryRecordFetchObservation(
+                loadedSubscriptionCount: 8,
+                confirmedChargeScopes: [.all],
+                priceChangeScopes: [.all]
+            ),
+        ])
     }
 
     @Test("Library listing migrates legacy history from its preloaded batches")
@@ -2395,6 +2803,220 @@ struct SwiftDataSubscriptionRepositoryTests {
             lifecycle: snapshot.lifecycle,
             isArchived: snapshot.isArchived,
             pinnedAt: snapshot.pinnedAt
+        )
+    }
+
+    @MainActor
+    private func portableImportHistoryFetchObservation(
+        itemCount: Int
+    ) throws -> HistoryRecordFetchObservation {
+        let container = try ModelContainer(
+            for: SubscriptionRecord.self,
+            ConfirmedChargeRecord.self,
+            PriceChangeRecord.self,
+            configurations: ModelConfiguration(
+                isStoredInMemoryOnly: true,
+                cloudKitDatabase: .none
+            )
+        )
+        let seedRepository = SwiftDataSubscriptionRepository(
+            modelContainer: container
+        )
+        var additions: [Subscription] = []
+        var replacements: [Subscription] = []
+        for index in 0..<itemCount {
+            let dayOffset = Double(index * 86_400)
+            let replacementID = UUID()
+            let confirmedChargeID = UUID()
+            let priceChangeID = UUID()
+            let original = replacingPaymentHistory(
+                in: makeSubscription(id: replacementID),
+                confirmedCharges: [
+                    ConfirmedCharge(
+                        id: confirmedChargeID,
+                        chargedDate: Date(
+                            timeIntervalSince1970:
+                                1_700_000_000 + dayOffset
+                        ),
+                        amount: Money(
+                            minorUnits: 1_000 + Int64(index),
+                            currency: .usd
+                        )
+                    ),
+                ],
+                priceChanges: [
+                    PriceChange(
+                        id: priceChangeID,
+                        effectiveDate: Date(
+                            timeIntervalSince1970:
+                                1_710_000_000 + dayOffset
+                        ),
+                        amount: Money(
+                            minorUnits: 2_000 + Int64(index),
+                            currency: .usd
+                        )
+                    ),
+                ]
+            )
+            try seedRepository.createSubscription(original)
+            replacements.append(
+                replacingPaymentHistory(
+                    in: original,
+                    confirmedCharges: [
+                        ConfirmedCharge(
+                            id: confirmedChargeID,
+                            chargedDate: Date(
+                                timeIntervalSince1970:
+                                    1_720_000_000 + dayOffset
+                            ),
+                            amount: Money(
+                                minorUnits: 3_000 + Int64(index),
+                                currency: .cny
+                            )
+                        ),
+                    ],
+                    priceChanges: [
+                        PriceChange(
+                            id: priceChangeID,
+                            effectiveDate: Date(
+                                timeIntervalSince1970:
+                                    1_730_000_000 + dayOffset
+                            ),
+                            amount: Money(
+                                minorUnits: 4_000 + Int64(index),
+                                currency: .cny
+                            )
+                        ),
+                    ]
+                )
+            )
+
+            let additionID = UUID()
+            additions.append(
+                replacingPaymentHistory(
+                    in: makeSubscription(id: additionID),
+                    confirmedCharges: [
+                        ConfirmedCharge(
+                            id: UUID(),
+                            chargedDate: Date(
+                                timeIntervalSince1970:
+                                    1_740_000_000 + dayOffset
+                            ),
+                            amount: Money(
+                                minorUnits: 5_000 + Int64(index),
+                                currency: .eur
+                            )
+                        ),
+                    ],
+                    priceChanges: [
+                        PriceChange(
+                            id: UUID(),
+                            effectiveDate: Date(
+                                timeIntervalSince1970:
+                                    1_750_000_000 + dayOffset
+                            ),
+                            amount: Money(
+                                minorUnits: 6_000 + Int64(index),
+                                currency: .eur
+                            )
+                        ),
+                    ]
+                )
+            )
+        }
+
+        let legacyContext = ModelContext(container)
+        let legacyConfirmedChargeRecords = try legacyContext.fetch(
+            FetchDescriptor<ConfirmedChargeRecord>()
+        )
+        let legacyPriceChangeRecords = try legacyContext.fetch(
+            FetchDescriptor<PriceChangeRecord>()
+        )
+        let legacyConfirmedChargePersistentIDs = Dictionary(
+            uniqueKeysWithValues: legacyConfirmedChargeRecords.map {
+                ($0.id, $0.persistentModelID)
+            }
+        )
+        let legacyPriceChangePersistentIDs = Dictionary(
+            uniqueKeysWithValues: legacyPriceChangeRecords.map {
+                ($0.id, $0.persistentModelID)
+            }
+        )
+        for record in legacyConfirmedChargeRecords {
+            record.subscriptionID = nil
+        }
+        for record in legacyPriceChangeRecords {
+            record.subscriptionID = nil
+        }
+        try legacyContext.save()
+
+        let historyRecordStore = RecordingSubscriptionHistoryRecordStore(
+            wrapping: SwiftDataSubscriptionHistoryRecordStore()
+        )
+        try SwiftDataPortableBackupImportRepository(
+            modelContainer: container,
+            save: { try $0.save() },
+            historyRecordStore: historyRecordStore
+        ).apply(
+            PortableBackupMerge(
+                additions: additions,
+                replacements: replacements,
+                preferences: nil
+            )
+        )
+
+        let reloaded = try SwiftDataSubscriptionRepository(
+            modelContainer: container
+        ).listSubscriptions()
+        let expected = (additions + replacements).sorted {
+            $0.id.uuidString < $1.id.uuidString
+        }
+        #expect(reloaded == expected)
+
+        let verificationContext = ModelContext(container)
+        let storedConfirmedChargeRecords = try verificationContext.fetch(
+            FetchDescriptor<ConfirmedChargeRecord>()
+        )
+        let storedPriceChangeRecords = try verificationContext.fetch(
+            FetchDescriptor<PriceChangeRecord>()
+        )
+        #expect(storedConfirmedChargeRecords.count == itemCount * 2)
+        #expect(storedPriceChangeRecords.count == itemCount * 2)
+        for replacement in replacements {
+            let confirmedCharge = try #require(
+                replacement.confirmedCharges.first
+            )
+            let confirmedChargeRecord = try #require(
+                storedConfirmedChargeRecords.first {
+                    $0.id == confirmedCharge.id
+                }
+            )
+            #expect(
+                confirmedChargeRecord.persistentModelID
+                    == legacyConfirmedChargePersistentIDs[confirmedCharge.id]
+            )
+            #expect(confirmedChargeRecord.subscriptionID == replacement.id)
+            #expect(confirmedChargeRecord.subscription?.id == replacement.id)
+
+            let priceChange = try #require(replacement.priceChanges.first)
+            let priceChangeRecord = try #require(
+                storedPriceChangeRecords.first {
+                    $0.id == priceChange.id
+                }
+            )
+            #expect(
+                priceChangeRecord.persistentModelID
+                    == legacyPriceChangePersistentIDs[priceChange.id]
+            )
+            #expect(priceChangeRecord.subscriptionID == replacement.id)
+            #expect(priceChangeRecord.subscription?.id == replacement.id)
+        }
+
+        return HistoryRecordFetchObservation(
+            loadedSubscriptionCount: reloaded.count,
+            confirmedChargeScopes:
+                historyRecordStore.confirmedChargeScopes,
+            priceChangeScopes: historyRecordStore.priceChangeScopes
         )
     }
 

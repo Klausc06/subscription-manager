@@ -192,6 +192,7 @@ final class SwiftDataSubscriptionRepository: SubscriptionRepository {
         descriptor.fetchLimit = 1
         do {
             guard let record = try modelContext.fetch(descriptor).first else {
+                priceChangeSnapshots.removeValue(forKey: id)
                 return
             }
             let charges = try confirmedChargeRecords(
@@ -210,6 +211,7 @@ final class SwiftDataSubscriptionRepository: SubscriptionRepository {
             }
             modelContext.delete(record)
             try save(modelContext)
+            priceChangeSnapshots.removeValue(forKey: id)
         } catch {
             modelContext.rollback()
             throw error
@@ -221,6 +223,7 @@ final class SwiftDataSubscriptionRepository: SubscriptionRepository {
             let records = try modelContext.fetch(
                 FetchDescriptor<SubscriptionRecord>()
             )
+            let persistedSubscriptionIDs = Set(records.map(\.id))
             var subscriptions: [Subscription] = []
             var needsSave = false
             var migrationReadyRecords: [SubscriptionRecord] = []
@@ -303,6 +306,9 @@ final class SwiftDataSubscriptionRepository: SubscriptionRepository {
             if needsSave {
                 try save(modelContext)
             }
+            priceChangeSnapshots = priceChangeSnapshots.filter {
+                persistedSubscriptionIDs.contains($0.key)
+            }
             return subscriptions
                 .sorted { $0.id.uuidString < $1.id.uuidString }
         } catch {
@@ -320,6 +326,7 @@ final class SwiftDataSubscriptionRepository: SubscriptionRepository {
 
         do {
             guard let record = try modelContext.fetch(descriptor).first else {
+                priceChangeSnapshots.removeValue(forKey: id)
                 return nil
             }
             var confirmedChargeRecords =
@@ -772,32 +779,6 @@ final class SwiftDataSubscriptionRepository: SubscriptionRepository {
             }
     }
 
-    private func groupConfirmedChargeRecordsBySubscriptionID(
-        _ records: [ConfirmedChargeRecord]
-    ) -> [UUID: [ConfirmedChargeRecord]] {
-        var grouped: [UUID: [ConfirmedChargeRecord]] = [:]
-        for record in records {
-            guard let subscriptionID = record.subscriptionID
-                ?? record.subscription?.id
-            else { continue }
-            grouped[subscriptionID, default: []].append(record)
-        }
-        return grouped
-    }
-
-    private func groupPriceChangeRecordsBySubscriptionID(
-        _ records: [PriceChangeRecord]
-    ) -> [UUID: [PriceChangeRecord]] {
-        var grouped: [UUID: [PriceChangeRecord]] = [:]
-        for record in records {
-            guard let subscriptionID = record.subscriptionID
-                ?? record.subscription?.id
-            else { continue }
-            grouped[subscriptionID, default: []].append(record)
-        }
-        return grouped
-    }
-
     private func confirmedChargeRecords(
         for subscriptionID: UUID,
         in context: ModelContext
@@ -1190,6 +1171,7 @@ final class SwiftDataPortableBackupImportRepository:
 {
     private let modelContainer: ModelContainer
     private let save: (ModelContext) throws -> Void
+    private let historyRecordStore: any SubscriptionHistoryRecordStore
 
     convenience init(modelContainer: ModelContainer) {
         self.init(modelContainer: modelContainer, save: { try $0.save() })
@@ -1197,19 +1179,44 @@ final class SwiftDataPortableBackupImportRepository:
 
     init(
         modelContainer: ModelContainer,
-        save: @escaping (ModelContext) throws -> Void
+        save: @escaping (ModelContext) throws -> Void,
+        historyRecordStore: any SubscriptionHistoryRecordStore =
+            SwiftDataSubscriptionHistoryRecordStore()
     ) {
         self.modelContainer = modelContainer
         self.save = save
+        self.historyRecordStore = historyRecordStore
     }
 
     func apply(_ merge: PortableBackupMerge) throws {
         let context = ModelContext(modelContainer)
         do {
+            var confirmedChargeRecordsBySubscriptionID =
+                groupConfirmedChargeRecordsBySubscriptionID(
+                    try historyRecordStore.confirmedChargeRecords(
+                        for: .all,
+                        in: context
+                    )
+                )
+            var priceChangeRecordsBySubscriptionID =
+                groupPriceChangeRecordsBySubscriptionID(
+                    try historyRecordStore.priceChangeRecords(
+                        for: .all,
+                        in: context
+                    )
+                )
             for subscription in merge.additions {
                 let record = SubscriptionRecord(id: subscription.id)
                 context.insert(record)
-                try apply(subscription, to: record, in: context)
+                try apply(
+                    subscription,
+                    to: record,
+                    in: context,
+                    confirmedChargeRecordsBySubscriptionID:
+                        &confirmedChargeRecordsBySubscriptionID,
+                    priceChangeRecordsBySubscriptionID:
+                        &priceChangeRecordsBySubscriptionID
+                )
             }
             for subscription in merge.replacements {
                 let id = subscription.id
@@ -1220,7 +1227,15 @@ final class SwiftDataPortableBackupImportRepository:
                 guard let record = try context.fetch(descriptor).first else {
                     throw PortableBackupImportStorageError.subscriptionNotFound
                 }
-                try apply(subscription, to: record, in: context)
+                try apply(
+                    subscription,
+                    to: record,
+                    in: context,
+                    confirmedChargeRecordsBySubscriptionID:
+                        &confirmedChargeRecordsBySubscriptionID,
+                    priceChangeRecordsBySubscriptionID:
+                        &priceChangeRecordsBySubscriptionID
+                )
             }
             if let preferences = merge.preferences {
                 let records = try context.fetch(
@@ -1250,7 +1265,11 @@ final class SwiftDataPortableBackupImportRepository:
     private func apply(
         _ subscription: Subscription,
         to record: SubscriptionRecord,
-        in context: ModelContext
+        in context: ModelContext,
+        confirmedChargeRecordsBySubscriptionID:
+            inout [UUID: [ConfirmedChargeRecord]],
+        priceChangeRecordsBySubscriptionID:
+            inout [UUID: [PriceChangeRecord]]
     ) throws {
         record.serviceIdentityRawValue = subscription.serviceIdentity.rawValue
         record.serviceName = subscription.serviceName
@@ -1271,16 +1290,25 @@ final class SwiftDataPortableBackupImportRepository:
         record.confirmedNextRenewal = subscription.confirmedNextRenewal
         record.managementURLString = subscription.managementURL?.absoluteString
         record.notes = subscription.notes
+        var confirmedChargeRecords =
+            confirmedChargeRecordsBySubscriptionID[record.id] ?? []
         try replaceConfirmedCharges(
             subscription.confirmedCharges,
             in: record,
-            context: context
+            context: context,
+            storedRecords: &confirmedChargeRecords
         )
+        confirmedChargeRecordsBySubscriptionID[record.id] =
+            confirmedChargeRecords
+        var priceChangeRecords =
+            priceChangeRecordsBySubscriptionID[record.id] ?? []
         try replacePriceChanges(
             subscription.priceChanges,
             in: record,
-            context: context
+            context: context,
+            storedRecords: &priceChangeRecords
         )
+        priceChangeRecordsBySubscriptionID[record.id] = priceChangeRecords
         record.confirmedChargesData = nil
         record.priceChangesData = nil
         record.isArchived = subscription.isArchived
@@ -1339,15 +1367,9 @@ final class SwiftDataPortableBackupImportRepository:
     private func replaceConfirmedCharges(
         _ charges: [ConfirmedCharge],
         in record: SubscriptionRecord,
-        context: ModelContext
+        context: ModelContext,
+        storedRecords: inout [ConfirmedChargeRecord]
     ) throws {
-        let storedRecords = try context.fetch(
-            FetchDescriptor<ConfirmedChargeRecord>()
-        ).filter {
-            $0.subscriptionID == record.id
-                || ($0.subscriptionID == nil
-                    && $0.subscription?.id == record.id)
-        }
         let canonicalization = canonicalConfirmedChargeRecords(
             from: storedRecords
         )
@@ -1398,20 +1420,15 @@ final class SwiftDataPortableBackupImportRepository:
             storedRecord.subscriptionID = record.id
             storedRecord.subscription = record
         }
+        storedRecords = Array(storedByKey.values)
     }
 
     private func replacePriceChanges(
         _ changes: [PriceChange],
         in record: SubscriptionRecord,
-        context: ModelContext
+        context: ModelContext,
+        storedRecords: inout [PriceChangeRecord]
     ) throws {
-        let storedRecords = try context.fetch(
-            FetchDescriptor<PriceChangeRecord>()
-        ).filter {
-            $0.subscriptionID == record.id
-                || ($0.subscriptionID == nil
-                    && $0.subscription?.id == record.id)
-        }
         let canonicalization = canonicalPriceChangeRecords(
             from: storedRecords
         )
@@ -1452,7 +1469,34 @@ final class SwiftDataPortableBackupImportRepository:
             storedRecord.subscriptionID = record.id
             storedRecord.subscription = record
         }
+        storedRecords = Array(storedByID.values)
     }
+}
+
+private func groupConfirmedChargeRecordsBySubscriptionID(
+    _ records: [ConfirmedChargeRecord]
+) -> [UUID: [ConfirmedChargeRecord]] {
+    var grouped: [UUID: [ConfirmedChargeRecord]] = [:]
+    for record in records {
+        guard let subscriptionID = record.subscriptionID
+            ?? record.subscription?.id
+        else { continue }
+        grouped[subscriptionID, default: []].append(record)
+    }
+    return grouped
+}
+
+private func groupPriceChangeRecordsBySubscriptionID(
+    _ records: [PriceChangeRecord]
+) -> [UUID: [PriceChangeRecord]] {
+    var grouped: [UUID: [PriceChangeRecord]] = [:]
+    for record in records {
+        guard let subscriptionID = record.subscriptionID
+            ?? record.subscription?.id
+        else { continue }
+        grouped[subscriptionID, default: []].append(record)
+    }
+    return grouped
 }
 
 private enum ConfirmedChargeCanonicalKey: Hashable {

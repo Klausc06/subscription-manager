@@ -409,48 +409,6 @@ struct BundledCatalogRepositoryTests {
     }
 }
 
-private let expectedCatalogOfferTable = [
-    "spotify|individual-monthly-us-web|Individual|Individual|monthly|1299|https://www.spotify.com/us/premium/",
-    "spotify|student-monthly-us-web|Student|Student|monthly|699|https://www.spotify.com/us/premium/",
-    "spotify|duo-monthly-us-web|Duo|Duo|monthly|1899|https://www.spotify.com/us/premium/",
-    "spotify|family-monthly-us-web|Family|Family|monthly|2199|https://www.spotify.com/us/premium/",
-    "netflix|ads-monthly-us-web|Standard with ads|Standard with ads|monthly|899|https://help.netflix.com/en/node/22",
-    "netflix|standard-monthly-us-web|Standard|Standard|monthly|1999|https://help.netflix.com/en/node/22",
-    "netflix|premium-monthly-us-web|Premium|Premium|monthly|2699|https://help.netflix.com/en/node/22",
-    "notion|plus-one-member-monthly-us-web|Plus (1 member)|Plus (1 member)|monthly|1200|https://www.notion.com/pricing",
-    "notion|plus-one-member-yearly-us-web|Plus (1 member)|Plus (1 member)|yearly|12000|https://www.notion.com/pricing",
-    "chatgpt|go-monthly-us-web|Go|Go|monthly|800|https://openai.com/chatgpt/pricing/",
-    "chatgpt|plus-monthly-us-web|Plus|Plus|monthly|2000|https://openai.com/chatgpt/pricing/",
-    "chatgpt|pro-5x-monthly-us-web|Pro (5x)|Pro（5x）|monthly|10000|https://help.openai.com/en/articles/9793128-what-is-chatgpt-pro",
-    "chatgpt|pro-20x-monthly-us-web|Pro (20x)|Pro（20x）|monthly|20000|https://help.openai.com/en/articles/9793128-what-is-chatgpt-pro",
-    "jd-plus|jingdian-annual-cn-web|JD PLUS Annual|京典年卡|yearly|9900|https://plus.jd.com/",
-    "taobao-88vip|88vip-shopping-card-cn-web|Shopping Card|购物卡|yearly|8800|https://www.taobao.com/",
-    "taobao-88vip|88vip-living-card-cn-web|Living Card|生活卡|yearly|28800|https://www.taobao.com/",
-    "sams-club-china|ordinary-annual-cn-web|Ordinary Membership|普通会员|yearly|26000|https://www.samsclub.cn/",
-    "sams-club-china|premium-annual-cn-web|Premium Membership|卓越会员|yearly|68000|https://www.samsclub.cn/",
-    "claude|pro-monthly-us-web|Pro|Pro|monthly|2000|https://www.anthropic.com/pricing",
-    "claude|pro-yearly-us-web|Pro|Pro|yearly|20000|https://www.anthropic.com/pricing",
-    "claude|max-5x-monthly-us-web|Max (5x)|Max (5x)|monthly|10000|https://www.anthropic.com/pricing",
-    "claude|max-20x-monthly-us-web|Max (20x)|Max (20x)|monthly|20000|https://www.anthropic.com/pricing",
-    "google-ai|ai-plus-monthly-us-web|Google AI Plus|Google AI Plus|monthly|999|https://one.google.com/about/google-ai-plans/",
-    "google-ai|ai-pro-monthly-us-web|Google AI Pro|Google AI Pro|monthly|1999|https://one.google.com/about/google-ai-plans/",
-    "microsoft-365|personal-monthly-us-web|Personal|Personal|monthly|999|https://www.microsoft.com/en-us/microsoft-365/buy/microsoft-365",
-    "microsoft-365|personal-yearly-us-web|Personal|Personal|yearly|9999|https://www.microsoft.com/en-us/microsoft-365/buy/microsoft-365",
-    "microsoft-365|family-monthly-us-web|Family|Family|monthly|1299|https://www.microsoft.com/en-us/microsoft-365/buy/microsoft-365",
-    "microsoft-365|family-yearly-us-web|Family|Family|yearly|12999|https://www.microsoft.com/en-us/microsoft-365/buy/microsoft-365",
-    "microsoft-365|premium-monthly-us-web|Premium|Premium|monthly|1999|https://www.microsoft.com/en-us/microsoft-365/buy/microsoft-365",
-    "microsoft-365|premium-yearly-us-web|Premium|Premium|yearly|19999|https://www.microsoft.com/en-us/microsoft-365/buy/microsoft-365",
-    "youtube-premium|lite-monthly-us-web|Premium Lite|Premium Lite|monthly|799|https://blog.youtube/news-and-events/introducing-premium-lite/",
-    "disney-plus|ads-monthly-us-web|With Ads|With Ads|monthly|1199|https://help.disneyplus.com/article/disneyplus-price",
-    "disney-plus|premium-monthly-us-web|Premium|Premium|monthly|1899|https://help.disneyplus.com/article/disneyplus-price",
-    "disney-plus|premium-yearly-us-web|Premium|Premium|yearly|18999|https://help.disneyplus.com/article/disneyplus-price",
-    "canva|pro-one-person-yearly-us-web|Pro (1 person)|Pro (1 person)|yearly|18000|https://www.canva.com/pricing/",
-    "doubao|pro-advanced-monthly-cn-ios|Pro · Advanced|专业版 · 高级套餐|monthly|59900|https://apps.apple.com/cn/app/id6459478672",
-    "doubao|pro-advanced-yearly-cn-ios|Pro · Advanced|专业版 · 高级套餐|yearly|608800|https://apps.apple.com/cn/app/id6459478672",
-    "doubao|pro-enhanced-monthly-cn-ios|Pro · Enhanced|专业版 · 加强套餐|monthly|24000|https://apps.apple.com/cn/app/id6459478672",
-    "doubao|pro-enhanced-yearly-cn-ios|Pro · Enhanced|专业版 · 加强套餐|yearly|248800|https://apps.apple.com/cn/app/id6459478672"
-]
-
 private func validCatalogData(
     catalogVersion: Int = 1,
     presetID: String = "music.example"

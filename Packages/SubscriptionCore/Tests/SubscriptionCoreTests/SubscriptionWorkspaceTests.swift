@@ -2195,6 +2195,184 @@ struct SubscriptionWorkspaceTests {
         #expect(workspace.upcomingTimeline.first?.date == renewal)
     }
 
+    @Test("Upcoming items carry billing facts for cross-midnight grouping")
+    @MainActor
+    func upcomingItemsCarryBillingFactsForCrossMidnightGrouping() throws {
+        var billingCalendar = Calendar(identifier: .gregorian)
+        billingCalendar.timeZone = try #require(
+            TimeZone(identifier: "Asia/Tokyo")
+        )
+        var displayCalendar = Calendar(identifier: .gregorian)
+        displayCalendar.timeZone = try #require(
+            TimeZone(identifier: "America/Los_Angeles")
+        )
+        let renewal = try actionDate(
+            year: 2026,
+            month: 8,
+            day: 2,
+            hour: 12,
+            calendar: billingCalendar
+        )
+        let subscriptionID = try #require(
+            UUID(uuidString: "D0DEC0DE-0000-4000-8000-000000000003")
+        )
+        let workspace = SubscriptionWorkspace(
+            repository: InMemorySubscriptionRepository(subscriptions: [
+                makeSubscription(
+                    id: subscriptionID,
+                    billingSchedule: FixedBillingSchedule(
+                        interval: .monthly,
+                        renewalAnchor: renewal,
+                        timeZoneIdentifier: "Asia/Tokyo"
+                    ),
+                    confirmedNextRenewal: renewal
+                ),
+            ]),
+            now: { renewal.addingTimeInterval(-86_400) }
+        )
+
+        workspace.loadUpcomingTimeline(from: renewal, through: renewal)
+
+        let item = try #require(workspace.upcomingTimeline.first)
+        #expect(item.billingTimeZoneIdentifier == "Asia/Tokyo")
+        #expect(item.scheduledChargeID == ScheduledChargeID(
+            subscriptionID: subscriptionID,
+            year: 2026,
+            month: 8,
+            day: 2
+        ))
+
+        let projection = UpcomingCalendarProjection(
+            monthContaining: renewal,
+            items: [item],
+            calendar: displayCalendar
+        )
+        let expectedDisplayDay = try actionDate(
+            year: 2026,
+            month: 8,
+            day: 2,
+            hour: 0,
+            calendar: displayCalendar
+        )
+        #expect(projection.days.map(\.date) == [expectedDisplayDay])
+    }
+
+    @Test("Upcoming confirmation revalidates the latest subscription")
+    @MainActor
+    func upcomingConfirmationRevalidatesLatestSubscription() throws {
+        let calendar = utcCalendar()
+        let renewal = try actionDate(
+            year: 2026,
+            month: 8,
+            day: 2,
+            hour: 12,
+            calendar: calendar
+        )
+        let subscriptionID = try #require(
+            UUID(uuidString: "D0DEC0DE-0000-4000-8000-000000000004")
+        )
+        let chargeID = try #require(
+            UUID(uuidString: "D0DEC0DE-0000-4000-8000-000000000005")
+        )
+        let schedule = FixedBillingSchedule(
+            interval: .monthly,
+            renewalAnchor: renewal,
+            timeZoneIdentifier: "UTC"
+        )
+        let repository = InMemorySubscriptionRepository(subscriptions: [
+            makeSubscription(
+                id: subscriptionID,
+                billingSchedule: schedule,
+                confirmedNextRenewal: renewal,
+                originalAmount: Money(minorUnits: 1_299, currency: .usd)
+            ),
+        ])
+        let workspace = SubscriptionWorkspace(
+            repository: repository,
+            now: { renewal.addingTimeInterval(86_400) }
+        )
+        workspace.loadUpcomingTimeline(from: renewal, through: renewal)
+        let item = try #require(workspace.upcomingTimeline.first)
+
+        let firstResolution = try workspace.confirmableExpectedCharge(for: item)
+
+        #expect(firstResolution?.id == item.scheduledChargeID)
+        try repository.updateSubscription(
+            makeSubscription(
+                id: subscriptionID,
+                billingSchedule: schedule,
+                confirmedNextRenewal: renewal,
+                confirmedCharges: [
+                    ConfirmedCharge(
+                        id: chargeID,
+                        chargedDate: renewal,
+                        amount: Money(minorUnits: 1_299, currency: .usd),
+                        sourceScheduledChargeID: item.scheduledChargeID
+                    ),
+                ],
+                originalAmount: Money(minorUnits: 1_299, currency: .usd)
+            )
+        )
+
+        #expect(try workspace.confirmableExpectedCharge(for: item) == nil)
+    }
+
+    @Test("Manual confirmed history does not suppress a scheduled occurrence")
+    @MainActor
+    func manualConfirmedHistoryDoesNotSuppressScheduledOccurrence() throws {
+        let calendar = utcCalendar()
+        let renewal = try actionDate(
+            year: 2026,
+            month: 8,
+            day: 2,
+            hour: 12,
+            calendar: calendar
+        )
+        let subscriptionID = try #require(
+            UUID(uuidString: "D0DEC0DE-0000-4000-8000-000000000006")
+        )
+        let manualChargeID = try #require(
+            UUID(uuidString: "D0DEC0DE-0000-4000-8000-000000000007")
+        )
+        let schedule = FixedBillingSchedule(
+            interval: .monthly,
+            renewalAnchor: renewal,
+            timeZoneIdentifier: "UTC"
+        )
+        let workspace = SubscriptionWorkspace(
+            repository: InMemorySubscriptionRepository(subscriptions: [
+                makeSubscription(
+                    id: subscriptionID,
+                    billingSchedule: schedule,
+                    confirmedNextRenewal: renewal,
+                    confirmedCharges: [
+                        ConfirmedCharge(
+                            id: manualChargeID,
+                            chargedDate: renewal,
+                            amount: Money(minorUnits: 999, currency: .usd)
+                        ),
+                    ]
+                ),
+            ]),
+            now: { renewal.addingTimeInterval(86_400) }
+        )
+
+        let items = try workspace.upcomingRenewals(
+            from: renewal,
+            through: renewal
+        )
+
+        #expect(items.map(\.kind) == [.confirmed, .expected])
+        #expect(items.compactMap(\.scheduledChargeID) == [
+            ScheduledChargeID(
+                subscriptionID: subscriptionID,
+                year: 2026,
+                month: 8,
+                day: 2
+            ),
+        ])
+    }
+
     @Test("Upcoming includes past unconfirmed occurrences and replaces them after confirmation")
     @MainActor
     func upcomingPastMonthDeduplicatesConfirmedOccurrences() throws {

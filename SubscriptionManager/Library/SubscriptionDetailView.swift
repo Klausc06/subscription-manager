@@ -39,13 +39,9 @@ struct SubscriptionDetailView: View {
             .sheet(item: $paymentSheet) { sheet in
                 NavigationStack {
                     switch sheet {
-                    case .confirmCharge(
-                        let subscription,
-                        let expectedOccurrence
-                    ):
+                    case .confirmCharge(let expectedOccurrence):
                         ConfirmChargeView(
                             workspace: workspace,
-                            subscription: subscription,
                             expectedOccurrence: expectedOccurrence
                         )
                     }
@@ -95,10 +91,7 @@ struct SubscriptionDetailView: View {
                         lifecycleSheet = .reactivate(subscription)
                     },
                     onConfirmCharge: { expectedOccurrence in
-                        paymentSheet = .confirmCharge(
-                            subscription,
-                            expectedOccurrence
-                        )
+                        paymentSheet = .confirmCharge(expectedOccurrence)
                     },
                     onSave: {
                         mode = .summary
@@ -260,11 +253,11 @@ private enum LifecycleSheet: Identifiable {
 }
 
 private enum PaymentSheet: Identifiable {
-    case confirmCharge(Subscription, ExpectedCharge)
+    case confirmCharge(ExpectedCharge)
 
     var id: String {
         switch self {
-        case .confirmCharge(_, let occurrence):
+        case .confirmCharge(let occurrence):
             "confirm-charge-\(occurrence.id.subscriptionID)-"
                 + "\(occurrence.id.year)-\(occurrence.id.month)-"
                 + "\(occurrence.id.day)"

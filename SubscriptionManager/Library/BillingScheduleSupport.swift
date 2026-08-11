@@ -36,27 +36,11 @@ func billingLocalDay(
     billingTimeZoneIdentifier: String,
     displayCalendar: Calendar
 ) -> Date {
-    var billingCalendar = Calendar(identifier: .gregorian)
-    billingCalendar.timeZone = billingTimeZone(
-        identifier: billingTimeZoneIdentifier
+    BillingCalendar.displayDay(
+        for: instant,
+        billingTimeZoneIdentifier: billingTimeZoneIdentifier,
+        displayCalendar: displayCalendar
     )
-    let components = billingCalendar.dateComponents(
-        [.year, .month, .day],
-        from: instant
-    )
-
-    var displayGregorianCalendar = Calendar(identifier: .gregorian)
-    displayGregorianCalendar.timeZone = displayCalendar.timeZone
-    guard let year = components.year,
-          let month = components.month,
-          let day = components.day,
-          let displayDate = displayGregorianCalendar.date(
-              from: DateComponents(year: year, month: month, day: day)
-          )
-    else {
-        return displayCalendar.startOfDay(for: instant)
-    }
-    return displayCalendar.startOfDay(for: displayDate)
 }
 
 func formattedBillingDate(

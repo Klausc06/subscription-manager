@@ -255,7 +255,11 @@ final class EventKitCalendarProjectionImporter:
         }
 
         let calendar: CalendarProjectionCalendar
+        var eventIdentifiersByProjectionUID: [String: String]
         do {
+            eventIdentifiersByProjectionUID = eventIdentifierSnapshot(
+                from: try mappingRepository.eventMappings()
+            )
             if let identifier = try mappingRepository.calendarIdentifier(),
                let existing = eventStore.calendar(identifier: identifier)
             {
@@ -277,8 +281,10 @@ final class EventKitCalendarProjectionImporter:
         var failedCount = 0
         for event in events {
             do {
-                let resolution = try resolveEventIdentifier(
+                let resolution = resolveEventIdentifier(
                     for: event,
+                    mappedIdentifier:
+                        eventIdentifiersByProjectionUID[event.uid],
                     in: calendar
                 )
                 let existingIdentifier: String?
@@ -299,6 +305,8 @@ final class EventKitCalendarProjectionImporter:
                     for: event.uid,
                     calendarIdentifier: calendar.identifier
                 )
+                eventIdentifiersByProjectionUID[event.uid] =
+                    write.eventIdentifier
                 if write.didSave {
                     if write.updatedExistingEvent {
                         updatedCount += 1
@@ -359,6 +367,7 @@ final class EventKitCalendarProjectionImporter:
     ) -> CalendarReconciliationResult {
         let calendar: CalendarProjectionCalendar
         let mappings: [CalendarProjectionEventMapping]
+        var eventIdentifiersByProjectionUID: [String: String] = [:]
         var mappedIdentifiers: [String: String] = [:]
         do {
             guard try !mappingRepository.isCalendarSyncDisabled() else {
@@ -375,9 +384,17 @@ final class EventKitCalendarProjectionImporter:
             calendar = existing
 
             mappings = try mappingRepository.eventMappings()
+            eventIdentifiersByProjectionUID = eventIdentifierSnapshot(
+                from: mappings
+            )
             var missingCount = 0
             for event in events {
-                switch try resolveEventIdentifier(for: event, in: calendar) {
+                switch resolveEventIdentifier(
+                    for: event,
+                    mappedIdentifier:
+                        eventIdentifiersByProjectionUID[event.uid],
+                    in: calendar
+                ) {
                 case .mapped(let identifier):
                     mappedIdentifiers[event.uid] = identifier
                 case .recovered(
@@ -390,6 +407,8 @@ final class EventKitCalendarProjectionImporter:
                             for: event.uid,
                             calendarIdentifier: calendar.identifier
                         )
+                        eventIdentifiersByProjectionUID[event.uid] =
+                            recoveredIdentifier
                     }
                     mappedIdentifiers[event.uid] = recoveredIdentifier
                 case .missing(let hadMappedIdentifier):
@@ -415,6 +434,9 @@ final class EventKitCalendarProjectionImporter:
                 try mappingRepository.removeEventMapping(
                     for: mapping.projectionUID
                 )
+                eventIdentifiersByProjectionUID.removeValue(
+                    forKey: mapping.projectionUID
+                )
             } catch {
                 failedCount += 1
             }
@@ -423,11 +445,6 @@ final class EventKitCalendarProjectionImporter:
         for event in events {
             do {
                 let existingIdentifier = mappedIdentifiers[event.uid]
-                    ?? eventStore.eventIdentifier(
-                        for: event.uid,
-                        near: event,
-                        in: calendar
-                    )
                 let write = try eventStore.saveProjectedEvent(
                     event,
                     in: calendar,
@@ -438,6 +455,9 @@ final class EventKitCalendarProjectionImporter:
                     for: event.uid,
                     calendarIdentifier: calendar.identifier
                 )
+                eventIdentifiersByProjectionUID[event.uid] =
+                    write.eventIdentifier
+                mappedIdentifiers[event.uid] = write.eventIdentifier
             } catch {
                 failedCount += 1
             }
@@ -450,11 +470,9 @@ final class EventKitCalendarProjectionImporter:
 
     private func resolveEventIdentifier(
         for event: CalendarProjectionEvent,
+        mappedIdentifier: String?,
         in calendar: CalendarProjectionCalendar
-    ) throws -> EventIdentifierResolution {
-        let mappedIdentifier = try mappingRepository.eventIdentifier(
-            for: event.uid
-        )
+    ) -> EventIdentifierResolution {
         if let mappedIdentifier,
            eventStore.eventExists(identifier: mappedIdentifier)
         {
@@ -471,6 +489,27 @@ final class EventKitCalendarProjectionImporter:
             )
         }
         return .missing(hadMappedIdentifier: mappedIdentifier != nil)
+    }
+
+    private func eventIdentifierSnapshot(
+        from mappings: [CalendarProjectionEventMapping]
+    ) -> [String: String] {
+        var snapshot: [String: String] = [:]
+        for mapping in mappings.sorted(by: mappingPrecedes) {
+            guard snapshot[mapping.projectionUID] == nil else { continue }
+            snapshot[mapping.projectionUID] = mapping.eventIdentifier
+        }
+        return snapshot
+    }
+
+    private func mappingPrecedes(
+        _ lhs: CalendarProjectionEventMapping,
+        _ rhs: CalendarProjectionEventMapping
+    ) -> Bool {
+        if lhs.projectionUID != rhs.projectionUID {
+            return lhs.projectionUID < rhs.projectionUID
+        }
+        return lhs.eventIdentifier < rhs.eventIdentifier
     }
 }
 
@@ -709,13 +748,28 @@ final class SwiftDataCalendarProjectionMappingRepository:
     }
 
     func eventIdentifier(for projectionUID: String) throws -> String? {
-        try records().first { $0.projectionUID == projectionUID }?
-            .eventIdentifier
+        try eventMappingRecord(for: projectionUID)?.eventIdentifier
     }
 
     func eventMappings() throws -> [CalendarProjectionEventMapping] {
-        try records()
-            .filter { !$0.projectionUID.isEmpty }
+        let metadataProjectionUID = ""
+        let descriptor = FetchDescriptor<CalendarProjectionMappingRecord>(
+            predicate: #Predicate {
+                $0.projectionUID != metadataProjectionUID
+            },
+            sortBy: [
+                SortDescriptor(
+                    \CalendarProjectionMappingRecord.projectionUID
+                ),
+                SortDescriptor(
+                    \CalendarProjectionMappingRecord.eventIdentifier
+                ),
+                SortDescriptor(
+                    \CalendarProjectionMappingRecord.calendarIdentifier
+                ),
+            ]
+        )
+        return try modelContext.fetch(descriptor)
             .map {
                 CalendarProjectionEventMapping(
                     projectionUID: $0.projectionUID,
@@ -725,9 +779,7 @@ final class SwiftDataCalendarProjectionMappingRepository:
     }
 
     func removeEventMapping(for projectionUID: String) throws {
-        guard let record = try records().first(where: {
-            $0.projectionUID == projectionUID
-        }) else {
+        guard let record = try eventMappingRecord(for: projectionUID) else {
             return
         }
         modelContext.delete(record)
@@ -739,9 +791,7 @@ final class SwiftDataCalendarProjectionMappingRepository:
         for projectionUID: String,
         calendarIdentifier: String
     ) throws {
-        if let record = try records().first(where: {
-            $0.projectionUID == projectionUID
-        }) {
+        if let record = try eventMappingRecord(for: projectionUID) {
             record.eventIdentifier = identifier
             record.calendarIdentifier = calendarIdentifier
         } else {
@@ -765,13 +815,45 @@ final class SwiftDataCalendarProjectionMappingRepository:
         }
     }
 
-    private func records() throws -> [CalendarProjectionMappingRecord] {
-        try modelContext.fetch(FetchDescriptor<CalendarProjectionMappingRecord>())
+    private func eventMappingRecord(
+        for projectionUID: String
+    ) throws -> CalendarProjectionMappingRecord? {
+        let lookupProjectionUID = projectionUID
+        var descriptor = FetchDescriptor<CalendarProjectionMappingRecord>(
+            predicate: #Predicate {
+                $0.projectionUID == lookupProjectionUID
+            },
+            sortBy: [
+                SortDescriptor(
+                    \CalendarProjectionMappingRecord.eventIdentifier
+                ),
+                SortDescriptor(
+                    \CalendarProjectionMappingRecord.calendarIdentifier
+                ),
+            ]
+        )
+        descriptor.fetchLimit = 1
+        return try modelContext.fetch(descriptor).first
     }
 
     private func calendarMetadataRecord() throws
         -> CalendarProjectionMappingRecord?
     {
-        try records().first { $0.projectionUID.isEmpty }
+        let metadataProjectionUID = ""
+        var descriptor = FetchDescriptor<CalendarProjectionMappingRecord>(
+            predicate: #Predicate {
+                $0.projectionUID == metadataProjectionUID
+            },
+            sortBy: [
+                SortDescriptor(
+                    \CalendarProjectionMappingRecord.calendarIdentifier
+                ),
+                SortDescriptor(
+                    \CalendarProjectionMappingRecord.eventIdentifier
+                ),
+            ]
+        )
+        descriptor.fetchLimit = 1
+        return try modelContext.fetch(descriptor).first
     }
 }

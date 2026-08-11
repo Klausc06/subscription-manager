@@ -16,6 +16,35 @@ public enum BillingCalendar {
         }
         return calendar(timeZone: timeZone)
     }
+
+    public static func displayDay(
+        for instant: Date,
+        billingTimeZoneIdentifier: String,
+        displayCalendar: Calendar
+    ) -> Date {
+        guard let billingCalendar = calendar(
+            timeZoneIdentifier: billingTimeZoneIdentifier
+        ) else {
+            return displayCalendar.startOfDay(for: instant)
+        }
+        let components = billingCalendar.dateComponents(
+            [.year, .month, .day],
+            from: instant
+        )
+        var displayGregorianCalendar = Calendar(identifier: .gregorian)
+        displayGregorianCalendar.locale = Locale(identifier: "en_US_POSIX")
+        displayGregorianCalendar.timeZone = displayCalendar.timeZone
+        guard let year = components.year,
+              let month = components.month,
+              let day = components.day,
+              let displayDate = displayGregorianCalendar.date(
+                  from: DateComponents(year: year, month: month, day: day)
+              )
+        else {
+            return displayCalendar.startOfDay(for: instant)
+        }
+        return displayCalendar.startOfDay(for: displayDate)
+    }
 }
 
 public enum BillingIntervalUnit: String, CaseIterable, Codable, Sendable {

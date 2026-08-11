@@ -3807,47 +3807,6 @@ final class SubscriptionManagerUITests: XCTestCase {
         return value
     }
 
-    private func selectCompactDateInNextMonth(
-        in picker: XCUIElement,
-        app: XCUIApplication,
-        day: Int
-    ) -> String {
-        let originalValue = selectedDate(in: picker)
-        picker.tap()
-
-        let nextMonth = app.buttons["DatePicker.NextMonth"]
-        let month = app.buttons["DatePicker.Show"]
-        XCTAssertTrue(nextMonth.waitForExistence(timeout: 5))
-        let originalMonth = month.value as? String
-        nextMonth.tap()
-        if let originalMonth {
-            let monthChanged = NSPredicate(
-                format: "value != %@",
-                originalMonth
-            )
-            let expectation = XCTNSPredicateExpectation(
-                predicate: monthChanged,
-                object: month
-            )
-            XCTAssertEqual(
-                XCTWaiter.wait(for: [expectation], timeout: 3),
-                .completed
-            )
-        }
-
-        let target = app.staticTexts[String(day)].firstMatch
-        XCTAssertTrue(target.waitForExistence(timeout: 5))
-        target.tap()
-
-        let selectedValue = selectedDate(in: picker)
-        XCTAssertNotEqual(
-            selectedValue,
-            originalValue,
-            "Choosing a next-month day must update the compact date picker."
-        )
-        return selectedValue
-    }
-
     private func moveCalendarMonth(
         in picker: XCUIElement,
         controlIdentifier: String

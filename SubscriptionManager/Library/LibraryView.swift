@@ -410,8 +410,7 @@ private struct UpcomingView: View {
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     var body: some View {
-        let subscriptionsByID = self.subscriptionsByID()
-        let projection = makeProjection(subscriptionsByID: subscriptionsByID)
+        let projection = makeProjection()
         let selectedDayItems = selectedDayItems(in: projection)
         NavigationStack {
             GeometryReader { geometry in
@@ -479,18 +478,10 @@ private struct UpcomingView: View {
                             )
                         } else {
                             ForEach(selectedDayItems) { item in
-                                let confirmation = confirmationContext(
-                                    for: item,
-                                    subscriptionsByID: subscriptionsByID
-                                )
                                 HStack(alignment: .firstTextBaseline, spacing: 12) {
                                     NavigationLink(value: item.subscriptionID) {
                                         UpcomingTimelineRow(
-                                            item: item,
-                                            billingTimeZoneIdentifier:
-                                                subscriptionsByID[item.subscriptionID]?
-                                                .billingSchedule.timeZoneIdentifier
-                                                ?? TimeZone.autoupdatingCurrent.identifier
+                                            item: item
                                         )
                                     }
                                     .frame(maxWidth: .infinity, alignment: .leading)
@@ -500,9 +491,9 @@ private struct UpcomingView: View {
                                             : "upcoming.row.confirmed"
                                     )
 
-                                    if let confirmation {
+                                    if canOfferConfirmation(for: item) {
                                         Button {
-                                            confirmationPresentation = confirmation
+                                            prepareConfirmation(for: item)
                                         } label: {
                                             Label(
                                                 "Confirm Charge",
@@ -547,7 +538,6 @@ private struct UpcomingView: View {
             NavigationStack {
                 ConfirmChargeView(
                     workspace: workspace,
-                    subscription: presentation.subscription,
                     expectedOccurrence: presentation.expectedOccurrence
                 )
             }
@@ -678,28 +668,10 @@ private struct UpcomingView: View {
         calendar.dateInterval(of: .month, for: displayedMonth)
     }
 
-    private func makeProjection(
-        subscriptionsByID: [UUID: Subscription]
-    ) -> UpcomingCalendarProjection {
+    private func makeProjection() -> UpcomingCalendarProjection {
         UpcomingCalendarProjection(
             monthContaining: displayedMonth,
-            items: workspace.upcomingTimeline.map { item in
-                UpcomingTimelineItem(
-                    id: item.id,
-                    kind: item.kind,
-                    subscriptionID: item.subscriptionID,
-                    serviceName: item.serviceName,
-                    date: billingLocalDay(
-                        item.date,
-                        billingTimeZoneIdentifier:
-                            subscriptionsByID[item.subscriptionID]?
-                            .billingSchedule.timeZoneIdentifier
-                            ?? TimeZone.autoupdatingCurrent.identifier,
-                        displayCalendar: calendar
-                    ),
-                    amount: item.amount
-                )
-            },
+            items: workspace.upcomingTimeline,
             calendar: calendar
         )
     }
@@ -717,14 +689,6 @@ private struct UpcomingView: View {
                 if lhs.date != rhs.date { return lhs.date < rhs.date }
                 return lhs.id < rhs.id
             }
-    }
-
-    private func subscriptionsByID() -> [UUID: Subscription] {
-        Dictionary(
-            uniqueKeysWithValues: ((try? workspace.subscriptions()) ?? []).map {
-                ($0.id, $0)
-            }
-        )
     }
 
     private var hasUpcomingFailure: Bool {
@@ -757,9 +721,7 @@ private struct UpcomingView: View {
         )
 
         if selectsFirstChargeAfterMonthChange {
-            let projection = makeProjection(
-                subscriptionsByID: subscriptionsByID()
-            )
+            let projection = makeProjection()
             selectedDay = projection.days.first?.date ?? monthInterval.start
             selectsFirstChargeAfterMonthChange = false
         }
@@ -797,56 +759,32 @@ private struct UpcomingView: View {
             + "\(components.day ?? 0)"
     }
 
-    private func confirmationContext(
-        for item: UpcomingTimelineItem,
-        subscriptionsByID: [UUID: Subscription]
-    ) -> UpcomingConfirmationPresentation? {
-        guard item.kind == .expected,
-              let subscription = subscriptionsByID[item.subscriptionID]
+    private func canOfferConfirmation(
+        for item: UpcomingTimelineItem
+    ) -> Bool {
+        guard let expectedCharge = item.expectedCharge,
+              let timeZone = TimeZone(
+                  identifier: item.billingTimeZoneIdentifier
+              )
         else {
-            return nil
+            return false
         }
-        let timeZone = billingTimeZone(
-            identifier: subscription.billingSchedule.timeZoneIdentifier
-        )
-        var calendar = Calendar(identifier: .gregorian)
-        calendar.timeZone = timeZone
-        let components = calendar.dateComponents(
-            [.year, .month, .day],
-            from: item.date
-        )
-        guard let year = components.year,
-              let month = components.month,
-              let day = components.day
-        else {
-            return nil
-        }
-        let expectedOccurrence = ExpectedCharge(
-            id: ScheduledChargeID(
-                subscriptionID: subscription.id,
-                year: year,
-                month: month,
-                day: day
-            ),
-            subscriptionID: subscription.id,
-            scheduledDate: item.date,
-            amount: item.amount
-        )
-        let confirmedIDs = Set(
-            subscription.confirmedCharges.compactMap(
-                \.sourceScheduledChargeID
-            )
-        )
-        guard ConfirmChargeEligibility.isEligible(
-            expectedOccurrence: expectedOccurrence,
-            confirmedIDs: confirmedIDs,
+        return ConfirmChargeEligibility.isEligible(
+            expectedOccurrence: expectedCharge,
+            confirmedIDs: [],
             now: Date(),
             billingTimeZone: timeZone
-        ) else {
-            return nil
+        )
+    }
+
+    private func prepareConfirmation(for item: UpcomingTimelineItem) {
+        guard let expectedOccurrence = try? workspace
+            .confirmableExpectedCharge(for: item)
+        else {
+            loadTimeline()
+            return
         }
-        return UpcomingConfirmationPresentation(
-            subscription: subscription,
+        confirmationPresentation = UpcomingConfirmationPresentation(
             expectedOccurrence: expectedOccurrence
         )
     }
@@ -1039,7 +977,6 @@ private struct UpcomingMonthCalendar: UIViewRepresentable {
 #endif
 
 private struct UpcomingConfirmationPresentation: Identifiable {
-    let subscription: Subscription
     let expectedOccurrence: ExpectedCharge
 
     var id: String {
@@ -1052,7 +989,6 @@ private struct UpcomingConfirmationPresentation: Identifiable {
 
 private struct UpcomingTimelineRow: View {
     let item: UpcomingTimelineItem
-    let billingTimeZoneIdentifier: String
 
     var body: some View {
         HStack(alignment: .firstTextBaseline, spacing: 10) {
@@ -1079,7 +1015,7 @@ private struct UpcomingTimelineRow: View {
                 Text(
                     formattedBillingDate(
                         item.date,
-                        timeZoneIdentifier: billingTimeZoneIdentifier,
+                        timeZoneIdentifier: item.billingTimeZoneIdentifier,
                         locale: .current
                     )
                 )
@@ -1097,7 +1033,7 @@ private struct UpcomingTimelineRow: View {
                 + "\(formattedMoney(item.amount)), "
                 + formattedBillingDate(
                     item.date,
-                    timeZoneIdentifier: billingTimeZoneIdentifier,
+                    timeZoneIdentifier: item.billingTimeZoneIdentifier,
                     locale: .current
                 )
         )

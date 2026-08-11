@@ -56,6 +56,23 @@ public struct UpcomingTimelineItem: Equatable, Identifiable, Sendable {
     public let serviceName: String
     public let date: Date
     public let amount: Money
+    public let billingTimeZoneIdentifier: String
+    public let scheduledChargeID: ScheduledChargeID?
+
+    public var expectedCharge: ExpectedCharge? {
+        guard kind == .expected,
+              let scheduledChargeID,
+              scheduledChargeID.subscriptionID == subscriptionID
+        else {
+            return nil
+        }
+        return ExpectedCharge(
+            id: scheduledChargeID,
+            subscriptionID: subscriptionID,
+            scheduledDate: date,
+            amount: amount
+        )
+    }
 
     public init(
         id: String,
@@ -63,7 +80,9 @@ public struct UpcomingTimelineItem: Equatable, Identifiable, Sendable {
         subscriptionID: UUID,
         serviceName: String,
         date: Date,
-        amount: Money
+        amount: Money,
+        billingTimeZoneIdentifier: String,
+        scheduledChargeID: ScheduledChargeID?
     ) {
         self.id = id
         self.kind = kind
@@ -71,6 +90,8 @@ public struct UpcomingTimelineItem: Equatable, Identifiable, Sendable {
         self.serviceName = serviceName
         self.date = date
         self.amount = amount
+        self.billingTimeZoneIdentifier = billingTimeZoneIdentifier
+        self.scheduledChargeID = scheduledChargeID
     }
 }
 
@@ -106,16 +127,26 @@ public struct UpcomingCalendarProjection: Equatable, Sendable {
         }
 
         monthStart = monthInterval.start
-        let grouped = Dictionary(grouping: items.filter {
-            monthInterval.contains($0.date)
-        }) { item in
-            calendar.startOfDay(for: item.date)
+        let projectedItems = items.map { item in
+            (
+                date: BillingCalendar.displayDay(
+                    for: item.date,
+                    billingTimeZoneIdentifier:
+                        item.billingTimeZoneIdentifier,
+                    displayCalendar: calendar
+                ),
+                item: item
+            )
         }
-        days = grouped
-            .map { date, items in
+        let grouped = Dictionary(grouping: projectedItems.filter {
+            monthInterval.contains($0.date)
+        }) { projectedItem in
+            projectedItem.date
+        }
+        days = grouped.map { date, projectedItems in
                 UpcomingCalendarDay(
                     date: date,
-                    items: items.sorted { lhs, rhs in
+                    items: projectedItems.map(\.item).sorted { lhs, rhs in
                         if lhs.date != rhs.date { return lhs.date < rhs.date }
                         return lhs.id < rhs.id
                     }
@@ -2023,9 +2054,9 @@ public final class SubscriptionWorkspace {
                 month: month,
                 day: day
             )
-            guard !existing.confirmedCharges.contains(where: {
-                $0.sourceScheduledChargeID == sourceScheduledChargeID
-            }) else {
+            guard !confirmedScheduledChargeIDs(in: existing).contains(
+                sourceScheduledChargeID
+            ) else {
                 detailState = makeDetail(existing)
                 reloadRequestedConsumers()
                 return
@@ -2372,6 +2403,46 @@ public final class SubscriptionWorkspace {
 
     public func subscription(for id: UUID) throws -> Subscription? {
         try repository.subscription(id: id)
+    }
+
+    public func confirmableExpectedCharge(
+        for item: UpcomingTimelineItem
+    ) throws -> ExpectedCharge? {
+        guard let requestedCharge = item.expectedCharge,
+              let subscription = try repository.subscription(
+                  id: item.subscriptionID
+              ),
+              isEligibleForExpectedCharges(subscription),
+              let timeZone = TimeZone(
+                  identifier: subscription.billingSchedule.timeZoneIdentifier
+              )
+        else {
+            return nil
+        }
+        let billingCalendar = billingLocalCalendar(timeZone: timeZone)
+        let today = billingCalendar.startOfDay(for: now())
+        guard billingCalendar.startOfDay(for: requestedCharge.scheduledDate)
+                <= today,
+              isScheduledOccurrence(
+                  requestedCharge.scheduledDate,
+                  for: subscription,
+                  calendar: billingCalendar
+              )
+        else {
+            return nil
+        }
+        let currentCharge = expectedCharge(
+            for: subscription,
+            scheduledDate: requestedCharge.scheduledDate,
+            calendar: billingCalendar
+        )
+        let confirmedIDs = confirmedScheduledChargeIDs(in: subscription)
+        guard currentCharge.id == requestedCharge.id,
+              !confirmedIDs.contains(currentCharge.id)
+        else {
+            return nil
+        }
+        return currentCharge
     }
 
     public func loadExpectedCharges(
@@ -2965,6 +3036,7 @@ public final class SubscriptionWorkspace {
             subscription.confirmedNextRenewal
         )
         var charges: [ExpectedCharge] = []
+        let confirmedIDs = confirmedScheduledChargeIDs(in: subscription)
         var occurrenceIndex = estimatedOccurrenceIndex(
             for: subscription.billingSchedule,
             onOrAfter: firstForecastDate,
@@ -2988,9 +3060,7 @@ public final class SubscriptionWorkspace {
                     scheduledDate: scheduledDate,
                     calendar: renewalCalendar
                 )
-                if !subscription.confirmedCharges.contains(where: {
-                    $0.sourceScheduledChargeID == charge.id
-                }) {
+                if !confirmedIDs.contains(charge.id) {
                     charges.append(charge)
                 }
             }
@@ -3025,7 +3095,10 @@ public final class SubscriptionWorkspace {
                 subscriptionID: subscription.id,
                 serviceName: subscription.serviceName,
                 date: charge.scheduledDate,
-                amount: charge.amount
+                amount: charge.amount,
+                billingTimeZoneIdentifier:
+                    subscription.billingSchedule.timeZoneIdentifier,
+                scheduledChargeID: charge.id
             )
         }
         let confirmedItems = subscription.confirmedCharges
@@ -3037,7 +3110,10 @@ public final class SubscriptionWorkspace {
                     subscriptionID: subscription.id,
                     serviceName: subscription.serviceName,
                     date: charge.chargedDate,
-                    amount: charge.amount
+                    amount: charge.amount,
+                    billingTimeZoneIdentifier:
+                        subscription.billingSchedule.timeZoneIdentifier,
+                    scheduledChargeID: charge.sourceScheduledChargeID
                 )
             }
         return expectedItems + confirmedItems
@@ -3076,6 +3152,7 @@ public final class SubscriptionWorkspace {
                 max(currentBillingDay, subscription.confirmedNextRenewal)
             )
         var charges: [ExpectedCharge] = []
+        let confirmedIDs = confirmedScheduledChargeIDs(in: subscription)
         var occurrenceIndex = estimatedOccurrenceIndex(
             for: subscription.billingSchedule,
             onOrAfter: firstForecastDate,
@@ -3099,9 +3176,7 @@ public final class SubscriptionWorkspace {
                     scheduledDate: scheduledDate,
                     calendar: renewalCalendar
                 )
-                if !subscription.confirmedCharges.contains(where: {
-                    $0.sourceScheduledChargeID == charge.id
-                }) {
+                if !confirmedIDs.contains(charge.id) {
                     charges.append(charge)
                 }
             }
@@ -3283,6 +3358,7 @@ public final class SubscriptionWorkspace {
         if !subscription.isArchived,
            isEligibleForExpectedCharges(subscription)
         {
+            let confirmedIDs = confirmedScheduledChargeIDs(in: subscription)
             let today = localCalendar.startOfDay(for: now())
             let candidateIndex = estimatedOccurrenceIndex(
                 for: subscription.billingSchedule,
@@ -3312,9 +3388,7 @@ public final class SubscriptionWorkspace {
                             scheduledDate: occurrence,
                             calendar: localCalendar
                         )
-                        return subscription.confirmedCharges.contains {
-                            $0.sourceScheduledChargeID == charge.id
-                        }
+                        return confirmedIDs.contains(charge.id)
                     }
                 )
             if let missedOccurrence {
@@ -3353,9 +3427,7 @@ public final class SubscriptionWorkspace {
                 )
             }
             .first { charge in
-                !subscription.confirmedCharges.contains {
-                    $0.sourceScheduledChargeID == charge.id
-                }
+                !confirmedIDs.contains(charge.id)
             }
             if let next {
                 entries.append(.expected(next))
@@ -3453,6 +3525,7 @@ public final class SubscriptionWorkspace {
         )
         var localCalendar = calendar
         localCalendar.timeZone = timeZone
+        let confirmedIDs = confirmedScheduledChargeIDs(in: subscription)
         for _ in 0 ... subscription.confirmedCharges.count {
             guard let scheduledDate = renewal else { return nil }
             let charge = expectedCharge(
@@ -3460,9 +3533,7 @@ public final class SubscriptionWorkspace {
                 scheduledDate: scheduledDate,
                 calendar: localCalendar
             )
-            if !subscription.confirmedCharges.contains(where: {
-                $0.sourceScheduledChargeID == charge.id
-            }) {
+            if !confirmedIDs.contains(charge.id) {
                 return charge
             }
             renewal = resolver.nextRenewal(
@@ -3485,6 +3556,16 @@ public final class SubscriptionWorkspace {
             return false
         }
         return true
+    }
+
+    private func confirmedScheduledChargeIDs(
+        in subscription: Subscription
+    ) -> Set<ScheduledChargeID> {
+        Set(
+            subscription.confirmedCharges.compactMap(
+                \.sourceScheduledChargeID
+            )
+        )
     }
 
     private func estimatedOccurrenceIndex(
