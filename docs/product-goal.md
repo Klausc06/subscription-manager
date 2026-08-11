@@ -37,19 +37,24 @@ sources of truth.
 
 ## Current engineering priority
 
-Stabilize the implemented product and resolve approved, reproducible defects.
-New capability work requires its own product decision and issue; historical
-research, a candidate list, or a previous completion claim is not authorization
-to implement it.
+Deliver the approved product requirements through the Superpowers flow
+(spec → plan → TDD → verification). Existing native behavior is the oracle for
+required capabilities. An Expo UI + native-module rebuild is an allowed
+implementation path when it preserves those requirements. New capability work
+still needs its own approved plan; historical research alone is not
+authorization to implement.
 
-## Frozen and out of scope
+## Out of scope
 
-- Future iCloud behavior is frozen. Preserve the current private CloudKit
-  implementation, but do not expand synchronization features under a
-  stabilization or review-remediation issue.
-- Alternate calendar systems and a user-facing calendar-system selector are
-  out of scope.
-- Guessed prices, inferred promotions, and unverified “standard” offers are out
-  of scope. Dynamic facts follow [Evidence Index](evidence-index.md).
-- Provider-side cancellation automation is out of scope. A Recorded
-  Cancellation remains a local fact, as defined in [`CONTEXT.md`](../CONTEXT.md).
+- Alternate calendar systems and a user-facing calendar-system selector.
+- Guessed prices, inferred promotions, and unverified “standard” offers.
+  Dynamic facts follow [Evidence Index](evidence-index.md).
+- Provider-side cancellation automation. A Recorded Cancellation remains a
+  local fact, as defined in [`CONTEXT.md`](../CONTEXT.md).
+
+## iCloud / sync
+
+Private CloudKit sync is an in-scope product capability. Earlier
+stabilization rounds deferred *expanding* sync work; that deferral is not a
+permanent product veto. Authoritative wording:
+[`docs/superpowers/specs/2026-08-11-authoritative-product-requirements.md`](../superpowers/specs/2026-08-11-authoritative-product-requirements.md).

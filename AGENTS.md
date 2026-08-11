@@ -4,11 +4,12 @@ Tracks personal subscriptions. The subscription library is authoritative; Calend
 
 ## Reads
 
-- Product boundary → `docs/product-goal.md`
+- Product requirements → `docs/superpowers/specs/2026-08-11-authoritative-product-requirements.md`
+- Product boundary (supporting) → `docs/product-goal.md`
 - Domain terms → `CONTEXT.md` when editing domain behavior
 - Architecture → matching file in `docs/adr/` when changing structure
 - Evidence → `docs/evidence-index.md` for catalog, price, market, channel, or eligibility claims
-- Ship flow → `docs/agents/production-flow.md` for intake through remote verification
+- Ship flow → `docs/agents/production-flow.md` (Superpowers: brainstorm → plan → TDD → verify)
 
 ## Commands
 
@@ -24,8 +25,9 @@ Tracks personal subscriptions. The subscription library is authoritative; Calend
 
 ## Work
 
-- Choose the simplest complete native solution that best achieves the approved product outcome.
-- One requirement at a time.
+- Workflow is Superpowers end to end. Do not use Matt as the primary router.
+- Choose the simplest complete solution that best achieves the approved product outcome (Expo UI + native modules allowed when it serves the requirements).
+- One requirement at a time. Do not cut required capabilities to simplify the stack.
 - Treat catalog facts as verified only with current primary-source evidence.
 - Keep catalog selections editable; route UI to persistence and EventKit through `SubscriptionWorkspace`.
 - Ask before push.
