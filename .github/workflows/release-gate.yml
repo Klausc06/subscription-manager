@@ -147,6 +147,10 @@ jobs:
     name: macOS application tests
     runs-on: xcode-27
     timeout-minutes: 45
+    # The xcode-27 image ships macOS 26.5.2, below the app's macOS 27.0
+    # deployment target, so this job cannot build until GitHub updates the
+    # image (#83). Keep it visible but non-blocking; remove once green.
+    continue-on-error: true
 
     steps:
       - name: Check out the exact candidate
