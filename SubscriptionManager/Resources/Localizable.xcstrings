@@ -747,6 +747,7 @@
     },
     "Confirmed Payment" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Confirmed Payment" } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "已确认付款" } } } },
     "Confirm Charge" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Confirm Charge" } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "确认扣款" } } } },
+    "Confirm Charge, %@" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Confirm Charge, %@" } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "确认扣款，%@" } } } },
     "Effective Date" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Effective Date" } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "生效日期" } } } },
     "Expected Charge" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Expected Charge" } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "预计扣款" } } } },
     "Payment Date" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Payment Date" } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "付款日期" } } } },
@@ -784,6 +785,42 @@
     "Insights will be available after currency conversion is added." : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Insights will be available after currency conversion is added." } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "添加货币换算后即可使用洞察功能。" } } } },
     "Next 30 Days" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Next 30 Days" } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "未来 30 天" } } } },
     "Next 90 Days" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Next 90 Days" } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "未来 90 天" } } } },
+    "%lld charges" : {
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld charge"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld charges"
+                }
+              }
+            }
+          }
+        },
+        "zh-Hans" : {
+          "variations" : {
+            "plural" : {
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld 笔待扣费"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "Next Month" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Next Month" } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "下个月" } } } },
+    "Previous Month" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Previous Month" } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "上个月" } } } },
     "No Upcoming Charges" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "No Upcoming Charges" } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "没有即将到期的扣费" } } } },
     "Today" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Today" } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "今天" } } } },
     "Upcoming" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Upcoming" } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "即将到期" } } } },
@@ -875,6 +912,8 @@
     "Multiple Subscriptions Selected" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Multiple Subscriptions Selected" } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "已选择多项订阅" } } } },
     "No Archived Subscriptions" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "No Archived Subscriptions" } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "没有已归档的订阅" } } } },
     "Search Subscriptions" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Search Subscriptions" } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "搜索订阅" } } } },
+    "Not selected" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Not selected" } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "未选择" } } } },
+    "Selected" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Selected" } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "已选择" } } } },
     "Select a Subscription" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Select a Subscription" } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "选择一项订阅" } } } },
     "Sort" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Sort" } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "排序" } } } },
     "Annualized" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Annualized" } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "年化" } } } },

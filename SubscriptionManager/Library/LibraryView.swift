@@ -1030,7 +1030,9 @@ private struct UpcomingMonthCalendar: UIViewRepresentable {
                     badge.heightAnchor.constraint(equalToConstant: 18),
                 ])
                 badge.isAccessibilityElement = true
-                badge.accessibilityLabel = "\(count) charges"
+                badge.accessibilityLabel = String(
+                    localized: "\(count) charges"
+                )
                 return badge
             }
         }
