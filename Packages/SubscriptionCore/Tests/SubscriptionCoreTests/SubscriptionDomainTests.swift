@@ -84,4 +84,235 @@ struct SubscriptionDomainTests {
 
         #expect(priceChange.amount == amount)
     }
+
+    @Test("Effective amount follows billing-local price history")
+    func effectiveAmountFollowsBillingLocalHistory() throws {
+        let calendar = utcCalendar()
+        let start = try actionDate(
+            year: 2026, month: 1, day: 10, hour: 12, calendar: calendar
+        )
+        let firstChange = try actionDate(
+            year: 2026, month: 2, day: 10, hour: 12, calendar: calendar
+        )
+        let secondChange = try actionDate(
+            year: 2026, month: 3, day: 10, hour: 12, calendar: calendar
+        )
+        let subscription = makeSubscription(
+            originalAmount: Money(minorUnits: 999, currency: .usd),
+            startDate: start,
+            priceChanges: [
+                PriceChange(
+                    id: UUID(
+                        uuidString: "10000000-0000-0000-0000-000000000002"
+                    )!,
+                    effectiveDate: secondChange,
+                    amount: Money(minorUnits: 6_800, currency: .cny)
+                ),
+                PriceChange(
+                    id: UUID(
+                        uuidString: "10000000-0000-0000-0000-000000000001"
+                    )!,
+                    effectiveDate: firstChange,
+                    amount: Money(minorUnits: 1_499, currency: .usd)
+                ),
+            ]
+        )
+
+        #expect(subscription.amount(onBillingDay: start) == Money(
+            minorUnits: 999, currency: .usd
+        ))
+        #expect(subscription.amount(onBillingDay: firstChange) == Money(
+            minorUnits: 1_499, currency: .usd
+        ))
+        #expect(subscription.amount(onBillingDay: secondChange) == Money(
+            minorUnits: 6_800, currency: .cny
+        ))
+    }
+
+    @Test("Effective amount breaks same billing-local day ties by UUID")
+    func effectiveAmountUsesUUIDForSameBillingLocalDay() throws {
+        let utc = utcCalendar()
+        let start = try actionDate(
+            year: 2026, month: 1, day: 10, hour: 12, calendar: utc
+        )
+        let firstChange = try actionDate(
+            year: 2026, month: 2, day: 10, hour: 8, calendar: utc
+        )
+        let secondChange = try actionDate(
+            year: 2026, month: 2, day: 11, hour: 7, calendar: utc
+        )
+        let billingDay = try actionDate(
+            year: 2026, month: 2, day: 11, hour: 12, calendar: utc
+        )
+        let schedule = FixedBillingSchedule(
+            interval: .monthly,
+            renewalAnchor: start,
+            timeZoneIdentifier: "America/Los_Angeles"
+        )
+        let subscription = Subscription(
+            id: UUID(),
+            serviceIdentity: ServiceIdentity(rawValue: "manual:test"),
+            serviceName: "Example",
+            plan: "Standard",
+            category: "Other",
+            originalAmount: Money(minorUnits: 999, currency: .usd),
+            billingSchedule: schedule,
+            startDate: start,
+            confirmedNextRenewal: billingDay,
+            managementURL: nil,
+            notes: "",
+            priceChanges: [
+                PriceChange(
+                    id: UUID(
+                        uuidString: "20000000-0000-0000-0000-000000000002"
+                    )!,
+                    effectiveDate: secondChange,
+                    amount: Money(minorUnits: 2_002, currency: .usd)
+                ),
+                PriceChange(
+                    id: UUID(
+                        uuidString: "20000000-0000-0000-0000-000000000001"
+                    )!,
+                    effectiveDate: firstChange,
+                    amount: Money(minorUnits: 2_001, currency: .usd)
+                ),
+            ]
+        )
+
+        #expect(subscription.amount(onBillingDay: billingDay) == Money(
+            minorUnits: 2_002, currency: .usd
+        ))
+    }
+
+    @Test("Effective amount falls back to GMT for an invalid billing time zone")
+    func effectiveAmountFallsBackToGMTForInvalidTimeZone() throws {
+        let calendar = utcCalendar()
+        let start = try actionDate(
+            year: 2026, month: 1, day: 10, hour: 12, calendar: calendar
+        )
+        let effectiveDate = try actionDate(
+            year: 2026, month: 2, day: 10, hour: 23, calendar: calendar
+        )
+        let billingDay = try actionDate(
+            year: 2026, month: 2, day: 11, hour: 1, calendar: calendar
+        )
+        let schedule = FixedBillingSchedule(
+            interval: .monthly,
+            renewalAnchor: start,
+            timeZoneIdentifier: "Invalid/TimeZone"
+        )
+        let subscription = Subscription(
+            id: UUID(),
+            serviceIdentity: ServiceIdentity(rawValue: "manual:test"),
+            serviceName: "Example",
+            plan: "Standard",
+            category: "Other",
+            originalAmount: Money(minorUnits: 999, currency: .usd),
+            billingSchedule: schedule,
+            startDate: start,
+            confirmedNextRenewal: billingDay,
+            managementURL: nil,
+            notes: "",
+            priceChanges: [
+                PriceChange(
+                    id: UUID(),
+                    effectiveDate: effectiveDate,
+                    amount: Money(minorUnits: 1_499, currency: .usd)
+                ),
+            ]
+        )
+
+        #expect(subscription.amount(onBillingDay: billingDay) == Money(
+            minorUnits: 1_499, currency: .usd
+        ))
+    }
+
+    @Test("Legacy subscription summaries decode without an effective amount")
+    func legacySubscriptionSummaryDecodesWithoutAmount() throws {
+        let start = try actionDate(
+            year: 2026,
+            month: 1,
+            day: 10,
+            hour: 12,
+            calendar: utcCalendar()
+        )
+        let subscription = makeSubscription(
+            originalAmount: Money(minorUnits: 999, currency: .usd),
+            startDate: start,
+            priceChanges: []
+        )
+        let summary = SubscriptionSummary(
+            subscription: subscription,
+            status: .active,
+            nextExpectedCharge: nil
+        )
+        let encoded = try JSONEncoder().encode(summary)
+        let current = try JSONDecoder().decode(
+            SubscriptionSummary.self,
+            from: encoded
+        )
+        #expect(current == summary)
+
+        var legacyObject = try #require(
+            JSONSerialization.jsonObject(with: encoded) as? [String: Any]
+        )
+        legacyObject["amount"] = nil
+        let legacyData = try JSONSerialization.data(
+            withJSONObject: legacyObject
+        )
+        let legacy = try JSONDecoder().decode(
+            SubscriptionSummary.self,
+            from: legacyData
+        )
+        #expect(legacy.originalAmount == summary.originalAmount)
+        #expect(legacy.amount == summary.originalAmount)
+    }
+
+    private func makeSubscription(
+        originalAmount: Money,
+        startDate: Date,
+        priceChanges: [PriceChange]
+    ) -> Subscription {
+        let schedule = FixedBillingSchedule(
+            interval: .monthly,
+            renewalAnchor: startDate,
+            timeZoneIdentifier: "UTC"
+        )
+        return Subscription(
+            id: UUID(),
+            serviceIdentity: ServiceIdentity(rawValue: "manual:test"),
+            serviceName: "Example",
+            plan: "Standard",
+            category: "Other",
+            originalAmount: originalAmount,
+            billingSchedule: schedule,
+            startDate: startDate,
+            confirmedNextRenewal: startDate,
+            managementURL: nil,
+            notes: "",
+            priceChanges: priceChanges
+        )
+    }
+
+    private func utcCalendar() -> Calendar {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.locale = Locale(identifier: "en_US_POSIX")
+        calendar.timeZone = TimeZone(identifier: "UTC")!
+        return calendar
+    }
+
+    private func actionDate(
+        year: Int,
+        month: Int,
+        day: Int,
+        hour: Int,
+        calendar: Calendar
+    ) throws -> Date {
+        try #require(calendar.date(from: DateComponents(
+            year: year,
+            month: month,
+            day: day,
+            hour: hour
+        )))
+    }
 }

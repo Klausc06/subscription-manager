@@ -1,14 +1,98 @@
 import Foundation
+import OSLog
 import SwiftData
 import SubscriptionCore
 
+enum SubscriptionHistoryRecordScope: Equatable {
+    case all
+    case subscription(UUID)
+}
+
+@MainActor
+protocol SubscriptionHistoryRecordStore {
+    func confirmedChargeRecords(
+        for scope: SubscriptionHistoryRecordScope,
+        in context: ModelContext
+    ) throws -> [ConfirmedChargeRecord]
+
+    func priceChangeRecords(
+        for scope: SubscriptionHistoryRecordScope,
+        in context: ModelContext
+    ) throws -> [PriceChangeRecord]
+}
+
+@MainActor
+struct SwiftDataSubscriptionHistoryRecordStore:
+    SubscriptionHistoryRecordStore
+{
+    func confirmedChargeRecords(
+        for scope: SubscriptionHistoryRecordScope,
+        in context: ModelContext
+    ) throws -> [ConfirmedChargeRecord] {
+        switch scope {
+        case .all:
+            return try context.fetch(
+                FetchDescriptor<ConfirmedChargeRecord>()
+            )
+        case .subscription(let subscriptionID):
+            let lookupID = subscriptionID
+            let scoped = try context.fetch(
+                FetchDescriptor<ConfirmedChargeRecord>(
+                    predicate: #Predicate {
+                        $0.subscriptionID == lookupID
+                    }
+                )
+            )
+            let legacy = try context.fetch(
+                FetchDescriptor<ConfirmedChargeRecord>(
+                    predicate: #Predicate { $0.subscriptionID == nil }
+                )
+            ).filter { $0.subscription?.id == subscriptionID }
+            return scoped + legacy
+        }
+    }
+
+    func priceChangeRecords(
+        for scope: SubscriptionHistoryRecordScope,
+        in context: ModelContext
+    ) throws -> [PriceChangeRecord] {
+        switch scope {
+        case .all:
+            return try context.fetch(FetchDescriptor<PriceChangeRecord>())
+        case .subscription(let subscriptionID):
+            let lookupID = subscriptionID
+            let scoped = try context.fetch(
+                FetchDescriptor<PriceChangeRecord>(
+                    predicate: #Predicate {
+                        $0.subscriptionID == lookupID
+                    }
+                )
+            )
+            let legacy = try context.fetch(
+                FetchDescriptor<PriceChangeRecord>(
+                    predicate: #Predicate { $0.subscriptionID == nil }
+                )
+            ).filter { $0.subscription?.id == subscriptionID }
+            return scoped + legacy
+        }
+    }
+}
+
 @MainActor
 final class SwiftDataSubscriptionRepository: SubscriptionRepository {
+    private static let logger = Logger(
+        subsystem: "com.klausc06.SubscriptionManager",
+        category: "persistence"
+    )
+    private let modelContainer: ModelContainer
     private let modelContext: ModelContext
     private let save: (ModelContext) throws -> Void
     private let defaultBillingTimeZone: () -> TimeZone
-    private let encoder = JSONEncoder()
+    private let appendOrderDate: () -> Date
+    private let priceChangeSnapshotLoader: ((UUID) throws -> [PriceChange])?
+    private let historyRecordStore: any SubscriptionHistoryRecordStore
     private let decoder = JSONDecoder()
+    private var priceChangeSnapshots: [UUID: [UUID: PriceChange]] = [:]
 
     convenience init(modelContainer: ModelContainer) {
         self.init(
@@ -34,19 +118,28 @@ final class SwiftDataSubscriptionRepository: SubscriptionRepository {
         save: @escaping (ModelContext) throws -> Void,
         defaultBillingTimeZone: @escaping () -> TimeZone = {
             .autoupdatingCurrent
-        }
+        },
+        appendOrderDate: @escaping () -> Date = Date.init,
+        priceChangeSnapshotLoader: ((UUID) throws -> [PriceChange])? = nil,
+        historyRecordStore: any SubscriptionHistoryRecordStore =
+            SwiftDataSubscriptionHistoryRecordStore()
     ) {
+        self.modelContainer = modelContainer
         modelContext = ModelContext(modelContainer)
         self.save = save
         self.defaultBillingTimeZone = defaultBillingTimeZone
+        self.appendOrderDate = appendOrderDate
+        self.priceChangeSnapshotLoader = priceChangeSnapshotLoader
+        self.historyRecordStore = historyRecordStore
     }
 
     func createSubscription(_ subscription: Subscription) throws {
         let record = SubscriptionRecord(id: subscription.id)
-        try apply(subscription, to: record)
         modelContext.insert(record)
         do {
+            try apply(subscription, to: record)
             try save(modelContext)
+            rememberPriceChanges(for: subscription)
         } catch {
             modelContext.rollback()
             throw error
@@ -64,8 +157,27 @@ final class SwiftDataSubscriptionRepository: SubscriptionRepository {
         }
 
         do {
-            try apply(subscription, to: record)
+            _ = try migrateLegacyHistoryIfNeeded(for: record)
+            let stalePriceChangeIDs = try stalePriceChangeIDs(
+                for: subscription
+            )
+            try apply(
+                subscription,
+                to: record,
+                preservingPriceChangeIDs: stalePriceChangeIDs
+            )
+            // Capture the actual merged state before committing. No fallible
+            // work may remain after save: callers must never be told an
+            // update failed once its new subscription data is durable.
+            let persistedPriceChanges = try priceChanges(
+                for: record,
+                in: modelContext
+            )
             try save(modelContext)
+            rememberPriceChanges(
+                persistedPriceChanges,
+                for: subscription.id
+            )
         } catch {
             modelContext.rollback()
             throw error
@@ -82,6 +194,20 @@ final class SwiftDataSubscriptionRepository: SubscriptionRepository {
             guard let record = try modelContext.fetch(descriptor).first else {
                 return
             }
+            let charges = try confirmedChargeRecords(
+                for: id,
+                in: modelContext
+            )
+            let priceChanges = try priceChangeRecords(
+                for: id,
+                in: modelContext
+            )
+            for charge in charges {
+                modelContext.delete(charge)
+            }
+            for priceChange in priceChanges {
+                modelContext.delete(priceChange)
+            }
             modelContext.delete(record)
             try save(modelContext)
         } catch {
@@ -97,17 +223,82 @@ final class SwiftDataSubscriptionRepository: SubscriptionRepository {
             )
             var subscriptions: [Subscription] = []
             var needsSave = false
+            var migrationReadyRecords: [SubscriptionRecord] = []
+            var confirmedChargeRecordsBySubscriptionID =
+                groupConfirmedChargeRecordsBySubscriptionID(
+                    try historyRecordStore.confirmedChargeRecords(
+                        for: .all,
+                        in: modelContext
+                    )
+                )
+            var priceChangeRecordsBySubscriptionID =
+                groupPriceChangeRecordsBySubscriptionID(
+                    try historyRecordStore.priceChangeRecords(
+                        for: .all,
+                        in: modelContext
+                    )
+                )
             for record in records {
-                let result = try makeSubscription(from: record)
-                if let backfill = result.billingTimeZoneBackfill {
-                    record.billingTimeZoneIdentifier = backfill
-                    needsSave = true
+                do {
+                    var confirmedChargeRecords =
+                        confirmedChargeRecordsBySubscriptionID[record.id] ?? []
+                    var priceChangeRecords =
+                        priceChangeRecordsBySubscriptionID[record.id] ?? []
+                    if try migrateLegacyHistoryIfNeeded(
+                        for: record,
+                        confirmedChargeRecords: &confirmedChargeRecords,
+                        priceChangeRecords: &priceChangeRecords
+                    ) {
+                        needsSave = true
+                    }
+                    confirmedChargeRecordsBySubscriptionID[record.id] =
+                        confirmedChargeRecords
+                    priceChangeRecordsBySubscriptionID[record.id] =
+                        priceChangeRecords
+                    migrationReadyRecords.append(record)
+                } catch {
+                    switch error {
+                    case is DecodingError,
+                         RepositoryError.invalidLifecycleStorage:
+                        Self.logger.error(
+                            "Skipping unreadable subscription record \(record.id.uuidString, privacy: .public): \(String(describing: error), privacy: .public)"
+                        )
+                    default:
+                        throw error
+                    }
                 }
-                if let backfill = result.renewalAnchorBackfill {
-                    record.renewalAnchor = backfill
-                    needsSave = true
+            }
+            for record in migrationReadyRecords {
+                do {
+                    let result = try makeSubscription(
+                        from: record,
+                        confirmedChargeRecords:
+                            confirmedChargeRecordsBySubscriptionID[record.id]
+                                ?? [],
+                        priceChangeRecords:
+                            priceChangeRecordsBySubscriptionID[record.id] ?? []
+                    )
+                    if let backfill = result.billingTimeZoneBackfill {
+                        record.billingTimeZoneIdentifier = backfill
+                        needsSave = true
+                    }
+                    if let backfill = result.renewalAnchorBackfill {
+                        record.renewalAnchor = backfill
+                        needsSave = true
+                    }
+                    subscriptions.append(result.subscription)
+                    rememberPriceChanges(for: result.subscription)
+                } catch {
+                    switch error {
+                    case is DecodingError,
+                         RepositoryError.invalidLifecycleStorage:
+                        Self.logger.error(
+                            "Skipping unreadable subscription record \(record.id.uuidString, privacy: .public): \(String(describing: error), privacy: .public)"
+                        )
+                    default:
+                        throw error
+                    }
                 }
-                subscriptions.append(result.subscription)
             }
             if needsSave {
                 try save(modelContext)
@@ -131,18 +322,37 @@ final class SwiftDataSubscriptionRepository: SubscriptionRepository {
             guard let record = try modelContext.fetch(descriptor).first else {
                 return nil
             }
-            let result = try makeSubscription(from: record)
+            var confirmedChargeRecords =
+                try historyRecordStore.confirmedChargeRecords(
+                    for: .subscription(id),
+                    in: modelContext
+                )
+            var priceChangeRecords = try historyRecordStore.priceChangeRecords(
+                for: .subscription(id),
+                in: modelContext
+            )
+            var needsSave = try migrateLegacyHistoryIfNeeded(
+                for: record,
+                confirmedChargeRecords: &confirmedChargeRecords,
+                priceChangeRecords: &priceChangeRecords
+            )
+            let result = try makeSubscription(
+                from: record,
+                confirmedChargeRecords: confirmedChargeRecords,
+                priceChangeRecords: priceChangeRecords
+            )
             if let backfill = result.billingTimeZoneBackfill {
                 record.billingTimeZoneIdentifier = backfill
+                needsSave = true
             }
             if let backfill = result.renewalAnchorBackfill {
                 record.renewalAnchor = backfill
+                needsSave = true
             }
-            if result.billingTimeZoneBackfill != nil
-                || result.renewalAnchorBackfill != nil
-            {
+            if needsSave {
                 try save(modelContext)
             }
+            rememberPriceChanges(for: result.subscription)
             return result.subscription
         } catch {
             modelContext.rollback()
@@ -152,7 +362,8 @@ final class SwiftDataSubscriptionRepository: SubscriptionRepository {
 
     private func apply(
         _ subscription: Subscription,
-        to record: SubscriptionRecord
+        to record: SubscriptionRecord,
+        preservingPriceChangeIDs: Set<UUID> = []
     ) throws {
         record.serviceIdentityRawValue = subscription.serviceIdentity.rawValue
         record.serviceName = subscription.serviceName
@@ -174,11 +385,21 @@ final class SwiftDataSubscriptionRepository: SubscriptionRepository {
         record.managementURLString =
             subscription.managementURL?.absoluteString
         record.notes = subscription.notes
-        record.confirmedChargesData = try encoder.encode(
-            subscription.confirmedCharges
+        try mergeConfirmedCharges(
+            subscription.confirmedCharges,
+            into: record,
+            in: modelContext
         )
-        record.priceChangesData = try encoder.encode(subscription.priceChanges)
+        try mergePriceChanges(
+            subscription.priceChanges,
+            into: record,
+            in: modelContext,
+            preservingIDs: preservingPriceChangeIDs
+        )
+        record.confirmedChargesData = nil
+        record.priceChangesData = nil
         record.isArchived = subscription.isArchived
+        record.pinnedAt = subscription.pinnedAt
         switch subscription.lifecycle {
         case .active:
             record.lifecycleRawValue = LifecycleStorageKind.active.rawValue
@@ -199,7 +420,9 @@ final class SwiftDataSubscriptionRepository: SubscriptionRepository {
     }
 
     private func makeSubscription(
-        from record: SubscriptionRecord
+        from record: SubscriptionRecord,
+        confirmedChargeRecords: [ConfirmedChargeRecord]? = nil,
+        priceChangeRecords: [PriceChangeRecord]? = nil
     ) throws -> (
         subscription: Subscription,
         billingTimeZoneBackfill: String?,
@@ -235,21 +458,12 @@ final class SwiftDataSubscriptionRepository: SubscriptionRepository {
                 from: record,
                 timeZoneIdentifier: timeZoneIdentifier
             )
-        let confirmedCharges: [ConfirmedCharge]
-        if let data = record.confirmedChargesData {
-            confirmedCharges = try decoder.decode(
-                [ConfirmedCharge].self,
-                from: data
-            )
-        } else {
-            confirmedCharges = []
-        }
-        let priceChanges: [PriceChange]
-        if let data = record.priceChangesData {
-            priceChanges = try decoder.decode([PriceChange].self, from: data)
-        } else {
-            priceChanges = []
-        }
+        let confirmedCharges = try confirmedChargeRecords.map {
+            canonicalConfirmedCharges(from: $0)
+        } ?? confirmedCharges(for: record, in: modelContext)
+        let priceChanges = try priceChangeRecords.map {
+            canonicalPriceChanges(from: $0)
+        } ?? priceChanges(for: record, in: modelContext)
         let lifecycle = try makeLifecycle(from: record)
 
         let subscription = Subscription(
@@ -276,7 +490,8 @@ final class SwiftDataSubscriptionRepository: SubscriptionRepository {
             confirmedCharges: confirmedCharges,
             priceChanges: priceChanges,
             lifecycle: lifecycle,
-            isArchived: record.isArchived ?? false
+            isArchived: record.isArchived ?? false,
+            pinnedAt: record.pinnedAt
         )
         return (
             subscription: subscription,
@@ -286,6 +501,365 @@ final class SwiftDataSubscriptionRepository: SubscriptionRepository {
             renewalAnchorBackfill: record.renewalAnchor == nil
                 ? renewalAnchor
                 : nil
+        )
+    }
+
+    private func migrateLegacyHistoryIfNeeded(
+        for record: SubscriptionRecord
+    ) throws -> Bool {
+        var confirmedChargeRecords = try confirmedChargeRecords(
+            for: record.id,
+            in: modelContext
+        )
+        var priceChangeRecords = try priceChangeRecords(
+            for: record.id,
+            in: modelContext
+        )
+        return try migrateLegacyHistoryIfNeeded(
+            for: record,
+            confirmedChargeRecords: &confirmedChargeRecords,
+            priceChangeRecords: &priceChangeRecords
+        )
+    }
+
+    private func migrateLegacyHistoryIfNeeded(
+        for record: SubscriptionRecord,
+        confirmedChargeRecords: inout [ConfirmedChargeRecord],
+        priceChangeRecords: inout [PriceChangeRecord]
+    ) throws -> Bool {
+        let legacyCharges: [ConfirmedCharge]?
+        if let data = record.confirmedChargesData {
+            legacyCharges = try decoder.decode([ConfirmedCharge].self, from: data)
+        } else {
+            legacyCharges = nil
+        }
+        let legacyPriceChanges: [PriceChange]?
+        if let data = record.priceChangesData {
+            legacyPriceChanges = try decoder.decode(
+                [PriceChange].self,
+                from: data
+            )
+        } else {
+            legacyPriceChanges = nil
+        }
+
+        guard legacyCharges != nil || legacyPriceChanges != nil else {
+            return false
+        }
+        if let legacyCharges {
+            try mergeConfirmedCharges(
+                legacyCharges,
+                into: record,
+                in: modelContext,
+                preserveInputOrderWhenEmpty: true,
+                storedRecords: &confirmedChargeRecords
+            )
+            record.confirmedChargesData = nil
+        }
+        if let legacyPriceChanges {
+            try mergePriceChanges(
+                legacyPriceChanges,
+                into: record,
+                in: modelContext,
+                preserveInputOrderWhenEmpty: true,
+                preservingIDs: [],
+                storedRecords: &priceChangeRecords
+            )
+            record.priceChangesData = nil
+        }
+        return true
+    }
+
+    private func mergeConfirmedCharges(
+        _ charges: [ConfirmedCharge],
+        into record: SubscriptionRecord,
+        in context: ModelContext,
+        preserveInputOrderWhenEmpty: Bool = false
+    ) throws {
+        var storedRecords = try confirmedChargeRecords(
+            for: record.id,
+            in: context
+        )
+        try mergeConfirmedCharges(
+            charges,
+            into: record,
+            in: context,
+            preserveInputOrderWhenEmpty: preserveInputOrderWhenEmpty,
+            storedRecords: &storedRecords
+        )
+    }
+
+    private func mergeConfirmedCharges(
+        _ charges: [ConfirmedCharge],
+        into record: SubscriptionRecord,
+        in context: ModelContext,
+        preserveInputOrderWhenEmpty: Bool,
+        storedRecords: inout [ConfirmedChargeRecord]
+    ) throws {
+        for storedRecord in storedRecords where storedRecord.subscriptionID == nil {
+            storedRecord.subscriptionID = record.id
+        }
+        let canonicalization = canonicalConfirmedChargeRecords(
+            from: storedRecords
+        )
+        for losingRecord in canonicalization.losingRecords {
+            context.delete(losingRecord)
+        }
+        storedRecords = canonicalization.orderedRecords
+        var recordsByKey = canonicalization.recordsByKey
+        let storedRecordsWereEmpty = storedRecords.isEmpty
+        var nextSequence = (storedRecords.map(\.sequence).max() ?? -1) + 1
+        for (index, charge) in charges.enumerated() {
+            let key = confirmedChargeCanonicalKey(from: charge)
+            guard recordsByKey[key] == nil else { continue }
+            let sequence: Int
+            if preserveInputOrderWhenEmpty && storedRecordsWereEmpty {
+                sequence = index
+            } else {
+                sequence = nextSequence
+                nextSequence += 1
+            }
+            let source = charge.sourceScheduledChargeID
+            let storedRecord = ConfirmedChargeRecord(
+                id: charge.id,
+                sequence: sequence,
+                appendOrderDate: appendOrderDate(),
+                chargedDate: charge.chargedDate,
+                amountMinorUnits: charge.amount.minorUnits,
+                currencyRawValue: charge.amount.currency.rawValue,
+                sourceScheduledChargeSubscriptionID: source?.subscriptionID,
+                sourceScheduledChargeYear: source?.year,
+                sourceScheduledChargeMonth: source?.month,
+                sourceScheduledChargeDay: source?.day,
+                subscriptionID: record.id,
+                subscription: record
+            )
+            context.insert(storedRecord)
+            storedRecords.append(storedRecord)
+            recordsByKey[key] = storedRecord
+        }
+    }
+
+    private func mergePriceChanges(
+        _ changes: [PriceChange],
+        into record: SubscriptionRecord,
+        in context: ModelContext,
+        preserveInputOrderWhenEmpty: Bool = false,
+        preservingIDs: Set<UUID> = []
+    ) throws {
+        var storedRecords = try priceChangeRecords(
+            for: record.id,
+            in: context
+        )
+        try mergePriceChanges(
+            changes,
+            into: record,
+            in: context,
+            preserveInputOrderWhenEmpty: preserveInputOrderWhenEmpty,
+            preservingIDs: preservingIDs,
+            storedRecords: &storedRecords
+        )
+    }
+
+    private func mergePriceChanges(
+        _ changes: [PriceChange],
+        into record: SubscriptionRecord,
+        in context: ModelContext,
+        preserveInputOrderWhenEmpty: Bool,
+        preservingIDs: Set<UUID>,
+        storedRecords: inout [PriceChangeRecord]
+    ) throws {
+        for storedRecord in storedRecords where storedRecord.subscriptionID == nil {
+            storedRecord.subscriptionID = record.id
+        }
+        let canonicalization = canonicalPriceChangeRecords(
+            from: storedRecords
+        )
+        for losingRecord in canonicalization.losingRecords {
+            context.delete(losingRecord)
+        }
+        storedRecords = canonicalization.orderedRecords
+        var recordsByID = canonicalization.recordsByID
+        let storedRecordsWereEmpty = storedRecords.isEmpty
+        var nextSequence = (storedRecords.map(\.sequence).max() ?? -1) + 1
+        for (index, change) in changes.enumerated() {
+            if let storedRecord = recordsByID[change.id] {
+                guard !preservingIDs.contains(change.id) else { continue }
+                storedRecord.effectiveDate = change.effectiveDate
+                storedRecord.amountMinorUnits = change.amount.minorUnits
+                storedRecord.currencyRawValue = change.amount.currency.rawValue
+                continue
+            }
+            let sequence: Int
+            if preserveInputOrderWhenEmpty && storedRecordsWereEmpty {
+                sequence = index
+            } else {
+                sequence = nextSequence
+                nextSequence += 1
+            }
+            let storedRecord = PriceChangeRecord(
+                id: change.id,
+                sequence: sequence,
+                appendOrderDate: appendOrderDate(),
+                effectiveDate: change.effectiveDate,
+                amountMinorUnits: change.amount.minorUnits,
+                currencyRawValue: change.amount.currency.rawValue,
+                subscriptionID: record.id,
+                subscription: record
+            )
+            context.insert(storedRecord)
+            storedRecords.append(storedRecord)
+            recordsByID[change.id] = storedRecord
+        }
+    }
+
+    private func confirmedCharges(
+        for record: SubscriptionRecord,
+        in context: ModelContext
+    ) throws -> [ConfirmedCharge] {
+        canonicalConfirmedCharges(
+            from: try confirmedChargeRecords(for: record.id, in: context)
+        )
+    }
+
+    private func canonicalConfirmedCharges(
+        from records: [ConfirmedChargeRecord]
+    ) -> [ConfirmedCharge] {
+        canonicalConfirmedChargeRecords(from: records)
+            .orderedRecords
+            .map { storedRecord in
+                return ConfirmedCharge(
+                    id: storedRecord.id,
+                    chargedDate: storedRecord.chargedDate,
+                    amount: Money(
+                        minorUnits: storedRecord.amountMinorUnits,
+                        currency: Currency(
+                            rawValue: storedRecord.currencyRawValue
+                        ) ?? .usd
+                    ),
+                    sourceScheduledChargeID: scheduledChargeID(
+                        from: storedRecord
+                    )
+                )
+            }
+    }
+
+    private func priceChanges(
+        for record: SubscriptionRecord,
+        in context: ModelContext
+    ) throws -> [PriceChange] {
+        canonicalPriceChanges(
+            from: try priceChangeRecords(for: record.id, in: context)
+        )
+    }
+
+    private func canonicalPriceChanges(
+        from records: [PriceChangeRecord]
+    ) -> [PriceChange] {
+        canonicalPriceChangeRecords(from: records)
+            .orderedRecords
+            .map { storedRecord in
+                PriceChange(
+                    id: storedRecord.id,
+                    effectiveDate: storedRecord.effectiveDate,
+                    amount: Money(
+                        minorUnits: storedRecord.amountMinorUnits,
+                        currency: Currency(
+                            rawValue: storedRecord.currencyRawValue
+                        ) ?? .usd
+                    )
+                )
+            }
+    }
+
+    private func groupConfirmedChargeRecordsBySubscriptionID(
+        _ records: [ConfirmedChargeRecord]
+    ) -> [UUID: [ConfirmedChargeRecord]] {
+        var grouped: [UUID: [ConfirmedChargeRecord]] = [:]
+        for record in records {
+            guard let subscriptionID = record.subscriptionID
+                ?? record.subscription?.id
+            else { continue }
+            grouped[subscriptionID, default: []].append(record)
+        }
+        return grouped
+    }
+
+    private func groupPriceChangeRecordsBySubscriptionID(
+        _ records: [PriceChangeRecord]
+    ) -> [UUID: [PriceChangeRecord]] {
+        var grouped: [UUID: [PriceChangeRecord]] = [:]
+        for record in records {
+            guard let subscriptionID = record.subscriptionID
+                ?? record.subscription?.id
+            else { continue }
+            grouped[subscriptionID, default: []].append(record)
+        }
+        return grouped
+    }
+
+    private func confirmedChargeRecords(
+        for subscriptionID: UUID,
+        in context: ModelContext
+    ) throws -> [ConfirmedChargeRecord] {
+        try historyRecordStore.confirmedChargeRecords(
+            for: .subscription(subscriptionID),
+            in: context
+        )
+    }
+
+    private func priceChangeRecords(
+        for subscriptionID: UUID,
+        in context: ModelContext
+    ) throws -> [PriceChangeRecord] {
+        try historyRecordStore.priceChangeRecords(
+            for: .subscription(subscriptionID),
+            in: context
+        )
+    }
+
+    private func stalePriceChangeIDs(
+        for subscription: Subscription
+    ) throws -> Set<UUID> {
+        guard let snapshot = priceChangeSnapshots[subscription.id] else {
+            return []
+        }
+        let current = try currentPriceChanges(for: subscription.id)
+        let currentByID = canonicalPriceChangesByID(from: current)
+        return Set(
+            snapshot.compactMap { id, observed in
+                currentByID[id] == observed ? nil : id
+            }
+        )
+    }
+
+    private func currentPriceChanges(
+        for subscriptionID: UUID
+    ) throws -> [PriceChange] {
+        if let priceChangeSnapshotLoader {
+            return try priceChangeSnapshotLoader(subscriptionID)
+        }
+        let context = ModelContext(modelContainer)
+        let records = try priceChangeRecords(
+            for: subscriptionID,
+            in: context
+        )
+        return canonicalPriceChanges(from: records)
+    }
+
+    private func rememberPriceChanges(for subscription: Subscription) {
+        rememberPriceChanges(
+            subscription.priceChanges,
+            for: subscription.id
+        )
+    }
+
+    private func rememberPriceChanges(
+        _ priceChanges: [PriceChange],
+        for subscriptionID: UUID
+    ) {
+        priceChangeSnapshots[subscriptionID] = canonicalPriceChangesByID(
+            from: priceChanges
         )
     }
 
@@ -458,4 +1032,564 @@ final class SwiftDataSubscriptionRepository: SubscriptionRepository {
         case trial
         case cancelled
     }
+}
+
+private func preferenceRecordPrecedes(
+    _ lhs: UserPreferencesRecord,
+    _ rhs: UserPreferencesRecord
+) -> Bool {
+    let lhsIsCanonical = lhs.id == UserPreferencesRecord.canonicalID
+    let rhsIsCanonical = rhs.id == UserPreferencesRecord.canonicalID
+    if lhsIsCanonical != rhsIsCanonical {
+        return lhsIsCanonical
+    }
+    if lhs.id != rhs.id {
+        return lhs.id.uuidString < rhs.id.uuidString
+    }
+    if lhs.primaryCurrencyRawValue != rhs.primaryCurrencyRawValue {
+        return lhs.primaryCurrencyRawValue < rhs.primaryCurrencyRawValue
+    }
+    if lhs.calendarProjectionHorizonMonths
+        != rhs.calendarProjectionHorizonMonths
+    {
+        return lhs.calendarProjectionHorizonMonths
+            < rhs.calendarProjectionHorizonMonths
+    }
+    if lhs.hideAmountsInCalendar != rhs.hideAmountsInCalendar {
+        return !lhs.hideAmountsInCalendar
+    }
+    if lhs.menuBarModeEnabled != rhs.menuBarModeEnabled {
+        return !lhs.menuBarModeEnabled
+    }
+    if lhs.appearanceModeRawValue != rhs.appearanceModeRawValue {
+        return lhs.appearanceModeRawValue < rhs.appearanceModeRawValue
+    }
+    if lhs.setupStatusRawValue != rhs.setupStatusRawValue {
+        return lhs.setupStatusRawValue < rhs.setupStatusRawValue
+    }
+    return false
+}
+
+@MainActor
+final class SwiftDataUserPreferencesRepository: UserPreferencesRepository {
+    private let modelContext: ModelContext
+    private let save: (ModelContext) throws -> Void
+
+    convenience init(modelContainer: ModelContainer) {
+        self.init(
+            modelContainer: modelContainer,
+            save: { try $0.save() }
+        )
+    }
+
+    init(
+        modelContainer: ModelContainer,
+        save: @escaping (ModelContext) throws -> Void
+    ) {
+        modelContext = ModelContext(modelContainer)
+        self.save = save
+    }
+
+    func loadPreferences() throws -> UserPreferences? {
+        do {
+            let records = try modelContext.fetch(
+                FetchDescriptor<UserPreferencesRecord>(
+                    sortBy: [SortDescriptor(\UserPreferencesRecord.id)]
+                )
+            )
+            guard !records.isEmpty else {
+                return nil
+            }
+            let record = records.sorted(by: preferenceRecordPrecedes).first!
+            return UserPreferences(
+                primaryCurrency: Currency(
+                    rawValue: record.primaryCurrencyRawValue
+                ) ?? .cny,
+                calendarProjectionHorizon: CalendarProjectionHorizon(
+                    rawValue: record.calendarProjectionHorizonMonths
+                ) ?? .twelveMonths,
+                hideAmountsInCalendar: record.hideAmountsInCalendar,
+                menuBarModeEnabled: record.menuBarModeEnabled,
+                appearanceMode: AppearanceMode(
+                    rawValue: record.appearanceModeRawValue
+                ) ?? .system,
+                setupStatus: SetupStatus(rawValue: record.setupStatusRawValue)
+                    ?? .notCompleted
+            )
+        } catch {
+            modelContext.rollback()
+            throw error
+        }
+    }
+
+    func savePreferences(_ preferences: UserPreferences) throws {
+        do {
+            let records = try modelContext.fetch(
+                FetchDescriptor<UserPreferencesRecord>(
+                    sortBy: [SortDescriptor(\UserPreferencesRecord.id)]
+                )
+            )
+            let record = try records.isEmpty
+                ? insertCanonicalRecord()
+                : canonicalize(records)
+            record.primaryCurrencyRawValue = preferences.primaryCurrency.rawValue
+            record.calendarProjectionHorizonMonths =
+                preferences.calendarProjectionHorizon.rawValue
+            record.hideAmountsInCalendar = preferences.hideAmountsInCalendar
+            record.menuBarModeEnabled = preferences.menuBarModeEnabled
+            record.appearanceModeRawValue = preferences.appearanceMode.rawValue
+            record.setupStatusRawValue = preferences.setupStatus.rawValue
+            try save(modelContext)
+        } catch {
+            modelContext.rollback()
+            throw error
+        }
+    }
+
+    private func insertCanonicalRecord() throws -> UserPreferencesRecord {
+        let record = UserPreferencesRecord()
+        modelContext.insert(record)
+        return record
+    }
+
+    private func canonicalize(
+        _ records: [UserPreferencesRecord]
+    ) throws -> UserPreferencesRecord {
+        let winner = records.sorted(by: preferenceRecordPrecedes).first!
+
+        let canonical: UserPreferencesRecord
+        if winner.id == UserPreferencesRecord.canonicalID {
+            canonical = winner
+        } else {
+            canonical = UserPreferencesRecord(
+                id: UserPreferencesRecord.canonicalID,
+                primaryCurrencyRawValue: winner.primaryCurrencyRawValue,
+                calendarProjectionHorizonMonths:
+                    winner.calendarProjectionHorizonMonths,
+                hideAmountsInCalendar: winner.hideAmountsInCalendar,
+                menuBarModeEnabled: winner.menuBarModeEnabled,
+                appearanceModeRawValue: winner.appearanceModeRawValue,
+                setupStatusRawValue: winner.setupStatusRawValue
+            )
+            modelContext.insert(canonical)
+        }
+
+        for record in records where record !== canonical {
+            modelContext.delete(record)
+        }
+        if canonical.modelContext == nil {
+            modelContext.insert(canonical)
+        }
+        return canonical
+    }
+}
+
+@MainActor
+final class SwiftDataPortableBackupImportRepository:
+    PortableBackupImportRepository
+{
+    private let modelContainer: ModelContainer
+    private let save: (ModelContext) throws -> Void
+
+    convenience init(modelContainer: ModelContainer) {
+        self.init(modelContainer: modelContainer, save: { try $0.save() })
+    }
+
+    init(
+        modelContainer: ModelContainer,
+        save: @escaping (ModelContext) throws -> Void
+    ) {
+        self.modelContainer = modelContainer
+        self.save = save
+    }
+
+    func apply(_ merge: PortableBackupMerge) throws {
+        let context = ModelContext(modelContainer)
+        do {
+            for subscription in merge.additions {
+                let record = SubscriptionRecord(id: subscription.id)
+                context.insert(record)
+                try apply(subscription, to: record, in: context)
+            }
+            for subscription in merge.replacements {
+                let id = subscription.id
+                var descriptor = FetchDescriptor<SubscriptionRecord>(
+                    predicate: #Predicate { $0.id == id }
+                )
+                descriptor.fetchLimit = 1
+                guard let record = try context.fetch(descriptor).first else {
+                    throw PortableBackupImportStorageError.subscriptionNotFound
+                }
+                try apply(subscription, to: record, in: context)
+            }
+            if let preferences = merge.preferences {
+                let records = try context.fetch(
+                    FetchDescriptor<UserPreferencesRecord>(
+                        sortBy: [SortDescriptor(\UserPreferencesRecord.id)]
+                    )
+                )
+                let record = try canonicalPreferencesRecord(
+                    from: records,
+                    in: context
+                )
+                record.primaryCurrencyRawValue = preferences.primaryCurrency.rawValue
+                record.calendarProjectionHorizonMonths =
+                    preferences.calendarProjectionHorizon.rawValue
+                record.hideAmountsInCalendar = preferences.hideAmountsInCalendar
+                record.menuBarModeEnabled = preferences.menuBarModeEnabled
+                record.appearanceModeRawValue = preferences.appearanceMode.rawValue
+                record.setupStatusRawValue = preferences.setupStatus.rawValue
+            }
+            try save(context)
+        } catch {
+            context.rollback()
+            throw error
+        }
+    }
+
+    private func apply(
+        _ subscription: Subscription,
+        to record: SubscriptionRecord,
+        in context: ModelContext
+    ) throws {
+        record.serviceIdentityRawValue = subscription.serviceIdentity.rawValue
+        record.serviceName = subscription.serviceName
+        record.plan = subscription.plan
+        record.category = subscription.category
+        record.originalMinorUnits = subscription.originalAmount.minorUnits
+        record.currencyRawValue = subscription.originalAmount.currency.rawValue
+        record.billingCycleRawValue =
+            subscription.billingSchedule.interval.storageIdentifier
+        record.billingIntervalValue =
+            subscription.billingSchedule.interval.customValue
+        record.billingIntervalUnitRawValue =
+            subscription.billingSchedule.interval.customUnit?.rawValue
+        record.billingTimeZoneIdentifier =
+            subscription.billingSchedule.timeZoneIdentifier
+        record.startDate = subscription.startDate
+        record.renewalAnchor = subscription.billingSchedule.renewalAnchor
+        record.confirmedNextRenewal = subscription.confirmedNextRenewal
+        record.managementURLString = subscription.managementURL?.absoluteString
+        record.notes = subscription.notes
+        try replaceConfirmedCharges(
+            subscription.confirmedCharges,
+            in: record,
+            context: context
+        )
+        try replacePriceChanges(
+            subscription.priceChanges,
+            in: record,
+            context: context
+        )
+        record.confirmedChargesData = nil
+        record.priceChangesData = nil
+        record.isArchived = subscription.isArchived
+        switch subscription.lifecycle {
+        case .active:
+            record.lifecycleRawValue = "active"
+            record.trialFirstPaidChargeAt = nil
+            record.cancelledAt = nil
+            record.accessUntil = nil
+        case .trial(let firstPaidChargeAt):
+            record.lifecycleRawValue = "trial"
+            record.trialFirstPaidChargeAt = firstPaidChargeAt
+            record.cancelledAt = nil
+            record.accessUntil = nil
+        case .cancelled(let cancelledAt, let accessUntil):
+            record.lifecycleRawValue = "cancelled"
+            record.trialFirstPaidChargeAt = nil
+            record.cancelledAt = cancelledAt
+            record.accessUntil = accessUntil
+        }
+    }
+
+    private func canonicalPreferencesRecord(
+        from records: [UserPreferencesRecord],
+        in context: ModelContext
+    ) throws -> UserPreferencesRecord {
+        guard let winner = records.sorted(by: preferenceRecordPrecedes).first else {
+            let record = UserPreferencesRecord()
+            context.insert(record)
+            return record
+        }
+
+        let canonical: UserPreferencesRecord
+        if winner.id == UserPreferencesRecord.canonicalID {
+            canonical = winner
+        } else {
+            canonical = UserPreferencesRecord(
+                id: UserPreferencesRecord.canonicalID,
+                primaryCurrencyRawValue: winner.primaryCurrencyRawValue,
+                calendarProjectionHorizonMonths:
+                    winner.calendarProjectionHorizonMonths,
+                hideAmountsInCalendar: winner.hideAmountsInCalendar,
+                menuBarModeEnabled: winner.menuBarModeEnabled,
+                appearanceModeRawValue: winner.appearanceModeRawValue,
+                setupStatusRawValue: winner.setupStatusRawValue
+            )
+            context.insert(canonical)
+        }
+
+        for record in records where record !== canonical {
+            context.delete(record)
+        }
+        return canonical
+    }
+
+    private func replaceConfirmedCharges(
+        _ charges: [ConfirmedCharge],
+        in record: SubscriptionRecord,
+        context: ModelContext
+    ) throws {
+        let storedRecords = try context.fetch(
+            FetchDescriptor<ConfirmedChargeRecord>()
+        ).filter {
+            $0.subscriptionID == record.id
+                || ($0.subscriptionID == nil
+                    && $0.subscription?.id == record.id)
+        }
+        let canonicalization = canonicalConfirmedChargeRecords(
+            from: storedRecords
+        )
+        let desiredKeys = Set(charges.map {
+            confirmedChargeCanonicalKey(from: $0)
+        })
+        for losingRecord in canonicalization.losingRecords {
+            context.delete(losingRecord)
+        }
+        for (key, storedRecord) in canonicalization.recordsByKey
+            where !desiredKeys.contains(key)
+        {
+            context.delete(storedRecord)
+        }
+        var storedByKey = canonicalization.recordsByKey.filter {
+            desiredKeys.contains($0.key)
+        }
+        for (sequence, charge) in charges.enumerated() {
+            let key = confirmedChargeCanonicalKey(from: charge)
+            let storedRecord: ConfirmedChargeRecord
+            if let existing = storedByKey[key] {
+                storedRecord = existing
+            } else {
+                storedRecord = ConfirmedChargeRecord(
+                    id: charge.id,
+                    sequence: sequence,
+                    appendOrderDate: Date(),
+                    chargedDate: charge.chargedDate,
+                    amountMinorUnits: charge.amount.minorUnits,
+                    currencyRawValue: charge.amount.currency.rawValue,
+                    subscriptionID: record.id,
+                    subscription: record
+                )
+                context.insert(storedRecord)
+                storedByKey[key] = storedRecord
+            }
+            storedRecord.id = charge.id
+            storedRecord.sequence = sequence
+            storedRecord.chargedDate = charge.chargedDate
+            storedRecord.amountMinorUnits = charge.amount.minorUnits
+            storedRecord.currencyRawValue = charge.amount.currency.rawValue
+            let source = charge.sourceScheduledChargeID
+            storedRecord.sourceScheduledChargeSubscriptionID =
+                source?.subscriptionID
+            storedRecord.sourceScheduledChargeYear = source?.year
+            storedRecord.sourceScheduledChargeMonth = source?.month
+            storedRecord.sourceScheduledChargeDay = source?.day
+            storedRecord.subscriptionID = record.id
+            storedRecord.subscription = record
+        }
+    }
+
+    private func replacePriceChanges(
+        _ changes: [PriceChange],
+        in record: SubscriptionRecord,
+        context: ModelContext
+    ) throws {
+        let storedRecords = try context.fetch(
+            FetchDescriptor<PriceChangeRecord>()
+        ).filter {
+            $0.subscriptionID == record.id
+                || ($0.subscriptionID == nil
+                    && $0.subscription?.id == record.id)
+        }
+        let canonicalization = canonicalPriceChangeRecords(
+            from: storedRecords
+        )
+        let desiredIDs = Set(changes.map(\.id))
+        for losingRecord in canonicalization.losingRecords {
+            context.delete(losingRecord)
+        }
+        for (id, storedRecord) in canonicalization.recordsByID
+            where !desiredIDs.contains(id)
+        {
+            context.delete(storedRecord)
+        }
+        var storedByID = canonicalization.recordsByID.filter {
+            desiredIDs.contains($0.key)
+        }
+        for (sequence, change) in changes.enumerated() {
+            let storedRecord: PriceChangeRecord
+            if let existing = storedByID[change.id] {
+                storedRecord = existing
+            } else {
+                storedRecord = PriceChangeRecord(
+                    id: change.id,
+                    sequence: sequence,
+                    appendOrderDate: Date(),
+                    effectiveDate: change.effectiveDate,
+                    amountMinorUnits: change.amount.minorUnits,
+                    currencyRawValue: change.amount.currency.rawValue,
+                    subscriptionID: record.id,
+                    subscription: record
+                )
+                context.insert(storedRecord)
+                storedByID[change.id] = storedRecord
+            }
+            storedRecord.sequence = sequence
+            storedRecord.effectiveDate = change.effectiveDate
+            storedRecord.amountMinorUnits = change.amount.minorUnits
+            storedRecord.currencyRawValue = change.amount.currency.rawValue
+            storedRecord.subscriptionID = record.id
+            storedRecord.subscription = record
+        }
+    }
+}
+
+private enum ConfirmedChargeCanonicalKey: Hashable {
+    case scheduled(ScheduledChargeID)
+    case unlinked(UUID)
+}
+
+private struct ConfirmedChargeRecordCanonicalization {
+    let orderedRecords: [ConfirmedChargeRecord]
+    let recordsByKey: [
+        ConfirmedChargeCanonicalKey: ConfirmedChargeRecord
+    ]
+    let losingRecords: [ConfirmedChargeRecord]
+}
+
+private func canonicalConfirmedChargeRecords(
+    from records: [ConfirmedChargeRecord]
+) -> ConfirmedChargeRecordCanonicalization {
+    var orderedRecords: [ConfirmedChargeRecord] = []
+    var recordsByKey: [
+        ConfirmedChargeCanonicalKey: ConfirmedChargeRecord
+    ] = [:]
+    var losingRecords: [ConfirmedChargeRecord] = []
+    for record in records.sorted(by: confirmedChargeRecordPrecedes) {
+        let key = confirmedChargeCanonicalKey(from: record)
+        if recordsByKey[key] == nil {
+            orderedRecords.append(record)
+            recordsByKey[key] = record
+        } else {
+            losingRecords.append(record)
+        }
+    }
+    return ConfirmedChargeRecordCanonicalization(
+        orderedRecords: orderedRecords,
+        recordsByKey: recordsByKey,
+        losingRecords: losingRecords
+    )
+}
+
+private func confirmedChargeCanonicalKey(
+    from record: ConfirmedChargeRecord
+) -> ConfirmedChargeCanonicalKey {
+    scheduledChargeID(from: record).map {
+        .scheduled($0)
+    } ?? .unlinked(record.id)
+}
+
+private func confirmedChargeCanonicalKey(
+    from charge: ConfirmedCharge
+) -> ConfirmedChargeCanonicalKey {
+    charge.sourceScheduledChargeID.map {
+        .scheduled($0)
+    } ?? .unlinked(charge.id)
+}
+
+private func scheduledChargeID(
+    from record: ConfirmedChargeRecord
+) -> ScheduledChargeID? {
+    guard let subscriptionID =
+        record.sourceScheduledChargeSubscriptionID,
+        let year = record.sourceScheduledChargeYear,
+        let month = record.sourceScheduledChargeMonth,
+        let day = record.sourceScheduledChargeDay
+    else {
+        return nil
+    }
+    return ScheduledChargeID(
+        subscriptionID: subscriptionID,
+        year: year,
+        month: month,
+        day: day
+    )
+}
+
+private func confirmedChargeRecordPrecedes(
+    _ lhs: ConfirmedChargeRecord,
+    _ rhs: ConfirmedChargeRecord
+) -> Bool {
+    if lhs.sequence != rhs.sequence {
+        return lhs.sequence < rhs.sequence
+    }
+    if lhs.appendOrderDate != rhs.appendOrderDate {
+        return lhs.appendOrderDate < rhs.appendOrderDate
+    }
+    return lhs.persistentModelID < rhs.persistentModelID
+}
+
+private struct PriceChangeRecordCanonicalization {
+    let orderedRecords: [PriceChangeRecord]
+    let recordsByID: [UUID: PriceChangeRecord]
+    let losingRecords: [PriceChangeRecord]
+}
+
+private func canonicalPriceChangeRecords(
+    from records: [PriceChangeRecord]
+) -> PriceChangeRecordCanonicalization {
+    var orderedRecords: [PriceChangeRecord] = []
+    var recordsByID: [UUID: PriceChangeRecord] = [:]
+    var losingRecords: [PriceChangeRecord] = []
+    for record in records.sorted(by: priceChangeRecordPrecedes) {
+        if recordsByID[record.id] == nil {
+            orderedRecords.append(record)
+            recordsByID[record.id] = record
+        } else {
+            losingRecords.append(record)
+        }
+    }
+    return PriceChangeRecordCanonicalization(
+        orderedRecords: orderedRecords,
+        recordsByID: recordsByID,
+        losingRecords: losingRecords
+    )
+}
+
+private func canonicalPriceChangesByID(
+    from changes: [PriceChange]
+) -> [UUID: PriceChange] {
+    var changesByID: [UUID: PriceChange] = [:]
+    for change in changes {
+        changesByID[change.id] = change
+    }
+    return changesByID
+}
+
+private func priceChangeRecordPrecedes(
+    _ lhs: PriceChangeRecord,
+    _ rhs: PriceChangeRecord
+) -> Bool {
+    if lhs.sequence != rhs.sequence {
+        return lhs.sequence < rhs.sequence
+    }
+    if lhs.appendOrderDate != rhs.appendOrderDate {
+        return lhs.appendOrderDate < rhs.appendOrderDate
+    }
+    return lhs.persistentModelID < rhs.persistentModelID
+}
+
+private enum PortableBackupImportStorageError: Error {
+    case subscriptionNotFound
 }

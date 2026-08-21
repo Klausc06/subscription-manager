@@ -3,6 +3,7 @@ name: SubscriptionManager
 options:
   bundleIdPrefix: com.klausc06
   createIntermediateGroups: true
+  minimumXcodeGenVersion: 2.46.0
   deploymentTarget:
     iOS: "27.0"
     macOS: "27.0"
@@ -35,6 +36,9 @@ targets:
         optional: true
     dependencies:
       - package: SubscriptionCore
+      - target: SubscriptionManagerWidget
+        embed: true
+        platformFilter: iOS
     info:
       path: SubscriptionManager/Info.plist
       properties:
@@ -43,13 +47,47 @@ targets:
         CFBundleVersion: "$(CURRENT_PROJECT_VERSION)"
         LSApplicationCategoryType: public.app-category.finance
         UILaunchScreen: {}
+        UIBackgroundModes:
+          - remote-notification
+        NSCalendarsFullAccessUsageDescription: Subscription Manager uses full Calendar access only after you choose Import to Calendar, so it can keep your dedicated renewal calendar free of duplicate events.
+        UISupportedInterfaceOrientations:
+          - UIInterfaceOrientationPortrait
+          - UIInterfaceOrientationPortraitUpsideDown
+          - UIInterfaceOrientationLandscapeLeft
+          - UIInterfaceOrientationLandscapeRight
+        "UISupportedInterfaceOrientations~ipad":
+          - UIInterfaceOrientationPortrait
+          - UIInterfaceOrientationPortraitUpsideDown
+          - UIInterfaceOrientationLandscapeLeft
+          - UIInterfaceOrientationLandscapeRight
+        CFBundleURLTypes:
+          - CFBundleURLSchemes:
+              - subscription-manager
     settings:
       base:
+        "CODE_SIGN_ENTITLEMENTS[sdk=iphoneos*]": SubscriptionManager/SubscriptionManager.entitlements
+        "CODE_SIGN_ENTITLEMENTS[sdk=iphonesimulator*]": SubscriptionManager/SubscriptionManager.entitlements
         "CODE_SIGN_IDENTITY[sdk=macosx*]": "-"
         "CODE_SIGN_STYLE[sdk=macosx*]": Manual
         "DEVELOPMENT_TEAM[sdk=macosx*]": ""
+        APP_GROUP_IDENTIFIER: group.com.klausc06.SubscriptionManager
         PRODUCT_BUNDLE_IDENTIFIER: com.klausc06.SubscriptionManager
         SUPPORTS_MACCATALYST: false
+        TARGETED_DEVICE_FAMILY: "1,2"
+
+  SubscriptionManagerWidget:
+    type: app-extension
+    platform: iOS
+    sources:
+      - path: SubscriptionManagerWidget
+    dependencies:
+      - package: SubscriptionCore
+    settings:
+      base:
+        CODE_SIGN_ENTITLEMENTS: SubscriptionManagerWidget/SubscriptionManagerWidget.entitlements
+        APP_GROUP_IDENTIFIER: group.com.klausc06.SubscriptionManager
+        INFOPLIST_FILE: SubscriptionManagerWidget/Info.plist
+        PRODUCT_BUNDLE_IDENTIFIER: com.klausc06.SubscriptionManager.Widget
         TARGETED_DEVICE_FAMILY: "1,2"
 
   SubscriptionManagerTests:
@@ -62,7 +100,6 @@ targets:
       - path: SubscriptionManagerTests
     dependencies:
       - target: SubscriptionManager
-      - package: SubscriptionCore
     settings:
       base:
         "BUNDLE_LOADER[sdk=macosx*]": "$(TEST_HOST)"
@@ -78,7 +115,6 @@ targets:
     platform: auto
     supportedDestinations:
       - iOS
-      - macOS
     sources:
       - path: SubscriptionManagerUITests
     dependencies:
@@ -89,6 +125,7 @@ targets:
         "CODE_SIGN_STYLE[sdk=macosx*]": Manual
         "DEVELOPMENT_TEAM[sdk=macosx*]": ""
         GENERATE_INFOPLIST_FILE: true
+        LM_SKIP_METADATA_EXTRACTION: "YES"
         PRODUCT_BUNDLE_IDENTIFIER: com.klausc06.SubscriptionManagerUITests
 
 schemes:

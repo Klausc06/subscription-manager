@@ -1,78 +1,5261 @@
 {
   "schemaVersion": 1,
-  "catalogVersion": 1,
+  "catalogVersion": 12,
   "presets": [
     {
       "id": "spotify",
-      "serviceName": { "en": "Spotify", "zhHans": "Spotify" },
-      "category": { "en": "Music", "zhHans": "音乐" },
+      "serviceName": {
+        "en": "Spotify",
+        "zhHans": "Spotify"
+      },
+      "category": {
+        "en": "Music",
+        "zhHans": "音乐"
+      },
+      "categoryID": "music",
       "suggestedInterval": "monthly",
       "managementURL": "https://www.spotify.com/account/overview/",
       "icon": "music",
-      "assetProvenance": { "kind": "originalSymbol", "license": "CC0-1.0", "source": "spotify" }
+      "assetProvenance": {
+        "kind": "originalSymbol",
+        "license": "CC0-1.0",
+        "source": "spotify"
+      },
+      "offers": [
+        {
+          "id": "individual-monthly-us-web",
+          "planName": {
+            "en": "Individual",
+            "zhHans": "Individual"
+          },
+          "price": {
+            "minorUnits": 1299,
+            "currency": "USD"
+          },
+          "billingInterval": "monthly",
+          "market": "US",
+          "purchaseChannel": "web",
+          "sourceURL": "https://www.spotify.com/us/premium/",
+          "verifiedOn": "2026-07-30",
+          "reviewStatus": "verified"
+        },
+        {
+          "id": "student-monthly-us-web",
+          "planName": {
+            "en": "Student",
+            "zhHans": "Student"
+          },
+          "price": {
+            "minorUnits": 699,
+            "currency": "USD"
+          },
+          "billingInterval": "monthly",
+          "market": "US",
+          "purchaseChannel": "web",
+          "sourceURL": "https://www.spotify.com/us/premium/",
+          "verifiedOn": "2026-07-30",
+          "reviewStatus": "verified"
+        },
+        {
+          "id": "duo-monthly-us-web",
+          "planName": {
+            "en": "Duo",
+            "zhHans": "Duo"
+          },
+          "price": {
+            "minorUnits": 1899,
+            "currency": "USD"
+          },
+          "billingInterval": "monthly",
+          "market": "US",
+          "purchaseChannel": "web",
+          "sourceURL": "https://www.spotify.com/us/premium/",
+          "verifiedOn": "2026-07-30",
+          "reviewStatus": "verified"
+        },
+        {
+          "id": "family-monthly-us-web",
+          "planName": {
+            "en": "Family",
+            "zhHans": "Family"
+          },
+          "price": {
+            "minorUnits": 2199,
+            "currency": "USD"
+          },
+          "billingInterval": "monthly",
+          "market": "US",
+          "purchaseChannel": "web",
+          "sourceURL": "https://www.spotify.com/us/premium/",
+          "verifiedOn": "2026-07-30",
+          "reviewStatus": "verified"
+        }
+      ]
     },
     {
       "id": "netflix",
-      "serviceName": { "en": "Netflix", "zhHans": "Netflix" },
-      "category": { "en": "Video", "zhHans": "视频" },
+      "serviceName": {
+        "en": "Netflix",
+        "zhHans": "Netflix"
+      },
+      "category": {
+        "en": "Video",
+        "zhHans": "视频"
+      },
+      "categoryID": "video",
       "suggestedInterval": "monthly",
       "managementURL": "https://www.netflix.com/account",
       "icon": "video",
-      "assetProvenance": { "kind": "originalSymbol", "license": "CC0-1.0", "source": "netflix" }
+      "assetProvenance": {
+        "kind": "originalSymbol",
+        "license": "CC0-1.0",
+        "source": "netflix"
+      },
+      "offers": [
+        {
+          "id": "ads-monthly-us-web",
+          "planName": {
+            "en": "Standard with ads",
+            "zhHans": "Standard with ads"
+          },
+          "price": {
+            "minorUnits": 899,
+            "currency": "USD"
+          },
+          "billingInterval": "monthly",
+          "market": "US",
+          "purchaseChannel": "web",
+          "sourceURL": "https://help.netflix.com/en/node/22",
+          "verifiedOn": "2026-07-30",
+          "reviewStatus": "verified"
+        },
+        {
+          "id": "standard-monthly-us-web",
+          "planName": {
+            "en": "Standard",
+            "zhHans": "Standard"
+          },
+          "price": {
+            "minorUnits": 1999,
+            "currency": "USD"
+          },
+          "billingInterval": "monthly",
+          "market": "US",
+          "purchaseChannel": "web",
+          "sourceURL": "https://help.netflix.com/en/node/22",
+          "verifiedOn": "2026-07-30",
+          "reviewStatus": "verified"
+        },
+        {
+          "id": "premium-monthly-us-web",
+          "planName": {
+            "en": "Premium",
+            "zhHans": "Premium"
+          },
+          "price": {
+            "minorUnits": 2699,
+            "currency": "USD"
+          },
+          "billingInterval": "monthly",
+          "market": "US",
+          "purchaseChannel": "web",
+          "sourceURL": "https://help.netflix.com/en/node/22",
+          "verifiedOn": "2026-07-30",
+          "reviewStatus": "verified"
+        }
+      ]
     },
     {
       "id": "icloud-plus",
-      "serviceName": { "en": "iCloud+", "zhHans": "iCloud+" },
-      "category": { "en": "Cloud Storage", "zhHans": "云存储" },
+      "serviceName": {
+        "en": "iCloud+",
+        "zhHans": "iCloud+"
+      },
+      "category": {
+        "en": "Cloud Storage",
+        "zhHans": "云存储"
+      },
+      "categoryID": "cloud storage",
       "suggestedInterval": "monthly",
       "managementURL": "https://support.apple.com/108047",
       "icon": "cloud",
-      "assetProvenance": { "kind": "originalSymbol", "license": "CC0-1.0", "source": "icloud-plus" }
+      "assetProvenance": {
+        "kind": "originalSymbol",
+        "license": "CC0-1.0",
+        "source": "icloud-plus"
+      },
+      "offers": [
+        {
+          "id": "a-icloud-50gb-monthly-us-web",
+          "planName": {
+            "en": "iCloud+ 50 GB",
+            "zhHans": "iCloud+ 50 GB"
+          },
+          "price": {
+            "minorUnits": 99,
+            "currency": "USD"
+          },
+          "billingInterval": "monthly",
+          "market": "US",
+          "purchaseChannel": "web",
+          "sourceURL": "https://www.apple.com/icloud/",
+          "verifiedOn": "2026-08-01",
+          "reviewStatus": "verified"
+        },
+        {
+          "id": "a-icloud-200gb-monthly-us-web",
+          "planName": {
+            "en": "iCloud+ 200 GB",
+            "zhHans": "iCloud+ 200 GB"
+          },
+          "price": {
+            "minorUnits": 299,
+            "currency": "USD"
+          },
+          "billingInterval": "monthly",
+          "market": "US",
+          "purchaseChannel": "web",
+          "sourceURL": "https://www.apple.com/icloud/",
+          "verifiedOn": "2026-08-01",
+          "reviewStatus": "verified"
+        },
+        {
+          "id": "a-icloud-2tb-monthly-us-web",
+          "planName": {
+            "en": "iCloud+ 2 TB",
+            "zhHans": "iCloud+ 2 TB"
+          },
+          "price": {
+            "minorUnits": 999,
+            "currency": "USD"
+          },
+          "billingInterval": "monthly",
+          "market": "US",
+          "purchaseChannel": "web",
+          "sourceURL": "https://www.apple.com/icloud/",
+          "verifiedOn": "2026-08-01",
+          "reviewStatus": "verified"
+        },
+        {
+          "id": "a-icloud-6tb-monthly-us-web",
+          "planName": {
+            "en": "iCloud+ 6 TB",
+            "zhHans": "iCloud+ 6 TB"
+          },
+          "price": {
+            "minorUnits": 2999,
+            "currency": "USD"
+          },
+          "billingInterval": "monthly",
+          "market": "US",
+          "purchaseChannel": "web",
+          "sourceURL": "https://www.apple.com/icloud/",
+          "verifiedOn": "2026-08-01",
+          "reviewStatus": "verified"
+        },
+        {
+          "id": "a-icloud-12tb-monthly-us-web",
+          "planName": {
+            "en": "iCloud+ 12 TB",
+            "zhHans": "iCloud+ 12 TB"
+          },
+          "price": {
+            "minorUnits": 5999,
+            "currency": "USD"
+          },
+          "billingInterval": "monthly",
+          "market": "US",
+          "purchaseChannel": "web",
+          "sourceURL": "https://www.apple.com/icloud/",
+          "verifiedOn": "2026-08-01",
+          "reviewStatus": "verified"
+        }
+      ]
     },
     {
       "id": "notion",
-      "serviceName": { "en": "Notion", "zhHans": "Notion" },
-      "category": { "en": "Productivity", "zhHans": "效率" },
+      "serviceName": {
+        "en": "Notion",
+        "zhHans": "Notion"
+      },
+      "category": {
+        "en": "AI",
+        "zhHans": "AI 工具"
+      },
+      "categoryID": "ai",
       "suggestedInterval": "monthly",
       "managementURL": "https://www.notion.so/help/manage-your-plan",
       "icon": "productivity",
-      "assetProvenance": { "kind": "originalSymbol", "license": "CC0-1.0", "source": "notion" }
+      "assetProvenance": {
+        "kind": "originalSymbol",
+        "license": "CC0-1.0",
+        "source": "notion"
+      },
+      "offers": [
+        {
+          "id": "plus-one-member-monthly-us-web",
+          "planName": {
+            "en": "Plus (1 member)",
+            "zhHans": "Plus (1 member)"
+          },
+          "price": {
+            "minorUnits": 1200,
+            "currency": "USD"
+          },
+          "billingInterval": "monthly",
+          "market": "US",
+          "purchaseChannel": "web",
+          "sourceURL": "https://www.notion.com/pricing",
+          "verifiedOn": "2026-07-30",
+          "reviewStatus": "verified"
+        },
+        {
+          "id": "plus-one-member-yearly-us-web",
+          "planName": {
+            "en": "Plus (1 member)",
+            "zhHans": "Plus (1 member)"
+          },
+          "price": {
+            "minorUnits": 12000,
+            "currency": "USD"
+          },
+          "billingInterval": "yearly",
+          "market": "US",
+          "purchaseChannel": "web",
+          "sourceURL": "https://www.notion.com/pricing",
+          "verifiedOn": "2026-07-30",
+          "reviewStatus": "verified"
+        }
+      ]
     },
     {
       "id": "kindle-unlimited",
-      "serviceName": { "en": "Kindle Unlimited", "zhHans": "Kindle Unlimited" },
-      "category": { "en": "Reading", "zhHans": "阅读" },
+      "serviceName": {
+        "en": "Kindle Unlimited",
+        "zhHans": "Kindle Unlimited"
+      },
+      "category": {
+        "en": "Reading",
+        "zhHans": "阅读"
+      },
+      "categoryID": "reading",
       "suggestedInterval": "monthly",
       "managementURL": "https://www.amazon.com/gp/kindle/ku/ku_central",
       "icon": "reading",
-      "assetProvenance": { "kind": "originalSymbol", "license": "CC0-1.0", "source": "kindle-unlimited" }
+      "assetProvenance": {
+        "kind": "originalSymbol",
+        "license": "CC0-1.0",
+        "source": "kindle-unlimited"
+      },
+      "offers": [
+        {
+          "id": "a-kindle-unlimited-monthly-us-web",
+          "planName": {
+            "en": "Kindle Unlimited",
+            "zhHans": "Kindle Unlimited"
+          },
+          "price": {
+            "minorUnits": 1199,
+            "currency": "USD"
+          },
+          "billingInterval": "monthly",
+          "market": "US",
+          "purchaseChannel": "web",
+          "sourceURL": "https://www.amazon.com/kindle-dbs/hz/subscribe/ku",
+          "verifiedOn": "2026-08-01",
+          "reviewStatus": "verified"
+        }
+      ]
     },
     {
       "id": "the-new-york-times",
-      "serviceName": { "en": "The New York Times", "zhHans": "纽约时报" },
-      "category": { "en": "News", "zhHans": "新闻" },
+      "serviceName": {
+        "en": "The New York Times",
+        "zhHans": "纽约时报"
+      },
+      "category": {
+        "en": "News",
+        "zhHans": "新闻"
+      },
+      "categoryID": "news",
       "suggestedInterval": "monthly",
       "managementURL": "https://www.nytimes.com/subscription",
       "icon": "news",
-      "assetProvenance": { "kind": "originalSymbol", "license": "CC0-1.0", "source": "the-new-york-times" }
+      "assetProvenance": {
+        "kind": "originalSymbol",
+        "license": "CC0-1.0",
+        "source": "the-new-york-times"
+      },
+      "offers": [
+        {
+          "id": "a-nyt-all-access-monthly-us-ios",
+          "planName": {
+            "en": "All Access",
+            "zhHans": "All Access"
+          },
+          "price": {
+            "minorUnits": 2499,
+            "currency": "USD"
+          },
+          "billingInterval": "monthly",
+          "market": "US",
+          "purchaseChannel": "iOS",
+          "sourceURL": "https://apps.apple.com/us/app/the-new-york-times/id284862083",
+          "verifiedOn": "2026-08-01",
+          "reviewStatus": "verified"
+        },
+        {
+          "id": "a-nyt-news-monthly-us-ios",
+          "planName": {
+            "en": "News",
+            "zhHans": "News"
+          },
+          "price": {
+            "minorUnits": 2199,
+            "currency": "USD"
+          },
+          "billingInterval": "monthly",
+          "market": "US",
+          "purchaseChannel": "iOS",
+          "sourceURL": "https://apps.apple.com/us/app/the-new-york-times/id284862083",
+          "verifiedOn": "2026-08-01",
+          "reviewStatus": "verified"
+        }
+      ]
     },
     {
-      "id": "chatgpt-plus",
-      "serviceName": { "en": "ChatGPT Plus", "zhHans": "ChatGPT Plus" },
-      "category": { "en": "Productivity", "zhHans": "效率" },
+      "id": "chatgpt",
+      "serviceName": {
+        "en": "ChatGPT",
+        "zhHans": "ChatGPT"
+      },
+      "category": {
+        "en": "AI",
+        "zhHans": "AI 工具"
+      },
+      "categoryID": "ai",
       "suggestedInterval": "monthly",
       "managementURL": "https://chatgpt.com/",
       "icon": "productivity",
-      "assetProvenance": { "kind": "originalSymbol", "license": "CC0-1.0", "source": "chatgpt-plus" }
+      "legacyPresetIDs": [
+        "chatgpt-plus"
+      ],
+      "matchAliases": [
+        "ChatGPT Plus"
+      ],
+      "assetProvenance": {
+        "kind": "originalSymbol",
+        "license": "CC0-1.0",
+        "source": "chatgpt"
+      },
+      "offers": [
+        {
+          "id": "go-monthly-us-web",
+          "planName": {
+            "en": "Go",
+            "zhHans": "Go"
+          },
+          "price": {
+            "minorUnits": 800,
+            "currency": "USD"
+          },
+          "billingInterval": "monthly",
+          "market": "US",
+          "purchaseChannel": "web",
+          "sourceURL": "https://openai.com/chatgpt/pricing/",
+          "verifiedOn": "2026-07-30",
+          "reviewStatus": "verified"
+        },
+        {
+          "id": "plus-monthly-us-web",
+          "planName": {
+            "en": "Plus",
+            "zhHans": "Plus"
+          },
+          "price": {
+            "minorUnits": 2000,
+            "currency": "USD"
+          },
+          "billingInterval": "monthly",
+          "market": "US",
+          "purchaseChannel": "web",
+          "sourceURL": "https://openai.com/chatgpt/pricing/",
+          "verifiedOn": "2026-07-30",
+          "reviewStatus": "verified"
+        },
+        {
+          "id": "pro-5x-monthly-us-web",
+          "planName": {
+            "en": "Pro (5x)",
+            "zhHans": "Pro（5x）"
+          },
+          "price": {
+            "minorUnits": 10000,
+            "currency": "USD"
+          },
+          "billingInterval": "monthly",
+          "market": "US",
+          "purchaseChannel": "web",
+          "sourceURL": "https://help.openai.com/en/articles/9793128-what-is-chatgpt-pro",
+          "verifiedOn": "2026-07-30",
+          "reviewStatus": "verified"
+        },
+        {
+          "id": "pro-20x-monthly-us-web",
+          "planName": {
+            "en": "Pro (20x)",
+            "zhHans": "Pro（20x）"
+          },
+          "price": {
+            "minorUnits": 20000,
+            "currency": "USD"
+          },
+          "billingInterval": "monthly",
+          "market": "US",
+          "purchaseChannel": "web",
+          "sourceURL": "https://help.openai.com/en/articles/9793128-what-is-chatgpt-pro",
+          "verifiedOn": "2026-07-30",
+          "reviewStatus": "verified"
+        }
+      ]
     },
     {
       "id": "playstation-plus",
-      "serviceName": { "en": "PlayStation Plus", "zhHans": "PlayStation Plus" },
-      "category": { "en": "Gaming", "zhHans": "游戏" },
+      "serviceName": {
+        "en": "PlayStation Plus",
+        "zhHans": "PlayStation Plus"
+      },
+      "category": {
+        "en": "Gaming",
+        "zhHans": "游戏"
+      },
+      "categoryID": "gaming",
       "suggestedInterval": "yearly",
       "managementURL": "https://www.playstation.com/support/subscriptions/",
       "icon": "game",
-      "assetProvenance": { "kind": "originalSymbol", "license": "CC0-1.0", "source": "playstation-plus" }
+      "assetProvenance": {
+        "kind": "originalSymbol",
+        "license": "CC0-1.0",
+        "source": "playstation-plus"
+      },
+      "offers": [
+        {
+          "id": "a-ps-plus-essential-monthly-us-web",
+          "planName": {
+            "en": "Essential",
+            "zhHans": "Essential"
+          },
+          "price": {
+            "minorUnits": 1099,
+            "currency": "USD"
+          },
+          "billingInterval": "monthly",
+          "market": "US",
+          "purchaseChannel": "web",
+          "sourceURL": "https://www.playstation.com/en-us/ps-plus/",
+          "verifiedOn": "2026-08-01",
+          "reviewStatus": "verified"
+        },
+        {
+          "id": "a-ps-plus-essential-quarterly-us-web",
+          "planName": {
+            "en": "Essential",
+            "zhHans": "Essential"
+          },
+          "price": {
+            "minorUnits": 2799,
+            "currency": "USD"
+          },
+          "billingInterval": "quarterly",
+          "market": "US",
+          "purchaseChannel": "web",
+          "sourceURL": "https://www.playstation.com/en-us/ps-plus/",
+          "verifiedOn": "2026-08-01",
+          "reviewStatus": "verified"
+        },
+        {
+          "id": "a-ps-plus-essential-yearly-us-web",
+          "planName": {
+            "en": "Essential",
+            "zhHans": "Essential"
+          },
+          "price": {
+            "minorUnits": 7999,
+            "currency": "USD"
+          },
+          "billingInterval": "yearly",
+          "market": "US",
+          "purchaseChannel": "web",
+          "sourceURL": "https://www.playstation.com/en-us/ps-plus/",
+          "verifiedOn": "2026-08-01",
+          "reviewStatus": "verified"
+        },
+        {
+          "id": "a-ps-plus-extra-monthly-us-web",
+          "planName": {
+            "en": "Extra",
+            "zhHans": "Extra"
+          },
+          "price": {
+            "minorUnits": 1699,
+            "currency": "USD"
+          },
+          "billingInterval": "monthly",
+          "market": "US",
+          "purchaseChannel": "web",
+          "sourceURL": "https://www.playstation.com/en-us/ps-plus/",
+          "verifiedOn": "2026-08-01",
+          "reviewStatus": "verified"
+        },
+        {
+          "id": "a-ps-plus-extra-quarterly-us-web",
+          "planName": {
+            "en": "Extra",
+            "zhHans": "Extra"
+          },
+          "price": {
+            "minorUnits": 4399,
+            "currency": "USD"
+          },
+          "billingInterval": "quarterly",
+          "market": "US",
+          "purchaseChannel": "web",
+          "sourceURL": "https://www.playstation.com/en-us/ps-plus/",
+          "verifiedOn": "2026-08-01",
+          "reviewStatus": "verified"
+        },
+        {
+          "id": "a-ps-plus-extra-yearly-us-web",
+          "planName": {
+            "en": "Extra",
+            "zhHans": "Extra"
+          },
+          "price": {
+            "minorUnits": 13499,
+            "currency": "USD"
+          },
+          "billingInterval": "yearly",
+          "market": "US",
+          "purchaseChannel": "web",
+          "sourceURL": "https://www.playstation.com/en-us/ps-plus/",
+          "verifiedOn": "2026-08-01",
+          "reviewStatus": "verified"
+        },
+        {
+          "id": "a-ps-plus-premium-monthly-us-web",
+          "planName": {
+            "en": "Premium",
+            "zhHans": "Premium"
+          },
+          "price": {
+            "minorUnits": 1999,
+            "currency": "USD"
+          },
+          "billingInterval": "monthly",
+          "market": "US",
+          "purchaseChannel": "web",
+          "sourceURL": "https://www.playstation.com/en-us/ps-plus/",
+          "verifiedOn": "2026-08-01",
+          "reviewStatus": "verified"
+        },
+        {
+          "id": "a-ps-plus-premium-quarterly-us-web",
+          "planName": {
+            "en": "Premium",
+            "zhHans": "Premium"
+          },
+          "price": {
+            "minorUnits": 5499,
+            "currency": "USD"
+          },
+          "billingInterval": "quarterly",
+          "market": "US",
+          "purchaseChannel": "web",
+          "sourceURL": "https://www.playstation.com/en-us/ps-plus/",
+          "verifiedOn": "2026-08-01",
+          "reviewStatus": "verified"
+        },
+        {
+          "id": "a-ps-plus-premium-yearly-us-web",
+          "planName": {
+            "en": "Premium",
+            "zhHans": "Premium"
+          },
+          "price": {
+            "minorUnits": 15999,
+            "currency": "USD"
+          },
+          "billingInterval": "yearly",
+          "market": "US",
+          "purchaseChannel": "web",
+          "sourceURL": "https://www.playstation.com/en-us/ps-plus/",
+          "verifiedOn": "2026-08-01",
+          "reviewStatus": "verified"
+        }
+      ]
+    },
+    {
+      "id": "bilibili",
+      "serviceName": {
+        "en": "Bilibili Membership",
+        "zhHans": "哔哩哔哩大会员"
+      },
+      "category": {
+        "en": "Video",
+        "zhHans": "视频"
+      },
+      "categoryID": "video",
+      "suggestedInterval": "monthly",
+      "managementURL": "https://big.bilibili.com/",
+      "icon": "video",
+      "assetProvenance": {
+        "kind": "originalSymbol",
+        "license": "CC0-1.0",
+        "source": "bilibili"
+      },
+      "offers": [
+        {
+          "id": "a-bilibili-membership-monthly-cn-ios",
+          "planName": {
+            "en": "Premium Membership",
+            "zhHans": "连续包月大会员"
+          },
+          "price": {
+            "minorUnits": 1500,
+            "currency": "CNY"
+          },
+          "billingInterval": "monthly",
+          "market": "CN",
+          "purchaseChannel": "iOS",
+          "sourceURL": "https://apps.apple.com/cn/app/id736536022",
+          "verifiedOn": "2026-08-01",
+          "reviewStatus": "verified"
+        }
+      ]
+    },
+    {
+      "id": "iqiyi",
+      "serviceName": {
+        "en": "iQIYI VIP",
+        "zhHans": "爱奇艺 VIP"
+      },
+      "category": {
+        "en": "Video",
+        "zhHans": "视频"
+      },
+      "categoryID": "video",
+      "suggestedInterval": "monthly",
+      "managementURL": "https://vip.iqiyi.com/",
+      "icon": "video",
+      "assetProvenance": {
+        "kind": "originalSymbol",
+        "license": "CC0-1.0",
+        "source": "iqiyi"
+      },
+      "offers": [
+        {
+          "id": "a-iqiyi-gold-monthly-cn-ios",
+          "planName": {
+            "en": "Gold VIP",
+            "zhHans": "黄金会员"
+          },
+          "price": {
+            "minorUnits": 2500,
+            "currency": "CNY"
+          },
+          "billingInterval": "monthly",
+          "market": "CN",
+          "purchaseChannel": "iOS",
+          "sourceURL": "https://apps.apple.com/cn/app/id393765873",
+          "verifiedOn": "2026-08-01",
+          "reviewStatus": "verified"
+        },
+        {
+          "id": "a-iqiyi-platinum-monthly-cn-ios",
+          "planName": {
+            "en": "Platinum VIP",
+            "zhHans": "白金会员"
+          },
+          "price": {
+            "minorUnits": 3500,
+            "currency": "CNY"
+          },
+          "billingInterval": "monthly",
+          "market": "CN",
+          "purchaseChannel": "iOS",
+          "sourceURL": "https://apps.apple.com/cn/app/id393765873",
+          "verifiedOn": "2026-08-01",
+          "reviewStatus": "verified"
+        },
+        {
+          "id": "a-iqiyi-star-diamond-monthly-cn-ios",
+          "planName": {
+            "en": "Star Diamond VIP",
+            "zhHans": "星钻会员"
+          },
+          "price": {
+            "minorUnits": 4500,
+            "currency": "CNY"
+          },
+          "billingInterval": "monthly",
+          "market": "CN",
+          "purchaseChannel": "iOS",
+          "sourceURL": "https://apps.apple.com/cn/app/id393765873",
+          "verifiedOn": "2026-08-01",
+          "reviewStatus": "verified"
+        }
+      ]
+    },
+    {
+      "id": "tencent-video",
+      "serviceName": {
+        "en": "Tencent Video VIP",
+        "zhHans": "腾讯视频 VIP"
+      },
+      "category": {
+        "en": "Video",
+        "zhHans": "视频"
+      },
+      "categoryID": "video",
+      "suggestedInterval": "monthly",
+      "managementURL": "https://film.qq.com/",
+      "icon": "video",
+      "assetProvenance": {
+        "kind": "originalSymbol",
+        "license": "CC0-1.0",
+        "source": "tencent-video"
+      },
+      "offers": [
+        {
+          "id": "a-tencent-video-vip-monthly-cn-ios",
+          "planName": {
+            "en": "Tencent Video VIP",
+            "zhHans": "腾讯视频 VIP"
+          },
+          "price": {
+            "minorUnits": 2500,
+            "currency": "CNY"
+          },
+          "billingInterval": "monthly",
+          "market": "CN",
+          "purchaseChannel": "iOS",
+          "sourceURL": "https://apps.apple.com/cn/app/id458318329",
+          "verifiedOn": "2026-08-01",
+          "reviewStatus": "verified"
+        },
+        {
+          "id": "a-tencent-video-super-movie-monthly-cn-ios",
+          "planName": {
+            "en": "Super Movie VIP",
+            "zhHans": "超级影视 VIP"
+          },
+          "price": {
+            "minorUnits": 3500,
+            "currency": "CNY"
+          },
+          "billingInterval": "monthly",
+          "market": "CN",
+          "purchaseChannel": "iOS",
+          "sourceURL": "https://apps.apple.com/cn/app/id458318329",
+          "verifiedOn": "2026-08-01",
+          "reviewStatus": "verified"
+        },
+        {
+          "id": "a-tencent-video-sports-monthly-cn-ios",
+          "planName": {
+            "en": "Tencent Sports VIP",
+            "zhHans": "腾讯体育 VIP"
+          },
+          "price": {
+            "minorUnits": 2500,
+            "currency": "CNY"
+          },
+          "billingInterval": "monthly",
+          "market": "CN",
+          "purchaseChannel": "iOS",
+          "sourceURL": "https://apps.apple.com/cn/app/id458318329",
+          "verifiedOn": "2026-08-01",
+          "reviewStatus": "verified"
+        },
+        {
+          "id": "a-tencent-video-super-sports-monthly-cn-ios",
+          "planName": {
+            "en": "Super Sports VIP",
+            "zhHans": "体育超级 VIP"
+          },
+          "price": {
+            "minorUnits": 6000,
+            "currency": "CNY"
+          },
+          "billingInterval": "monthly",
+          "market": "CN",
+          "purchaseChannel": "iOS",
+          "sourceURL": "https://apps.apple.com/cn/app/id458318329",
+          "verifiedOn": "2026-08-01",
+          "reviewStatus": "verified"
+        }
+      ]
+    },
+    {
+      "id": "youku",
+      "serviceName": {
+        "en": "Youku VIP",
+        "zhHans": "优酷 VIP"
+      },
+      "category": {
+        "en": "Video",
+        "zhHans": "视频"
+      },
+      "categoryID": "video",
+      "suggestedInterval": "monthly",
+      "managementURL": "https://vip.youku.com/",
+      "icon": "video",
+      "assetProvenance": {
+        "kind": "originalSymbol",
+        "license": "CC0-1.0",
+        "source": "youku"
+      },
+      "offers": [
+        {
+          "id": "a-youku-gold-monthly-cn-ios",
+          "planName": {
+            "en": "Gold VIP",
+            "zhHans": "优酷黄金 VIP"
+          },
+          "price": {
+            "minorUnits": 2500,
+            "currency": "CNY"
+          },
+          "billingInterval": "monthly",
+          "market": "CN",
+          "purchaseChannel": "iOS",
+          "sourceURL": "https://apps.apple.com/cn/app/id336141475",
+          "verifiedOn": "2026-08-01",
+          "reviewStatus": "verified"
+        },
+        {
+          "id": "a-youku-gold-yearly-cn-ios",
+          "planName": {
+            "en": "Gold VIP",
+            "zhHans": "优酷黄金 VIP"
+          },
+          "price": {
+            "minorUnits": 23800,
+            "currency": "CNY"
+          },
+          "billingInterval": "yearly",
+          "market": "CN",
+          "purchaseChannel": "iOS",
+          "sourceURL": "https://apps.apple.com/cn/app/id336141475",
+          "verifiedOn": "2026-08-01",
+          "reviewStatus": "verified"
+        },
+        {
+          "id": "a-youku-svip-monthly-cn-ios",
+          "planName": {
+            "en": "SVIP",
+            "zhHans": "优酷 SVIP"
+          },
+          "price": {
+            "minorUnits": 3500,
+            "currency": "CNY"
+          },
+          "billingInterval": "monthly",
+          "market": "CN",
+          "purchaseChannel": "iOS",
+          "sourceURL": "https://apps.apple.com/cn/app/id336141475",
+          "verifiedOn": "2026-08-01",
+          "reviewStatus": "verified"
+        }
+      ]
+    },
+    {
+      "id": "mango-tv",
+      "serviceName": {
+        "en": "Mango TV VIP",
+        "zhHans": "芒果 TV 会员"
+      },
+      "category": {
+        "en": "Video",
+        "zhHans": "视频"
+      },
+      "categoryID": "video",
+      "suggestedInterval": "monthly",
+      "managementURL": "https://vip.mgtv.com/",
+      "icon": "video",
+      "assetProvenance": {
+        "kind": "originalSymbol",
+        "license": "CC0-1.0",
+        "source": "mango-tv"
+      },
+      "offers": [
+        {
+          "id": "a-mango-tv-vip-monthly-cn-ios",
+          "planName": {
+            "en": "Mango TV Membership",
+            "zhHans": "芒果 TV 会员"
+          },
+          "price": {
+            "minorUnits": 2200,
+            "currency": "CNY"
+          },
+          "billingInterval": "monthly",
+          "market": "CN",
+          "purchaseChannel": "iOS",
+          "sourceURL": "https://apps.apple.com/cn/app/id629774477",
+          "verifiedOn": "2026-08-01",
+          "reviewStatus": "verified"
+        },
+        {
+          "id": "a-mango-tv-vip-quarterly-cn-ios",
+          "planName": {
+            "en": "Mango TV Membership",
+            "zhHans": "芒果 TV 会员"
+          },
+          "price": {
+            "minorUnits": 6300,
+            "currency": "CNY"
+          },
+          "billingInterval": "quarterly",
+          "market": "CN",
+          "purchaseChannel": "iOS",
+          "sourceURL": "https://apps.apple.com/cn/app/id629774477",
+          "verifiedOn": "2026-08-01",
+          "reviewStatus": "verified"
+        },
+        {
+          "id": "a-mango-tv-vip-yearly-cn-ios",
+          "planName": {
+            "en": "Mango TV Membership",
+            "zhHans": "芒果 TV 会员"
+          },
+          "price": {
+            "minorUnits": 21800,
+            "currency": "CNY"
+          },
+          "billingInterval": "yearly",
+          "market": "CN",
+          "purchaseChannel": "iOS",
+          "sourceURL": "https://apps.apple.com/cn/app/id629774477",
+          "verifiedOn": "2026-08-01",
+          "reviewStatus": "verified"
+        }
+      ]
+    },
+    {
+      "id": "migu-video",
+      "serviceName": {
+        "en": "Migu Video VIP",
+        "zhHans": "咪咕视频会员"
+      },
+      "category": {
+        "en": "Video",
+        "zhHans": "视频"
+      },
+      "categoryID": "video",
+      "suggestedInterval": "monthly",
+      "managementURL": "https://m.miguvideo.com/",
+      "icon": "video",
+      "assetProvenance": {
+        "kind": "originalSymbol",
+        "license": "CC0-1.0",
+        "source": "migu-video"
+      },
+      "offers": [
+        {
+          "id": "a-migu-video-diamond-monthly-cn-ios",
+          "planName": {
+            "en": "Diamond Membership",
+            "zhHans": "咪咕视频钻石会员连续包月"
+          },
+          "price": {
+            "minorUnits": 1800,
+            "currency": "CNY"
+          },
+          "billingInterval": "monthly",
+          "market": "CN",
+          "purchaseChannel": "iOS",
+          "sourceURL": "https://apps.apple.com/cn/app/id787130974",
+          "verifiedOn": "2026-08-01",
+          "reviewStatus": "verified"
+        }
+      ]
+    },
+    {
+      "id": "sohu-video",
+      "serviceName": {
+        "en": "Sohu Video VIP",
+        "zhHans": "搜狐视频会员"
+      },
+      "category": {
+        "en": "Video",
+        "zhHans": "视频"
+      },
+      "categoryID": "video",
+      "suggestedInterval": "monthly",
+      "managementURL": "https://film.sohu.com/",
+      "icon": "video",
+      "assetProvenance": {
+        "kind": "originalSymbol",
+        "license": "CC0-1.0",
+        "source": "sohu-video"
+      },
+      "offers": [
+        {
+          "id": "a-sohu-video-vip-monthly-cn-ios",
+          "planName": {
+            "en": "Sohu Video Membership",
+            "zhHans": "搜狐视频连续包月会员"
+          },
+          "price": {
+            "minorUnits": 1900,
+            "currency": "CNY"
+          },
+          "billingInterval": "monthly",
+          "market": "CN",
+          "purchaseChannel": "iOS",
+          "sourceURL": "https://apps.apple.com/cn/app/id458587755",
+          "verifiedOn": "2026-08-01",
+          "reviewStatus": "verified"
+        },
+        {
+          "id": "a-sohu-video-vip-quarterly-cn-ios",
+          "planName": {
+            "en": "Sohu Video Membership",
+            "zhHans": "搜狐视频连续包季会员"
+          },
+          "price": {
+            "minorUnits": 5300,
+            "currency": "CNY"
+          },
+          "billingInterval": "quarterly",
+          "market": "CN",
+          "purchaseChannel": "iOS",
+          "sourceURL": "https://apps.apple.com/cn/app/id458587755",
+          "verifiedOn": "2026-08-01",
+          "reviewStatus": "verified"
+        },
+        {
+          "id": "a-sohu-video-vip-yearly-cn-ios",
+          "planName": {
+            "en": "Sohu Video Membership",
+            "zhHans": "搜狐视频连续包年会员"
+          },
+          "price": {
+            "minorUnits": 20800,
+            "currency": "CNY"
+          },
+          "billingInterval": "yearly",
+          "market": "CN",
+          "purchaseChannel": "iOS",
+          "sourceURL": "https://apps.apple.com/cn/app/id458587755",
+          "verifiedOn": "2026-08-01",
+          "reviewStatus": "verified"
+        }
+      ]
+    },
+    {
+      "id": "tencent-anime",
+      "serviceName": {
+        "en": "Tencent Anime VIP",
+        "zhHans": "腾讯动漫会员"
+      },
+      "category": {
+        "en": "Video",
+        "zhHans": "视频"
+      },
+      "categoryID": "video",
+      "suggestedInterval": "monthly",
+      "managementURL": "https://ac.qq.com/",
+      "icon": "video",
+      "assetProvenance": {
+        "kind": "originalSymbol",
+        "license": "CC0-1.0",
+        "source": "tencent-anime"
+      },
+      "offers": [
+        {
+          "id": "a-tencent-anime-v-monthly-cn-ios",
+          "planName": {
+            "en": "Tencent Anime V Membership",
+            "zhHans": "腾讯动漫 V 会员连续包月"
+          },
+          "price": {
+            "minorUnits": 1800,
+            "currency": "CNY"
+          },
+          "billingInterval": "monthly",
+          "market": "CN",
+          "purchaseChannel": "iOS",
+          "sourceURL": "https://apps.apple.com/cn/app/id569387346",
+          "verifiedOn": "2026-08-01",
+          "reviewStatus": "verified"
+        },
+        {
+          "id": "a-tencent-anime-v-quarterly-cn-ios",
+          "planName": {
+            "en": "Tencent Anime V Membership",
+            "zhHans": "腾讯动漫 V 会员连续包季"
+          },
+          "price": {
+            "minorUnits": 5000,
+            "currency": "CNY"
+          },
+          "billingInterval": "quarterly",
+          "market": "CN",
+          "purchaseChannel": "iOS",
+          "sourceURL": "https://apps.apple.com/cn/app/id569387346",
+          "verifiedOn": "2026-08-01",
+          "reviewStatus": "verified"
+        }
+      ]
+    },
+    {
+      "id": "qq-music",
+      "serviceName": {
+        "en": "QQ Music VIP",
+        "zhHans": "QQ 音乐会员"
+      },
+      "category": {
+        "en": "Music",
+        "zhHans": "音乐"
+      },
+      "categoryID": "music",
+      "suggestedInterval": "monthly",
+      "managementURL": "https://y.qq.com/",
+      "icon": "music",
+      "assetProvenance": {
+        "kind": "originalSymbol",
+        "license": "CC0-1.0",
+        "source": "qq-music"
+      },
+      "offers": [
+        {
+          "id": "a-qq-music-green-diamond-monthly-cn-ios",
+          "planName": {
+            "en": "Green Diamond Luxury",
+            "zhHans": "绿钻豪华版"
+          },
+          "price": {
+            "minorUnits": 1500,
+            "currency": "CNY"
+          },
+          "billingInterval": "monthly",
+          "market": "CN",
+          "purchaseChannel": "iOS",
+          "sourceURL": "https://apps.apple.com/cn/app/id414603431",
+          "verifiedOn": "2026-08-01",
+          "reviewStatus": "verified"
+        }
+      ]
+    },
+    {
+      "id": "netease-cloud-music",
+      "serviceName": {
+        "en": "NetEase Cloud Music VIP",
+        "zhHans": "网易云音乐会员"
+      },
+      "category": {
+        "en": "Music",
+        "zhHans": "音乐"
+      },
+      "categoryID": "music",
+      "suggestedInterval": "monthly",
+      "managementURL": "https://music.163.com/",
+      "icon": "music",
+      "assetProvenance": {
+        "kind": "originalSymbol",
+        "license": "CC0-1.0",
+        "source": "netease-cloud-music"
+      },
+      "offers": [
+        {
+          "id": "a-netease-music-package-monthly-cn-ios",
+          "planName": {
+            "en": "Music Package",
+            "zhHans": "音乐包"
+          },
+          "price": {
+            "minorUnits": 800,
+            "currency": "CNY"
+          },
+          "billingInterval": "monthly",
+          "market": "CN",
+          "purchaseChannel": "iOS",
+          "sourceURL": "https://apps.apple.com/cn/app/id590338362",
+          "verifiedOn": "2026-08-01",
+          "reviewStatus": "verified"
+        },
+        {
+          "id": "a-netease-black-vip-monthly-cn-ios",
+          "planName": {
+            "en": "Black Vinyl VIP",
+            "zhHans": "黑胶 VIP"
+          },
+          "price": {
+            "minorUnits": 1500,
+            "currency": "CNY"
+          },
+          "billingInterval": "monthly",
+          "market": "CN",
+          "purchaseChannel": "iOS",
+          "sourceURL": "https://apps.apple.com/cn/app/id590338362",
+          "verifiedOn": "2026-08-01",
+          "reviewStatus": "verified"
+        },
+        {
+          "id": "a-netease-black-svip-monthly-cn-ios",
+          "planName": {
+            "en": "Black Vinyl SVIP",
+            "zhHans": "黑胶 SVIP"
+          },
+          "price": {
+            "minorUnits": 2800,
+            "currency": "CNY"
+          },
+          "billingInterval": "monthly",
+          "market": "CN",
+          "purchaseChannel": "iOS",
+          "sourceURL": "https://apps.apple.com/cn/app/id590338362",
+          "verifiedOn": "2026-08-01",
+          "reviewStatus": "verified"
+        }
+      ]
+    },
+    {
+      "id": "kugou-music",
+      "serviceName": {
+        "en": "KuGou Music VIP",
+        "zhHans": "酷狗音乐会员"
+      },
+      "category": {
+        "en": "Music",
+        "zhHans": "音乐"
+      },
+      "categoryID": "music",
+      "suggestedInterval": "monthly",
+      "managementURL": "https://www.kugou.com/",
+      "icon": "music",
+      "assetProvenance": {
+        "kind": "originalSymbol",
+        "license": "CC0-1.0",
+        "source": "kugou-music"
+      },
+      "offers": [
+        {
+          "id": "a-kugou-music-package-monthly-cn-ios",
+          "planName": {
+            "en": "Music Package",
+            "zhHans": "音乐包"
+          },
+          "price": {
+            "minorUnits": 800,
+            "currency": "CNY"
+          },
+          "billingInterval": "monthly",
+          "market": "CN",
+          "purchaseChannel": "iOS",
+          "sourceURL": "https://apps.apple.com/cn/app/id472208016",
+          "verifiedOn": "2026-08-01",
+          "reviewStatus": "verified"
+        },
+        {
+          "id": "a-kugou-luxury-vip-monthly-cn-ios",
+          "planName": {
+            "en": "Luxury VIP",
+            "zhHans": "豪华 VIP"
+          },
+          "price": {
+            "minorUnits": 1500,
+            "currency": "CNY"
+          },
+          "billingInterval": "monthly",
+          "market": "CN",
+          "purchaseChannel": "iOS",
+          "sourceURL": "https://apps.apple.com/cn/app/id472208016",
+          "verifiedOn": "2026-08-01",
+          "reviewStatus": "verified"
+        },
+        {
+          "id": "a-kugou-super-vip-monthly-cn-ios",
+          "planName": {
+            "en": "Super VIP",
+            "zhHans": "超级 VIP"
+          },
+          "price": {
+            "minorUnits": 3000,
+            "currency": "CNY"
+          },
+          "billingInterval": "monthly",
+          "market": "CN",
+          "purchaseChannel": "iOS",
+          "sourceURL": "https://apps.apple.com/cn/app/id472208016",
+          "verifiedOn": "2026-08-01",
+          "reviewStatus": "verified"
+        },
+        {
+          "id": "a-kugou-audiobook-monthly-cn-ios",
+          "planName": {
+            "en": "Audiobook Membership",
+            "zhHans": "听书会员"
+          },
+          "price": {
+            "minorUnits": 600,
+            "currency": "CNY"
+          },
+          "billingInterval": "monthly",
+          "market": "CN",
+          "purchaseChannel": "iOS",
+          "sourceURL": "https://apps.apple.com/cn/app/id472208016",
+          "verifiedOn": "2026-08-01",
+          "reviewStatus": "verified"
+        }
+      ]
+    },
+    {
+      "id": "kuwo-music",
+      "serviceName": {
+        "en": "KuWo Music VIP",
+        "zhHans": "酷我音乐会员"
+      },
+      "category": {
+        "en": "Music",
+        "zhHans": "音乐"
+      },
+      "categoryID": "music",
+      "suggestedInterval": "monthly",
+      "managementURL": "https://www.kuwo.cn/",
+      "icon": "music",
+      "assetProvenance": {
+        "kind": "originalSymbol",
+        "license": "CC0-1.0",
+        "source": "kuwo-music"
+      },
+      "offers": [
+        {
+          "id": "a-kuwo-music-package-monthly-cn-ios",
+          "planName": {
+            "en": "Music Package",
+            "zhHans": "音乐包"
+          },
+          "price": {
+            "minorUnits": 800,
+            "currency": "CNY"
+          },
+          "billingInterval": "monthly",
+          "market": "CN",
+          "purchaseChannel": "iOS",
+          "sourceURL": "https://apps.apple.com/cn/app/id588673713",
+          "verifiedOn": "2026-08-01",
+          "reviewStatus": "verified"
+        },
+        {
+          "id": "a-kuwo-luxury-vip-monthly-cn-ios",
+          "planName": {
+            "en": "Luxury VIP",
+            "zhHans": "豪华 VIP"
+          },
+          "price": {
+            "minorUnits": 1500,
+            "currency": "CNY"
+          },
+          "billingInterval": "monthly",
+          "market": "CN",
+          "purchaseChannel": "iOS",
+          "sourceURL": "https://apps.apple.com/cn/app/id588673713",
+          "verifiedOn": "2026-08-01",
+          "reviewStatus": "verified"
+        },
+        {
+          "id": "a-kuwo-super-membership-monthly-cn-ios",
+          "planName": {
+            "en": "Super Membership",
+            "zhHans": "超级会员"
+          },
+          "price": {
+            "minorUnits": 3000,
+            "currency": "CNY"
+          },
+          "billingInterval": "monthly",
+          "market": "CN",
+          "purchaseChannel": "iOS",
+          "sourceURL": "https://apps.apple.com/cn/app/id588673713",
+          "verifiedOn": "2026-08-01",
+          "reviewStatus": "verified"
+        }
+      ]
+    },
+    {
+      "id": "migu-music",
+      "serviceName": {
+        "en": "Migu Music",
+        "zhHans": "咪咕音乐"
+      },
+      "category": {
+        "en": "Music",
+        "zhHans": "音乐"
+      },
+      "categoryID": "music",
+      "suggestedInterval": "monthly",
+      "managementURL": "https://music.migu.cn/",
+      "icon": "music",
+      "assetProvenance": {
+        "kind": "originalSymbol",
+        "license": "CC0-1.0",
+        "source": "migu-music"
+      },
+      "offers": [
+        {
+          "id": "a-migu-music-platinum-monthly-cn-ios",
+          "planName": {
+            "en": "Platinum Membership",
+            "zhHans": "白金会员连续包月"
+          },
+          "price": {
+            "minorUnits": 1000,
+            "currency": "CNY"
+          },
+          "billingInterval": "monthly",
+          "market": "CN",
+          "purchaseChannel": "iOS",
+          "sourceURL": "https://apps.apple.com/cn/app/id725215315",
+          "verifiedOn": "2026-08-01",
+          "reviewStatus": "verified"
+        },
+        {
+          "id": "a-migu-music-platinum-yearly-cn-ios",
+          "planName": {
+            "en": "Platinum Membership",
+            "zhHans": "12 个月白金会员"
+          },
+          "price": {
+            "minorUnits": 6900,
+            "currency": "CNY"
+          },
+          "billingInterval": "yearly",
+          "market": "CN",
+          "purchaseChannel": "iOS",
+          "sourceURL": "https://apps.apple.com/cn/app/id725215315",
+          "verifiedOn": "2026-08-01",
+          "reviewStatus": "verified"
+        }
+      ]
+    },
+    {
+      "id": "ximalaya",
+      "serviceName": {
+        "en": "Ximalaya",
+        "zhHans": "喜马拉雅"
+      },
+      "category": {
+        "en": "Music",
+        "zhHans": "音乐"
+      },
+      "categoryID": "music",
+      "suggestedInterval": "monthly",
+      "managementURL": "https://www.ximalaya.com/",
+      "icon": "music",
+      "assetProvenance": {
+        "kind": "originalSymbol",
+        "license": "CC0-1.0",
+        "source": "ximalaya"
+      },
+      "offers": [
+        {
+          "id": "a-ximalaya-vip-monthly-cn-ios",
+          "planName": {
+            "en": "Ximalaya VIP",
+            "zhHans": "喜马拉雅 VIP 会员连续包月"
+          },
+          "price": {
+            "minorUnits": 2000,
+            "currency": "CNY"
+          },
+          "billingInterval": "monthly",
+          "market": "CN",
+          "purchaseChannel": "iOS",
+          "sourceURL": "https://apps.apple.com/cn/app/id876336838",
+          "verifiedOn": "2026-08-01",
+          "reviewStatus": "verified"
+        },
+        {
+          "id": "a-ximalaya-vip-quarterly-cn-ios",
+          "planName": {
+            "en": "Ximalaya VIP",
+            "zhHans": "喜马拉雅 VIP 会员连续包季"
+          },
+          "price": {
+            "minorUnits": 5800,
+            "currency": "CNY"
+          },
+          "billingInterval": "quarterly",
+          "market": "CN",
+          "purchaseChannel": "iOS",
+          "sourceURL": "https://apps.apple.com/cn/app/id876336838",
+          "verifiedOn": "2026-08-01",
+          "reviewStatus": "verified"
+        },
+        {
+          "id": "a-ximalaya-vip-yearly-cn-ios",
+          "planName": {
+            "en": "Ximalaya VIP",
+            "zhHans": "喜马拉雅 VIP 会员连续包年"
+          },
+          "price": {
+            "minorUnits": 19800,
+            "currency": "CNY"
+          },
+          "billingInterval": "yearly",
+          "market": "CN",
+          "purchaseChannel": "iOS",
+          "sourceURL": "https://apps.apple.com/cn/app/id876336838",
+          "verifiedOn": "2026-08-01",
+          "reviewStatus": "verified"
+        }
+      ]
+    },
+    {
+      "id": "qingting-fm",
+      "serviceName": {
+        "en": "Qingting FM",
+        "zhHans": "蜻蜓 FM"
+      },
+      "category": {
+        "en": "Music",
+        "zhHans": "音乐"
+      },
+      "categoryID": "music",
+      "suggestedInterval": "monthly",
+      "managementURL": "https://www.qingting.fm/",
+      "icon": "music",
+      "assetProvenance": {
+        "kind": "originalSymbol",
+        "license": "CC0-1.0",
+        "source": "qingting-fm"
+      },
+      "offers": [
+        {
+          "id": "a-qingting-super-monthly-cn-ios",
+          "planName": {
+            "en": "Super Membership",
+            "zhHans": "蜻蜓 FM 超级会员连续包月"
+          },
+          "price": {
+            "minorUnits": 1800,
+            "currency": "CNY"
+          },
+          "billingInterval": "monthly",
+          "market": "CN",
+          "purchaseChannel": "iOS",
+          "sourceURL": "https://apps.apple.com/cn/app/id506685538",
+          "verifiedOn": "2026-08-01",
+          "reviewStatus": "verified"
+        },
+        {
+          "id": "a-qingting-super-quarterly-cn-ios",
+          "planName": {
+            "en": "Super Membership",
+            "zhHans": "蜻蜓 FM 超级会员连续包季"
+          },
+          "price": {
+            "minorUnits": 5300,
+            "currency": "CNY"
+          },
+          "billingInterval": "quarterly",
+          "market": "CN",
+          "purchaseChannel": "iOS",
+          "sourceURL": "https://apps.apple.com/cn/app/id506685538",
+          "verifiedOn": "2026-08-01",
+          "reviewStatus": "verified"
+        },
+        {
+          "id": "a-qingting-super-yearly-cn-ios",
+          "planName": {
+            "en": "Super Membership",
+            "zhHans": "蜻蜓 FM 超级会员连续包年"
+          },
+          "price": {
+            "minorUnits": 19800,
+            "currency": "CNY"
+          },
+          "billingInterval": "yearly",
+          "market": "CN",
+          "purchaseChannel": "iOS",
+          "sourceURL": "https://apps.apple.com/cn/app/id506685538",
+          "verifiedOn": "2026-08-01",
+          "reviewStatus": "verified"
+        }
+      ]
+    },
+    {
+      "id": "lizhi-fm",
+      "serviceName": {
+        "en": "Lizhi FM",
+        "zhHans": "荔枝 FM"
+      },
+      "category": {
+        "en": "Music",
+        "zhHans": "音乐"
+      },
+      "categoryID": "music",
+      "suggestedInterval": "monthly",
+      "managementURL": "https://www.lizhi.fm/",
+      "icon": "music",
+      "assetProvenance": {
+        "kind": "originalSymbol",
+        "license": "CC0-1.0",
+        "source": "lizhi-fm"
+      },
+      "offers": [
+        {
+          "id": "a-lizhi-monthly-cn-ios",
+          "planName": {
+            "en": "Monthly Subscription",
+            "zhHans": "单月订阅"
+          },
+          "price": {
+            "minorUnits": 1500,
+            "currency": "CNY"
+          },
+          "billingInterval": "monthly",
+          "market": "CN",
+          "purchaseChannel": "iOS",
+          "sourceURL": "https://apps.apple.com/cn/app/id1093693053",
+          "verifiedOn": "2026-08-01",
+          "reviewStatus": "verified"
+        }
+      ]
+    },
+    {
+      "id": "apple-music",
+      "serviceName": {
+        "en": "Apple Music",
+        "zhHans": "Apple Music"
+      },
+      "category": {
+        "en": "Music",
+        "zhHans": "音乐"
+      },
+      "categoryID": "music",
+      "suggestedInterval": "monthly",
+      "managementURL": "https://support.apple.com/118428",
+      "icon": "music",
+      "assetProvenance": {
+        "kind": "originalSymbol",
+        "license": "CC0-1.0",
+        "source": "apple-music"
+      },
+      "offers": [
+        {
+          "id": "a-apple-music-student-monthly-cn-web",
+          "planName": {
+            "en": "Student",
+            "zhHans": "学生方案"
+          },
+          "price": {
+            "minorUnits": 700,
+            "currency": "CNY"
+          },
+          "billingInterval": "monthly",
+          "market": "CN",
+          "purchaseChannel": "web",
+          "sourceURL": "https://www.apple.com/cn/apple-music/",
+          "verifiedOn": "2026-08-01",
+          "reviewStatus": "verified"
+        },
+        {
+          "id": "a-apple-music-individual-monthly-cn-web",
+          "planName": {
+            "en": "Individual",
+            "zhHans": "个人"
+          },
+          "price": {
+            "minorUnits": 1200,
+            "currency": "CNY"
+          },
+          "billingInterval": "monthly",
+          "market": "CN",
+          "purchaseChannel": "web",
+          "sourceURL": "https://www.apple.com/cn/apple-music/",
+          "verifiedOn": "2026-08-01",
+          "reviewStatus": "verified"
+        },
+        {
+          "id": "a-apple-music-family-monthly-cn-web",
+          "planName": {
+            "en": "Family",
+            "zhHans": "家庭"
+          },
+          "price": {
+            "minorUnits": 2000,
+            "currency": "CNY"
+          },
+          "billingInterval": "monthly",
+          "market": "CN",
+          "purchaseChannel": "web",
+          "sourceURL": "https://www.apple.com/cn/apple-music/",
+          "verifiedOn": "2026-08-01",
+          "reviewStatus": "verified"
+        }
+      ]
+    },
+    {
+      "id": "wechat-reading",
+      "serviceName": {
+        "en": "WeChat Read",
+        "zhHans": "微信读书"
+      },
+      "category": {
+        "en": "Reading",
+        "zhHans": "阅读"
+      },
+      "categoryID": "reading",
+      "suggestedInterval": "monthly",
+      "managementURL": "https://weread.qq.com/",
+      "icon": "reading",
+      "assetProvenance": {
+        "kind": "originalSymbol",
+        "license": "CC0-1.0",
+        "source": "wechat-reading"
+      },
+      "offers": [
+        {
+          "id": "a-wechat-reading-paid-monthly-cn-ios",
+          "planName": {
+            "en": "Paid Membership",
+            "zhHans": "付费会员卡连续包月"
+          },
+          "price": {
+            "minorUnits": 1900,
+            "currency": "CNY"
+          },
+          "billingInterval": "monthly",
+          "market": "CN",
+          "purchaseChannel": "iOS",
+          "sourceURL": "https://apps.apple.com/cn/app/id952059546",
+          "verifiedOn": "2026-08-01",
+          "reviewStatus": "verified"
+        },
+        {
+          "id": "a-wechat-reading-month-card-monthly-cn-ios",
+          "planName": {
+            "en": "Month Card",
+            "zhHans": "月卡"
+          },
+          "price": {
+            "minorUnits": 3000,
+            "currency": "CNY"
+          },
+          "billingInterval": "monthly",
+          "market": "CN",
+          "purchaseChannel": "iOS",
+          "sourceURL": "https://apps.apple.com/cn/app/id952059546",
+          "verifiedOn": "2026-08-01",
+          "reviewStatus": "verified"
+        }
+      ]
+    },
+    {
+      "id": "qq-reading",
+      "serviceName": {
+        "en": "QQ Reading",
+        "zhHans": "QQ 阅读"
+      },
+      "category": {
+        "en": "Reading",
+        "zhHans": "阅读"
+      },
+      "categoryID": "reading",
+      "suggestedInterval": "monthly",
+      "managementURL": "https://book.qq.com/",
+      "icon": "reading",
+      "assetProvenance": {
+        "kind": "originalSymbol",
+        "license": "CC0-1.0",
+        "source": "qq-reading"
+      },
+      "offers": [
+        {
+          "id": "a-qq-reading-monthly-cn-ios",
+          "planName": {
+            "en": "QQ Reading Membership",
+            "zhHans": "QQ 阅读连续包月"
+          },
+          "price": {
+            "minorUnits": 1800,
+            "currency": "CNY"
+          },
+          "billingInterval": "monthly",
+          "market": "CN",
+          "purchaseChannel": "iOS",
+          "sourceURL": "https://apps.apple.com/cn/app/id487608658",
+          "verifiedOn": "2026-08-01",
+          "reviewStatus": "verified"
+        },
+        {
+          "id": "a-qq-reading-annual-cn-ios",
+          "planName": {
+            "en": "QQ Reading Annual Card",
+            "zhHans": "会员年卡"
+          },
+          "price": {
+            "minorUnits": 19800,
+            "currency": "CNY"
+          },
+          "billingInterval": "yearly",
+          "market": "CN",
+          "purchaseChannel": "iOS",
+          "sourceURL": "https://apps.apple.com/cn/app/id487608658",
+          "verifiedOn": "2026-08-01",
+          "reviewStatus": "verified"
+        },
+        {
+          "id": "a-qq-reading-quarterly-cn-ios",
+          "planName": {
+            "en": "QQ Reading Quarter Card",
+            "zhHans": "会员季卡"
+          },
+          "price": {
+            "minorUnits": 6000,
+            "currency": "CNY"
+          },
+          "billingInterval": "quarterly",
+          "market": "CN",
+          "purchaseChannel": "iOS",
+          "sourceURL": "https://apps.apple.com/cn/app/id487608658",
+          "verifiedOn": "2026-08-01",
+          "reviewStatus": "verified"
+        }
+      ]
+    },
+    {
+      "id": "qidian",
+      "serviceName": {
+        "en": "Qidian Reading",
+        "zhHans": "起点读书"
+      },
+      "category": {
+        "en": "Reading",
+        "zhHans": "阅读"
+      },
+      "categoryID": "reading",
+      "suggestedInterval": "monthly",
+      "managementURL": "https://www.qidian.com/",
+      "icon": "reading",
+      "assetProvenance": {
+        "kind": "originalSymbol",
+        "license": "CC0-1.0",
+        "source": "qidian"
+      },
+      "offers": [
+        {
+          "id": "a-qidian-enjoy-monthly-cn-ios",
+          "planName": {
+            "en": "Enjoy Card",
+            "zhHans": "起点畅享卡连续包月"
+          },
+          "price": {
+            "minorUnits": 1900,
+            "currency": "CNY"
+          },
+          "billingInterval": "monthly",
+          "market": "CN",
+          "purchaseChannel": "iOS",
+          "sourceURL": "https://apps.apple.com/cn/app/id534174796",
+          "verifiedOn": "2026-08-01",
+          "reviewStatus": "verified"
+        }
+      ]
+    },
+    {
+      "id": "fanqie-novel",
+      "serviceName": {
+        "en": "Fanqie Novel",
+        "zhHans": "番茄小说"
+      },
+      "category": {
+        "en": "Reading",
+        "zhHans": "阅读"
+      },
+      "categoryID": "reading",
+      "suggestedInterval": "monthly",
+      "managementURL": "https://fanqienovel.com/",
+      "icon": "reading",
+      "assetProvenance": {
+        "kind": "originalSymbol",
+        "license": "CC0-1.0",
+        "source": "fanqie-novel"
+      },
+      "offers": [
+        {
+          "id": "a-fanqie-membership-monthly-cn-ios",
+          "planName": {
+            "en": "Fanqie Membership",
+            "zhHans": "番茄小说会员连续包月"
+          },
+          "price": {
+            "minorUnits": 1900,
+            "currency": "CNY"
+          },
+          "billingInterval": "monthly",
+          "market": "CN",
+          "purchaseChannel": "iOS",
+          "sourceURL": "https://apps.apple.com/cn/app/id1468454200",
+          "verifiedOn": "2026-08-01",
+          "reviewStatus": "verified"
+        }
+      ]
+    },
+    {
+      "id": "jinjiang-literature-city",
+      "serviceName": {
+        "en": "Jinjiang Literature City",
+        "zhHans": "晋江文学城"
+      },
+      "category": {
+        "en": "Reading",
+        "zhHans": "阅读"
+      },
+      "categoryID": "reading",
+      "suggestedInterval": "monthly",
+      "managementURL": "https://www.jjwxc.net/",
+      "icon": "reading",
+      "assetProvenance": {
+        "kind": "originalSymbol",
+        "license": "CC0-1.0",
+        "source": "jinjiang-literature-city"
+      },
+      "offers": [
+        {
+          "id": "a-jinjiang-monthly-cn-web",
+          "planName": {
+            "en": "Monthly Plan",
+            "zhHans": "晋江包月"
+          },
+          "price": {
+            "minorUnits": 1500,
+            "currency": "CNY"
+          },
+          "billingInterval": "monthly",
+          "market": "CN",
+          "purchaseChannel": "web",
+          "sourceURL": "https://www.sogou.com/web?query=%E6%99%8B%E6%B1%9F%E6%96%87%E5%AD%A6%E5%9F%8E%20VIP%E5%8C%85%E6%9C%88%20%E4%BB%B7%E6%A0%BC",
+          "verifiedOn": "2026-08-01",
+          "reviewStatus": "verified"
+        }
+      ]
+    },
+    {
+      "id": "zongheng",
+      "serviceName": {
+        "en": "Zongheng",
+        "zhHans": "纵横中文网"
+      },
+      "category": {
+        "en": "Reading",
+        "zhHans": "阅读"
+      },
+      "categoryID": "reading",
+      "suggestedInterval": "monthly",
+      "managementURL": "https://www.zongheng.com/",
+      "icon": "reading",
+      "assetProvenance": {
+        "kind": "originalSymbol",
+        "license": "CC0-1.0",
+        "source": "zongheng"
+      },
+      "offers": [
+        {
+          "id": "a-zongheng-monthly-cn-ios",
+          "planName": {
+            "en": "Monthly Membership Card",
+            "zhHans": "纵横会员月卡"
+          },
+          "price": {
+            "minorUnits": 1800,
+            "currency": "CNY"
+          },
+          "billingInterval": "monthly",
+          "market": "CN",
+          "purchaseChannel": "iOS",
+          "sourceURL": "https://apps.apple.com/cn/app/id433125283",
+          "verifiedOn": "2026-08-01",
+          "reviewStatus": "verified"
+        },
+        {
+          "id": "a-zongheng-season-cn-ios",
+          "planName": {
+            "en": "Season Membership Card",
+            "zhHans": "纵横会员季卡"
+          },
+          "price": {
+            "minorUnits": 3900,
+            "currency": "CNY"
+          },
+          "billingInterval": "quarterly",
+          "market": "CN",
+          "purchaseChannel": "iOS",
+          "sourceURL": "https://apps.apple.com/cn/app/id433125283",
+          "verifiedOn": "2026-08-01",
+          "reviewStatus": "verified"
+        },
+        {
+          "id": "a-zongheng-annual-cn-ios",
+          "planName": {
+            "en": "Annual Membership Card",
+            "zhHans": "纵横会员年卡"
+          },
+          "price": {
+            "minorUnits": 11800,
+            "currency": "CNY"
+          },
+          "billingInterval": "yearly",
+          "market": "CN",
+          "purchaseChannel": "iOS",
+          "sourceURL": "https://apps.apple.com/cn/app/id433125283",
+          "verifiedOn": "2026-08-01",
+          "reviewStatus": "verified"
+        }
+      ]
+    },
+    {
+      "id": "ireader",
+      "serviceName": {
+        "en": "iReader",
+        "zhHans": "掌阅"
+      },
+      "category": {
+        "en": "Reading",
+        "zhHans": "阅读"
+      },
+      "categoryID": "reading",
+      "suggestedInterval": "monthly",
+      "managementURL": "https://www.ireader.com/",
+      "icon": "reading",
+      "assetProvenance": {
+        "kind": "originalSymbol",
+        "license": "CC0-1.0",
+        "source": "ireader"
+      },
+      "offers": [
+        {
+          "id": "a-ireader-monthly-cn-ios",
+          "planName": {
+            "en": "Auto-Renewing Membership",
+            "zhHans": "自动续订会员"
+          },
+          "price": {
+            "minorUnits": 2500,
+            "currency": "CNY"
+          },
+          "billingInterval": "monthly",
+          "market": "CN",
+          "purchaseChannel": "iOS",
+          "sourceURL": "https://apps.apple.com/cn/app/id463150061",
+          "verifiedOn": "2026-08-01",
+          "reviewStatus": "verified"
+        }
+      ]
+    },
+    {
+      "id": "douban-reading",
+      "serviceName": {
+        "en": "Douban Read",
+        "zhHans": "豆瓣阅读"
+      },
+      "category": {
+        "en": "Reading",
+        "zhHans": "阅读"
+      },
+      "categoryID": "reading",
+      "suggestedInterval": "monthly",
+      "managementURL": "https://read.douban.com/",
+      "icon": "reading",
+      "assetProvenance": {
+        "kind": "originalSymbol",
+        "license": "CC0-1.0",
+        "source": "douban-reading"
+      },
+      "offers": [
+        {
+          "id": "a-douban-reading-monthly-cn-ios",
+          "planName": {
+            "en": "Monthly Membership",
+            "zhHans": "连续包月"
+          },
+          "price": {
+            "minorUnits": 1500,
+            "currency": "CNY"
+          },
+          "billingInterval": "monthly",
+          "market": "CN",
+          "purchaseChannel": "iOS",
+          "sourceURL": "https://apps.apple.com/cn/app/id560068813",
+          "verifiedOn": "2026-08-01",
+          "reviewStatus": "verified"
+        }
+      ]
+    },
+    {
+      "id": "dedao",
+      "serviceName": {
+        "en": "Dedao",
+        "zhHans": "得到"
+      },
+      "category": {
+        "en": "Reading",
+        "zhHans": "阅读"
+      },
+      "categoryID": "reading",
+      "suggestedInterval": "monthly",
+      "managementURL": "https://www.dedao.cn/",
+      "icon": "reading",
+      "assetProvenance": {
+        "kind": "originalSymbol",
+        "license": "CC0-1.0",
+        "source": "dedao"
+      },
+      "offers": [
+        {
+          "id": "a-dedao-listening-monthly-cn-ios",
+          "planName": {
+            "en": "Listening VIP",
+            "zhHans": "听书 VIP 连续包月"
+          },
+          "price": {
+            "minorUnits": 3500,
+            "currency": "CNY"
+          },
+          "billingInterval": "monthly",
+          "market": "CN",
+          "purchaseChannel": "iOS",
+          "sourceURL": "https://apps.apple.com/cn/app/id1016323413",
+          "verifiedOn": "2026-08-01",
+          "reviewStatus": "verified"
+        },
+        {
+          "id": "a-dedao-ebook-monthly-cn-ios",
+          "planName": {
+            "en": "E-book Membership",
+            "zhHans": "电子书会员连续包月"
+          },
+          "price": {
+            "minorUnits": 2100,
+            "currency": "CNY"
+          },
+          "billingInterval": "monthly",
+          "market": "CN",
+          "purchaseChannel": "iOS",
+          "sourceURL": "https://apps.apple.com/cn/app/id1016323413",
+          "verifiedOn": "2026-08-01",
+          "reviewStatus": "verified"
+        }
+      ]
+    },
+    {
+      "id": "bilibili-manga",
+      "serviceName": {
+        "en": "Bilibili Manga",
+        "zhHans": "哔哩哔哩漫画"
+      },
+      "category": {
+        "en": "Reading",
+        "zhHans": "阅读"
+      },
+      "categoryID": "reading",
+      "suggestedInterval": "monthly",
+      "managementURL": "https://manga.bilibili.com/",
+      "icon": "reading",
+      "assetProvenance": {
+        "kind": "originalSymbol",
+        "license": "CC0-1.0",
+        "source": "bilibili-manga"
+      },
+      "offers": [
+        {
+          "id": "a-bilibili-manga-unlimited-monthly-cn-ios",
+          "planName": {
+            "en": "Unlimited Reading Card",
+            "zhHans": "畅读卡连续包月"
+          },
+          "price": {
+            "minorUnits": 2500,
+            "currency": "CNY"
+          },
+          "billingInterval": "monthly",
+          "market": "CN",
+          "purchaseChannel": "iOS",
+          "sourceURL": "https://apps.apple.com/cn/app/id1426252715",
+          "verifiedOn": "2026-08-01",
+          "reviewStatus": "verified"
+        }
+      ]
+    },
+    {
+      "id": "caixin",
+      "serviceName": {
+        "en": "Caixin",
+        "zhHans": "财新"
+      },
+      "category": {
+        "en": "News",
+        "zhHans": "新闻"
+      },
+      "categoryID": "news",
+      "suggestedInterval": "yearly",
+      "managementURL": "https://www.caixin.com/",
+      "icon": "news",
+      "assetProvenance": {
+        "kind": "originalSymbol",
+        "license": "CC0-1.0",
+        "source": "caixin"
+      },
+      "offers": [
+        {
+          "id": "b-caixin-access-monthly-cn-ios",
+          "planName": {
+            "en": "Caixin Access",
+            "zhHans": "财新通包月"
+          },
+          "price": {
+            "minorUnits": 6800,
+            "currency": "CNY"
+          },
+          "billingInterval": "monthly",
+          "market": "CN",
+          "purchaseChannel": "iOS",
+          "sourceURL": "https://apps.apple.com/cn/app/%E8%B4%A2%E6%96%B0-%E5%8E%9F%E5%88%9B%E9%AB%98%E8%B4%A8%E9%87%8F%E8%B4%A2%E7%BB%8F%E8%B5%84%E8%AE%AF%E6%8A%A5%E9%81%93/id356023612",
+          "verifiedOn": "2026-08-01",
+          "reviewStatus": "verified"
+        }
+      ]
+    },
+    {
+      "id": "yicai",
+      "serviceName": {
+        "en": "Yicai",
+        "zhHans": "第一财经"
+      },
+      "category": {
+        "en": "News",
+        "zhHans": "新闻"
+      },
+      "categoryID": "news",
+      "suggestedInterval": "yearly",
+      "managementURL": "https://www.yicai.com/",
+      "icon": "news",
+      "assetProvenance": {
+        "kind": "originalSymbol",
+        "license": "CC0-1.0",
+        "source": "yicai"
+      },
+      "offers": [
+        {
+          "id": "b-yicai-magazine-yearly-cn-ios",
+          "planName": {
+            "en": "Yicai Magazine",
+            "zhHans": "第一财经杂志"
+          },
+          "price": {
+            "minorUnits": 16800,
+            "currency": "CNY"
+          },
+          "billingInterval": "yearly",
+          "market": "CN",
+          "purchaseChannel": "iOS",
+          "sourceURL": "https://apps.apple.com/cn/app/%E7%AC%AC%E4%B8%80%E8%B4%A2%E7%BB%8F-%E7%83%AD%E9%97%A8%E8%B4%A2%E7%BB%8F%E6%96%B0%E9%97%BB%E7%9B%B4%E6%92%AD%E5%B9%B3%E5%8F%B0/id375634597",
+          "verifiedOn": "2026-08-01",
+          "reviewStatus": "verified"
+        }
+      ]
+    },
+    {
+      "id": "zhihu",
+      "serviceName": {
+        "en": "Zhihu",
+        "zhHans": "知乎"
+      },
+      "category": {
+        "en": "News",
+        "zhHans": "新闻"
+      },
+      "categoryID": "news",
+      "suggestedInterval": "monthly",
+      "managementURL": "https://www.zhihu.com/",
+      "icon": "news",
+      "assetProvenance": {
+        "kind": "originalSymbol",
+        "license": "CC0-1.0",
+        "source": "zhihu"
+      },
+      "offers": [
+        {
+          "id": "b-zhihu-yansuan-monthly-cn-ios",
+          "planName": {
+            "en": "Salt Selection Member",
+            "zhHans": "盐选会员连续月卡"
+          },
+          "price": {
+            "minorUnits": 1900,
+            "currency": "CNY"
+          },
+          "billingInterval": "monthly",
+          "market": "CN",
+          "purchaseChannel": "iOS",
+          "sourceURL": "https://apps.apple.com/cn/app/%E7%9F%A5%E4%B9%8E/id432274380",
+          "verifiedOn": "2026-08-01",
+          "reviewStatus": "verified"
+        }
+      ]
+    },
+    {
+      "id": "xbox-game-pass",
+      "serviceName": {
+        "en": "Xbox Game Pass",
+        "zhHans": "Xbox Game Pass"
+      },
+      "category": {
+        "en": "Gaming",
+        "zhHans": "游戏"
+      },
+      "categoryID": "gaming",
+      "suggestedInterval": "monthly",
+      "managementURL": "https://account.microsoft.com/services/",
+      "icon": "game",
+      "assetProvenance": {
+        "kind": "originalSymbol",
+        "license": "CC0-1.0",
+        "source": "xbox-game-pass"
+      },
+      "offers": [
+        {
+          "id": "b-xbox-game-pass-ultimate-monthly-us-web",
+          "planName": {
+            "en": "Game Pass Ultimate",
+            "zhHans": "Game Pass Ultimate"
+          },
+          "price": {
+            "minorUnits": 2299,
+            "currency": "USD"
+          },
+          "billingInterval": "monthly",
+          "market": "US",
+          "purchaseChannel": "web",
+          "sourceURL": "https://news.xbox.com/en-us/2026/04/21/xbox-game-pass-update/",
+          "verifiedOn": "2026-08-01",
+          "reviewStatus": "verified"
+        },
+        {
+          "id": "b-xbox-pc-game-pass-monthly-us-web",
+          "planName": {
+            "en": "PC Game Pass",
+            "zhHans": "PC Game Pass"
+          },
+          "price": {
+            "minorUnits": 1399,
+            "currency": "USD"
+          },
+          "billingInterval": "monthly",
+          "market": "US",
+          "purchaseChannel": "web",
+          "sourceURL": "https://news.xbox.com/en-us/2026/04/21/xbox-game-pass-update/",
+          "verifiedOn": "2026-08-01",
+          "reviewStatus": "verified"
+        }
+      ]
+    },
+    {
+      "id": "nintendo-switch-online",
+      "serviceName": {
+        "en": "Nintendo Switch Online",
+        "zhHans": "Nintendo Switch Online"
+      },
+      "category": {
+        "en": "Gaming",
+        "zhHans": "游戏"
+      },
+      "categoryID": "gaming",
+      "suggestedInterval": "yearly",
+      "managementURL": "https://www.nintendo.com.hk/switch/online_service/",
+      "icon": "game",
+      "assetProvenance": {
+        "kind": "originalSymbol",
+        "license": "CC0-1.0",
+        "source": "nintendo-switch-online"
+      },
+      "offers": [
+        {
+          "id": "b-nintendo-switch-online-individual-yearly-us-web",
+          "planName": {
+            "en": "Individual Membership",
+            "zhHans": "个人会员"
+          },
+          "price": {
+            "minorUnits": 1999,
+            "currency": "USD"
+          },
+          "billingInterval": "yearly",
+          "market": "US",
+          "purchaseChannel": "web",
+          "sourceURL": "https://www.nintendo.com/us/switch/online/",
+          "verifiedOn": "2026-08-01",
+          "reviewStatus": "verified"
+        }
+      ]
+    },
+    {
+      "id": "tencent-start",
+      "serviceName": {
+        "en": "Tencent START",
+        "zhHans": "腾讯 START 云游戏"
+      },
+      "category": {
+        "en": "Gaming",
+        "zhHans": "游戏"
+      },
+      "categoryID": "gaming",
+      "suggestedInterval": "monthly",
+      "managementURL": "https://start.qq.com/",
+      "icon": "game",
+      "assetProvenance": {
+        "kind": "originalSymbol",
+        "license": "CC0-1.0",
+        "source": "tencent-start"
+      },
+      "offers": [
+        {
+          "id": "b-tencent-start-vip-monthly-cn-ios",
+          "planName": {
+            "en": "START VIP",
+            "zhHans": "START云游戏VIP连续包月"
+          },
+          "price": {
+            "minorUnits": 2900,
+            "currency": "CNY"
+          },
+          "billingInterval": "monthly",
+          "market": "CN",
+          "purchaseChannel": "iOS",
+          "sourceURL": "https://apps.apple.com/cn/app/%E8%85%BE%E8%AE%AFstart%E4%BA%91%E6%B8%B8%E6%88%8F/id6756707424",
+          "verifiedOn": "2026-08-01",
+          "reviewStatus": "verified"
+        },
+        {
+          "id": "b-tencent-start-svip-monthly-cn-ios",
+          "planName": {
+            "en": "START SVIP",
+            "zhHans": "START云游戏SVIP连续包月"
+          },
+          "price": {
+            "minorUnits": 5900,
+            "currency": "CNY"
+          },
+          "billingInterval": "monthly",
+          "market": "CN",
+          "purchaseChannel": "iOS",
+          "sourceURL": "https://apps.apple.com/cn/app/%E8%85%BE%E8%AE%AFstart%E4%BA%91%E6%B8%B8%E6%88%8F/id6756707424",
+          "verifiedOn": "2026-08-01",
+          "reviewStatus": "verified"
+        }
+      ]
+    },
+    {
+      "id": "netease-cloud-gaming",
+      "serviceName": {
+        "en": "NetEase Cloud Gaming",
+        "zhHans": "网易云游戏"
+      },
+      "category": {
+        "en": "Gaming",
+        "zhHans": "游戏"
+      },
+      "categoryID": "gaming",
+      "suggestedInterval": "monthly",
+      "managementURL": "https://cg.163.com/",
+      "icon": "game",
+      "assetProvenance": {
+        "kind": "originalSymbol",
+        "license": "CC0-1.0",
+        "source": "netease-cloud-gaming"
+      },
+      "offers": [
+        {
+          "id": "b-netease-cloud-gaming-mobile-monthly-cn-ios",
+          "planName": {
+            "en": "Mobile Gaming Member",
+            "zhHans": "手游会员月卡连续包月"
+          },
+          "price": {
+            "minorUnits": 4000,
+            "currency": "CNY"
+          },
+          "billingInterval": "monthly",
+          "market": "CN",
+          "purchaseChannel": "iOS",
+          "sourceURL": "https://apps.apple.com/cn/app/%E7%BD%91%E6%98%93%E4%BA%91%E6%B8%B8%E6%88%8F-%E6%B0%B8%E5%8A%AB%E6%97%A0%E9%97%B4-%E7%BB%9D%E5%8C%BA%E9%9B%B6-%E6%96%B0%E7%89%88%E6%9C%AC/id1600879249",
+          "verifiedOn": "2026-08-01",
+          "reviewStatus": "verified"
+        },
+        {
+          "id": "b-netease-cloud-gaming-pc-2000-coins-monthly-cn-ios",
+          "planName": {
+            "en": "PC 2000 Cloud Coins",
+            "zhHans": "端游2000云币连续包月卡"
+          },
+          "price": {
+            "minorUnits": 2800,
+            "currency": "CNY"
+          },
+          "billingInterval": "monthly",
+          "market": "CN",
+          "purchaseChannel": "iOS",
+          "sourceURL": "https://apps.apple.com/cn/app/%E7%BD%91%E6%98%93%E4%BA%91%E6%B8%B8%E6%88%8F-%E6%B0%B8%E5%8A%AB%E6%97%A0%E9%97%B4-%E7%BB%9D%E5%8C%BA%E9%9B%B6-%E6%96%B0%E7%89%88%E6%9C%AC/id1600879249",
+          "verifiedOn": "2026-08-01",
+          "reviewStatus": "verified"
+        }
+      ]
+    },
+    {
+      "id": "geforce-now",
+      "serviceName": {
+        "en": "GeForce NOW",
+        "zhHans": "GeForce NOW 云游戏"
+      },
+      "category": {
+        "en": "Gaming",
+        "zhHans": "游戏"
+      },
+      "categoryID": "gaming",
+      "suggestedInterval": "monthly",
+      "managementURL": "https://gfn.qq.com/",
+      "icon": "game",
+      "assetProvenance": {
+        "kind": "originalSymbol",
+        "license": "CC0-1.0",
+        "source": "geforce-now"
+      },
+      "offers": [
+        {
+          "id": "b-geforce-now-performance-monthly-us-web",
+          "planName": {
+            "en": "Performance",
+            "zhHans": "Performance"
+          },
+          "price": {
+            "minorUnits": 999,
+            "currency": "USD"
+          },
+          "billingInterval": "monthly",
+          "market": "US",
+          "purchaseChannel": "web",
+          "sourceURL": "https://nvidianews.nvidia.com/news/nvidia-blackwell-architecture-comes-to-geforce-now",
+          "verifiedOn": "2026-08-01",
+          "reviewStatus": "verified"
+        },
+        {
+          "id": "b-geforce-now-ultimate-monthly-us-web",
+          "planName": {
+            "en": "Ultimate",
+            "zhHans": "Ultimate"
+          },
+          "price": {
+            "minorUnits": 1999,
+            "currency": "USD"
+          },
+          "billingInterval": "monthly",
+          "market": "US",
+          "purchaseChannel": "web",
+          "sourceURL": "https://nvidianews.nvidia.com/news/nvidia-blackwell-architecture-comes-to-geforce-now",
+          "verifiedOn": "2026-08-01",
+          "reviewStatus": "verified"
+        }
+      ]
+    },
+    {
+      "id": "uu-game-booster",
+      "serviceName": {
+        "en": "UU Game Booster",
+        "zhHans": "网易 UU 加速器"
+      },
+      "category": {
+        "en": "Gaming",
+        "zhHans": "游戏"
+      },
+      "categoryID": "gaming",
+      "suggestedInterval": "monthly",
+      "managementURL": "https://uu.163.com/",
+      "icon": "game",
+      "assetProvenance": {
+        "kind": "originalSymbol",
+        "license": "CC0-1.0",
+        "source": "uu-game-booster"
+      },
+      "offers": [
+        {
+          "id": "b-uu-mobile-monthly-cn-ios",
+          "planName": {
+            "en": "Mobile Gaming Member",
+            "zhHans": "UU加速器手游会员连续包月"
+          },
+          "price": {
+            "minorUnits": 1200,
+            "currency": "CNY"
+          },
+          "billingInterval": "monthly",
+          "market": "CN",
+          "purchaseChannel": "iOS",
+          "sourceURL": "https://apps.apple.com/cn/app/uu%E5%8A%A0%E9%80%9F%E5%99%A8-%E4%B8%93%E4%B8%9A%E6%B8%B8%E6%88%8F%E5%8A%A0%E9%80%9F%E6%8A%80%E6%9C%AF/id1319788668?l=ja",
+          "verifiedOn": "2026-08-01",
+          "reviewStatus": "verified"
+        }
+      ]
+    },
+    {
+      "id": "xunyou-game-booster",
+      "serviceName": {
+        "en": "Xunyou Game Booster",
+        "zhHans": "迅游加速器"
+      },
+      "category": {
+        "en": "Gaming",
+        "zhHans": "游戏"
+      },
+      "categoryID": "gaming",
+      "suggestedInterval": "monthly",
+      "managementURL": "https://www.xunyou.com/",
+      "icon": "game",
+      "assetProvenance": {
+        "kind": "originalSymbol",
+        "license": "CC0-1.0",
+        "source": "xunyou-game-booster"
+      },
+      "offers": [
+        {
+          "id": "b-xunyou-monthly-cn-ios",
+          "planName": {
+            "en": "Monthly Member",
+            "zhHans": "连续包月会员"
+          },
+          "price": {
+            "minorUnits": 1100,
+            "currency": "CNY"
+          },
+          "billingInterval": "monthly",
+          "market": "CN",
+          "purchaseChannel": "iOS",
+          "sourceURL": "https://apps.apple.com/us/app/%E8%BF%85%E6%B8%B8%E5%8A%A0%E9%80%9F%E5%99%A8-%E5%85%A8%E7%90%83%E6%B8%B8%E6%88%8F%E7%BD%91%E7%BB%9C%E5%8A%A0%E9%80%9F%E5%8A%A9%E6%89%8B/id1032660607?l=zh-Hant-TW",
+          "verifiedOn": "2026-08-01",
+          "reviewStatus": "verified"
+        }
+      ]
+    },
+    {
+      "id": "wps-office",
+      "serviceName": {
+        "en": "WPS Office",
+        "zhHans": "WPS 会员"
+      },
+      "category": {
+        "en": "Productivity",
+        "zhHans": "效率"
+      },
+      "categoryID": "productivity",
+      "suggestedInterval": "monthly",
+      "managementURL": "https://vip.wps.cn/",
+      "icon": "productivity",
+      "assetProvenance": {
+        "kind": "originalSymbol",
+        "license": "CC0-1.0",
+        "source": "wps-office"
+      },
+      "offers": [
+        {
+          "id": "b-wps-member-monthly-cn-ios",
+          "planName": {
+            "en": "WPS Member",
+            "zhHans": "WPS会员按月订购"
+          },
+          "price": {
+            "minorUnits": 900,
+            "currency": "CNY"
+          },
+          "billingInterval": "monthly",
+          "market": "CN",
+          "purchaseChannel": "iOS",
+          "sourceURL": "https://apps.apple.com/cn/app/wps-office/id1443749478",
+          "verifiedOn": "2026-08-01",
+          "reviewStatus": "verified"
+        },
+        {
+          "id": "b-wps-super-member-monthly-cn-ios",
+          "planName": {
+            "en": "WPS Super Member",
+            "zhHans": "WPS超级会员按月订购"
+          },
+          "price": {
+            "minorUnits": 2100,
+            "currency": "CNY"
+          },
+          "billingInterval": "monthly",
+          "market": "CN",
+          "purchaseChannel": "iOS",
+          "sourceURL": "https://apps.apple.com/cn/app/wps-office/id1443749478",
+          "verifiedOn": "2026-08-01",
+          "reviewStatus": "verified"
+        }
+      ]
+    },
+    {
+      "id": "baidu-netdisk",
+      "serviceName": {
+        "en": "Baidu Netdisk",
+        "zhHans": "百度网盘"
+      },
+      "category": {
+        "en": "Cloud Storage",
+        "zhHans": "云存储"
+      },
+      "categoryID": "cloud storage",
+      "suggestedInterval": "monthly",
+      "managementURL": "https://pan.baidu.com/",
+      "icon": "cloud",
+      "assetProvenance": {
+        "kind": "originalSymbol",
+        "license": "CC0-1.0",
+        "source": "baidu-netdisk"
+      },
+      "offers": [
+        {
+          "id": "b-baidu-netdisk-svip-monthly-cn-ios",
+          "planName": {
+            "en": "Super Member",
+            "zhHans": "百度网盘自动续费超级会员"
+          },
+          "price": {
+            "minorUnits": 2500,
+            "currency": "CNY"
+          },
+          "billingInterval": "monthly",
+          "market": "CN",
+          "purchaseChannel": "iOS",
+          "sourceURL": "https://apps.apple.com/cn/app/%E7%99%BE%E5%BA%A6%E7%BD%91%E7%9B%98/id547166701",
+          "verifiedOn": "2026-08-09",
+          "reviewStatus": "verified"
+        }
+      ]
+    },
+    {
+      "id": "quark-netdisk",
+      "serviceName": {
+        "en": "Quark Netdisk",
+        "zhHans": "夸克网盘"
+      },
+      "category": {
+        "en": "Cloud Storage",
+        "zhHans": "云存储"
+      },
+      "categoryID": "cloud storage",
+      "suggestedInterval": "monthly",
+      "managementURL": "https://pan.quark.cn/",
+      "icon": "cloud",
+      "assetProvenance": {
+        "kind": "originalSymbol",
+        "license": "CC0-1.0",
+        "source": "quark-netdisk"
+      },
+      "offers": [
+        {
+          "id": "b-quark-netdisk-svip-monthly-cn-ios",
+          "planName": {
+            "en": "Quark Netdisk SVIP",
+            "zhHans": "夸克网盘SVIP连续包月"
+          },
+          "price": {
+            "minorUnits": 2000,
+            "currency": "CNY"
+          },
+          "billingInterval": "monthly",
+          "market": "CN",
+          "purchaseChannel": "iOS",
+          "sourceURL": "https://apps.apple.com/cn/app/%E5%A4%B8%E5%85%8B-%E6%A8%A1%E6%8B%9F%E9%80%89%E5%BF%97%E6%84%BF/id1160172628",
+          "verifiedOn": "2026-08-01",
+          "reviewStatus": "verified"
+        }
+      ]
+    },
+    {
+      "id": "115-life",
+      "serviceName": {
+        "en": "115 Life",
+        "zhHans": "115 生活"
+      },
+      "category": {
+        "en": "Cloud Storage",
+        "zhHans": "云存储"
+      },
+      "categoryID": "cloud storage",
+      "suggestedInterval": "monthly",
+      "managementURL": "https://115.com/",
+      "icon": "cloud",
+      "assetProvenance": {
+        "kind": "originalSymbol",
+        "license": "CC0-1.0",
+        "source": "115-life"
+      },
+      "offers": [
+        {
+          "id": "b-115-vip-monthly-cn-web",
+          "planName": {
+            "en": "115 VIP",
+            "zhHans": "115 VIP"
+          },
+          "price": {
+            "minorUnits": 5800,
+            "currency": "CNY"
+          },
+          "billingInterval": "monthly",
+          "market": "CN",
+          "purchaseChannel": "web",
+          "sourceURL": "https://vip.115.com/?ac=privilege&ct=index",
+          "verifiedOn": "2026-08-01",
+          "reviewStatus": "verified"
+        }
+      ]
+    },
+    {
+      "id": "123-cloud-disk",
+      "serviceName": {
+        "en": "123 Cloud Disk",
+        "zhHans": "123 云盘"
+      },
+      "category": {
+        "en": "Cloud Storage",
+        "zhHans": "云存储"
+      },
+      "categoryID": "cloud storage",
+      "suggestedInterval": "monthly",
+      "managementURL": "https://www.123pan.com/",
+      "icon": "cloud",
+      "assetProvenance": {
+        "kind": "originalSymbol",
+        "license": "CC0-1.0",
+        "source": "123-cloud-disk"
+      },
+      "offers": [
+        {
+          "id": "b-123-cloud-vip-monthly-cn-ios",
+          "planName": {
+            "en": "123 Cloud VIP",
+            "zhHans": "123云盘VIP会员连续包月"
+          },
+          "price": {
+            "minorUnits": 1800,
+            "currency": "CNY"
+          },
+          "billingInterval": "monthly",
+          "market": "CN",
+          "purchaseChannel": "iOS",
+          "sourceURL": "https://apps.apple.com/cn/app/123%E4%BA%91%E7%9B%98/id1597682672",
+          "verifiedOn": "2026-08-01",
+          "reviewStatus": "verified"
+        },
+        {
+          "id": "b-123-cloud-super-monthly-cn-ios",
+          "planName": {
+            "en": "123 Cloud Super Member",
+            "zhHans": "超级会员连续包月"
+          },
+          "price": {
+            "minorUnits": 8000,
+            "currency": "CNY"
+          },
+          "billingInterval": "monthly",
+          "market": "CN",
+          "purchaseChannel": "iOS",
+          "sourceURL": "https://apps.apple.com/cn/app/123%E4%BA%91%E7%9B%98/id1597682672",
+          "verifiedOn": "2026-08-01",
+          "reviewStatus": "verified"
+        }
+      ]
+    },
+    {
+      "id": "tianyi-cloud-disk",
+      "serviceName": {
+        "en": "Tianyi Cloud Disk",
+        "zhHans": "天翼云盘"
+      },
+      "category": {
+        "en": "Cloud Storage",
+        "zhHans": "云存储"
+      },
+      "categoryID": "cloud storage",
+      "suggestedInterval": "monthly",
+      "managementURL": "https://cloud.189.cn/",
+      "icon": "cloud",
+      "assetProvenance": {
+        "kind": "originalSymbol",
+        "license": "CC0-1.0",
+        "source": "tianyi-cloud-disk"
+      },
+      "offers": [
+        {
+          "id": "b-tianyi-gold-monthly-cn-ios",
+          "planName": {
+            "en": "Gold Member",
+            "zhHans": "黄金会员连续包月"
+          },
+          "price": {
+            "minorUnits": 1000,
+            "currency": "CNY"
+          },
+          "billingInterval": "monthly",
+          "market": "CN",
+          "purchaseChannel": "iOS",
+          "sourceURL": "https://apps.apple.com/cn/app/%E5%A4%A9%E7%BF%BC%E4%BA%91%E7%9B%98-%E5%AE%B6%E5%BA%AD%E4%BA%91-%E7%9B%B8%E5%86%8C%E5%85%B1%E4%BA%AB-%E4%BA%91%E5%9B%9E%E7%9C%8B/id507944293",
+          "verifiedOn": "2026-08-01",
+          "reviewStatus": "verified"
+        },
+        {
+          "id": "b-tianyi-platinum-yearly-cn-ios",
+          "planName": {
+            "en": "Platinum Member",
+            "zhHans": "铂金会员连续包年"
+          },
+          "price": {
+            "minorUnits": 19300,
+            "currency": "CNY"
+          },
+          "billingInterval": "yearly",
+          "market": "CN",
+          "purchaseChannel": "iOS",
+          "sourceURL": "https://apps.apple.com/cn/app/%E5%A4%A9%E7%BF%BC%E4%BA%91%E7%9B%98-%E5%AE%B6%E5%BA%AD%E4%BA%91-%E7%9B%B8%E5%86%8C%E5%85%B1%E4%BA%AB-%E4%BA%91%E5%9B%9E%E7%9C%8B/id507944293",
+          "verifiedOn": "2026-08-01",
+          "reviewStatus": "verified"
+        }
+      ]
+    },
+    {
+      "id": "mobile-cloud-disk",
+      "serviceName": {
+        "en": "China Mobile Cloud Disk",
+        "zhHans": "移动云盘"
+      },
+      "category": {
+        "en": "Cloud Storage",
+        "zhHans": "云存储"
+      },
+      "categoryID": "cloud storage",
+      "suggestedInterval": "monthly",
+      "managementURL": "https://c.139.com/",
+      "icon": "cloud",
+      "assetProvenance": {
+        "kind": "originalSymbol",
+        "license": "CC0-1.0",
+        "source": "mobile-cloud-disk"
+      },
+      "offers": [
+        {
+          "id": "b-mobile-cloud-silver-monthly-cn-ios",
+          "planName": {
+            "en": "Silver Member",
+            "zhHans": "白银会员连续包月"
+          },
+          "price": {
+            "minorUnits": 1000,
+            "currency": "CNY"
+          },
+          "billingInterval": "monthly",
+          "market": "CN",
+          "purchaseChannel": "iOS",
+          "sourceURL": "https://apps.apple.com/cn/app/%E4%B8%AD%E5%9B%BD%E7%A7%BB%E5%8A%A8%E4%BA%91%E7%9B%98-%E5%85%A8%E6%B0%91%E4%B8%8D%E9%99%90%E9%80%9F/id1618137934",
+          "verifiedOn": "2026-08-01",
+          "reviewStatus": "verified"
+        },
+        {
+          "id": "b-mobile-cloud-gold-monthly-cn-ios",
+          "planName": {
+            "en": "Gold Member",
+            "zhHans": "黄金会员连续包月"
+          },
+          "price": {
+            "minorUnits": 2000,
+            "currency": "CNY"
+          },
+          "billingInterval": "monthly",
+          "market": "CN",
+          "purchaseChannel": "iOS",
+          "sourceURL": "https://apps.apple.com/cn/app/%E4%B8%AD%E5%9B%BD%E7%A7%BB%E5%8A%A8%E4%BA%91%E7%9B%98-%E5%85%A8%E6%B0%91%E4%B8%8D%E9%99%90%E9%80%9F/id1618137934",
+          "verifiedOn": "2026-08-01",
+          "reviewStatus": "verified"
+        }
+      ]
+    },
+    {
+      "id": "nutstore",
+      "serviceName": {
+        "en": "Nutstore",
+        "zhHans": "坚果云"
+      },
+      "category": {
+        "en": "Cloud Storage",
+        "zhHans": "云存储"
+      },
+      "categoryID": "cloud storage",
+      "suggestedInterval": "monthly",
+      "managementURL": "https://www.jianguoyun.com/",
+      "icon": "cloud",
+      "assetProvenance": {
+        "kind": "originalSymbol",
+        "license": "CC0-1.0",
+        "source": "nutstore"
+      },
+      "offers": [
+        {
+          "id": "b-nutstore-pro-yearly-cn-ios",
+          "planName": {
+            "en": "Nutstore Pro",
+            "zhHans": "坚果云专业版"
+          },
+          "price": {
+            "minorUnits": 23300,
+            "currency": "CNY"
+          },
+          "billingInterval": "yearly",
+          "market": "CN",
+          "purchaseChannel": "iOS",
+          "sourceURL": "https://apps.apple.com/cn/app/%E5%9D%9A%E6%9E%9C%E4%BA%91-%E5%9B%A2%E9%98%9F%E5%BF%85%E5%A4%87%E5%8A%9E%E5%85%AC%E7%BD%91%E7%9B%98/id444442371",
+          "verifiedOn": "2026-08-01",
+          "reviewStatus": "verified"
+        },
+        {
+          "id": "b-nutstore-advanced-pro-yearly-cn-ios",
+          "planName": {
+            "en": "Nutstore Advanced Pro",
+            "zhHans": "坚果云高级专业版"
+          },
+          "price": {
+            "minorUnits": 46800,
+            "currency": "CNY"
+          },
+          "billingInterval": "yearly",
+          "market": "CN",
+          "purchaseChannel": "iOS",
+          "sourceURL": "https://apps.apple.com/cn/app/%E5%9D%9A%E6%9E%9C%E4%BA%91-%E5%9B%A2%E9%98%9F%E5%BF%85%E5%A4%87%E5%8A%9E%E5%85%AC%E7%BD%91%E7%9B%98/id444442371",
+          "verifiedOn": "2026-08-01",
+          "reviewStatus": "verified"
+        }
+      ]
+    },
+    {
+      "id": "weiyun",
+      "serviceName": {
+        "en": "Tencent Weiyun",
+        "zhHans": "腾讯微云"
+      },
+      "category": {
+        "en": "Cloud Storage",
+        "zhHans": "云存储"
+      },
+      "categoryID": "cloud storage",
+      "suggestedInterval": "monthly",
+      "managementURL": "https://www.weiyun.com/",
+      "icon": "cloud",
+      "assetProvenance": {
+        "kind": "originalSymbol",
+        "license": "CC0-1.0",
+        "source": "weiyun"
+      },
+      "offers": [
+        {
+          "id": "b-weiyun-member-monthly-cn-ios",
+          "planName": {
+            "en": "Weiyun Member",
+            "zhHans": "微云会员连续包月"
+          },
+          "price": {
+            "minorUnits": 900,
+            "currency": "CNY"
+          },
+          "billingInterval": "monthly",
+          "market": "CN",
+          "purchaseChannel": "iOS",
+          "sourceURL": "https://apps.apple.com/cn/app/%E8%85%BE%E8%AE%AF%E5%BE%AE%E4%BA%91-%E6%99%BA%E8%83%BD%E7%BD%91%E7%9B%98/id522700349",
+          "verifiedOn": "2026-08-01",
+          "reviewStatus": "verified"
+        },
+        {
+          "id": "b-weiyun-super-member-yearly-cn-ios",
+          "planName": {
+            "en": "Weiyun Super Member",
+            "zhHans": "微云超级会员连续包年"
+          },
+          "price": {
+            "minorUnits": 20800,
+            "currency": "CNY"
+          },
+          "billingInterval": "yearly",
+          "market": "CN",
+          "purchaseChannel": "iOS",
+          "sourceURL": "https://apps.apple.com/cn/app/%E8%85%BE%E8%AE%AF%E5%BE%AE%E4%BA%91-%E6%99%BA%E8%83%BD%E7%BD%91%E7%9B%98/id522700349",
+          "verifiedOn": "2026-08-01",
+          "reviewStatus": "verified"
+        }
+      ]
+    },
+    {
+      "id": "tencent-docs",
+      "serviceName": {
+        "en": "Tencent Docs",
+        "zhHans": "腾讯文档"
+      },
+      "category": {
+        "en": "Productivity",
+        "zhHans": "效率"
+      },
+      "categoryID": "productivity",
+      "suggestedInterval": "monthly",
+      "managementURL": "https://docs.qq.com/",
+      "icon": "productivity",
+      "assetProvenance": {
+        "kind": "originalSymbol",
+        "license": "CC0-1.0",
+        "source": "tencent-docs"
+      },
+      "offers": [
+        {
+          "id": "c-tencent-docs-member-monthly-cn-ios",
+          "planName": {
+            "en": "Membership",
+            "zhHans": "腾讯文档会员"
+          },
+          "price": {
+            "minorUnits": 900,
+            "currency": "CNY"
+          },
+          "billingInterval": "monthly",
+          "market": "CN",
+          "purchaseChannel": "iOS",
+          "sourceURL": "https://apps.apple.com/cn/app/%E8%85%BE%E8%AE%AF%E6%96%87%E6%A1%A3/id1370780836",
+          "verifiedOn": "2026-08-01",
+          "reviewStatus": "verified"
+        }
+      ]
+    },
+    {
+      "id": "shimo-docs",
+      "serviceName": {
+        "en": "Shimo Docs",
+        "zhHans": "石墨文档"
+      },
+      "category": {
+        "en": "Productivity",
+        "zhHans": "效率"
+      },
+      "categoryID": "productivity",
+      "suggestedInterval": "monthly",
+      "managementURL": "https://shimo.im/",
+      "icon": "productivity",
+      "assetProvenance": {
+        "kind": "originalSymbol",
+        "license": "CC0-1.0",
+        "source": "shimo-docs"
+      },
+      "offers": [
+        {
+          "id": "c-shimo-docs-super-monthly-cn-ios",
+          "planName": {
+            "en": "Super Membership",
+            "zhHans": "石墨文档超级会员"
+          },
+          "price": {
+            "minorUnits": 900,
+            "currency": "CNY"
+          },
+          "billingInterval": "monthly",
+          "market": "CN",
+          "purchaseChannel": "iOS",
+          "sourceURL": "https://apps.apple.com/sk/app/%E7%9F%B3%E5%A2%A8%E6%96%87%E6%A1%A3-%E5%9C%A8%E7%BA%BF%E6%96%87%E6%A1%A3%E5%8D%8F%E4%BD%9C%E7%BC%96%E8%BE%91%E5%92%8C%E8%A1%A8%E6%A0%BC%E5%88%B6%E4%BD%9C/id1013727678",
+          "verifiedOn": "2026-08-01",
+          "reviewStatus": "verified"
+        }
+      ]
+    },
+    {
+      "id": "feishu",
+      "serviceName": {
+        "en": "Feishu",
+        "zhHans": "飞书"
+      },
+      "category": {
+        "en": "Productivity",
+        "zhHans": "效率"
+      },
+      "categoryID": "productivity",
+      "suggestedInterval": "monthly",
+      "managementURL": "https://www.feishu.cn/",
+      "icon": "productivity",
+      "assetProvenance": {
+        "kind": "originalSymbol",
+        "license": "CC0-1.0",
+        "source": "feishu"
+      },
+      "offers": [
+        {
+          "id": "c-feishu-standard-monthly-cn-web",
+          "planName": {
+            "en": "Standard",
+            "zhHans": "飞书标准版"
+          },
+          "price": {
+            "minorUnits": 5000,
+            "currency": "CNY"
+          },
+          "billingInterval": "monthly",
+          "market": "CN",
+          "purchaseChannel": "web",
+          "sourceURL": "https://www.feishu.cn/hc/zh-CN/articles/360049067600-%E9%A3%9E%E4%B9%A6%E5%AE%9A%E4%BB%B7%E7%89%88%E6%9C%AC%E4%BB%8B%E7%BB%8D",
+          "verifiedOn": "2026-08-01",
+          "reviewStatus": "verified"
+        }
+      ]
+    },
+    {
+      "id": "dingtalk",
+      "serviceName": {
+        "en": "DingTalk",
+        "zhHans": "钉钉"
+      },
+      "category": {
+        "en": "Productivity",
+        "zhHans": "效率"
+      },
+      "categoryID": "productivity",
+      "suggestedInterval": "monthly",
+      "managementURL": "https://www.dingtalk.com/",
+      "icon": "productivity",
+      "assetProvenance": {
+        "kind": "originalSymbol",
+        "license": "CC0-1.0",
+        "source": "dingtalk"
+      },
+      "offers": [
+        {
+          "id": "c-dingtalk-365-yearly-cn-web",
+          "planName": {
+            "en": "365 Membership",
+            "zhHans": "钉钉365会员"
+          },
+          "price": {
+            "minorUnits": 36500,
+            "currency": "CNY"
+          },
+          "billingInterval": "yearly",
+          "market": "CN",
+          "purchaseChannel": "web",
+          "sourceURL": "https://m.dingtalk.com/",
+          "verifiedOn": "2026-08-01",
+          "reviewStatus": "verified"
+        }
+      ]
+    },
+    {
+      "id": "youdao-cloud-note",
+      "serviceName": {
+        "en": "Youdao Note",
+        "zhHans": "有道云笔记"
+      },
+      "category": {
+        "en": "Productivity",
+        "zhHans": "效率"
+      },
+      "categoryID": "productivity",
+      "suggestedInterval": "monthly",
+      "managementURL": "https://note.youdao.com/",
+      "icon": "productivity",
+      "assetProvenance": {
+        "kind": "originalSymbol",
+        "license": "CC0-1.0",
+        "source": "youdao-cloud-note"
+      },
+      "offers": [
+        {
+          "id": "c-youdao-note-advanced-monthly-cn-ios",
+          "planName": {
+            "en": "Advanced Membership",
+            "zhHans": "有道云笔记高级会员"
+          },
+          "price": {
+            "minorUnits": 1800,
+            "currency": "CNY"
+          },
+          "billingInterval": "monthly",
+          "market": "CN",
+          "purchaseChannel": "iOS",
+          "sourceURL": "https://apps.apple.com/cn/app/%E6%9C%89%E9%81%93%E4%BA%91%E7%AC%94%E8%AE%B0-%E7%AC%94%E8%AE%B0%E6%89%AB%E6%8F%8F%E6%95%88%E7%8E%87%E5%8A%9E%E5%85%AC/id450748070",
+          "verifiedOn": "2026-08-01",
+          "reviewStatus": "verified"
+        },
+        {
+          "id": "c-youdao-note-advanced-yearly-cn-ios",
+          "planName": {
+            "en": "Advanced Membership",
+            "zhHans": "有道云笔记高级会员"
+          },
+          "price": {
+            "minorUnits": 19800,
+            "currency": "CNY"
+          },
+          "billingInterval": "yearly",
+          "market": "CN",
+          "purchaseChannel": "iOS",
+          "sourceURL": "https://apps.apple.com/cn/app/%E6%9C%89%E9%81%93%E4%BA%91%E7%AC%94%E8%AE%B0-%E7%AC%94%E8%AE%B0%E6%89%AB%E6%8F%8F%E6%95%88%E7%8E%87%E5%8A%9E%E5%85%AC/id450748070",
+          "verifiedOn": "2026-08-01",
+          "reviewStatus": "verified"
+        }
+      ]
+    },
+    {
+      "id": "xmind",
+      "serviceName": {
+        "en": "Xmind",
+        "zhHans": "Xmind 思维导图"
+      },
+      "category": {
+        "en": "Productivity",
+        "zhHans": "效率"
+      },
+      "categoryID": "productivity",
+      "suggestedInterval": "monthly",
+      "managementURL": "https://xmind.cn/",
+      "icon": "productivity",
+      "assetProvenance": {
+        "kind": "originalSymbol",
+        "license": "CC0-1.0",
+        "source": "xmind"
+      },
+      "offers": [
+        {
+          "id": "c-xmind-pro-monthly-cn-ios",
+          "planName": {
+            "en": "Pro (All Platforms)",
+            "zhHans": "Xmind Pro 全平台"
+          },
+          "price": {
+            "minorUnits": 6800,
+            "currency": "CNY"
+          },
+          "billingInterval": "monthly",
+          "market": "CN",
+          "purchaseChannel": "iOS",
+          "sourceURL": "https://apps.apple.com/cn/app/xmind-ai-%E6%80%9D%E7%BB%B4%E5%AF%BC%E5%9B%BE-%E5%A4%B4%E8%84%91%E9%A3%8E%E6%9A%B4/id1286983622",
+          "verifiedOn": "2026-08-01",
+          "reviewStatus": "verified"
+        },
+        {
+          "id": "c-xmind-pro-yearly-cn-ios",
+          "planName": {
+            "en": "Pro (All Platforms)",
+            "zhHans": "Xmind Pro 全平台"
+          },
+          "price": {
+            "minorUnits": 38000,
+            "currency": "CNY"
+          },
+          "billingInterval": "yearly",
+          "market": "CN",
+          "purchaseChannel": "iOS",
+          "sourceURL": "https://apps.apple.com/cn/app/xmind-ai-%E6%80%9D%E7%BB%B4%E5%AF%BC%E5%9B%BE-%E5%A4%B4%E8%84%91%E9%A3%8E%E6%9A%B4/id1286983622",
+          "verifiedOn": "2026-08-01",
+          "reviewStatus": "verified"
+        }
+      ]
+    },
+    {
+      "id": "processon",
+      "serviceName": {
+        "en": "ProcessOn",
+        "zhHans": "ProcessOn"
+      },
+      "category": {
+        "en": "Productivity",
+        "zhHans": "效率"
+      },
+      "categoryID": "productivity",
+      "suggestedInterval": "monthly",
+      "managementURL": "https://www.processon.com/",
+      "icon": "productivity",
+      "assetProvenance": {
+        "kind": "originalSymbol",
+        "license": "CC0-1.0",
+        "source": "processon"
+      },
+      "offers": [
+        {
+          "id": "c-processon-personal-yearly-cn-web",
+          "planName": {
+            "en": "Personal Membership",
+            "zhHans": "ProcessOn个人会员"
+          },
+          "price": {
+            "minorUnits": 9900,
+            "currency": "CNY"
+          },
+          "billingInterval": "yearly",
+          "market": "CN",
+          "purchaseChannel": "web",
+          "sourceURL": "https://www.processon.com/",
+          "verifiedOn": "2026-08-01",
+          "reviewStatus": "verified"
+        }
+      ]
+    },
+    {
+      "id": "lanhu",
+      "serviceName": {
+        "en": "Lanhu",
+        "zhHans": "蓝湖"
+      },
+      "category": {
+        "en": "Productivity",
+        "zhHans": "效率"
+      },
+      "categoryID": "productivity",
+      "suggestedInterval": "monthly",
+      "managementURL": "https://lanhuapp.com/",
+      "icon": "productivity",
+      "assetProvenance": {
+        "kind": "originalSymbol",
+        "license": "CC0-1.0",
+        "source": "lanhu"
+      },
+      "offers": [
+        {
+          "id": "c-lanhu-team-monthly-cn-web",
+          "planName": {
+            "en": "Team Edition",
+            "zhHans": "蓝湖团队版"
+          },
+          "price": {
+            "minorUnits": 2900,
+            "currency": "CNY"
+          },
+          "billingInterval": "monthly",
+          "market": "CN",
+          "purchaseChannel": "web",
+          "sourceURL": "https://lanhuapp.com/",
+          "verifiedOn": "2026-08-01",
+          "reviewStatus": "verified"
+        }
+      ]
+    },
+    {
+      "id": "mubu",
+      "serviceName": {
+        "en": "Mubu",
+        "zhHans": "幕布"
+      },
+      "category": {
+        "en": "Productivity",
+        "zhHans": "效率"
+      },
+      "categoryID": "productivity",
+      "suggestedInterval": "monthly",
+      "managementURL": "https://mubu.com/",
+      "icon": "productivity",
+      "assetProvenance": {
+        "kind": "originalSymbol",
+        "license": "CC0-1.0",
+        "source": "mubu"
+      },
+      "offers": [
+        {
+          "id": "c-mubu-premium-monthly-cn-ios",
+          "planName": {
+            "en": "Premium",
+            "zhHans": "幕布高级版"
+          },
+          "price": {
+            "minorUnits": 1200,
+            "currency": "CNY"
+          },
+          "billingInterval": "monthly",
+          "market": "CN",
+          "purchaseChannel": "iOS",
+          "sourceURL": "https://apps.apple.com/cn/app/%E5%B9%95%E5%B8%83-%E5%A4%A7%E7%BA%B2%E7%AC%94%E8%AE%B0-%E6%80%9D%E7%BB%B4%E5%AF%BC%E5%9B%BE/id1214302139",
+          "verifiedOn": "2026-08-01",
+          "reviewStatus": "verified"
+        },
+        {
+          "id": "c-mubu-premium-yearly-cn-ios",
+          "planName": {
+            "en": "Premium",
+            "zhHans": "幕布高级版"
+          },
+          "price": {
+            "minorUnits": 10800,
+            "currency": "CNY"
+          },
+          "billingInterval": "yearly",
+          "market": "CN",
+          "purchaseChannel": "iOS",
+          "sourceURL": "https://apps.apple.com/cn/app/%E5%B9%95%E5%B8%83-%E5%A4%A7%E7%BA%B2%E7%AC%94%E8%AE%B0-%E6%80%9D%E7%BB%B4%E5%AF%BC%E5%9B%BE/id1214302139",
+          "verifiedOn": "2026-08-01",
+          "reviewStatus": "verified"
+        }
+      ]
+    },
+    {
+      "id": "tencent-meeting",
+      "serviceName": {
+        "en": "Tencent Meeting",
+        "zhHans": "腾讯会议"
+      },
+      "category": {
+        "en": "Productivity",
+        "zhHans": "效率"
+      },
+      "categoryID": "productivity",
+      "suggestedInterval": "monthly",
+      "managementURL": "https://meeting.tencent.com/",
+      "icon": "productivity",
+      "assetProvenance": {
+        "kind": "originalSymbol",
+        "license": "CC0-1.0",
+        "source": "tencent-meeting"
+      },
+      "offers": [
+        {
+          "id": "c-tencent-meeting-professional-monthly-cn-web",
+          "planName": {
+            "en": "Professional Account",
+            "zhHans": "腾讯会议专业版高级账号"
+          },
+          "price": {
+            "minorUnits": 9800,
+            "currency": "CNY"
+          },
+          "billingInterval": "monthly",
+          "market": "CN",
+          "purchaseChannel": "web",
+          "sourceURL": "https://buy.cloud.tencent.com/price/tm/overview",
+          "verifiedOn": "2026-08-01",
+          "reviewStatus": "verified"
+        },
+        {
+          "id": "c-tencent-meeting-professional-yearly-cn-web",
+          "planName": {
+            "en": "Professional Account",
+            "zhHans": "腾讯会议专业版高级账号"
+          },
+          "price": {
+            "minorUnits": 98800,
+            "currency": "CNY"
+          },
+          "billingInterval": "yearly",
+          "market": "CN",
+          "purchaseChannel": "web",
+          "sourceURL": "https://buy.cloud.tencent.com/price/tm/overview",
+          "verifiedOn": "2026-08-01",
+          "reviewStatus": "verified"
+        }
+      ]
+    },
+    {
+      "id": "xunlei",
+      "serviceName": {
+        "en": "Xunlei",
+        "zhHans": "迅雷会员"
+      },
+      "category": {
+        "en": "AI",
+        "zhHans": "AI 工具"
+      },
+      "categoryID": "ai",
+      "suggestedInterval": "monthly",
+      "managementURL": "https://www.xunlei.com/",
+      "icon": "other",
+      "assetProvenance": {
+        "kind": "originalSymbol",
+        "license": "CC0-1.0",
+        "source": "xunlei"
+      },
+      "offers": [
+        {
+          "id": "c-xunlei-super-monthly-cn-ios",
+          "planName": {
+            "en": "Super Member",
+            "zhHans": "迅雷超级会员连续包月"
+          },
+          "price": {
+            "minorUnits": 3000,
+            "currency": "CNY"
+          },
+          "billingInterval": "monthly",
+          "market": "CN",
+          "purchaseChannel": "iOS",
+          "sourceURL": "https://apps.apple.com/cn/app/%E8%BF%85%E9%9B%B7-%E9%9A%8F%E5%BF%83%E6%90%9C-%E6%94%BE%E5%BF%83%E5%AD%98-%E7%95%85%E5%BF%AB%E7%9C%8B/id1503466530?l=en-GB",
+          "verifiedOn": "2026-08-01",
+          "reviewStatus": "verified"
+        },
+        {
+          "id": "c-xunlei-super-yearly-cn-ios",
+          "planName": {
+            "en": "Super Member",
+            "zhHans": "迅雷超级会员连续包年"
+          },
+          "price": {
+            "minorUnits": 32800,
+            "currency": "CNY"
+          },
+          "billingInterval": "yearly",
+          "market": "CN",
+          "purchaseChannel": "iOS",
+          "sourceURL": "https://apps.apple.com/cn/app/%E8%BF%85%E9%9B%B7-%E9%9A%8F%E5%BF%83%E6%90%9C-%E6%94%BE%E5%BF%83%E5%AD%98-%E7%95%85%E5%BF%AB%E7%9C%8B/id1503466530?l=en-GB",
+          "verifiedOn": "2026-08-01",
+          "reviewStatus": "verified"
+        }
+      ]
+    },
+    {
+      "id": "baidu-wenku",
+      "serviceName": {
+        "en": "Baidu Wenku",
+        "zhHans": "百度文库"
+      },
+      "category": {
+        "en": "AI",
+        "zhHans": "AI 工具"
+      },
+      "categoryID": "ai",
+      "suggestedInterval": "monthly",
+      "managementURL": "https://wenku.baidu.com/",
+      "icon": "other",
+      "assetProvenance": {
+        "kind": "originalSymbol",
+        "license": "CC0-1.0",
+        "source": "baidu-wenku"
+      },
+      "offers": [
+        {
+          "id": "c-baidu-wenku-member-monthly-cn-ios",
+          "planName": {
+            "en": "Wenku Membership",
+            "zhHans": "百度文库会员连续包月"
+          },
+          "price": {
+            "minorUnits": 1900,
+            "currency": "CNY"
+          },
+          "billingInterval": "monthly",
+          "market": "CN",
+          "purchaseChannel": "iOS",
+          "sourceURL": "https://apps.apple.com/cn/app/%E7%99%BE%E5%BA%A6%E6%96%87%E5%BA%93-deepseek-r1%E8%81%94%E7%BD%91%E6%BB%A1%E8%A1%80%E7%89%88/id426340811",
+          "verifiedOn": "2026-08-01",
+          "reviewStatus": "verified"
+        }
+      ]
+    },
+    {
+      "id": "canva-china",
+      "serviceName": {
+        "en": "Canva China",
+        "zhHans": "可画 Canva"
+      },
+      "category": {
+        "en": "Software",
+        "zhHans": "软件"
+      },
+      "categoryID": "software",
+      "suggestedInterval": "monthly",
+      "managementURL": "https://www.canva.cn/",
+      "icon": "other",
+      "assetProvenance": {
+        "kind": "originalSymbol",
+        "license": "CC0-1.0",
+        "source": "canva-china"
+      },
+      "offers": [
+        {
+          "id": "c-canva-pro-monthly-cn-web",
+          "planName": {
+            "en": "Canva Pro",
+            "zhHans": "Canva可画专业版"
+          },
+          "price": {
+            "minorUnits": 3000,
+            "currency": "CNY"
+          },
+          "billingInterval": "monthly",
+          "market": "CN",
+          "purchaseChannel": "iOS",
+          "sourceURL": "https://apps.apple.com/cn/app/id897446215",
+          "verifiedOn": "2026-08-09",
+          "reviewStatus": "verified"
+        }
+      ]
+    },
+    {
+      "id": "meitu-xiuxiu",
+      "serviceName": {
+        "en": "Meitu Xiuxiu",
+        "zhHans": "美图秀秀"
+      },
+      "category": {
+        "en": "Software",
+        "zhHans": "软件"
+      },
+      "categoryID": "software",
+      "suggestedInterval": "monthly",
+      "managementURL": "https://xiuxiu.meitu.com/",
+      "icon": "other",
+      "assetProvenance": {
+        "kind": "originalSymbol",
+        "license": "CC0-1.0",
+        "source": "meitu-xiuxiu"
+      },
+      "offers": [
+        {
+          "id": "c-meitu-vip-monthly-cn-ios",
+          "planName": {
+            "en": "Meitu Diamond VIP",
+            "zhHans": "美图粉钻VIP连续包月"
+          },
+          "price": {
+            "minorUnits": 1500,
+            "currency": "CNY"
+          },
+          "billingInterval": "monthly",
+          "market": "CN",
+          "purchaseChannel": "iOS",
+          "sourceURL": "https://apps.apple.com/cn/app/%E7%BE%8E%E5%9B%BE%E7%A7%80%E7%A7%80-%E8%A7%86%E9%A2%91-%E5%9B%BE%E7%89%87-live%E4%BA%BA%E5%83%8F%E7%B2%BE%E4%BF%AE%E5%B7%A5%E5%85%B7/id416048305",
+          "verifiedOn": "2026-08-01",
+          "reviewStatus": "verified"
+        },
+        {
+          "id": "c-meitu-vip-yearly-cn-ios",
+          "planName": {
+            "en": "Meitu Diamond VIP",
+            "zhHans": "美图粉钻VIP连续包年"
+          },
+          "price": {
+            "minorUnits": 12800,
+            "currency": "CNY"
+          },
+          "billingInterval": "yearly",
+          "market": "CN",
+          "purchaseChannel": "iOS",
+          "sourceURL": "https://apps.apple.com/cn/app/%E7%BE%8E%E5%9B%BE%E7%A7%80%E7%A7%80-%E8%A7%86%E9%A2%91-%E5%9B%BE%E7%89%87-live%E4%BA%BA%E5%83%8F%E7%B2%BE%E4%BF%AE%E5%B7%A5%E5%85%B7/id416048305",
+          "verifiedOn": "2026-08-01",
+          "reviewStatus": "verified"
+        }
+      ]
+    },
+    {
+      "id": "jianying-pro",
+      "serviceName": {
+        "en": "Jianying Pro",
+        "zhHans": "剪映专业版"
+      },
+      "category": {
+        "en": "Software",
+        "zhHans": "软件"
+      },
+      "categoryID": "software",
+      "suggestedInterval": "monthly",
+      "managementURL": "https://www.capcut.cn/",
+      "icon": "other",
+      "assetProvenance": {
+        "kind": "originalSymbol",
+        "license": "CC0-1.0",
+        "source": "jianying-pro"
+      },
+      "offers": [
+        {
+          "id": "c-jianying-member-monthly-cn-ios",
+          "planName": {
+            "en": "Jianying Membership",
+            "zhHans": "剪映会员连续包月"
+          },
+          "price": {
+            "minorUnits": 2500,
+            "currency": "CNY"
+          },
+          "billingInterval": "monthly",
+          "market": "CN",
+          "purchaseChannel": "iOS",
+          "sourceURL": "https://apps.apple.com/cn/app/%E5%89%AA%E6%98%A0-%E6%8A%96%E9%9F%B3%E5%AE%98%E6%96%B9ai%E5%88%9B%E4%BD%9C%E7%A5%9E%E5%99%A8/id1458072671?platform=ipad",
+          "verifiedOn": "2026-08-01",
+          "reviewStatus": "verified"
+        },
+        {
+          "id": "c-jianying-svip-monthly-cn-ios",
+          "planName": {
+            "en": "Jianying SVIP",
+            "zhHans": "剪映SVIP连续包月会员"
+          },
+          "price": {
+            "minorUnits": 5900,
+            "currency": "CNY"
+          },
+          "billingInterval": "monthly",
+          "market": "CN",
+          "purchaseChannel": "iOS",
+          "sourceURL": "https://apps.apple.com/cn/app/%E5%89%AA%E6%98%A0-%E6%8A%96%E9%9F%B3%E5%AE%98%E6%96%B9ai%E5%88%9B%E4%BD%9C%E7%A5%9E%E5%99%A8/id1458072671?platform=ipad",
+          "verifiedOn": "2026-08-01",
+          "reviewStatus": "verified"
+        }
+      ]
+    },
+    {
+      "id": "foxit-pdf",
+      "serviceName": {
+        "en": "Foxit PDF",
+        "zhHans": "福昕 PDF"
+      },
+      "category": {
+        "en": "Software",
+        "zhHans": "软件"
+      },
+      "categoryID": "software",
+      "suggestedInterval": "monthly",
+      "managementURL": "https://www.foxit.com.cn/",
+      "icon": "other",
+      "assetProvenance": {
+        "kind": "originalSymbol",
+        "license": "CC0-1.0",
+        "source": "foxit-pdf"
+      },
+      "offers": [
+        {
+          "id": "c-foxit-member-monthly-cn-ios",
+          "planName": {
+            "en": "Foxit Member",
+            "zhHans": "福昕会员连续包月"
+          },
+          "price": {
+            "minorUnits": 7900,
+            "currency": "CNY"
+          },
+          "billingInterval": "monthly",
+          "market": "CN",
+          "purchaseChannel": "iOS",
+          "sourceURL": "https://apps.apple.com/cn/app/%E7%A6%8F%E6%98%95pdf%E7%BC%96%E8%BE%91%E5%99%A8/id1583534770",
+          "verifiedOn": "2026-08-01",
+          "reviewStatus": "verified"
+        },
+        {
+          "id": "c-foxit-member-yearly-cn-ios",
+          "planName": {
+            "en": "Foxit Member",
+            "zhHans": "福昕会员"
+          },
+          "price": {
+            "minorUnits": 27900,
+            "currency": "CNY"
+          },
+          "billingInterval": "yearly",
+          "market": "CN",
+          "purchaseChannel": "iOS",
+          "sourceURL": "https://apps.apple.com/cn/app/%E7%A6%8F%E6%98%95pdf%E7%BC%96%E8%BE%91%E5%99%A8/id1583534770",
+          "verifiedOn": "2026-08-01",
+          "reviewStatus": "verified"
+        }
+      ]
+    },
+    {
+      "id": "iflytek-spark",
+      "serviceName": {
+        "en": "iFlytek Spark",
+        "zhHans": "讯飞星火"
+      },
+      "category": {
+        "en": "AI",
+        "zhHans": "AI 工具"
+      },
+      "categoryID": "ai",
+      "suggestedInterval": "monthly",
+      "managementURL": "https://xinghuo.xfyun.cn/",
+      "icon": "other",
+      "assetProvenance": {
+        "kind": "originalSymbol",
+        "license": "CC0-1.0",
+        "source": "iflytek-spark"
+      },
+      "offers": [
+        {
+          "id": "c-iflytek-spark-job-ai-monthly-cn-ios",
+          "planName": {
+            "en": "Job AI Assistant",
+            "zhHans": "讯飞星火求职AI助手连续包月"
+          },
+          "price": {
+            "minorUnits": 1500,
+            "currency": "CNY"
+          },
+          "billingInterval": "monthly",
+          "market": "CN",
+          "purchaseChannel": "iOS",
+          "sourceURL": "https://apps.apple.com/cn/app/%E8%AE%AF%E9%A3%9E%E6%98%9F%E7%81%AB-%E6%87%82%E4%BD%A0%E7%9A%84ai%E5%8A%A9%E6%89%8B/id6449919551",
+          "verifiedOn": "2026-08-01",
+          "reviewStatus": "verified"
+        },
+        {
+          "id": "c-iflytek-spark-job-ai-quarterly-cn-ios",
+          "planName": {
+            "en": "Job AI Assistant",
+            "zhHans": "讯飞星火求职AI助手连续包季"
+          },
+          "price": {
+            "minorUnits": 3600,
+            "currency": "CNY"
+          },
+          "billingInterval": "quarterly",
+          "market": "CN",
+          "purchaseChannel": "iOS",
+          "sourceURL": "https://apps.apple.com/cn/app/%E8%AE%AF%E9%A3%9E%E6%98%9F%E7%81%AB-%E6%87%82%E4%BD%A0%E7%9A%84ai%E5%8A%A9%E6%89%8B/id6449919551",
+          "verifiedOn": "2026-08-01",
+          "reviewStatus": "verified"
+        }
+      ]
+    },
+    {
+      "id": "youdao-premium",
+      "serviceName": {
+        "en": "Youdao Premium",
+        "zhHans": "有道精品课"
+      },
+      "category": {
+        "en": "Learning",
+        "zhHans": "学习"
+      },
+      "categoryID": "learning",
+      "suggestedInterval": "monthly",
+      "managementURL": "https://www.youdao.com/",
+      "icon": "reading",
+      "assetProvenance": {
+        "kind": "originalSymbol",
+        "license": "CC0-1.0",
+        "source": "youdao-premium"
+      },
+      "offers": [
+        {
+          "id": "c-youdao-dictionary-member-monthly-cn-ios",
+          "planName": {
+            "en": "Dictionary Membership",
+            "zhHans": "有道词典会员连续包月"
+          },
+          "price": {
+            "minorUnits": 2500,
+            "currency": "CNY"
+          },
+          "billingInterval": "monthly",
+          "market": "CN",
+          "purchaseChannel": "iOS",
+          "sourceURL": "https://apps.apple.com/cn/app/%E7%BD%91%E6%98%93%E6%9C%89%E9%81%93%E8%AF%8D%E5%85%B8-%E4%B8%93%E4%B8%9A%E6%9F%A5%E8%AF%8D%E7%BF%BB%E8%AF%91%E5%AD%A6%E4%B9%A0%E5%8A%A9%E6%89%8B/id353115739",
+          "verifiedOn": "2026-08-01",
+          "reviewStatus": "verified"
+        },
+        {
+          "id": "c-youdao-dictionary-member-yearly-cn-ios",
+          "planName": {
+            "en": "Dictionary Membership",
+            "zhHans": "有道词典会员年卡"
+          },
+          "price": {
+            "minorUnits": 16800,
+            "currency": "CNY"
+          },
+          "billingInterval": "yearly",
+          "market": "CN",
+          "purchaseChannel": "iOS",
+          "sourceURL": "https://apps.apple.com/cn/app/%E7%BD%91%E6%98%93%E6%9C%89%E9%81%93%E8%AF%8D%E5%85%B8-%E4%B8%93%E4%B8%9A%E6%9F%A5%E8%AF%8D%E7%BF%BB%E8%AF%91%E5%AD%A6%E4%B9%A0%E5%8A%A9%E6%89%8B/id353115739",
+          "verifiedOn": "2026-08-01",
+          "reviewStatus": "verified"
+        }
+      ]
+    },
+    {
+      "id": "baicizhan",
+      "serviceName": {
+        "en": "Baicizhan",
+        "zhHans": "百词斩"
+      },
+      "category": {
+        "en": "Learning",
+        "zhHans": "学习"
+      },
+      "categoryID": "learning",
+      "suggestedInterval": "monthly",
+      "managementURL": "https://www.baicizhan.com/",
+      "icon": "reading",
+      "assetProvenance": {
+        "kind": "originalSymbol",
+        "license": "CC0-1.0",
+        "source": "baicizhan"
+      },
+      "offers": [
+        {
+          "id": "c-baicizhan-pro-monthly-cn-ios",
+          "planName": {
+            "en": "Pro Membership",
+            "zhHans": "百词斩Pro连续包月"
+          },
+          "price": {
+            "minorUnits": 1800,
+            "currency": "CNY"
+          },
+          "billingInterval": "monthly",
+          "market": "CN",
+          "purchaseChannel": "iOS",
+          "sourceURL": "https://apps.apple.com/cn/app/%E7%99%BE%E8%AF%8D%E6%96%A9-%E5%AD%A6%E8%8B%B1%E8%AF%AD-%E8%83%8C%E5%8D%95%E8%AF%8D%E5%BF%85%E5%A4%87/id557545298?l=en-GB",
+          "verifiedOn": "2026-08-01",
+          "reviewStatus": "verified"
+        }
+      ]
+    },
+    {
+      "id": "zuoyebang",
+      "serviceName": {
+        "en": "Zuoyebang",
+        "zhHans": "作业帮"
+      },
+      "category": {
+        "en": "Learning",
+        "zhHans": "学习"
+      },
+      "categoryID": "learning",
+      "suggestedInterval": "monthly",
+      "managementURL": "https://www.zybang.com/",
+      "icon": "reading",
+      "assetProvenance": {
+        "kind": "originalSymbol",
+        "license": "CC0-1.0",
+        "source": "zuoyebang"
+      },
+      "offers": [
+        {
+          "id": "c-zuoyebang-vip-monthly-cn-ios",
+          "planName": {
+            "en": "VIP",
+            "zhHans": "作业帮连续包月VIP"
+          },
+          "price": {
+            "minorUnits": 1900,
+            "currency": "CNY"
+          },
+          "billingInterval": "monthly",
+          "market": "CN",
+          "purchaseChannel": "iOS",
+          "sourceURL": "https://apps.apple.com/cn/app/%E4%BD%9C%E4%B8%9A%E5%B8%AE-%E4%B8%AD%E5%B0%8F%E5%AD%A6%E5%AE%B6%E9%95%BF%E4%BD%9C%E4%B8%9A%E6%A3%80%E6%9F%A5%E5%92%8Cai%E4%BC%B4%E5%AD%A6%E8%BE%85%E5%AF%BC%E5%B7%A5%E5%85%B7/id803781859",
+          "verifiedOn": "2026-08-01",
+          "reviewStatus": "verified"
+        }
+      ]
+    },
+    {
+      "id": "xueersi",
+      "serviceName": {
+        "en": "Xueersi",
+        "zhHans": "学而思"
+      },
+      "category": {
+        "en": "Learning",
+        "zhHans": "学习"
+      },
+      "categoryID": "learning",
+      "suggestedInterval": "monthly",
+      "managementURL": "https://www.xueersi.com/",
+      "icon": "reading",
+      "assetProvenance": {
+        "kind": "originalSymbol",
+        "license": "CC0-1.0",
+        "source": "xueersi"
+      },
+      "offers": [
+        {
+          "id": "c-xueersi-xiaosi-ai-vip-monthly-cn-ios",
+          "planName": {
+            "en": "Xiaosi AI VIP",
+            "zhHans": "小思AI VIP连续包月"
+          },
+          "price": {
+            "minorUnits": 1900,
+            "currency": "CNY"
+          },
+          "billingInterval": "monthly",
+          "market": "CN",
+          "purchaseChannel": "iOS",
+          "sourceURL": "https://apps.apple.com/cn/app/%E5%B0%8F%E6%80%9Dai-%E5%AD%A6%E8%80%8C%E6%80%9Dai%E5%AD%A6%E4%B9%A0%E5%8A%A9%E6%89%8B/id6499319699",
+          "verifiedOn": "2026-08-01",
+          "reviewStatus": "verified"
+        }
+      ]
+    },
+    {
+      "id": "kaoyanbang",
+      "serviceName": {
+        "en": "Kaoyanbang",
+        "zhHans": "考研帮"
+      },
+      "category": {
+        "en": "Learning",
+        "zhHans": "学习"
+      },
+      "categoryID": "learning",
+      "suggestedInterval": "monthly",
+      "managementURL": "https://www.kaoyan.com/",
+      "icon": "reading",
+      "assetProvenance": {
+        "kind": "originalSymbol",
+        "license": "CC0-1.0",
+        "source": "kaoyanbang"
+      },
+      "offers": [
+        {
+          "id": "c-kaoyanbang-vip-monthly-cn-ios",
+          "planName": {
+            "en": "VIP",
+            "zhHans": "考研帮VIP连续包月"
+          },
+          "price": {
+            "minorUnits": 1800,
+            "currency": "CNY"
+          },
+          "billingInterval": "monthly",
+          "market": "CN",
+          "purchaseChannel": "iOS",
+          "sourceURL": "https://apps.apple.com/cn/app/%E8%80%83%E7%A0%94%E5%B8%AE-%E8%80%83%E7%A0%94%E7%94%A8%E6%88%B7%E9%83%BD%E5%9C%A8%E7%94%A8%E7%9A%84app/id1049596362",
+          "verifiedOn": "2026-08-01",
+          "reviewStatus": "verified"
+        }
+      ]
+    },
+    {
+      "id": "fan-deng-reading",
+      "serviceName": {
+        "en": "Fan Deng Reading",
+        "zhHans": "帆书"
+      },
+      "category": {
+        "en": "Learning",
+        "zhHans": "学习"
+      },
+      "categoryID": "learning",
+      "suggestedInterval": "monthly",
+      "managementURL": "https://www.dushu365.com/",
+      "icon": "reading",
+      "assetProvenance": {
+        "kind": "originalSymbol",
+        "license": "CC0-1.0",
+        "source": "fan-deng-reading"
+      },
+      "offers": [
+        {
+          "id": "c-fanshu-extraordinary-reading-monthly-cn-ios",
+          "planName": {
+            "en": "Extraordinary Reading VIP",
+            "zhHans": "帆书非凡精读连续包月VIP"
+          },
+          "price": {
+            "minorUnits": 3800,
+            "currency": "CNY"
+          },
+          "billingInterval": "monthly",
+          "market": "CN",
+          "purchaseChannel": "iOS",
+          "sourceURL": "https://apps.apple.com/cn/app/%E5%B8%86%E4%B9%A6-%E5%8E%9F%E6%A8%8A%E7%99%BB%E8%AF%BB%E4%B9%A6-%E7%B2%BE%E9%80%89%E5%A5%BD%E4%B9%A6-%E8%BD%BB%E6%9D%BE%E9%98%85%E8%AF%BB/id963152777",
+          "verifiedOn": "2026-08-01",
+          "reviewStatus": "verified"
+        }
+      ]
+    },
+    {
+      "id": "jd-plus",
+      "serviceName": {
+        "en": "JD PLUS",
+        "zhHans": "京东 PLUS 会员"
+      },
+      "category": {
+        "en": "Membership",
+        "zhHans": "会员"
+      },
+      "categoryID": "membership",
+      "suggestedInterval": "yearly",
+      "managementURL": "https://plus.jd.com/",
+      "icon": "membership",
+      "assetProvenance": {
+        "kind": "originalSymbol",
+        "license": "CC0-1.0",
+        "source": "jd-plus"
+      },
+      "offers": [
+        {
+          "id": "jingdian-annual-cn-web",
+          "planName": {
+            "en": "JD PLUS Annual",
+            "zhHans": "京典年卡"
+          },
+          "price": {
+            "minorUnits": 9900,
+            "currency": "CNY"
+          },
+          "billingInterval": "yearly",
+          "market": "CN",
+          "purchaseChannel": "web",
+          "sourceURL": "https://plus.jd.com/",
+          "verifiedOn": "2026-07-30",
+          "reviewStatus": "verified"
+        }
+      ]
+    },
+    {
+      "id": "taobao-88vip",
+      "serviceName": {
+        "en": "Taobao 88VIP",
+        "zhHans": "淘宝 88VIP"
+      },
+      "category": {
+        "en": "Membership",
+        "zhHans": "会员"
+      },
+      "categoryID": "membership",
+      "suggestedInterval": "yearly",
+      "managementURL": "https://www.taobao.com/",
+      "icon": "membership",
+      "assetProvenance": {
+        "kind": "originalSymbol",
+        "license": "CC0-1.0",
+        "source": "taobao-88vip"
+      },
+      "matchAliases": [
+        "88会员"
+      ],
+      "offers": [
+        {
+          "id": "88vip-shopping-card-cn-web",
+          "planName": {
+            "en": "Shopping Card",
+            "zhHans": "购物卡"
+          },
+          "price": {
+            "minorUnits": 8800,
+            "currency": "CNY"
+          },
+          "billingInterval": "yearly",
+          "market": "CN",
+          "purchaseChannel": "web",
+          "sourceURL": "https://www.taobao.com/",
+          "verifiedOn": "2026-07-30",
+          "reviewStatus": "verified"
+        },
+        {
+          "id": "88vip-living-card-cn-web",
+          "planName": {
+            "en": "Living Card",
+            "zhHans": "生活卡"
+          },
+          "price": {
+            "minorUnits": 28800,
+            "currency": "CNY"
+          },
+          "billingInterval": "yearly",
+          "market": "CN",
+          "purchaseChannel": "web",
+          "sourceURL": "https://www.taobao.com/",
+          "verifiedOn": "2026-07-30",
+          "reviewStatus": "verified"
+        }
+      ]
+    },
+    {
+      "id": "meituan-membership",
+      "serviceName": {
+        "en": "Meituan Membership",
+        "zhHans": "美团神会员"
+      },
+      "category": {
+        "en": "Membership",
+        "zhHans": "会员"
+      },
+      "categoryID": "membership",
+      "suggestedInterval": "monthly",
+      "managementURL": "https://www.meituan.com/",
+      "icon": "membership",
+      "assetProvenance": {
+        "kind": "originalSymbol",
+        "license": "CC0-1.0",
+        "source": "meituan-membership"
+      },
+      "offers": [
+        {
+          "id": "c-meituan-member-monthly-cn-ios",
+          "planName": {
+            "en": "Meituan Membership",
+            "zhHans": "美团会员连续包月"
+          },
+          "price": {
+            "minorUnits": 1500,
+            "currency": "CNY"
+          },
+          "billingInterval": "monthly",
+          "market": "CN",
+          "purchaseChannel": "iOS",
+          "sourceURL": "https://apps.apple.com/cn/app/%E7%BE%8E%E5%9B%A2-%E5%A4%96%E5%8D%96%E5%9B%A2%E8%B4%AD%E7%BE%8E%E9%A3%9F%E7%94%9F%E6%B4%BB%E6%9C%8D%E5%8A%A1/id423084029",
+          "verifiedOn": "2026-08-01",
+          "reviewStatus": "verified"
+        }
+      ]
+    },
+    {
+      "id": "eleme-super-membership",
+      "serviceName": {
+        "en": "Ele.me Super Membership",
+        "zhHans": "饿了么超级会员"
+      },
+      "category": {
+        "en": "Membership",
+        "zhHans": "会员"
+      },
+      "categoryID": "membership",
+      "suggestedInterval": "monthly",
+      "managementURL": "https://www.ele.me/",
+      "icon": "membership",
+      "assetProvenance": {
+        "kind": "originalSymbol",
+        "license": "CC0-1.0",
+        "source": "eleme-super-membership"
+      },
+      "offers": [
+        {
+          "id": "c-eleme-super-eater-card-monthly-cn-ios",
+          "planName": {
+            "en": "Super Eater Card",
+            "zhHans": "饿了么超级吃货卡连续包月"
+          },
+          "price": {
+            "minorUnits": 1000,
+            "currency": "CNY"
+          },
+          "billingInterval": "monthly",
+          "market": "CN",
+          "purchaseChannel": "iOS",
+          "sourceURL": "https://apps.apple.com/cn/app/%E9%A5%BF%E4%BA%86%E4%B9%88-%E6%94%BE%E5%BF%83%E7%82%B9-%E5%87%86%E6%97%B6%E8%BE%BE/id507097717",
+          "verifiedOn": "2026-08-01",
+          "reviewStatus": "verified"
+        }
+      ]
+    },
+    {
+      "id": "sams-club-china",
+      "serviceName": {
+        "en": "Sam's Club China",
+        "zhHans": "山姆会员商店"
+      },
+      "category": {
+        "en": "Membership",
+        "zhHans": "会员"
+      },
+      "categoryID": "membership",
+      "suggestedInterval": "yearly",
+      "managementURL": "https://www.samsclub.cn/",
+      "icon": "membership",
+      "assetProvenance": {
+        "kind": "originalSymbol",
+        "license": "CC0-1.0",
+        "source": "sams-club-china"
+      },
+      "offers": [
+        {
+          "id": "ordinary-annual-cn-web",
+          "planName": {
+            "en": "Ordinary Membership",
+            "zhHans": "普通会员"
+          },
+          "price": {
+            "minorUnits": 26000,
+            "currency": "CNY"
+          },
+          "billingInterval": "yearly",
+          "market": "CN",
+          "purchaseChannel": "web",
+          "sourceURL": "https://www.samsclub.cn/",
+          "verifiedOn": "2026-07-30",
+          "reviewStatus": "verified"
+        },
+        {
+          "id": "premium-annual-cn-web",
+          "planName": {
+            "en": "Premium Membership",
+            "zhHans": "卓越会员"
+          },
+          "price": {
+            "minorUnits": 68000,
+            "currency": "CNY"
+          },
+          "billingInterval": "yearly",
+          "market": "CN",
+          "purchaseChannel": "web",
+          "sourceURL": "https://www.samsclub.cn/",
+          "verifiedOn": "2026-07-30",
+          "reviewStatus": "verified"
+        }
+      ]
+    },
+    {
+      "id": "costco-china",
+      "serviceName": {
+        "en": "Costco China",
+        "zhHans": "开市客会员"
+      },
+      "category": {
+        "en": "Membership",
+        "zhHans": "会员"
+      },
+      "categoryID": "membership",
+      "suggestedInterval": "yearly",
+      "managementURL": "https://www.costco.cn/",
+      "icon": "membership",
+      "assetProvenance": {
+        "kind": "originalSymbol",
+        "license": "CC0-1.0",
+        "source": "costco-china"
+      },
+      "offers": [
+        {
+          "id": "c-costco-gold-star-yearly-cn-web",
+          "planName": {
+            "en": "Gold Star Membership",
+            "zhHans": "开市客金星会员主卡"
+          },
+          "price": {
+            "minorUnits": 29900,
+            "currency": "CNY"
+          },
+          "billingInterval": "yearly",
+          "market": "CN",
+          "purchaseChannel": "web",
+          "sourceURL": "https://www.costco.com.cn/membership",
+          "verifiedOn": "2026-08-01",
+          "reviewStatus": "verified"
+        }
+      ]
+    },
+    {
+      "id": "qq-svip",
+      "serviceName": {
+        "en": "QQ SVIP",
+        "zhHans": "QQ 超级会员"
+      },
+      "category": {
+        "en": "Membership",
+        "zhHans": "会员"
+      },
+      "categoryID": "membership",
+      "suggestedInterval": "monthly",
+      "managementURL": "https://vip.qq.com/",
+      "icon": "membership",
+      "assetProvenance": {
+        "kind": "originalSymbol",
+        "license": "CC0-1.0",
+        "source": "qq-svip"
+      },
+      "offers": [
+        {
+          "id": "c-qq-svip-monthly-cn-ios",
+          "planName": {
+            "en": "Super VIP",
+            "zhHans": "QQ超级会员连续包月"
+          },
+          "price": {
+            "minorUnits": 1900,
+            "currency": "CNY"
+          },
+          "billingInterval": "monthly",
+          "market": "CN",
+          "purchaseChannel": "iOS",
+          "sourceURL": "https://apps.apple.com/cn/app/qq/id444934666",
+          "verifiedOn": "2026-08-01",
+          "reviewStatus": "verified"
+        },
+        {
+          "id": "c-qq-svip-yearly-cn-ios",
+          "planName": {
+            "en": "Super VIP",
+            "zhHans": "QQ超级会员连续包年"
+          },
+          "price": {
+            "minorUnits": 23800,
+            "currency": "CNY"
+          },
+          "billingInterval": "yearly",
+          "market": "CN",
+          "purchaseChannel": "iOS",
+          "sourceURL": "https://apps.apple.com/cn/app/qq/id444934666",
+          "verifiedOn": "2026-08-01",
+          "reviewStatus": "verified"
+        }
+      ]
+    },
+    {
+      "id": "kuaishou-membership",
+      "serviceName": {
+        "en": "Kuaishou Membership",
+        "zhHans": "快手会员"
+      },
+      "category": {
+        "en": "Membership",
+        "zhHans": "会员"
+      },
+      "categoryID": "membership",
+      "suggestedInterval": "monthly",
+      "managementURL": "https://www.kuaishou.com/",
+      "icon": "membership",
+      "assetProvenance": {
+        "kind": "originalSymbol",
+        "license": "CC0-1.0",
+        "source": "kuaishou-membership"
+      },
+      "offers": [
+        {
+          "id": "c-kuaishou-gold-fan-club-monthly-cn-ios",
+          "planName": {
+            "en": "Gold Fan Club",
+            "zhHans": "快手超粉团金粉团连续包月"
+          },
+          "price": {
+            "minorUnits": 2990,
+            "currency": "CNY"
+          },
+          "billingInterval": "monthly",
+          "market": "CN",
+          "purchaseChannel": "iOS",
+          "sourceURL": "https://apps.apple.com/cn/app/%E5%BF%AB%E6%89%8B/id440948110",
+          "verifiedOn": "2026-08-01",
+          "reviewStatus": "verified"
+        },
+        {
+          "id": "c-kuaishou-diamond-fan-club-monthly-cn-ios",
+          "planName": {
+            "en": "Diamond Fan Club",
+            "zhHans": "快手超粉团钻粉团连续包月"
+          },
+          "price": {
+            "minorUnits": 6990,
+            "currency": "CNY"
+          },
+          "billingInterval": "monthly",
+          "market": "CN",
+          "purchaseChannel": "iOS",
+          "sourceURL": "https://apps.apple.com/cn/app/%E5%BF%AB%E6%89%8B/id440948110",
+          "verifiedOn": "2026-08-01",
+          "reviewStatus": "verified"
+        }
+      ]
+    },
+    {
+      "id": "claude",
+      "serviceName": {
+        "en": "Claude",
+        "zhHans": "Claude"
+      },
+      "category": {
+        "en": "AI",
+        "zhHans": "AI 工具"
+      },
+      "categoryID": "ai",
+      "suggestedInterval": "monthly",
+      "managementURL": "https://claude.ai/settings",
+      "icon": "productivity",
+      "assetProvenance": {
+        "kind": "originalSymbol",
+        "license": "CC0-1.0",
+        "source": "claude"
+      },
+      "offers": [
+        {
+          "id": "pro-monthly-us-web",
+          "planName": {
+            "en": "Pro",
+            "zhHans": "Pro"
+          },
+          "price": {
+            "minorUnits": 2000,
+            "currency": "USD"
+          },
+          "billingInterval": "monthly",
+          "market": "US",
+          "purchaseChannel": "web",
+          "sourceURL": "https://www.anthropic.com/pricing",
+          "verifiedOn": "2026-07-30",
+          "reviewStatus": "verified"
+        },
+        {
+          "id": "pro-yearly-us-web",
+          "planName": {
+            "en": "Pro",
+            "zhHans": "Pro"
+          },
+          "price": {
+            "minorUnits": 20000,
+            "currency": "USD"
+          },
+          "billingInterval": "yearly",
+          "market": "US",
+          "purchaseChannel": "web",
+          "sourceURL": "https://www.anthropic.com/pricing",
+          "verifiedOn": "2026-07-30",
+          "reviewStatus": "verified"
+        },
+        {
+          "id": "max-5x-monthly-us-web",
+          "planName": {
+            "en": "Max (5x)",
+            "zhHans": "Max (5x)"
+          },
+          "price": {
+            "minorUnits": 10000,
+            "currency": "USD"
+          },
+          "billingInterval": "monthly",
+          "market": "US",
+          "purchaseChannel": "web",
+          "sourceURL": "https://www.anthropic.com/pricing",
+          "verifiedOn": "2026-07-30",
+          "reviewStatus": "verified"
+        },
+        {
+          "id": "max-20x-monthly-us-web",
+          "planName": {
+            "en": "Max (20x)",
+            "zhHans": "Max (20x)"
+          },
+          "price": {
+            "minorUnits": 20000,
+            "currency": "USD"
+          },
+          "billingInterval": "monthly",
+          "market": "US",
+          "purchaseChannel": "web",
+          "sourceURL": "https://www.anthropic.com/pricing",
+          "verifiedOn": "2026-07-30",
+          "reviewStatus": "verified"
+        }
+      ]
+    },
+    {
+      "id": "google-ai",
+      "serviceName": {
+        "en": "Google AI",
+        "zhHans": "Google AI"
+      },
+      "category": {
+        "en": "AI",
+        "zhHans": "AI 工具"
+      },
+      "categoryID": "ai",
+      "suggestedInterval": "monthly",
+      "managementURL": "https://one.google.com/",
+      "icon": "productivity",
+      "assetProvenance": {
+        "kind": "originalSymbol",
+        "license": "CC0-1.0",
+        "source": "google-ai"
+      },
+      "offers": [
+        {
+          "id": "ai-plus-monthly-us-web",
+          "planName": {
+            "en": "Google AI Plus",
+            "zhHans": "Google AI Plus"
+          },
+          "price": {
+            "minorUnits": 999,
+            "currency": "USD"
+          },
+          "billingInterval": "monthly",
+          "market": "US",
+          "purchaseChannel": "web",
+          "sourceURL": "https://one.google.com/about/google-ai-plans/",
+          "verifiedOn": "2026-07-30",
+          "reviewStatus": "verified"
+        },
+        {
+          "id": "ai-pro-monthly-us-web",
+          "planName": {
+            "en": "Google AI Pro",
+            "zhHans": "Google AI Pro"
+          },
+          "price": {
+            "minorUnits": 1999,
+            "currency": "USD"
+          },
+          "billingInterval": "monthly",
+          "market": "US",
+          "purchaseChannel": "web",
+          "sourceURL": "https://one.google.com/about/google-ai-plans/",
+          "verifiedOn": "2026-07-30",
+          "reviewStatus": "verified"
+        }
+      ]
+    },
+    {
+      "id": "microsoft-365",
+      "serviceName": {
+        "en": "Microsoft 365",
+        "zhHans": "Microsoft 365"
+      },
+      "category": {
+        "en": "AI",
+        "zhHans": "AI 工具"
+      },
+      "categoryID": "ai",
+      "suggestedInterval": "monthly",
+      "managementURL": "https://account.microsoft.com/services",
+      "icon": "productivity",
+      "assetProvenance": {
+        "kind": "originalSymbol",
+        "license": "CC0-1.0",
+        "source": "microsoft-365"
+      },
+      "offers": [
+        {
+          "id": "personal-monthly-us-web",
+          "planName": {
+            "en": "Personal",
+            "zhHans": "Personal"
+          },
+          "price": {
+            "minorUnits": 999,
+            "currency": "USD"
+          },
+          "billingInterval": "monthly",
+          "market": "US",
+          "purchaseChannel": "web",
+          "sourceURL": "https://www.microsoft.com/en-us/microsoft-365/buy/microsoft-365",
+          "verifiedOn": "2026-07-30",
+          "reviewStatus": "verified"
+        },
+        {
+          "id": "personal-yearly-us-web",
+          "planName": {
+            "en": "Personal",
+            "zhHans": "Personal"
+          },
+          "price": {
+            "minorUnits": 9999,
+            "currency": "USD"
+          },
+          "billingInterval": "yearly",
+          "market": "US",
+          "purchaseChannel": "web",
+          "sourceURL": "https://www.microsoft.com/en-us/microsoft-365/buy/microsoft-365",
+          "verifiedOn": "2026-07-30",
+          "reviewStatus": "verified"
+        },
+        {
+          "id": "microsoft-365-family-monthly-us-web",
+          "planName": {
+            "en": "Family",
+            "zhHans": "Family"
+          },
+          "price": {
+            "minorUnits": 1299,
+            "currency": "USD"
+          },
+          "billingInterval": "monthly",
+          "market": "US",
+          "purchaseChannel": "web",
+          "sourceURL": "https://www.microsoft.com/en-us/microsoft-365/buy/microsoft-365",
+          "verifiedOn": "2026-07-30",
+          "reviewStatus": "verified"
+        },
+        {
+          "id": "family-yearly-us-web",
+          "planName": {
+            "en": "Family",
+            "zhHans": "Family"
+          },
+          "price": {
+            "minorUnits": 12999,
+            "currency": "USD"
+          },
+          "billingInterval": "yearly",
+          "market": "US",
+          "purchaseChannel": "web",
+          "sourceURL": "https://www.microsoft.com/en-us/microsoft-365/buy/microsoft-365",
+          "verifiedOn": "2026-07-30",
+          "reviewStatus": "verified"
+        },
+        {
+          "id": "microsoft-365-premium-monthly-us-web",
+          "planName": {
+            "en": "Premium",
+            "zhHans": "Premium"
+          },
+          "price": {
+            "minorUnits": 1999,
+            "currency": "USD"
+          },
+          "billingInterval": "monthly",
+          "market": "US",
+          "purchaseChannel": "web",
+          "sourceURL": "https://www.microsoft.com/en-us/microsoft-365/buy/microsoft-365",
+          "verifiedOn": "2026-07-30",
+          "reviewStatus": "verified"
+        },
+        {
+          "id": "microsoft-365-premium-yearly-us-web",
+          "planName": {
+            "en": "Premium",
+            "zhHans": "Premium"
+          },
+          "price": {
+            "minorUnits": 19999,
+            "currency": "USD"
+          },
+          "billingInterval": "yearly",
+          "market": "US",
+          "purchaseChannel": "web",
+          "sourceURL": "https://www.microsoft.com/en-us/microsoft-365/buy/microsoft-365",
+          "verifiedOn": "2026-07-30",
+          "reviewStatus": "verified"
+        }
+      ]
+    },
+    {
+      "id": "youtube-premium",
+      "serviceName": {
+        "en": "YouTube Premium",
+        "zhHans": "YouTube Premium"
+      },
+      "category": {
+        "en": "Video",
+        "zhHans": "视频"
+      },
+      "categoryID": "video",
+      "suggestedInterval": "monthly",
+      "managementURL": "https://www.youtube.com/paid_memberships",
+      "icon": "video",
+      "assetProvenance": {
+        "kind": "originalSymbol",
+        "license": "CC0-1.0",
+        "source": "youtube-premium"
+      },
+      "offers": [
+        {
+          "id": "youtube-premium-individual-monthly-us-web",
+          "planName": { "en": "YouTube Premium Individual", "zhHans": "YouTube Premium 个人会员" },
+          "price": { "minorUnits": 1599, "currency": "USD" },
+          "billingInterval": "monthly",
+          "market": "US",
+          "purchaseChannel": "web",
+          "sourceURL": "https://www.youtube.com/premium",
+          "verifiedOn": "2026-08-01",
+          "reviewStatus": "verified"
+        },
+        {
+          "id": "youtube-premium-family-monthly-us-web",
+          "planName": { "en": "YouTube Premium Family", "zhHans": "YouTube Premium 家庭会员" },
+          "price": { "minorUnits": 2699, "currency": "USD" },
+          "billingInterval": "monthly",
+          "market": "US",
+          "purchaseChannel": "web",
+          "sourceURL": "https://www.youtube.com/premium",
+          "verifiedOn": "2026-08-01",
+          "reviewStatus": "verified"
+        },
+        {
+          "id": "youtube-premium-student-monthly-us-web",
+          "planName": { "en": "YouTube Premium Student", "zhHans": "YouTube Premium 学生会员" },
+          "price": { "minorUnits": 899, "currency": "USD" },
+          "billingInterval": "monthly",
+          "market": "US",
+          "purchaseChannel": "web",
+          "sourceURL": "https://www.youtube.com/premium",
+          "verifiedOn": "2026-08-01",
+          "reviewStatus": "verified"
+        },
+        {
+          "id": "youtube-premium-lite-monthly-us-web",
+          "planName": { "en": "YouTube Premium Lite", "zhHans": "YouTube Premium 精简版" },
+          "price": { "minorUnits": 899, "currency": "USD" },
+          "billingInterval": "monthly",
+          "market": "US",
+          "purchaseChannel": "web",
+          "sourceURL": "https://www.youtube.com/premium",
+          "verifiedOn": "2026-08-01",
+          "reviewStatus": "verified"
+        },
+        {
+          "id": "youtube-premium-individual-yearly-us-web",
+          "planName": { "en": "YouTube Premium Individual Annual", "zhHans": "YouTube Premium 个人会员年付" },
+          "price": { "minorUnits": 15999, "currency": "USD" },
+          "billingInterval": "yearly",
+          "market": "US",
+          "purchaseChannel": "web",
+          "sourceURL": "https://www.youtube.com/premium/annual/inapp",
+          "verifiedOn": "2026-08-01",
+          "reviewStatus": "verified"
+        }
+      ]
+    },
+    {
+      "id": "disney-plus",
+      "serviceName": {
+        "en": "Disney+",
+        "zhHans": "Disney+"
+      },
+      "category": {
+        "en": "Video",
+        "zhHans": "视频"
+      },
+      "categoryID": "video",
+      "suggestedInterval": "monthly",
+      "managementURL": "https://www.disneyplus.com/account",
+      "icon": "video",
+      "assetProvenance": {
+        "kind": "originalSymbol",
+        "license": "CC0-1.0",
+        "source": "disney-plus"
+      },
+      "offers": [
+        {
+          "id": "disney-plus-ads-monthly-us-web",
+          "planName": {
+            "en": "With Ads",
+            "zhHans": "With Ads"
+          },
+          "price": {
+            "minorUnits": 1199,
+            "currency": "USD"
+          },
+          "billingInterval": "monthly",
+          "market": "US",
+          "purchaseChannel": "web",
+          "sourceURL": "https://help.disneyplus.com/article/disneyplus-price",
+          "verifiedOn": "2026-07-30",
+          "reviewStatus": "verified"
+        },
+        {
+          "id": "disney-plus-premium-monthly-us-web",
+          "planName": {
+            "en": "Premium",
+            "zhHans": "Premium"
+          },
+          "price": {
+            "minorUnits": 1899,
+            "currency": "USD"
+          },
+          "billingInterval": "monthly",
+          "market": "US",
+          "purchaseChannel": "web",
+          "sourceURL": "https://help.disneyplus.com/article/disneyplus-price",
+          "verifiedOn": "2026-07-30",
+          "reviewStatus": "verified"
+        },
+        {
+          "id": "disney-plus-premium-yearly-us-web",
+          "planName": {
+            "en": "Premium",
+            "zhHans": "Premium"
+          },
+          "price": {
+            "minorUnits": 18999,
+            "currency": "USD"
+          },
+          "billingInterval": "yearly",
+          "market": "US",
+          "purchaseChannel": "web",
+          "sourceURL": "https://help.disneyplus.com/article/disneyplus-price",
+          "verifiedOn": "2026-07-30",
+          "reviewStatus": "verified"
+        }
+      ]
+    },
+    {
+      "id": "canva",
+      "serviceName": {
+        "en": "Canva",
+        "zhHans": "Canva"
+      },
+      "category": {
+        "en": "AI",
+        "zhHans": "AI 工具"
+      },
+      "categoryID": "ai",
+      "suggestedInterval": "yearly",
+      "managementURL": "https://www.canva.com/settings/billing/",
+      "icon": "productivity",
+      "assetProvenance": {
+        "kind": "originalSymbol",
+        "license": "CC0-1.0",
+        "source": "canva"
+      },
+      "offers": [
+        {
+          "id": "pro-one-person-yearly-us-web",
+          "planName": {
+            "en": "Pro (1 person)",
+            "zhHans": "Pro (1 person)"
+          },
+          "price": {
+            "minorUnits": 18000,
+            "currency": "USD"
+          },
+          "billingInterval": "yearly",
+          "market": "US",
+          "purchaseChannel": "web",
+          "sourceURL": "https://www.canva.com/pricing/",
+          "verifiedOn": "2026-07-30",
+          "reviewStatus": "verified"
+        }
+      ]
+    },
+    {
+      "id": "doubao",
+      "serviceName": {
+        "en": "Doubao",
+        "zhHans": "豆包"
+      },
+      "category": {
+        "en": "AI",
+        "zhHans": "AI 工具"
+      },
+      "categoryID": "ai",
+      "suggestedInterval": "monthly",
+      "managementURL": null,
+      "icon": "productivity",
+      "assetProvenance": {
+        "kind": "originalSymbol",
+        "license": "CC0-1.0",
+        "source": "doubao"
+      },
+      "offers": [
+        {
+          "id": "pro-advanced-monthly-cn-ios",
+          "planName": {
+            "en": "Pro · Advanced",
+            "zhHans": "专业版 · 高级套餐"
+          },
+          "price": {
+            "minorUnits": 59900,
+            "currency": "CNY"
+          },
+          "billingInterval": "monthly",
+          "market": "CN",
+          "purchaseChannel": "iOS",
+          "sourceURL": "https://apps.apple.com/cn/app/id6459478672",
+          "verifiedOn": "2026-08-01",
+          "reviewStatus": "verified"
+        },
+        {
+          "id": "pro-advanced-yearly-cn-ios",
+          "planName": {
+            "en": "Pro · Advanced",
+            "zhHans": "专业版 · 高级套餐"
+          },
+          "price": {
+            "minorUnits": 608800,
+            "currency": "CNY"
+          },
+          "billingInterval": "yearly",
+          "market": "CN",
+          "purchaseChannel": "iOS",
+          "sourceURL": "https://apps.apple.com/cn/app/id6459478672",
+          "verifiedOn": "2026-08-01",
+          "reviewStatus": "verified"
+        },
+        {
+          "id": "pro-enhanced-monthly-cn-ios",
+          "planName": {
+            "en": "Pro · Enhanced",
+            "zhHans": "专业版 · 加强套餐"
+          },
+          "price": {
+            "minorUnits": 24000,
+            "currency": "CNY"
+          },
+          "billingInterval": "monthly",
+          "market": "CN",
+          "purchaseChannel": "iOS",
+          "sourceURL": "https://apps.apple.com/cn/app/id6459478672",
+          "verifiedOn": "2026-08-01",
+          "reviewStatus": "verified"
+        },
+        {
+          "id": "pro-enhanced-yearly-cn-ios",
+          "planName": {
+            "en": "Pro · Enhanced",
+            "zhHans": "专业版 · 加强套餐"
+          },
+          "price": {
+            "minorUnits": 248800,
+            "currency": "CNY"
+          },
+          "billingInterval": "yearly",
+          "market": "CN",
+          "purchaseChannel": "iOS",
+          "sourceURL": "https://apps.apple.com/cn/app/id6459478672",
+          "verifiedOn": "2026-08-01",
+          "reviewStatus": "verified"
+        }
+      ]
+    },
+    {
+      "id": "jimeng-ai",
+      "serviceName": {
+        "en": "Jimeng AI",
+        "zhHans": "即梦 AI"
+      },
+      "category": {
+        "en": "AI",
+        "zhHans": "AI 工具"
+      },
+      "categoryID": "ai",
+      "suggestedInterval": "monthly",
+      "managementURL": "https://apps.apple.com/cn/app/id6503676563",
+      "icon": "productivity",
+      "assetProvenance": {
+        "kind": "originalSymbol",
+        "license": "CC0-1.0",
+        "source": "jimeng-ai"
+      },
+      "offers": [
+        {
+          "id": "jimeng-ai-member-monthly-cn-ios",
+          "planName": {
+            "en": "Jimeng Member",
+            "zhHans": "即梦会员"
+          },
+          "price": {
+            "minorUnits": 6900,
+            "currency": "CNY"
+          },
+          "billingInterval": "monthly",
+          "market": "CN",
+          "purchaseChannel": "iOS",
+          "sourceURL": "https://apps.apple.com/cn/app/id6503676563",
+          "verifiedOn": "2026-08-01",
+          "reviewStatus": "verified"
+        },
+        {
+          "id": "jimeng-ai-member-yearly-cn-ios",
+          "planName": {
+            "en": "Jimeng Member",
+            "zhHans": "即梦会员"
+          },
+          "price": {
+            "minorUnits": 65900,
+            "currency": "CNY"
+          },
+          "billingInterval": "yearly",
+          "market": "CN",
+          "purchaseChannel": "iOS",
+          "sourceURL": "https://apps.apple.com/cn/app/id6503676563",
+          "verifiedOn": "2026-08-01",
+          "reviewStatus": "verified"
+        }
+      ]
     }
   ]
 }

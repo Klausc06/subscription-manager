@@ -16,6 +16,22 @@
           }
         }
       }
+    },
+    "NSCalendarsFullAccessUsageDescription" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Subscription Manager uses full Calendar access only after you choose Import to Calendar, so it can keep your dedicated renewal calendar free of duplicate events."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "订阅管理仅会在您选择“导入到日历”后请求完整日历访问权限，用于维护专属续费日历且避免重复事件。"
+          }
+        }
+      }
     }
   },
   "version" : "1.0"

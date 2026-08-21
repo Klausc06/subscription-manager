@@ -1,0 +1,42 @@
+{
+  "sourceLanguage" : "en",
+  "strings" : {
+    "widget.description" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "See your next subscription renewal without opening the app." } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "无需打开 App，即可查看下一次订阅续费。" } }
+      }
+    },
+    "widget.display-name" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Next Renewal" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "下次续费" } }
+      }
+    },
+    "widget.empty.subtitle" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Add a subscription to see it here." } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "添加订阅后将在这里显示。" } }
+      }
+    },
+    "widget.empty.title" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "No upcoming renewals" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "暂无即将续费" } }
+      }
+    },
+    "widget.stale.subtitle" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Open the app to refresh this forecast." } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "打开 App 刷新此预测。" } }
+      }
+    },
+    "widget.unavailable.subtitle" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Open the app to prepare this widget." } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "打开 App 以准备此小组件。" } }
+      }
+    }
+  },
+  "version" : "1.0"
+}

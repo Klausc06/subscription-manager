@@ -1,9 +1,2287 @@
 import Foundation
-import SubscriptionCore
+@testable import SubscriptionCore
 import Testing
 
 @Suite("Subscription workspace")
 struct SubscriptionWorkspaceTests {
+    @Test("Workspace preference commands persist appearance mode")
+    @MainActor
+    func appearanceModePersistsThroughWorkspace() throws {
+        let preferences = CalendarPreferencesFixture(
+            preferences: .default
+        )
+        let workspace = SubscriptionWorkspace(
+            repository: EmptySubscriptionRepository(),
+            preferencesRepository: preferences
+        )
+
+        workspace.loadSetup(libraryIsEmpty: false)
+        workspace.updatePreferences(
+            primaryCurrency: .cny,
+            calendarProjectionHorizon: .twelveMonths,
+            appearanceMode: .dark
+        )
+
+        #expect(try preferences.loadPreferences()?.appearanceMode == .dark)
+        #expect(
+            workspace.setupState == .needsSetup(
+                UserPreferences(
+                    primaryCurrency: .cny,
+                    calendarProjectionHorizon: .twelveMonths,
+                    appearanceMode: .dark,
+                    setupStatus: .notCompleted
+                )
+            )
+        )
+    }
+
+    @Test("Calendar projection hides amounts and uses trial alarm offsets")
+    @MainActor
+    func calendarProjectionUsesPreferencesAndTrialAlarms() throws {
+        let calendar = utcCalendar()
+        let now = try actionDate(
+            year: 2026,
+            month: 1,
+            day: 15,
+            hour: 12,
+            calendar: calendar
+        )
+        let renewal = try actionDate(
+            year: 2026,
+            month: 2,
+            day: 1,
+            hour: 12,
+            calendar: calendar
+        )
+        let subscription = makeSubscription(
+            id: UUID(uuidString: "11111111-2222-3333-4444-555555555555")!,
+            lifecycle: .trial(firstPaidChargeAt: renewal),
+            confirmedNextRenewal: renewal,
+            originalAmount: Money(minorUnits: 1_299, currency: .usd),
+            serviceName: "Atlas",
+            plan: "Pro",
+            notes: "Use the team account"
+        )
+        let workspace = SubscriptionWorkspace(
+            repository: InMemorySubscriptionRepository(
+                subscriptions: [subscription]
+            ),
+            preferencesRepository: CalendarPreferencesFixture(
+                preferences: UserPreferences(
+                    primaryCurrency: .usd,
+                    calendarProjectionHorizon: .sixMonths,
+                    hideAmountsInCalendar: true,
+                    setupStatus: .completed
+                )
+            ),
+            now: { now },
+            calendar: calendar
+        )
+
+        workspace.loadSetup(libraryIsEmpty: false)
+        workspace.loadCalendarProjection(locale: Locale(identifier: "en_US"))
+
+        let first = try #require(workspace.calendarProjection.first)
+        let expectedDate = try actionDate(
+            year: 2026,
+            month: 3,
+            day: 1,
+            hour: 12,
+            calendar: calendar
+        )
+        #expect(first.startDate == calendar.startOfDay(for: expectedDate))
+        #expect(first.title == "Atlas")
+        #expect(first.alarmOffsets == [-3, -1])
+        #expect(!first.notes.contains("12.99"))
+        #expect(first.notes.contains("Use the team account"))
+    }
+
+    @Test("Calendar import only starts after an explicit preview confirmation")
+    @MainActor
+    func calendarImportUsesThePreviewSnapshotAfterConfirmation() async throws {
+        let calendar = utcCalendar()
+        let now = try actionDate(
+            year: 2026,
+            month: 1,
+            day: 15,
+            hour: 12,
+            calendar: calendar
+        )
+        let importer = CalendarImporterFixture(result: .accessDenied)
+        let workspace = SubscriptionWorkspace(
+            repository: InMemorySubscriptionRepository(
+                subscriptions: [
+                    makeSubscription(
+                        id: UUID(
+                            uuidString: "99999999-2222-3333-4444-555555555555"
+                        )!
+                    )
+                ]
+            ),
+            preferencesRepository: CalendarPreferencesFixture(
+                preferences: UserPreferences(
+                    primaryCurrency: .usd,
+                    calendarProjectionHorizon: .sixMonths,
+                    setupStatus: .completed
+                )
+            ),
+            calendarProjectionImporter: importer,
+            now: { now },
+            calendar: calendar
+        )
+
+        workspace.loadSetup(libraryIsEmpty: false)
+        workspace.loadCalendarProjection(locale: Locale(identifier: "en_US"))
+        let preview = workspace.calendarProjection
+
+        #expect(importer.importedEvents() == nil)
+        #expect(workspace.calendarImportState == .notRequested)
+
+        await workspace.importCalendarProjection(preview)
+
+        #expect(importer.importedEvents() == preview)
+        #expect(workspace.calendarImportState == .accessDenied)
+    }
+
+    @Test("Calendar reconciliation surfaces an external calendar deletion without recreating it")
+    @MainActor
+    func calendarReconciliationRequiresDecisionForMissingCalendar() async throws {
+        let calendar = utcCalendar()
+        let now = try actionDate(
+            year: 2026,
+            month: 1,
+            day: 15,
+            hour: 12,
+            calendar: calendar
+        )
+        let reconciler = CalendarReconcilerFixture(
+            result: .needsDecision(.calendarMissing)
+        )
+        let workspace = SubscriptionWorkspace(
+            repository: InMemorySubscriptionRepository(
+                subscriptions: [
+                    makeSubscription(
+                        id: UUID(
+                            uuidString: "99999999-2222-3333-4444-555555555555"
+                        )!
+                    )
+                ]
+            ),
+            preferencesRepository: CalendarPreferencesFixture(
+                preferences: UserPreferences(
+                    primaryCurrency: .usd,
+                    calendarProjectionHorizon: .sixMonths,
+                    setupStatus: .completed
+                )
+            ),
+            calendarProjectionReconciler: reconciler,
+            now: { now },
+            calendar: calendar
+        )
+
+        await workspace.reconcileCalendarProjection(
+            locale: Locale(identifier: "en_US")
+        )
+
+        #expect(
+            reconciler.commands == [.reconcile(workspace.calendarProjection)]
+        )
+        #expect(
+            workspace.calendarReconciliationState
+                == .needsDecision(.calendarMissing)
+        )
+    }
+
+    @Test("Calendar reconciliation preserves the last projection when repository read fails")
+    @MainActor
+    func calendarReconciliationPreservesProjectionWhenRepositoryReadFails() async throws {
+        let calendar = utcCalendar()
+        let now = try actionDate(
+            year: 2026,
+            month: 1,
+            day: 15,
+            hour: 12,
+            calendar: calendar
+        )
+        let repository = InMemorySubscriptionRepository(
+            subscriptions: [
+                makeSubscription(
+                    id: UUID(
+                        uuidString: "99999999-2222-3333-4444-555555555555"
+                    )!
+                )
+            ]
+        )
+        let reconciler = CalendarReconcilerFixture(result: .reconciled)
+        let workspace = SubscriptionWorkspace(
+            repository: repository,
+            preferencesRepository: CalendarPreferencesFixture(
+                preferences: UserPreferences(
+                    primaryCurrency: .usd,
+                    calendarProjectionHorizon: .sixMonths,
+                    setupStatus: .completed
+                )
+            ),
+            calendarProjectionReconciler: reconciler,
+            now: { now },
+            calendar: calendar
+        )
+
+        workspace.loadSetup(libraryIsEmpty: false)
+        workspace.loadCalendarProjection(locale: Locale(identifier: "en_US"))
+        let previousProjection = workspace.calendarProjection
+        #expect(!previousProjection.isEmpty)
+
+        repository.failure = .list
+        await workspace.reconcileCalendarProjection(
+            locale: Locale(identifier: "en_US")
+        )
+
+        #expect(workspace.calendarProjection.isEmpty)
+        #expect(reconciler.commands.isEmpty)
+        #expect(workspace.calendarReconciliationState == .unavailable)
+    }
+
+    @Test("Calendar rebuild stops when repository read fails")
+    @MainActor
+    func calendarRebuildStopsWhenRepositoryReadFails() async throws {
+        let calendar = utcCalendar()
+        let now = try actionDate(
+            year: 2026,
+            month: 1,
+            day: 15,
+            hour: 12,
+            calendar: calendar
+        )
+        let repository = InMemorySubscriptionRepository(
+            subscriptions: [
+                makeSubscription(
+                    id: UUID(
+                        uuidString: "99999999-2222-3333-4444-555555555555"
+                    )!
+                )
+            ]
+        )
+        let reconciler = CalendarReconcilerFixture(result: .reconciled)
+        let workspace = SubscriptionWorkspace(
+            repository: repository,
+            preferencesRepository: CalendarPreferencesFixture(
+                preferences: UserPreferences(
+                    primaryCurrency: .usd,
+                    calendarProjectionHorizon: .sixMonths,
+                    setupStatus: .completed
+                )
+            ),
+            calendarProjectionReconciler: reconciler,
+            now: { now },
+            calendar: calendar
+        )
+
+        workspace.loadSetup(libraryIsEmpty: false)
+        workspace.loadCalendarProjection(locale: Locale(identifier: "en_US"))
+        let previousProjection = workspace.calendarProjection
+        #expect(!previousProjection.isEmpty)
+
+        repository.failure = .list
+        await workspace.rebuildCalendarProjection(
+            locale: Locale(identifier: "en_US")
+        )
+
+        #expect(workspace.calendarProjection.isEmpty)
+        #expect(reconciler.commands.isEmpty)
+        #expect(workspace.calendarReconciliationState == .unavailable)
+    }
+
+    @Test("Calendar reconciliation preserves partial failure counts")
+    @MainActor
+    func calendarReconciliationPreservesPartialFailure() async throws {
+        let calendar = utcCalendar()
+        let now = try actionDate(
+            year: 2026,
+            month: 1,
+            day: 15,
+            hour: 12,
+            calendar: calendar
+        )
+        let reconciler = CalendarReconcilerFixture(
+            result: .partialFailure(failedCount: 2)
+        )
+        let workspace = SubscriptionWorkspace(
+            repository: InMemorySubscriptionRepository(
+                subscriptions: [
+                    makeSubscription(
+                        id: UUID(
+                            uuidString: "99999999-2222-3333-4444-555555555555"
+                        )!
+                    )
+                ]
+            ),
+            preferencesRepository: CalendarPreferencesFixture(
+                preferences: UserPreferences(
+                    primaryCurrency: .usd,
+                    calendarProjectionHorizon: .sixMonths,
+                    setupStatus: .completed
+                )
+            ),
+            calendarProjectionReconciler: reconciler,
+            now: { now },
+            calendar: calendar
+        )
+
+        await workspace.rebuildCalendarProjection(
+            locale: Locale(identifier: "en_US")
+        )
+
+        #expect(
+            reconciler.commands == [.rebuild(workspace.calendarProjection)]
+        )
+        #expect(
+            workspace.calendarReconciliationState
+                == .partialFailure(failedCount: 2)
+        )
+        #expect(workspace.calendarReconciliationState != .current)
+    }
+
+    @Test("Normal calendar reconciliation maps partial failure without current")
+    @MainActor
+    func normalCalendarReconciliationMapsPartialFailure() async throws {
+        let calendar = utcCalendar()
+        let now = try actionDate(
+            year: 2026,
+            month: 1,
+            day: 15,
+            hour: 12,
+            calendar: calendar
+        )
+        let reconciler = CalendarReconcilerFixture(
+            result: .partialFailure(failedCount: 1)
+        )
+        let workspace = SubscriptionWorkspace(
+            repository: InMemorySubscriptionRepository(
+                subscriptions: [
+                    makeSubscription(
+                        id: UUID(
+                            uuidString: "99999999-2222-3333-4444-555555555555"
+                        )!
+                    )
+                ]
+            ),
+            preferencesRepository: CalendarPreferencesFixture(
+                preferences: UserPreferences(
+                    primaryCurrency: .usd,
+                    calendarProjectionHorizon: .sixMonths,
+                    setupStatus: .completed
+                )
+            ),
+            calendarProjectionReconciler: reconciler,
+            now: { now },
+            calendar: calendar
+        )
+
+        await workspace.reconcileCalendarProjection(
+            locale: Locale(identifier: "en_US")
+        )
+
+        #expect(
+            workspace.calendarReconciliationState
+                == .partialFailure(failedCount: 1)
+        )
+        #expect(workspace.calendarReconciliationState != .current)
+    }
+
+    @Test("Unavailable calendar reconciliation never becomes current")
+    @MainActor
+    func unavailableCalendarReconciliationNeverBecomesCurrent() async throws {
+        let calendar = utcCalendar()
+        let now = try actionDate(
+            year: 2026,
+            month: 1,
+            day: 15,
+            hour: 12,
+            calendar: calendar
+        )
+        let reconciler = CalendarReconcilerFixture(result: .unavailable)
+        let workspace = SubscriptionWorkspace(
+            repository: InMemorySubscriptionRepository(
+                subscriptions: [
+                    makeSubscription(
+                        id: UUID(
+                            uuidString: "99999999-2222-3333-4444-555555555555"
+                        )!
+                    )
+                ]
+            ),
+            preferencesRepository: CalendarPreferencesFixture(
+                preferences: UserPreferences(
+                    primaryCurrency: .usd,
+                    calendarProjectionHorizon: .sixMonths,
+                    setupStatus: .completed
+                )
+            ),
+            calendarProjectionReconciler: reconciler,
+            now: { now },
+            calendar: calendar
+        )
+
+        await workspace.reconcileCalendarProjection(
+            locale: Locale(identifier: "en_US")
+        )
+
+        #expect(workspace.calendarReconciliationState == .unavailable)
+        #expect(workspace.calendarReconciliationState != .current)
+    }
+
+    @Test("Calendar sync retry uses rebuild and can return to current")
+    @MainActor
+    func calendarSyncRetryUsesRebuildAndCanReturnToCurrent() async throws {
+        let calendar = utcCalendar()
+        let now = try actionDate(
+            year: 2026,
+            month: 1,
+            day: 15,
+            hour: 12,
+            calendar: calendar
+        )
+        let reconciler = CalendarReconcilerFixture(
+            results: [.partialFailure(failedCount: 1), .reconciled]
+        )
+        let workspace = SubscriptionWorkspace(
+            repository: InMemorySubscriptionRepository(
+                subscriptions: [
+                    makeSubscription(
+                        id: UUID(
+                            uuidString: "99999999-2222-3333-4444-555555555555"
+                        )!
+                    )
+                ]
+            ),
+            preferencesRepository: CalendarPreferencesFixture(
+                preferences: UserPreferences(
+                    primaryCurrency: .usd,
+                    calendarProjectionHorizon: .sixMonths,
+                    setupStatus: .completed
+                )
+            ),
+            calendarProjectionReconciler: reconciler,
+            now: { now },
+            calendar: calendar
+        )
+
+        await workspace.reconcileCalendarProjection(
+            locale: Locale(identifier: "en_US")
+        )
+        #expect(
+            workspace.calendarReconciliationState
+                == .partialFailure(failedCount: 1)
+        )
+
+        await workspace.rebuildCalendarProjection(
+            locale: Locale(identifier: "en_US")
+        )
+
+        #expect(
+            reconciler.commands == [
+                .reconcile(workspace.calendarProjection),
+                .rebuild(workspace.calendarProjection),
+            ]
+        )
+        #expect(workspace.calendarReconciliationState == .current)
+    }
+
+    @Test("Calendar reconciliation serializes requests received while active")
+    @MainActor
+    func calendarReconciliationSerializesRequestsReceivedWhileActive() async throws {
+        let calendar = utcCalendar()
+        let now = try actionDate(
+            year: 2026,
+            month: 1,
+            day: 15,
+            hour: 12,
+            calendar: calendar
+        )
+        let reconciler = CalendarReconcilerFixture(
+            results: [
+                .reconciled,
+                .needsDecision(.calendarMissing)
+            ],
+            suspendedCallNumbers: Set([1, 2])
+        )
+        let workspace = SubscriptionWorkspace(
+            repository: InMemorySubscriptionRepository(
+                subscriptions: [
+                    makeSubscription(
+                        id: UUID(
+                            uuidString: "99999999-2222-3333-4444-555555555555"
+                        )!
+                    )
+                ]
+            ),
+            preferencesRepository: CalendarPreferencesFixture(
+                preferences: UserPreferences(
+                    primaryCurrency: .usd,
+                    calendarProjectionHorizon: .sixMonths,
+                    setupStatus: .completed
+                )
+            ),
+            calendarProjectionReconciler: reconciler,
+            now: { now },
+            calendar: calendar
+        )
+
+        let firstRequest = Task { @MainActor in
+            await workspace.reconcileCalendarProjection(
+                locale: Locale(identifier: "en_US")
+            )
+        }
+        guard await assertCalendarReconcilerCallStarted(
+            1,
+            on: reconciler
+        ) else {
+            await firstRequest.value
+            return
+        }
+        #expect(workspace.calendarReconciliationState == .reconciling)
+
+        let secondRequest = Task { @MainActor in
+            await workspace.reconcileCalendarProjection(
+                locale: Locale(identifier: "en_US")
+            )
+        }
+        await secondRequest.value
+        #expect(reconciler.commands.count == 1)
+
+        reconciler.releaseCall(1)
+        guard await assertCalendarReconcilerCallStarted(
+            2,
+            on: reconciler
+        ) else {
+            await firstRequest.value
+            return
+        }
+        #expect(workspace.calendarReconciliationState == .reconciling)
+        #expect(reconciler.commands.count == 2)
+
+        reconciler.releaseCall(2)
+        await firstRequest.value
+
+        #expect(
+            reconciler.commands
+                == [
+                    .reconcile(workspace.calendarProjection),
+                    .reconcile(workspace.calendarProjection)
+                ]
+        )
+        #expect(reconciler.maximumConcurrentCalls == 1)
+        #expect(
+            workspace.calendarReconciliationState
+                == .needsDecision(.calendarMissing)
+        )
+    }
+
+    @Test("Calendar reconciliation prioritizes a pending disable")
+    @MainActor
+    func calendarReconciliationPrioritizesPendingDisable() async throws {
+        let calendar = utcCalendar()
+        let now = try actionDate(
+            year: 2026,
+            month: 1,
+            day: 15,
+            hour: 12,
+            calendar: calendar
+        )
+        let reconciler = CalendarReconcilerFixture(
+            results: [.reconciled, .disabled],
+            suspendedCallNumbers: Set([1, 2])
+        )
+        let workspace = SubscriptionWorkspace(
+            repository: InMemorySubscriptionRepository(
+                subscriptions: [
+                    makeSubscription(
+                        id: UUID(
+                            uuidString: "99999999-2222-3333-4444-555555555555"
+                        )!
+                    )
+                ]
+            ),
+            preferencesRepository: CalendarPreferencesFixture(
+                preferences: UserPreferences(
+                    primaryCurrency: .usd,
+                    calendarProjectionHorizon: .sixMonths,
+                    setupStatus: .completed
+                )
+            ),
+            calendarProjectionReconciler: reconciler,
+            now: { now },
+            calendar: calendar
+        )
+
+        let firstRequest = Task { @MainActor in
+            await workspace.reconcileCalendarProjection(
+                locale: Locale(identifier: "en_US")
+            )
+        }
+        guard await assertCalendarReconcilerCallStarted(
+            1,
+            on: reconciler
+        ) else {
+            await firstRequest.value
+            return
+        }
+
+        let disableRequest = Task { @MainActor in
+            await workspace.disableCalendarReconciliation()
+        }
+        await disableRequest.value
+
+        let automaticRequest = Task { @MainActor in
+            await workspace.reconcileCalendarProjection(
+                locale: Locale(identifier: "en_US")
+            )
+        }
+        await automaticRequest.value
+        #expect(workspace.calendarReconciliationState == .reconciling)
+        #expect(reconciler.commands.count == 1)
+
+        reconciler.releaseCall(1)
+        guard await assertCalendarReconcilerCallStarted(
+            2,
+            on: reconciler
+        ) else {
+            await firstRequest.value
+            return
+        }
+        #expect(workspace.calendarReconciliationState == .reconciling)
+
+        reconciler.releaseCall(2)
+        await firstRequest.value
+
+        #expect(
+            reconciler.commands
+                == [
+                    .reconcile(workspace.calendarProjection),
+                    .disable
+                ]
+        )
+        #expect(reconciler.maximumConcurrentCalls == 1)
+        #expect(workspace.calendarReconciliationState == .disabled)
+    }
+
+    @Test("Pending reconcile reloads the projection before its adapter command")
+    @MainActor
+    func pendingReconcileUsesFreshProjection() async throws {
+        try await assertPendingProjectionUsesFreshProjection(
+            .reconcile(Locale(identifier: "en_US"))
+        )
+    }
+
+    @Test("Pending rebuild reloads the projection before its adapter command")
+    @MainActor
+    func pendingRebuildUsesFreshProjection() async throws {
+        try await assertPendingProjectionUsesFreshProjection(
+            .rebuild(Locale(identifier: "en_US"))
+        )
+    }
+
+    @Test("A pending reconcile stops on a fresh projection read failure")
+    @MainActor
+    func pendingReconcileStopsWhenProjectionReadFails() async throws {
+        try await assertPendingProjectionReadFailure(
+            .reconcile(Locale(identifier: "en_US"))
+        )
+    }
+
+    @Test("A pending rebuild stops on a fresh projection read failure")
+    @MainActor
+    func pendingRebuildStopsWhenProjectionReadFails() async throws {
+        try await assertPendingProjectionReadFailure(
+            .rebuild(Locale(identifier: "en_US"))
+        )
+    }
+
+    @Test("Calendar reconciliation coalesces the pending priority matrix")
+    @MainActor
+    func calendarReconciliationCoalescesPendingPriorityMatrix() async throws {
+        try await assertPendingPriorityScenario(
+            firstPending: .reconcile(Locale(identifier: "en_US")),
+            secondPending: .rebuild(Locale(identifier: "en_US")),
+            expectedKind: .rebuild
+        )
+        try await assertPendingPriorityScenario(
+            firstPending: .rebuild(Locale(identifier: "en_US")),
+            secondPending: .reconcile(Locale(identifier: "en_US")),
+            expectedKind: .rebuild
+        )
+        try await assertPendingPriorityScenario(
+            firstPending: .reconcile(Locale(identifier: "en_US")),
+            secondPending: .reconcile(Locale(identifier: "de_DE")),
+            expectedKind: .reconcile,
+            expectedDifferentProjection: true
+        )
+    }
+
+    @Test("Sync status remains local-first when iCloud is signed out")
+    @MainActor
+    func signedOutSyncStatusDoesNotBlockCreation() async throws {
+        let startDate = Date(timeIntervalSince1970: 1_767_225_600)
+        let renewalDate = Date(timeIntervalSince1970: 1_769_904_000)
+        let repository = InMemorySubscriptionRepository()
+        let workspace = SubscriptionWorkspace(
+            repository: repository,
+            syncMonitor: SyncMonitorFixture(result: .signedOut)
+        )
+
+        await workspace.refreshSyncStatus()
+        workspace.createSubscription(
+            SubscriptionCreationInput(
+                serviceName: "Atlas",
+                plan: "Monthly",
+                category: "Productivity",
+                originalAmount: Money(minorUnits: 999, currency: .usd),
+                startDate: startDate,
+                confirmedNextRenewal: renewalDate,
+                managementURL: nil,
+                notes: ""
+            )
+        )
+
+        #expect(workspace.syncStatus == .signedOut)
+        #expect(try repository.listSubscriptions().count == 1)
+    }
+
+    @Test("A saved local subscription becomes pending for an available account")
+    @MainActor
+    func availableSyncStatusBecomesSynchronizingAfterCreation() async {
+        let startDate = Date(timeIntervalSince1970: 1_767_225_600)
+        let renewalDate = Date(timeIntervalSince1970: 1_769_904_000)
+        let workspace = SubscriptionWorkspace(
+            repository: InMemorySubscriptionRepository(),
+            syncMonitor: SyncMonitorFixture(result: .current)
+        )
+
+        await workspace.refreshSyncStatus()
+        workspace.createSubscription(
+            SubscriptionCreationInput(
+                serviceName: "Beacon",
+                plan: "Monthly",
+                category: "Music",
+                originalAmount: Money(minorUnits: 1_200, currency: .usd),
+                startDate: startDate,
+                confirmedNextRenewal: renewalDate,
+                managementURL: nil,
+                notes: ""
+            )
+        )
+
+        #expect(workspace.syncStatus == .synchronizing)
+    }
+
+    @Test("Table query searches visible fields and keeps sorting stable")
+    func tableQueryFiltersAndSortsSummaries() {
+        let firstID = UUID(uuidString: "11111111-2222-3333-4444-555555555555")!
+        let secondID = UUID(uuidString: "66666666-7777-8888-9999-AAAAAAAAAAAA")!
+        let thirdID = UUID(uuidString: "BBBBBBBB-CCCC-DDDD-EEEE-FFFFFFFFFFFF")!
+        let renewal = Date(timeIntervalSince1970: 1_769_356_800)
+        let summaries = [
+            SubscriptionSummary(
+                subscription: makeSubscription(
+                    id: firstID,
+                    confirmedNextRenewal: renewal,
+                    originalAmount: Money(minorUnits: 1_200, currency: .usd),
+                    category: "Cloud",
+                    serviceName: "Atlas Cloud",
+                    plan: "Pro"
+                ),
+                status: .active,
+                nextExpectedCharge: nil
+            ),
+            SubscriptionSummary(
+                subscription: makeSubscription(
+                    id: secondID,
+                    confirmedNextRenewal: renewal,
+                    originalAmount: Money(minorUnits: 900, currency: .usd),
+                    category: "Music",
+                    serviceName: "Beacon Music",
+                    plan: "Family"
+                ),
+                status: .active,
+                nextExpectedCharge: nil
+            ),
+            SubscriptionSummary(
+                subscription: makeSubscription(
+                    id: thirdID,
+                    confirmedNextRenewal: renewal,
+                    originalAmount: Money(minorUnits: 500, currency: .usd),
+                    category: "Productivity",
+                    serviceName: "Atlas Notes",
+                    plan: "Free"
+                ),
+                status: .active,
+                nextExpectedCharge: nil
+            ),
+        ]
+
+        let result = SubscriptionTableQuery(
+            searchText: "atlas",
+            sort: .amount,
+            ascending: false
+        )
+        .apply(to: summaries)
+
+        #expect(result.map(\.id) == [firstID, thirdID])
+    }
+
+    @Test(
+        "Active presentations advance stale renewals before detail and sorting"
+    )
+    @MainActor
+    func activePresentationsAdvanceStaleRenewals() throws {
+        let calendar = utcCalendar()
+        let now = try actionDate(
+            year: 2026,
+            month: 3,
+            day: 1,
+            hour: 12,
+            calendar: calendar
+        )
+        let firstID = UUID(
+            uuidString: "11111111-2222-3333-4444-555555555551"
+        )!
+        let secondID = UUID(
+            uuidString: "11111111-2222-3333-4444-555555555552"
+        )!
+        let firstStart = try actionDate(
+            year: 2026,
+            month: 1,
+            day: 15,
+            hour: 12,
+            calendar: calendar
+        )
+        let secondStart = try actionDate(
+            year: 2026,
+            month: 1,
+            day: 10,
+            hour: 12,
+            calendar: calendar
+        )
+        let staleFirstRenewal = try actionDate(
+            year: 2026,
+            month: 2,
+            day: 15,
+            hour: 12,
+            calendar: calendar
+        )
+        let staleSecondRenewal = try actionDate(
+            year: 2026,
+            month: 2,
+            day: 20,
+            hour: 12,
+            calendar: calendar
+        )
+        let expectedFirstRenewal = try actionDate(
+            year: 2026,
+            month: 3,
+            day: 15,
+            hour: 12,
+            calendar: calendar
+        )
+        let expectedSecondRenewal = try actionDate(
+            year: 2026,
+            month: 3,
+            day: 10,
+            hour: 12,
+            calendar: calendar
+        )
+        let first = makeSubscription(
+            id: firstID,
+            billingSchedule: FixedBillingSchedule(
+                interval: .monthly,
+                renewalAnchor: firstStart,
+                timeZoneIdentifier: calendar.timeZone.identifier
+            ),
+            confirmedNextRenewal: staleFirstRenewal,
+            serviceName: "First"
+        )
+        let second = makeSubscription(
+            id: secondID,
+            billingSchedule: FixedBillingSchedule(
+                interval: .monthly,
+                renewalAnchor: secondStart,
+                timeZoneIdentifier: calendar.timeZone.identifier
+            ),
+            confirmedNextRenewal: staleSecondRenewal,
+            serviceName: "Second"
+        )
+        let repository = InMemorySubscriptionRepository(
+            subscriptions: [first, second]
+        )
+        let workspace = SubscriptionWorkspace(
+            repository: repository,
+            now: { now },
+            calendar: calendar
+        )
+
+        workspace.loadLibrary()
+        guard case .loaded(.current, let summaries) = workspace.libraryState else {
+            Issue.record("Expected a loaded current library.")
+            return
+        }
+        let firstSummary = try #require(
+            summaries.first { $0.id == firstID }
+        )
+        let secondSummary = try #require(
+            summaries.first { $0.id == secondID }
+        )
+        #expect(firstSummary.confirmedNextRenewal == expectedFirstRenewal)
+        #expect(secondSummary.confirmedNextRenewal == expectedSecondRenewal)
+        #expect(
+            SubscriptionTableQuery(
+                sort: .nextRenewal,
+                ascending: true
+            ).apply(to: summaries).map(\.id) == [secondID, firstID]
+        )
+
+        workspace.loadSubscription(id: firstID)
+        guard case .loaded(let detail, _, _) = workspace.detailState else {
+            Issue.record("Expected a loaded detail.")
+            return
+        }
+        #expect(detail.confirmedNextRenewal == expectedFirstRenewal)
+        #expect(
+            repository.storedSubscription(id: firstID)?
+                .confirmedNextRenewal == staleFirstRenewal
+        )
+    }
+
+    @Test
+    @MainActor
+    func backwardSearchFindsOlderUnconfirmedMissedCharge() throws {
+        let calendar = actionCalendar()
+        let startDate = try actionDate(
+            year: 2026,
+            month: 5,
+            day: 1,
+            hour: 12,
+            calendar: calendar
+        )
+        let juneDate = try actionDate(
+            year: 2026,
+            month: 6,
+            day: 1,
+            hour: 12,
+            calendar: calendar
+        )
+        let julyDate = try actionDate(
+            year: 2026,
+            month: 7,
+            day: 1,
+            hour: 12,
+            calendar: calendar
+        )
+        let augustDate = try actionDate(
+            year: 2026,
+            month: 8,
+            day: 1,
+            hour: 12,
+            calendar: calendar
+        )
+        let now = try actionDate(
+            year: 2026,
+            month: 8,
+            day: 15,
+            hour: 12,
+            calendar: calendar
+        )
+        let subscription = makeSubscription(
+            id: UUID(
+                uuidString: "11111111-2222-3333-4444-555555555554"
+            )!,
+            billingSchedule: FixedBillingSchedule(
+                interval: .monthly,
+                renewalAnchor: startDate,
+                timeZoneIdentifier: calendar.timeZone.identifier
+            ),
+            confirmedNextRenewal: juneDate
+        )
+        let workspace = SubscriptionWorkspace(
+            repository: InMemorySubscriptionRepository(
+                subscriptions: [subscription]
+            ),
+            now: { now },
+            calendar: calendar
+        )
+
+        workspace.confirmCharge(
+            id: subscription.id,
+            scheduledDate: julyDate,
+            chargedDate: julyDate,
+            amount: subscription.originalAmount
+        )
+        workspace.loadSubscription(id: subscription.id)
+        let upperCandidateMissedDates: [Date] = workspace.paymentHistory.compactMap {
+            entry in
+            guard case .expected(let charge) = entry,
+                  calendar.startOfDay(for: charge.scheduledDate)
+                    <= calendar.startOfDay(for: now)
+            else {
+                return nil
+            }
+            return charge.scheduledDate
+        }
+        #expect(upperCandidateMissedDates == [augustDate])
+
+        workspace.confirmCharge(
+            id: subscription.id,
+            scheduledDate: augustDate,
+            chargedDate: augustDate,
+            amount: subscription.originalAmount
+        )
+        workspace.loadSubscription(id: subscription.id)
+
+        let expectedCharges: [ExpectedCharge] = workspace.paymentHistory.compactMap {
+            entry in
+            guard case .expected(let charge) = entry else { return nil }
+            return charge
+        }
+        let missedCharges = expectedCharges.filter {
+            calendar.startOfDay(for: $0.scheduledDate)
+                <= calendar.startOfDay(for: now)
+        }
+        #expect(missedCharges.map(\.scheduledDate) == [juneDate])
+        #expect(
+            expectedCharges.filter {
+                calendar.startOfDay(for: $0.scheduledDate)
+                    > calendar.startOfDay(for: now)
+            }.map(\.scheduledDate) == [
+                try actionDate(
+                    year: 2026,
+                    month: 9,
+                    day: 1,
+                    hour: 12,
+                    calendar: calendar
+                )
+            ]
+        )
+    }
+
+    @Test("History occurrence search stops at the confirmed renewal lower bound")
+    func historyOccurrenceSearchStopsAtConfirmedRenewalLowerBound() {
+        let candidateIndex = 1_000_000
+        let lowerBoundIndex = candidateIndex - 3
+        var probeCount = 0
+        var lowestProbedIndex = Int.max
+
+        let result = HistoryOccurrenceSearch.firstUnconfirmedPastOccurrence(
+            candidateIndex: candidateIndex,
+            lowerBoundDay: Date(
+                timeIntervalSince1970: TimeInterval(lowerBoundIndex)
+            ),
+            todayDay: Date(
+                timeIntervalSince1970: TimeInterval(candidateIndex)
+            ),
+            occurrenceAt: { occurrenceIndex in
+                probeCount += 1
+                lowestProbedIndex = min(lowestProbedIndex, occurrenceIndex)
+                return Date(
+                    timeIntervalSince1970: TimeInterval(occurrenceIndex)
+                )
+            },
+            day: { $0 },
+            isConfirmed: { _ in true }
+        )
+
+        #expect(result == nil)
+        #expect(probeCount > 0)
+        #expect(probeCount <= 6)
+        #expect(lowestProbedIndex >= lowerBoundIndex - 1)
+    }
+
+    @Test(
+        "confirmedNextRenewal bounds derived history",
+        arguments: [LifecycleFixture.trial, LifecycleFixture.active]
+    )
+    @MainActor
+    func confirmedNextRenewalBoundsDerivedHistory(
+        fixture: LifecycleFixture
+    ) throws {
+        let calendar = utcCalendar()
+        let startDate = try actionDate(
+            year: 2026,
+            month: 1,
+            day: 1,
+            hour: 12,
+            calendar: calendar
+        )
+        let confirmedNextRenewal = try actionDate(
+            year: 2026,
+            month: 4,
+            day: 1,
+            hour: 12,
+            calendar: calendar
+        )
+        let now = try actionDate(
+            year: 2026,
+            month: fixture == .trial ? 1 : 2,
+            day: fixture == .trial ? 15 : 15,
+            hour: 12,
+            calendar: calendar
+        )
+        let lifecycle: SubscriptionLifecycle
+        switch fixture {
+        case .trial:
+            lifecycle = .trial(firstPaidChargeAt: confirmedNextRenewal)
+        case .active:
+            lifecycle = .active
+        case .cancelledWithAccess, .expired:
+            Issue.record("Unexpected ineligible fixture")
+            return
+        }
+        let subscription = makeSubscription(
+            id: UUID(
+                uuidString: fixture == .trial
+                    ? "11111111-2222-3333-4444-555555555556"
+                    : "11111111-2222-3333-4444-555555555557"
+            )!,
+            lifecycle: lifecycle,
+            billingSchedule: FixedBillingSchedule(
+                interval: .monthly,
+                renewalAnchor: startDate,
+                timeZoneIdentifier: calendar.timeZone.identifier
+            ),
+            confirmedNextRenewal: confirmedNextRenewal
+        )
+        let workspace = SubscriptionWorkspace(
+            repository: InMemorySubscriptionRepository(
+                subscriptions: [subscription]
+            ),
+            now: { now },
+            calendar: calendar
+        )
+
+        workspace.loadSubscription(id: subscription.id)
+
+        let expectedDates: [Date] = workspace.paymentHistory.compactMap {
+            entry in
+            guard case .expected(let charge) = entry else { return nil }
+            return charge.scheduledDate
+        }
+        let gateDay = calendar.startOfDay(for: confirmedNextRenewal)
+        #expect(expectedDates.allSatisfy {
+            calendar.startOfDay(for: $0) >= gateDay
+        })
+        #expect(expectedDates == [confirmedNextRenewal])
+    }
+
+    @Test
+    @MainActor
+    func historySortsSameBillingDayByKind() throws {
+        let calendar = utcCalendar()
+        let morning = try actionDate(
+            year: 2026,
+            month: 2,
+            day: 1,
+            hour: 9,
+            calendar: calendar
+        )
+        let noon = try actionDate(
+            year: 2026,
+            month: 2,
+            day: 1,
+            hour: 12,
+            calendar: calendar
+        )
+        let evening = try actionDate(
+            year: 2026,
+            month: 2,
+            day: 1,
+            hour: 18,
+            calendar: calendar
+        )
+        let subscriptionID = UUID(
+            uuidString: "11111111-2222-3333-4444-555555555558"
+        )!
+        let subscription = makeSubscription(
+            id: subscriptionID,
+            isArchived: true,
+            billingSchedule: FixedBillingSchedule(
+                interval: .monthly,
+                renewalAnchor: morning,
+                timeZoneIdentifier: "UTC"
+            ),
+            confirmedNextRenewal: noon,
+            confirmedCharges: [
+                ConfirmedCharge(
+                    id: UUID(
+                        uuidString: "22222222-3333-4444-5555-666666666668"
+                    )!,
+                    chargedDate: evening,
+                    amount: Money(minorUnits: 999, currency: .usd)
+                ),
+                ConfirmedCharge(
+                    id: UUID(
+                        uuidString: "22222222-3333-4444-5555-666666666667"
+                    )!,
+                    chargedDate: morning,
+                    amount: Money(minorUnits: 999, currency: .usd)
+                ),
+            ],
+            priceChanges: [
+                PriceChange(
+                    id: UUID(
+                        uuidString: "33333333-4444-5555-6666-777777777778"
+                    )!,
+                    effectiveDate: noon,
+                    amount: Money(minorUnits: 1_099, currency: .usd)
+                ),
+            ]
+        )
+        let workspace = SubscriptionWorkspace(
+            repository: InMemorySubscriptionRepository(
+                subscriptions: [subscription]
+            ),
+            now: { noon },
+            calendar: calendar
+        )
+
+        workspace.loadSubscription(id: subscriptionID)
+
+        guard workspace.paymentHistory.count == 3,
+              case .priceChange(let priceChange) = workspace.paymentHistory[0],
+              case .confirmed(let earlierConfirmed) = workspace.paymentHistory[1],
+              case .confirmed(let laterConfirmed) = workspace.paymentHistory[2]
+        else {
+            Issue.record(
+                "Expected price change followed by chronological confirmed charges."
+            )
+            return
+        }
+        #expect(priceChange.effectiveDate == noon)
+        #expect(earlierConfirmed.chargedDate == morning)
+        #expect(laterConfirmed.chargedDate == evening)
+    }
+
+    @Test(
+        "Active presentations skip today's billing-local occurrence before noon"
+    )
+    @MainActor
+    func activePresentationsSkipCurrentBillingDay() throws {
+        let calendar = actionCalendar()
+        let now = try actionDate(
+            year: 2026,
+            month: 3,
+            day: 15,
+            hour: 8,
+            calendar: calendar
+        )
+        let start = try actionDate(
+            year: 2026,
+            month: 1,
+            day: 15,
+            hour: 12,
+            calendar: calendar
+        )
+        let todayOccurrence = try actionDate(
+            year: 2026,
+            month: 3,
+            day: 15,
+            hour: 12,
+            calendar: calendar
+        )
+        let expectedRenewal = try actionDate(
+            year: 2026,
+            month: 4,
+            day: 15,
+            hour: 12,
+            calendar: calendar
+        )
+        let id = UUID(
+            uuidString: "11111111-2222-3333-4444-555555555553"
+        )!
+        let subscription = makeSubscription(
+            id: id,
+            billingSchedule: FixedBillingSchedule(
+                interval: .monthly,
+                renewalAnchor: start,
+                timeZoneIdentifier: calendar.timeZone.identifier
+            ),
+            confirmedNextRenewal: todayOccurrence
+        )
+        let workspace = SubscriptionWorkspace(
+            repository: InMemorySubscriptionRepository(
+                subscriptions: [subscription]
+            ),
+            now: { now },
+            calendar: calendar
+        )
+
+        workspace.loadLibrary()
+        guard case .loaded(.current, let summaries) = workspace.libraryState,
+              let summary = summaries.first
+        else {
+            Issue.record("Expected a loaded current library.")
+            return
+        }
+        #expect(summary.confirmedNextRenewal == expectedRenewal)
+        #expect(summary.nextExpectedCharge?.scheduledDate == expectedRenewal)
+
+        workspace.loadSubscription(id: id)
+        guard case .loaded(
+            let detail,
+            _,
+            let nextExpectedCharge
+        ) = workspace.detailState else {
+            Issue.record("Expected a loaded detail.")
+            return
+        }
+        #expect(detail.confirmedNextRenewal == expectedRenewal)
+        #expect(nextExpectedCharge?.scheduledDate == expectedRenewal)
+        #expect(
+            workspace.makeWidgetSnapshot()?.nextRenewal?.renewalDate
+                == expectedRenewal
+        )
+    }
+
+    @Test("Every table sort keeps pinned subscriptions first by recency")
+    func tableQueryKeepsPinnedSummariesFirst() {
+        let newestID = UUID(
+            uuidString: "11111111-2222-3333-4444-555555555555"
+        )!
+        let tiedFirstID = UUID(
+            uuidString: "22222222-2222-3333-4444-555555555555"
+        )!
+        let tiedSecondID = UUID(
+            uuidString: "33333333-2222-3333-4444-555555555555"
+        )!
+        let unpinnedID = UUID(
+            uuidString: "44444444-2222-3333-4444-555555555555"
+        )!
+        let olderPin = Date(timeIntervalSinceReferenceDate: 800_000_000)
+        let newestPin = olderPin.addingTimeInterval(60)
+        let summaries = [
+            SubscriptionSummary(
+                subscription: makeSubscription(
+                    id: unpinnedID,
+                    serviceName: "A Service"
+                ),
+                status: .active,
+                nextExpectedCharge: nil
+            ),
+            SubscriptionSummary(
+                subscription: makeSubscription(
+                    id: tiedSecondID,
+                    pinnedAt: olderPin,
+                    serviceName: "Z Service"
+                ),
+                status: .active,
+                nextExpectedCharge: nil
+            ),
+            SubscriptionSummary(
+                subscription: makeSubscription(
+                    id: newestID,
+                    pinnedAt: newestPin,
+                    serviceName: "M Service"
+                ),
+                status: .active,
+                nextExpectedCharge: nil
+            ),
+            SubscriptionSummary(
+                subscription: makeSubscription(
+                    id: tiedFirstID,
+                    pinnedAt: olderPin,
+                    serviceName: "Y Service"
+                ),
+                status: .active,
+                nextExpectedCharge: nil
+            ),
+        ]
+
+        for sort in SubscriptionTableSort.allCases {
+            for ascending in [true, false] {
+                let result = SubscriptionTableQuery(
+                    searchText: "service",
+                    sort: sort,
+                    ascending: ascending
+                )
+                .apply(to: summaries)
+
+                #expect(
+                    Array(result.prefix(3).map(\.id))
+                        == [newestID, tiedFirstID, tiedSecondID]
+                )
+                #expect(result.last?.id == unpinnedID)
+            }
+        }
+    }
+
+    @Test("EUR snapshot converts source money through its base rate")
+    func exchangeRateSnapshotConvertsThroughEUR() throws {
+        let now = Date(timeIntervalSince1970: 1_769_356_800)
+        let snapshot = ExchangeRateSnapshot(
+            base: .eur,
+            providerDate: now,
+            fetchedAt: now,
+            source: "fixture",
+            rates: [
+                .eur: 1,
+                .usd: 1.2,
+                .cny: 8.4,
+            ]
+        )
+
+        let converted = try snapshot.convert(
+            Money(minorUnits: 840, currency: .cny),
+            to: .usd
+        )
+
+        #expect(converted == Money(minorUnits: 120, currency: .usd))
+    }
+
+    @Test("Today's rate cache is reused without requesting the network")
+    @MainActor
+    func rateRefreshReusesTodaysCache() async {
+        let now = Date(timeIntervalSince1970: 1_769_356_800)
+        let snapshot = ExchangeRateSnapshot(
+            base: .eur,
+            providerDate: now,
+            fetchedAt: now,
+            source: "fixture",
+            rates: [.eur: 1, .usd: 1.2, .cny: 8.4]
+        )
+        let source = RecordingExchangeRateSource(snapshot: snapshot)
+        let cache = InMemoryExchangeRateCache(
+            state: ExchangeRateCacheState(
+                snapshot: snapshot,
+                lastAttemptAt: now
+            )
+        )
+        let workspace = SubscriptionWorkspace(
+            repository: InMemorySubscriptionRepository(),
+            exchangeRateSource: source,
+            exchangeRateCache: cache,
+            now: { now }
+        )
+
+        await workspace.refreshExchangeRates()
+
+        #expect(source.requests.isEmpty)
+        #expect(workspace.exchangeRateStatus == .fresh(snapshot))
+    }
+
+    @Test("A subscription read failure does not reuse an incomplete same-day cache")
+    @MainActor
+    func rateRefreshDoesNotTrustCacheWhenSubscriptionsCannotBeRead() async {
+        let now = Date(timeIntervalSince1970: 1_769_356_800)
+        let cacheSnapshot = ExchangeRateSnapshot(
+            base: .eur,
+            providerDate: now,
+            fetchedAt: now,
+            source: "fixture",
+            rates: [.eur: 1, .cny: 8.4]
+        )
+        let source = RecordingExchangeRateSource(snapshot: cacheSnapshot)
+        let cache = InMemoryExchangeRateCache(
+            state: ExchangeRateCacheState(
+                snapshot: cacheSnapshot,
+                lastAttemptAt: now
+            )
+        )
+        let workspace = SubscriptionWorkspace(
+            repository: FailingSubscriptionRepository(
+                subscriptions: [
+                    makeSubscription(
+                        id: UUID(
+                            uuidString: "11111111-2222-3333-4444-555555555555"
+                        )!,
+                        originalAmount: Money(minorUnits: 999, currency: .usd)
+                    ),
+                ]
+            ),
+            exchangeRateSource: source,
+            exchangeRateCache: cache,
+            now: { now }
+        )
+
+        await workspace.refreshExchangeRates()
+
+        #expect(source.requests.isEmpty)
+        #expect(workspace.exchangeRateStatus == .unavailable)
+    }
+
+    @Test("Stale rates refresh only library and display currencies")
+    @MainActor
+    func rateRefreshRequestsOnlyNeededCurrencies() async {
+        let yesterday = Date(timeIntervalSince1970: 1_769_270_400)
+        let now = Date(timeIntervalSince1970: 1_769_356_800)
+        let refreshed = ExchangeRateSnapshot(
+            base: .eur,
+            providerDate: now,
+            fetchedAt: now,
+            source: "fixture",
+            rates: [.eur: 1, .usd: 1.2, .cny: 8.4]
+        )
+        let source = RecordingExchangeRateSource(snapshot: refreshed)
+        let cache = InMemoryExchangeRateCache(
+            state: ExchangeRateCacheState(
+                snapshot: ExchangeRateSnapshot(
+                    base: .eur,
+                    providerDate: yesterday,
+                    fetchedAt: yesterday,
+                    source: "fixture",
+                    rates: [.eur: 1, .usd: 1.2]
+                ),
+                lastAttemptAt: yesterday
+            )
+        )
+        let workspace = SubscriptionWorkspace(
+            repository: InMemorySubscriptionRepository(subscriptions: [
+                makeSubscription(
+                    id: UUID(uuidString: "11111111-2222-3333-4444-555555555555")!,
+                    originalAmount: Money(minorUnits: 999, currency: .usd)
+                ),
+            ]),
+            exchangeRateSource: source,
+            exchangeRateCache: cache,
+            now: { now }
+        )
+
+        await workspace.refreshExchangeRates()
+
+        #expect(source.requests.count == 1)
+        #expect(source.requests.first?.base == .eur)
+        #expect(source.requests.first?.quotes == [.cny, .usd])
+        #expect(cache.state == ExchangeRateCacheState(
+            snapshot: refreshed,
+            lastAttemptAt: now
+        ))
+        #expect(workspace.exchangeRateStatus == ExchangeRateStatus.fresh(refreshed))
+    }
+
+    @Test("A failed refresh keeps stale rates and is not retried today")
+    @MainActor
+    func failedRateRefreshKeepsStaleSnapshot() async {
+        let yesterday = Date(timeIntervalSince1970: 1_769_270_400)
+        let now = Date(timeIntervalSince1970: 1_769_356_800)
+        let stale = ExchangeRateSnapshot(
+            base: .eur,
+            providerDate: yesterday,
+            fetchedAt: yesterday,
+            source: "fixture",
+            rates: [.eur: 1, .cny: 8.4]
+        )
+        let source = RecordingExchangeRateSource(error: ExchangeRateFixtureError.offline)
+        let cache = InMemoryExchangeRateCache(
+            state: ExchangeRateCacheState(
+                snapshot: stale,
+                lastAttemptAt: yesterday
+            )
+        )
+        let workspace = SubscriptionWorkspace(
+            repository: InMemorySubscriptionRepository(),
+            exchangeRateSource: source,
+            exchangeRateCache: cache,
+            now: { now }
+        )
+
+        await workspace.refreshExchangeRates()
+        await workspace.refreshExchangeRates()
+
+        #expect(source.requests.count == 1)
+        #expect(workspace.exchangeRateStatus == ExchangeRateStatus.stale(stale))
+        #expect(cache.state?.lastAttemptAt == now)
+    }
+
+    @Test("An incomplete same-day rate cache requests its missing currency")
+    @MainActor
+    func incompleteSameDayRateCacheRequestsMissingCurrency() async {
+        let now = Date(timeIntervalSince1970: 1_769_356_800)
+        let refreshed = ExchangeRateSnapshot(
+            base: .eur,
+            providerDate: now,
+            fetchedAt: now,
+            source: "fixture",
+            rates: [.eur: 1, .cny: 8.4]
+        )
+        let source = RecordingExchangeRateSource(snapshot: refreshed)
+        let cache = InMemoryExchangeRateCache(
+            state: ExchangeRateCacheState(
+                snapshot: ExchangeRateSnapshot(
+                    base: .eur,
+                    providerDate: now,
+                    fetchedAt: now,
+                    source: "fixture",
+                    rates: [.eur: 1]
+                ),
+                lastAttemptAt: now
+            )
+        )
+        let workspace = SubscriptionWorkspace(
+            repository: InMemorySubscriptionRepository(),
+            exchangeRateSource: source,
+            exchangeRateCache: cache,
+            now: { now }
+        )
+
+        await workspace.refreshExchangeRates()
+
+        #expect(source.requests.count == 1)
+        #expect(source.requests.first?.quotes == [.cny])
+        #expect(workspace.exchangeRateStatus == .fresh(refreshed))
+    }
+
+    @Test("An incomplete rate response keeps a complete stale snapshot")
+    @MainActor
+    func incompleteRateResponseKeepsCompleteStaleSnapshot() async {
+        let yesterday = Date(timeIntervalSince1970: 1_769_270_400)
+        let now = Date(timeIntervalSince1970: 1_769_356_800)
+        let stale = ExchangeRateSnapshot(
+            base: .eur,
+            providerDate: yesterday,
+            fetchedAt: yesterday,
+            source: "fixture",
+            rates: [.eur: 1, .cny: 8.4]
+        )
+        let incomplete = ExchangeRateSnapshot(
+            base: .eur,
+            providerDate: now,
+            fetchedAt: now,
+            source: "fixture",
+            rates: [.eur: 1]
+        )
+        let source = RecordingExchangeRateSource(snapshot: incomplete)
+        let cache = InMemoryExchangeRateCache(
+            state: ExchangeRateCacheState(
+                snapshot: stale,
+                lastAttemptAt: yesterday
+            )
+        )
+        let workspace = SubscriptionWorkspace(
+            repository: InMemorySubscriptionRepository(),
+            exchangeRateSource: source,
+            exchangeRateCache: cache,
+            now: { now }
+        )
+
+        await workspace.refreshExchangeRates()
+
+        #expect(source.requests.count == 1)
+        #expect(cache.state == ExchangeRateCacheState(
+            snapshot: stale,
+            lastAttemptAt: now
+        ))
+        #expect(workspace.exchangeRateStatus == .stale(stale))
+    }
+
+    @Test("Rate refresh requests original, price-change, and confirmed currencies")
+    @MainActor
+    func rateRefreshRequestsAllSubscriptionCurrencies() async {
+        let yesterday = Date(timeIntervalSince1970: 1_769_270_400)
+        let now = Date(timeIntervalSince1970: 1_769_356_800)
+        let subscriptionID = UUID(
+            uuidString: "11111111-2222-3333-4444-555555555555"
+        )!
+        let refreshed = ExchangeRateSnapshot(
+            base: .eur,
+            providerDate: now,
+            fetchedAt: now,
+            source: "fixture",
+            rates: [.eur: 1, .usd: 1.2, .cny: 8.4]
+        )
+        let source = RecordingExchangeRateSource(snapshot: refreshed)
+        let cache = InMemoryExchangeRateCache(
+            state: ExchangeRateCacheState(
+                snapshot: ExchangeRateSnapshot(
+                    base: .eur,
+                    providerDate: yesterday,
+                    fetchedAt: yesterday,
+                    source: "fixture",
+                    rates: [.eur: 1]
+                ),
+                lastAttemptAt: yesterday
+            )
+        )
+        let workspace = SubscriptionWorkspace(
+            repository: InMemorySubscriptionRepository(subscriptions: [
+                makeSubscription(
+                    id: subscriptionID,
+                    confirmedCharges: [
+                        ConfirmedCharge(
+                            id: UUID(
+                                uuidString: "22222222-3333-4444-5555-666666666666"
+                            )!,
+                            chargedDate: yesterday,
+                            amount: Money(minorUnits: 999, currency: .eur)
+                        ),
+                    ],
+                    originalAmount: Money(minorUnits: 999, currency: .usd),
+                    priceChanges: [
+                        PriceChange(
+                            id: UUID(
+                                uuidString: "33333333-4444-5555-6666-777777777777"
+                            )!,
+                            effectiveDate: yesterday,
+                            amount: Money(minorUnits: 1_099, currency: .cny)
+                        ),
+                    ]
+                ),
+            ]),
+            exchangeRateSource: source,
+            exchangeRateCache: cache,
+            now: { now }
+        )
+
+        await workspace.refreshExchangeRates()
+
+        #expect(source.requests.first?.quotes == [.cny, .usd])
+    }
+
+    @Test("Cancelling a rate refresh does not write a failed attempt")
+    @MainActor
+    func cancelledRateRefreshDoesNotWriteFailureState() async {
+        let yesterday = Date(timeIntervalSince1970: 1_769_270_400)
+        let now = Date(timeIntervalSince1970: 1_769_356_800)
+        let stale = ExchangeRateSnapshot(
+            base: .eur,
+            providerDate: yesterday,
+            fetchedAt: yesterday,
+            source: "fixture",
+            rates: [.eur: 1, .cny: 8.4]
+        )
+        let cache = InMemoryExchangeRateCache(
+            state: ExchangeRateCacheState(
+                snapshot: stale,
+                lastAttemptAt: yesterday
+            )
+        )
+        let workspace = SubscriptionWorkspace(
+            repository: InMemorySubscriptionRepository(),
+            exchangeRateSource: RecordingExchangeRateSource(error: .cancelled),
+            exchangeRateCache: cache,
+            now: { now }
+        )
+
+        await workspace.refreshExchangeRates()
+
+        #expect(cache.state == ExchangeRateCacheState(
+            snapshot: stale,
+            lastAttemptAt: yesterday
+        ))
+        #expect(workspace.exchangeRateStatus == .stale(stale))
+    }
+
+    @Test("A failed rate-cache save does not repeat the same process attempt")
+    @MainActor
+    func failedRateCacheSaveDoesNotRepeatProcessAttempt() async {
+        let yesterday = Date(timeIntervalSince1970: 1_769_270_400)
+        let now = Date(timeIntervalSince1970: 1_769_356_800)
+        let snapshot = ExchangeRateSnapshot(
+            base: .eur,
+            providerDate: now,
+            fetchedAt: now,
+            source: "fixture",
+            rates: [.eur: 1, .cny: 8.4]
+        )
+        let source = RecordingExchangeRateSource(snapshot: snapshot)
+        let cache = InMemoryExchangeRateCache(
+            state: ExchangeRateCacheState(
+                snapshot: nil,
+                lastAttemptAt: yesterday
+            ),
+            saveError: .cacheSaveFailed
+        )
+        let workspace = SubscriptionWorkspace(
+            repository: InMemorySubscriptionRepository(),
+            exchangeRateSource: source,
+            exchangeRateCache: cache,
+            now: { now }
+        )
+
+        await workspace.refreshExchangeRates()
+        await workspace.refreshExchangeRates()
+
+        #expect(source.requests.count == 1)
+        #expect(cache.state?.lastAttemptAt == yesterday)
+        #expect(workspace.exchangeRateStatus == .fresh(snapshot))
+    }
+
+    @Test("Expected insights convert charges into selected currency totals")
+    @MainActor
+    func expectedInsightsConvertRangeMonthlyAndCategoryTotals() async throws {
+        let now = Date(timeIntervalSince1970: 1_769_356_800)
+        let renewal = now.addingTimeInterval(86_400)
+        let snapshot = ExchangeRateSnapshot(
+            base: .eur,
+            providerDate: now,
+            fetchedAt: now,
+            source: "fixture",
+            rates: [.eur: 1, .usd: 1.2, .cny: 8.4]
+        )
+        let workspace = SubscriptionWorkspace(
+            repository: InMemorySubscriptionRepository(subscriptions: [
+                makeSubscription(
+                    id: UUID(uuidString: "11111111-2222-3333-4444-555555555555")!,
+                    billingSchedule: FixedBillingSchedule(
+                        interval: .monthly,
+                        renewalAnchor: renewal,
+                        timeZoneIdentifier: "UTC"
+                    ),
+                    confirmedNextRenewal: renewal,
+                    originalAmount: Money(minorUnits: 120, currency: .usd),
+                    category: "Video"
+                ),
+            ]),
+            exchangeRateCache: InMemoryExchangeRateCache(
+                state: ExchangeRateCacheState(
+                    snapshot: snapshot,
+                    lastAttemptAt: now
+                )
+            ),
+            now: { now }
+        )
+
+        await workspace.refreshExchangeRates()
+        workspace.loadInsights(
+            mode: .expected,
+            from: now,
+            through: now.addingTimeInterval(172_800)
+        )
+
+        let insights = try #require(workspace.insightsState.availableValue)
+        #expect(insights.selectedRangeTotal == Money(minorUnits: 840, currency: .cny))
+        #expect(insights.monthlyTotals.map(\.amount) == [
+            Money(minorUnits: 840, currency: .cny),
+        ])
+        #expect(insights.categoryTotals == [
+            SpendingCategoryTotal(category: "Video", amount: Money(minorUnits: 840, currency: .cny)),
+        ])
+
+        workspace.updatePreferences(
+            primaryCurrency: .usd,
+            calendarProjectionHorizon: .twelveMonths
+        )
+
+        let recomputed = try #require(workspace.insightsState.availableValue)
+        #expect(recomputed.selectedRangeTotal == Money(minorUnits: 120, currency: .usd))
+    }
+
+    @Test("Annualized insights count both endpoints in a thirty-day range")
+    @MainActor
+    func annualizedInsightsCountBothEndpoints() async throws {
+        let calendar = utcCalendar()
+        let now = try actionDate(
+            year: 2026,
+            month: 1,
+            day: 31,
+            hour: 12,
+            calendar: calendar
+        )
+        let from = try actionDate(
+            year: 2026,
+            month: 1,
+            day: 1,
+            hour: 12,
+            calendar: calendar
+        )
+        let through = try actionDate(
+            year: 2026,
+            month: 1,
+            day: 30,
+            hour: 12,
+            calendar: calendar
+        )
+        let chargeDate = try actionDate(
+            year: 2026,
+            month: 1,
+            day: 15,
+            hour: 12,
+            calendar: calendar
+        )
+        let snapshot = ExchangeRateSnapshot(
+            base: .eur,
+            providerDate: now,
+            fetchedAt: now,
+            source: "fixture",
+            rates: [.eur: 1, .cny: 8.4]
+        )
+        let workspace = SubscriptionWorkspace(
+            repository: InMemorySubscriptionRepository(subscriptions: [
+                makeSubscription(
+                    id: UUID(
+                        uuidString: "11111111-2222-3333-4444-555555555555"
+                    )!,
+                    confirmedCharges: [
+                        ConfirmedCharge(
+                            id: UUID(
+                                uuidString: "22222222-3333-4444-5555-666666666666"
+                            )!,
+                            chargedDate: chargeDate,
+                            amount: Money(minorUnits: 3_000, currency: .cny)
+                        ),
+                    ],
+                    originalAmount: Money(minorUnits: 3_000, currency: .cny)
+                ),
+            ]),
+            exchangeRateCache: InMemoryExchangeRateCache(
+                state: ExchangeRateCacheState(
+                    snapshot: snapshot,
+                    lastAttemptAt: now
+                )
+            ),
+            now: { now },
+            calendar: calendar
+        )
+
+        await workspace.refreshExchangeRates()
+        workspace.loadInsights(
+            mode: .confirmed,
+            from: from,
+            through: through
+        )
+
+        let insights = try #require(workspace.insightsState.availableValue)
+        #expect(insights.selectedRangeTotal == Money(
+            minorUnits: 3_000,
+            currency: .cny
+        ))
+        #expect(insights.annualizedTotal == Money(
+            minorUnits: 36_500,
+            currency: .cny
+        ))
+    }
+
+    @Test("Upcoming timeline orders expected and confirmed charges while excluding cancelled subscriptions")
+    @MainActor
+    func upcomingTimelineOrdersEligibleCharges() {
+        let now = Date(timeIntervalSince1970: 1_767_225_600)
+        let firstID = UUID(uuidString: "11111111-2222-3333-4444-555555555555")!
+        let secondID = UUID(uuidString: "66666666-7777-8888-9999-AAAAAAAAAAAA")!
+        let cancelledID = UUID(uuidString: "BBBBBBBB-CCCC-DDDD-EEEE-FFFFFFFFFFFF")!
+        let firstDate = now.addingTimeInterval(86_400)
+        let confirmedDate = now.addingTimeInterval(172_800)
+        let secondDate = now.addingTimeInterval(259_200)
+        let repository = InMemorySubscriptionRepository(subscriptions: [
+            makeSubscription(
+                id: firstID,
+                billingSchedule: FixedBillingSchedule(
+                    interval: .weekly,
+                    renewalAnchor: firstDate,
+                    timeZoneIdentifier: "UTC"
+                ),
+                confirmedNextRenewal: firstDate,
+                confirmedCharges: [ConfirmedCharge(
+                    id: UUID(uuidString: "12121212-3434-5656-7878-909090909090")!,
+                    chargedDate: confirmedDate,
+                    amount: Money(minorUnits: 1_099, currency: .usd)
+                )]
+            ),
+            makeSubscription(
+                id: secondID,
+                billingSchedule: FixedBillingSchedule(
+                    interval: .weekly,
+                    renewalAnchor: secondDate,
+                    timeZoneIdentifier: "UTC"
+                ),
+                confirmedNextRenewal: secondDate
+            ),
+            makeSubscription(
+                id: cancelledID,
+                lifecycle: .cancelled(
+                    cancelledAt: now,
+                    accessUntil: now.addingTimeInterval(86_400)
+                ),
+                billingSchedule: FixedBillingSchedule(
+                    interval: .weekly,
+                    renewalAnchor: firstDate,
+                    timeZoneIdentifier: "UTC"
+                ),
+                confirmedNextRenewal: firstDate
+            ),
+        ])
+        let workspace = SubscriptionWorkspace(
+            repository: repository,
+            now: { now }
+        )
+
+        workspace.loadUpcomingTimeline(
+            from: now,
+            through: now.addingTimeInterval(604_800)
+        )
+
+        #expect(workspace.upcomingTimeline.map(\.subscriptionID) == [
+            firstID,
+            firstID,
+            secondID,
+        ])
+        #expect(workspace.upcomingTimeline.map(\.kind) == [
+            .expected,
+            .confirmed,
+            .expected,
+        ])
+    }
+
+    @Test("Upcoming repository failure is distinct from an empty result")
+    @MainActor
+    func upcomingRepositoryFailureIsDistinctFromEmpty() {
+        let now = Date(timeIntervalSince1970: 1_767_225_600)
+        let emptyWorkspace = SubscriptionWorkspace(
+            repository: InMemorySubscriptionRepository(),
+            now: { now }
+        )
+        emptyWorkspace.loadUpcomingTimeline(
+            from: now,
+            through: now.addingTimeInterval(86_400)
+        )
+        #expect(emptyWorkspace.upcomingTimelineState == .empty)
+
+        let workspace = SubscriptionWorkspace(
+            repository: FailingSubscriptionRepository(),
+            now: { now }
+        )
+
+        workspace.loadUpcomingTimeline(
+            from: now,
+            through: now.addingTimeInterval(86_400)
+        )
+
+        #expect(workspace.upcomingTimeline.isEmpty)
+        #expect(workspace.upcomingTimelineState == .failed)
+    }
+
+    @Test("Upcoming keeps a due-today charge visible after its normalized billing time")
+    @MainActor
+    func upcomingKeepsDueTodayVisibleAfterBillingTime() throws {
+        let calendar = utcCalendar()
+        let today = try #require(calendar.date(from: DateComponents(
+            year: 2026,
+            month: 8,
+            day: 1
+        )))
+        let dueToday = try #require(calendar.date(bySettingHour: 12,
+                                                 minute: 0,
+                                                 second: 0,
+                                                 of: today))
+        let now = try #require(calendar.date(bySettingHour: 18,
+                                            minute: 0,
+                                            second: 0,
+                                            of: today))
+        let subscriptionID = UUID(
+            uuidString: "D0DEC0DE-0000-4000-8000-000000000001"
+        )!
+        let workspace = SubscriptionWorkspace(
+            repository: InMemorySubscriptionRepository(subscriptions: [
+                makeSubscription(
+                    id: subscriptionID,
+                    billingSchedule: FixedBillingSchedule(
+                        interval: .monthly,
+                        renewalAnchor: dueToday,
+                        timeZoneIdentifier: "UTC"
+                    ),
+                    confirmedNextRenewal: dueToday
+                ),
+            ]),
+            now: { now }
+        )
+
+        workspace.loadUpcomingTimeline(
+            from: today,
+            through: try #require(calendar.date(
+                byAdding: .day,
+                value: 1,
+                to: today
+            ))
+        )
+
+        let occurrence = try #require(
+            workspace.upcomingTimeline.first(where: {
+                $0.subscriptionID == subscriptionID && $0.kind == .expected
+            })
+        )
+        #expect(occurrence.date == dueToday)
+    }
+
+    @Test("Upcoming month-end queries include the last day's full time range")
+    @MainActor
+    func upcomingMonthEndQueryIncludesLastDayNoon() throws {
+        let calendar = utcCalendar()
+        let monthStart = try actionDate(
+            year: 2026,
+            month: 8,
+            day: 1,
+            hour: 0,
+            calendar: calendar
+        )
+        let monthEnd = try actionDate(
+            year: 2026,
+            month: 8,
+            day: 31,
+            hour: 12,
+            calendar: calendar
+        )
+        let workspace = SubscriptionWorkspace(
+            repository: InMemorySubscriptionRepository(subscriptions: [
+                makeSubscription(
+                    id: UUID(
+                        uuidString: "D0DEC0DE-0000-4000-8000-000000000001"
+                    )!,
+                    billingSchedule: FixedBillingSchedule(
+                        interval: .monthly,
+                        renewalAnchor: monthEnd,
+                        timeZoneIdentifier: "UTC"
+                    ),
+                    confirmedNextRenewal: monthEnd
+                ),
+            ]),
+            now: { monthStart },
+            calendar: calendar
+        )
+
+        let monthInterval = try #require(
+            calendar.dateInterval(of: .month, for: monthStart)
+        )
+        workspace.loadUpcomingTimeline(
+            from: monthInterval.start,
+            through: try #require(calendar.date(
+                byAdding: .nanosecond,
+                value: -1,
+                to: monthInterval.end
+            ))
+        )
+
+        #expect(workspace.upcomingTimeline.contains {
+            $0.date == monthEnd
+        })
+    }
+
+    @Test("Upcoming keeps renewal dates in the subscription billing timezone")
+    @MainActor
+    func upcomingUsesSubscriptionBillingTimezone() throws {
+        var billingCalendar = Calendar(identifier: .gregorian)
+        billingCalendar.timeZone = TimeZone(identifier: "America/Los_Angeles")!
+        let renewal = try actionDate(
+            year: 2026,
+            month: 8,
+            day: 1,
+            hour: 12,
+            calendar: billingCalendar
+        )
+        let now = try actionDate(
+            year: 2026,
+            month: 8,
+            day: 1,
+            hour: 11,
+            calendar: billingCalendar
+        )
+        let workspace = SubscriptionWorkspace(
+            repository: InMemorySubscriptionRepository(subscriptions: [
+                makeSubscription(
+                    id: UUID(
+                        uuidString: "D0DEC0DE-0000-4000-8000-000000000002"
+                    )!,
+                    billingSchedule: FixedBillingSchedule(
+                        interval: .monthly,
+                        renewalAnchor: renewal,
+                        timeZoneIdentifier: "America/Los_Angeles"
+                    ),
+                    confirmedNextRenewal: renewal
+                ),
+            ]),
+            now: { now },
+            calendar: actionCalendar()
+        )
+
+        workspace.loadUpcomingTimeline(
+            from: now,
+            through: now.addingTimeInterval(86_400)
+        )
+
+        #expect(workspace.upcomingTimeline.first?.date == renewal)
+    }
+
+    @Test("Upcoming includes past unconfirmed occurrences and replaces them after confirmation")
+    @MainActor
+    func upcomingPastMonthDeduplicatesConfirmedOccurrences() throws {
+        let calendar = utcCalendar()
+        let now = try actionDate(
+            year: 2026,
+            month: 8,
+            day: 1,
+            hour: 12,
+            calendar: calendar
+        )
+        let dueDate = try actionDate(
+            year: 2026,
+            month: 6,
+            day: 1,
+            hour: 12,
+            calendar: calendar
+        )
+        let subscriptionID = UUID(
+            uuidString: "ABCDEFAB-CDEF-CDEF-CDEF-ABCDEFABCDEF"
+        )!
+        let schedule = FixedBillingSchedule(
+            interval: .monthly,
+            renewalAnchor: dueDate,
+            timeZoneIdentifier: "UTC"
+        )
+        let expectedID = ScheduledChargeID(
+            subscriptionID: subscriptionID,
+            year: 2026,
+            month: 6,
+            day: 1
+        )
+        let base = makeSubscription(
+            id: subscriptionID,
+            billingSchedule: schedule,
+            confirmedNextRenewal: now
+        )
+        let unconfirmedWorkspace = SubscriptionWorkspace(
+            repository: InMemorySubscriptionRepository(subscriptions: [base]),
+            now: { now },
+            calendar: calendar
+        )
+
+        let unconfirmed = try unconfirmedWorkspace.upcomingRenewals(
+            from: dueDate,
+            through: dueDate
+        )
+        let unconfirmedKinds: [UpcomingTimelineItem.Kind] = unconfirmed.map(
+            \.kind
+        )
+        #expect(unconfirmedKinds == [.expected])
+        #expect(unconfirmed.first?.date == dueDate)
+
+        let confirmed = makeSubscription(
+            id: subscriptionID,
+            billingSchedule: schedule,
+            confirmedNextRenewal: now,
+            confirmedCharges: [
+                ConfirmedCharge(
+                    id: UUID(
+                        uuidString: "FEDCBAFE-DCBA-DCBA-DCBA-FEDCBAFEDCBA"
+                    )!,
+                    chargedDate: dueDate,
+                    amount: Money(minorUnits: 999, currency: .usd),
+                    sourceScheduledChargeID: expectedID
+                ),
+            ]
+        )
+        let confirmedWorkspace = SubscriptionWorkspace(
+            repository: InMemorySubscriptionRepository(
+                subscriptions: [confirmed]
+            ),
+            now: { now },
+            calendar: calendar
+        )
+
+        let deduplicated = try confirmedWorkspace.upcomingRenewals(
+            from: dueDate,
+            through: dueDate
+        )
+        let deduplicatedKinds: [UpcomingTimelineItem.Kind] = deduplicated.map {
+            $0.kind
+        }
+        #expect(deduplicatedKinds == [.confirmed])
+        #expect(deduplicated.first?.date == dueDate)
+    }
+
     @Test("A valid newer catalog becomes active without mutating subscriptions")
     @MainActor
     func newerCatalogActivatesWithoutMutatingSubscriptions() async throws {
@@ -16,7 +2294,13 @@ struct SubscriptionWorkspaceTests {
             category: CatalogLocalizedText(en: "Music", zhHans: "音乐"),
             suggestedInterval: .monthly,
             managementURL: nil,
-            icon: .music
+            icon: .music,
+            offers: [
+                catalogOfferFixture(
+                    id: "music-monthly-us-web",
+                    status: .verified
+                )
+            ]
         )
         let newer = CatalogPreset(
             id: "video.example",
@@ -27,7 +2311,13 @@ struct SubscriptionWorkspaceTests {
             category: CatalogLocalizedText(en: "Video", zhHans: "视频"),
             suggestedInterval: .monthly,
             managementURL: nil,
-            icon: .video
+            icon: .video,
+            offers: [
+                catalogOfferFixture(
+                    id: "video-monthly-us-web",
+                    status: .verified
+                )
+            ]
         )
         let update = try JSONEncoder().encode(
             CatalogSnapshot(
@@ -63,6 +2353,224 @@ struct SubscriptionWorkspaceTests {
         #expect(repository.updateAttemptCount == 0)
     }
 
+    @Test("Refreshing before initial load reads the persisted catalog once")
+    @MainActor
+    func refreshBeforeInitialLoadReadsPersistedCatalogOnce() async throws {
+        let preset = catalogPresetFixture(offers: [
+            catalogOfferFixture(id: "monthly", status: .verified),
+        ])
+        let repository = CountingCatalogRepository(presets: [preset])
+        let update = try JSONEncoder().encode(
+            CatalogSnapshot(
+                schemaVersion: CatalogSnapshot.currentSchemaVersion,
+                catalogVersion: 1,
+                presets: [preset]
+            )
+        )
+        let workspace = SubscriptionWorkspace(
+            repository: InMemorySubscriptionRepository(),
+            catalogRepository: repository,
+            catalogUpdateSource: StaticCatalogUpdateSource(data: update),
+            catalogCache: InMemoryCatalogCache()
+        )
+
+        await workspace.refreshCatalog()
+
+        #expect(repository.loadCount == 1)
+        #expect(workspace.catalogDiagnostics?.refreshStatus == .alreadyCurrent)
+    }
+
+    @Test("Out-of-order catalog failure keeps the newer response active")
+    @MainActor
+    func refreshCatalogRejectsOutOfOrderStaleResponse() async throws {
+        let bundled = catalogPresetFixture(
+            offers: [
+                catalogOfferFixture(
+                    id: "bundled-monthly-us-web",
+                    status: .verified
+                )
+            ],
+            id: "bundled.example",
+            serviceName: CatalogLocalizedText(
+                en: "Bundled Example",
+                zhHans: "内置示例"
+            )
+        )
+        let v2 = catalogPresetFixture(
+            offers: [
+                catalogOfferFixture(
+                    id: "v2-monthly-us-web",
+                    status: .verified
+                )
+            ],
+            id: "v2.example",
+            serviceName: CatalogLocalizedText(
+                en: "Version Two",
+                zhHans: "版本二"
+            )
+        )
+        let v3 = catalogPresetFixture(
+            offers: [
+                catalogOfferFixture(
+                    id: "v3-monthly-us-web",
+                    status: .verified
+                )
+            ],
+            id: "v3.example",
+            serviceName: CatalogLocalizedText(
+                en: "Version Three",
+                zhHans: "版本三"
+            )
+        )
+        let v2Data = try JSONEncoder().encode(
+            CatalogSnapshot(
+                schemaVersion: CatalogSnapshot.currentSchemaVersion,
+                catalogVersion: 2,
+                presets: [v2]
+            )
+        )
+        let v3Data = try JSONEncoder().encode(
+            CatalogSnapshot(
+                schemaVersion: CatalogSnapshot.currentSchemaVersion,
+                catalogVersion: 3,
+                presets: [v3]
+            )
+        )
+        let source = SuspendedCatalogUpdateSource(
+            responses: [2: v2Data, 3: v3Data],
+            requestVersions: [2, 3]
+        )
+        let cache = InMemoryCatalogCache()
+        let workspace = SubscriptionWorkspace(
+            repository: InMemorySubscriptionRepository(),
+            catalogRepository: StaticCatalogRepository(
+                catalogVersion: 1,
+                presets: [bundled]
+            ),
+            catalogUpdateSource: source,
+            catalogCache: cache
+        )
+        workspace.loadCatalog(locale: Locale(identifier: "en"))
+
+        let v2Refresh = Task { await workspace.refreshCatalog() }
+        await source.waitForSuspendedFetches(count: 1)
+        let v3Refresh = Task { await workspace.refreshCatalog() }
+        await source.waitForSuspendedFetches(count: 2)
+
+        source.release(version: 3)
+        await v3Refresh.value
+        source.fail(version: 2)
+        await v2Refresh.value
+
+        #expect(workspace.catalogDiagnostics == CatalogDiagnostics(
+            source: .cached,
+            version: 3,
+            refreshStatus: .updated
+        ))
+        #expect(workspace.catalogState == .loaded(
+            categories: [CatalogCategory(
+                id: "productivity",
+                title: v3.category
+            )],
+            presets: [v3]
+        ))
+        #expect(cache.storedData == v3Data)
+    }
+
+    @Test("Stale or failed refresh preserves the active cached catalog source")
+    @MainActor
+    func staleOrFailedRefreshPreservesActiveCachedCatalogSource() async throws {
+        let bundled = CatalogPreset(
+            id: "music.example",
+            serviceName: CatalogLocalizedText(
+                en: "Example Music",
+                zhHans: "示例音乐"
+            ),
+            category: CatalogLocalizedText(en: "Music", zhHans: "音乐"),
+            suggestedInterval: .monthly,
+            managementURL: nil,
+            icon: .music,
+            offers: [
+                catalogOfferFixture(
+                    id: "music-monthly-us-web",
+                    status: .verified
+                )
+            ]
+        )
+        let newer = CatalogPreset(
+            id: "video.example",
+            serviceName: CatalogLocalizedText(
+                en: "Example Video",
+                zhHans: "示例视频"
+            ),
+            category: CatalogLocalizedText(en: "Video", zhHans: "视频"),
+            suggestedInterval: .monthly,
+            managementURL: nil,
+            icon: .video,
+            offers: [
+                catalogOfferFixture(
+                    id: "video-monthly-us-web",
+                    status: .verified
+                )
+            ]
+        )
+        let bundledData = try JSONEncoder().encode(
+            CatalogSnapshot(
+                schemaVersion: CatalogSnapshot.currentSchemaVersion,
+                catalogVersion: 1,
+                presets: [bundled]
+            )
+        )
+        let newerData = try JSONEncoder().encode(
+            CatalogSnapshot(
+                schemaVersion: CatalogSnapshot.currentSchemaVersion,
+                catalogVersion: 2,
+                presets: [newer]
+            )
+        )
+        let source = StaticCatalogUpdateSource(data: bundledData)
+        let workspace = SubscriptionWorkspace(
+            repository: InMemorySubscriptionRepository(),
+            catalogRepository: StaticCatalogRepository(presets: [bundled]),
+            catalogUpdateSource: source,
+            catalogCache: InMemoryCatalogCache()
+        )
+
+        workspace.loadCatalog(locale: Locale(identifier: "en"))
+
+        source.data = newerData
+        await workspace.refreshCatalog()
+        #expect(workspace.catalogDiagnostics == CatalogDiagnostics(
+            source: .cached,
+            version: 2,
+            refreshStatus: .updated
+        ))
+
+        source.data = bundledData
+        await workspace.refreshCatalog()
+        #expect(workspace.catalogDiagnostics == CatalogDiagnostics(
+            source: .cached,
+            version: 2,
+            refreshStatus: .alreadyCurrent
+        ))
+        #expect(workspace.catalogState == .loaded(
+            categories: [CatalogCategory(id: "video", title: newer.category)],
+            presets: [newer]
+        ))
+
+        source.shouldFail = true
+        await workspace.refreshCatalog()
+        #expect(workspace.catalogDiagnostics == CatalogDiagnostics(
+            source: .cached,
+            version: 2,
+            refreshStatus: .failed
+        ))
+        #expect(workspace.catalogState == .loaded(
+            categories: [CatalogCategory(id: "video", title: newer.category)],
+            presets: [newer]
+        ))
+    }
+
     @Test("Stale and corrupt catalog updates preserve the active catalog")
     @MainActor
     func staleAndCorruptCatalogUpdatesPreserveActiveCatalog() async throws {
@@ -75,7 +2583,13 @@ struct SubscriptionWorkspaceTests {
             category: CatalogLocalizedText(en: "Music", zhHans: "音乐"),
             suggestedInterval: .monthly,
             managementURL: nil,
-            icon: .music
+            icon: .music,
+            offers: [
+                catalogOfferFixture(
+                    id: "music-monthly-us-web",
+                    status: .verified
+                )
+            ]
         )
         let stale = try JSONEncoder().encode(
             CatalogSnapshot(
@@ -119,6 +2633,66 @@ struct SubscriptionWorkspaceTests {
         #expect(repository.updateAttemptCount == 0)
     }
 
+    @Test("A new catalog session clears search and category filters")
+    @MainActor
+    func newCatalogSessionClearsFilters() throws {
+        let music = CatalogPreset(
+            id: "music.example",
+            serviceName: CatalogLocalizedText(en: "Music", zhHans: "音乐"),
+            category: CatalogLocalizedText(en: "Music", zhHans: "音乐"),
+            suggestedInterval: .monthly,
+            managementURL: nil,
+            icon: .music,
+            offers: [
+                catalogOfferFixture(
+                    id: "music-monthly-us-web",
+                    status: .verified
+                )
+            ]
+        )
+        let video = CatalogPreset(
+            id: "video.example",
+            serviceName: CatalogLocalizedText(en: "Video", zhHans: "视频"),
+            category: CatalogLocalizedText(en: "Video", zhHans: "视频"),
+            suggestedInterval: .monthly,
+            managementURL: nil,
+            icon: .video,
+            offers: [
+                catalogOfferFixture(
+                    id: "video-monthly-us-web",
+                    status: .verified
+                )
+            ]
+        )
+        let workspace = SubscriptionWorkspace(
+            repository: InMemorySubscriptionRepository(),
+            catalogRepository: StaticCatalogRepository(
+                presets: [music, video]
+            )
+        )
+
+        workspace.loadCatalog(locale: Locale(identifier: "en"))
+        workspace.setCatalogSearchQuery("Video")
+        workspace.setCatalogCategory("video")
+        #expect(workspace.catalogState == .loaded(
+            categories: [
+                CatalogCategory(id: "music", title: music.category),
+                CatalogCategory(id: "video", title: video.category),
+            ],
+            presets: [video]
+        ))
+
+        workspace.loadCatalog(locale: Locale(identifier: "en"))
+
+        #expect(workspace.catalogState == .loaded(
+            categories: [
+                CatalogCategory(id: "music", title: music.category),
+                CatalogCategory(id: "video", title: video.category),
+            ],
+            presets: [music, video]
+        ))
+    }
+
     @Test("Active creation stores an active lifecycle")
     @MainActor
     func activeCreationStoresActiveLifecycle() throws {
@@ -154,9 +2728,294 @@ struct SubscriptionWorkspaceTests {
         #expect(stored.isArchived == false)
     }
 
+    @Test("Workspace persists linked active dates through create and edit")
+    @MainActor
+    func workspacePersistsLinkedActiveDates() throws {
+        let repository = InMemorySubscriptionRepository()
+        let subscriptionID = UUID(
+            uuidString: "AAAAAAAA-BBBB-CCCC-DDDD-FFFFFFFFFFFF"
+        )!
+        let timeZone = try #require(TimeZone(identifier: "UTC"))
+        let calendar = BillingCalendar.calendar(timeZone: timeZone)
+        let resolver = BillingDateResolver()
+        let today = try actionDate(
+            year: 2026,
+            month: 7,
+            day: 30,
+            hour: 12,
+            calendar: calendar
+        )
+        let start = try actionDate(
+            year: 2025,
+            month: 9,
+            day: 15,
+            hour: 12,
+            calendar: calendar
+        )
+        let nextRenewal = try #require(
+            resolver.nextRenewal(
+                afterStart: start,
+                interval: .monthly,
+                asOf: today,
+                timeZone: timeZone
+            )
+        )
+        let workspace = SubscriptionWorkspace(
+            repository: repository,
+            identifierGenerator: { subscriptionID },
+            now: { today },
+            calendar: calendar
+        )
+
+        workspace.createSubscription(
+            SubscriptionCreationInput(
+                serviceName: "Example",
+                plan: "Standard",
+                category: "Other",
+                originalAmount: Money(
+                    minorUnits: 999,
+                    currency: .usd
+                ),
+                billingInterval: .monthly,
+                startDate: start,
+                confirmedNextRenewal: nextRenewal,
+                billingTimeZoneIdentifier: timeZone.identifier,
+                managementURL: nil,
+                notes: ""
+            )
+        )
+
+        let created = try #require(
+            repository.storedSubscription(id: subscriptionID)
+        )
+        #expect(created.startDate == start)
+        #expect(created.billingSchedule.renewalAnchor == start)
+        #expect(created.confirmedNextRenewal == nextRenewal)
+
+        let editedRenewal = try actionDate(
+            year: 2026,
+            month: 10,
+            day: 28,
+            hour: 12,
+            calendar: calendar
+        )
+        let editedStart = try #require(
+            resolver.previousCycleStart(
+                before: editedRenewal,
+                interval: .monthly,
+                timeZone: timeZone
+            )
+        )
+        workspace.editSubscription(
+            id: subscriptionID,
+            input: SubscriptionEditInput(
+                serviceName: created.serviceName,
+                plan: created.plan,
+                category: created.category,
+                amount: created.amount(
+                    onBillingDay: created.confirmedNextRenewal
+                ),
+                billingSchedule: FixedBillingSchedule(
+                    interval: .monthly,
+                    renewalAnchor: editedStart,
+                    timeZoneIdentifier: timeZone.identifier
+                ),
+                startDate: editedStart,
+                confirmedNextRenewal: editedRenewal,
+                managementURL: nil,
+                notes: ""
+            )
+        )
+
+        let edited = try #require(
+            repository.storedSubscription(id: subscriptionID)
+        )
+        #expect(edited.startDate == editedStart)
+        #expect(edited.billingSchedule.renewalAnchor == editedStart)
+        #expect(edited.confirmedNextRenewal == editedRenewal)
+    }
+
+    @Test("Workspace resolves conflicting active creation dates")
+    @MainActor
+    func workspaceResolvesConflictingActiveCreationDates() throws {
+        let repository = InMemorySubscriptionRepository()
+        let subscriptionID = UUID(
+            uuidString: "AAAAAAAA-BBBB-CCCC-DDDD-ABABABABABAB"
+        )!
+        let timeZone = try #require(TimeZone(identifier: "UTC"))
+        let calendar = BillingCalendar.calendar(timeZone: timeZone)
+        let today = try actionDate(
+            year: 2026,
+            month: 7,
+            day: 30,
+            hour: 12,
+            calendar: calendar
+        )
+        let start = try actionDate(
+            year: 2026,
+            month: 6,
+            day: 15,
+            hour: 12,
+            calendar: calendar
+        )
+        let conflictingRenewal = try actionDate(
+            year: 2026,
+            month: 6,
+            day: 1,
+            hour: 12,
+            calendar: calendar
+        )
+        let expectedRenewal = try actionDate(
+            year: 2026,
+            month: 8,
+            day: 15,
+            hour: 12,
+            calendar: calendar
+        )
+        let workspace = SubscriptionWorkspace(
+            repository: repository,
+            identifierGenerator: { subscriptionID },
+            now: { today },
+            calendar: calendar
+        )
+
+        workspace.createSubscription(
+            SubscriptionCreationInput(
+                serviceName: "Example",
+                plan: "Standard",
+                category: "Other",
+                originalAmount: Money(
+                    minorUnits: 999,
+                    currency: .usd
+                ),
+                billingInterval: .monthly,
+                startDate: start,
+                renewalAnchor: conflictingRenewal,
+                confirmedNextRenewal: conflictingRenewal,
+                billingTimeZoneIdentifier: timeZone.identifier,
+                managementURL: nil,
+                notes: ""
+            )
+        )
+
+        let stored = try #require(
+            repository.storedSubscription(id: subscriptionID)
+        )
+        #expect(stored.startDate == start)
+        #expect(stored.billingSchedule.renewalAnchor == start)
+        #expect(stored.confirmedNextRenewal == expectedRenewal)
+    }
+
+    @Test("Workspace resolves conflicting active edit dates")
+    @MainActor
+    func workspaceResolvesConflictingActiveEditDates() throws {
+        let repository = InMemorySubscriptionRepository()
+        let subscriptionID = UUID(
+            uuidString: "AAAAAAAA-BBBB-CCCC-DDDD-CDCDCDCDCDCD"
+        )!
+        let timeZone = try #require(TimeZone(identifier: "UTC"))
+        let calendar = BillingCalendar.calendar(timeZone: timeZone)
+        let today = try actionDate(
+            year: 2026,
+            month: 7,
+            day: 30,
+            hour: 12,
+            calendar: calendar
+        )
+        let originalStart = try actionDate(
+            year: 2026,
+            month: 6,
+            day: 15,
+            hour: 12,
+            calendar: calendar
+        )
+        let editedStart = try actionDate(
+            year: 2026,
+            month: 7,
+            day: 1,
+            hour: 12,
+            calendar: calendar
+        )
+        let conflictingRenewal = try actionDate(
+            year: 2026,
+            month: 6,
+            day: 1,
+            hour: 12,
+            calendar: calendar
+        )
+        let initialRenewal = try actionDate(
+            year: 2026,
+            month: 8,
+            day: 15,
+            hour: 12,
+            calendar: calendar
+        )
+        let expectedRenewal = try actionDate(
+            year: 2027,
+            month: 7,
+            day: 1,
+            hour: 12,
+            calendar: calendar
+        )
+        let workspace = SubscriptionWorkspace(
+            repository: repository,
+            identifierGenerator: { subscriptionID },
+            now: { today },
+            calendar: calendar
+        )
+        workspace.createSubscription(
+            SubscriptionCreationInput(
+                serviceName: "Example",
+                plan: "Standard",
+                category: "Other",
+                originalAmount: Money(
+                    minorUnits: 999,
+                    currency: .usd
+                ),
+                billingInterval: .monthly,
+                startDate: originalStart,
+                confirmedNextRenewal: initialRenewal,
+                billingTimeZoneIdentifier: timeZone.identifier,
+                managementURL: nil,
+                notes: ""
+            )
+        )
+
+        workspace.editSubscription(
+            id: subscriptionID,
+            input: SubscriptionEditInput(
+                serviceName: "Example",
+                plan: "Standard",
+                category: "Other",
+                amount: Money(minorUnits: 999, currency: .usd),
+                billingSchedule: FixedBillingSchedule(
+                    interval: .yearly,
+                    renewalAnchor: conflictingRenewal,
+                    timeZoneIdentifier: timeZone.identifier
+                ),
+                startDate: editedStart,
+                confirmedNextRenewal: expectedRenewal,
+                managementURL: nil,
+                notes: ""
+            )
+        )
+
+        let stored = try #require(
+            repository.storedSubscription(id: subscriptionID)
+        )
+        #expect(stored.startDate == editedStart)
+        #expect(stored.billingSchedule.renewalAnchor == editedStart)
+        #expect(stored.billingSchedule.interval == .yearly)
+        #expect(stored.confirmedNextRenewal == expectedRenewal)
+    }
+
     @Test("Catalog search and creation preserve the preset identity")
     @MainActor
     func catalogSearchAndCreationPreservePresetIdentity() throws {
+        let verifiedOffer = catalogOfferFixture(
+            id: "music-monthly-us-web",
+            status: .verified
+        )
         let preset = CatalogPreset(
             id: "music.example",
             serviceName: CatalogLocalizedText(
@@ -166,13 +3025,13 @@ struct SubscriptionWorkspaceTests {
             category: CatalogLocalizedText(en: "Music", zhHans: "音乐"),
             suggestedInterval: .monthly,
             managementURL: URL(string: "https://example.com/manage"),
-            icon: .music
+            icon: .music,
+            offers: [verifiedOffer]
         )
         let repository = InMemorySubscriptionRepository()
         let subscriptionID = UUID(
             uuidString: "ACACACAC-BBBB-CCCC-DDDD-EEEEEEEEEEEE"
         )!
-        let start = Date(timeIntervalSince1970: 1_767_225_600)
         let workspace = SubscriptionWorkspace(
             repository: repository,
             catalogRepository: StaticCatalogRepository(presets: [preset]),
@@ -181,18 +3040,10 @@ struct SubscriptionWorkspaceTests {
 
         workspace.loadCatalog(locale: Locale(identifier: "zh-Hans"))
         workspace.setCatalogSearchQuery("音乐")
-        workspace.createCatalogSubscription(
+        let result = workspace.createCatalogSubscription(
             presetID: preset.id,
-            input: SubscriptionCreationInput(
-                serviceName: "Example Music",
-                plan: "Family",
-                category: "Music",
-                originalAmount: Money(minorUnits: 1_299, currency: .usd),
-                billingInterval: .monthly,
-                startDate: start,
-                confirmedNextRenewal: start.addingTimeInterval(86_400),
-                managementURL: preset.managementURL,
-                notes: ""
+            command: .verifiedOffer(
+                catalogOfferInputFixture(offerID: verifiedOffer.id)
             )
         )
 
@@ -206,6 +3057,253 @@ struct SubscriptionWorkspaceTests {
             repository.storedSubscription(id: subscriptionID)?.serviceIdentity
                 == ServiceIdentity(rawValue: "catalog:music.example")
         )
+        guard case .created = result else {
+            Issue.record("Expected verified-offer catalog creation")
+            return
+        }
+    }
+
+    @Test("Verified catalog creation derives provider fields and permits actual charge")
+    @MainActor
+    func verifiedCatalogCreationDerivesProviderFields() throws {
+        let verifiedOffer = catalogOfferFixture(
+            id: "plus-monthly-us-web",
+            status: .verified
+        )
+        let preset = catalogPresetFixture(offers: [verifiedOffer])
+        let repository = InMemorySubscriptionRepository()
+        let subscriptionID = UUID(
+            uuidString: "ACACACAC-1111-2222-3333-EEEEEEEEEEEE"
+        )!
+        let start = Date(timeIntervalSince1970: 1_767_225_600)
+        let nextRenewal = start.addingTimeInterval(86_400)
+        let workspace = SubscriptionWorkspace(
+            repository: repository,
+            catalogRepository: StaticCatalogRepository(presets: [preset]),
+            identifierGenerator: { subscriptionID }
+        )
+        workspace.loadCatalog(locale: Locale(identifier: "en"))
+
+        let result = workspace.createCatalogSubscription(
+            presetID: preset.id,
+            command: .verifiedOffer(
+                CatalogOfferSubscriptionInput(
+                    offerID: verifiedOffer.id,
+                    actualChargeOverride: Money(
+                        minorUnits: 2_199,
+                        currency: .eur
+                    ),
+                    billingIntervalSelection: .official,
+                    startDate: start,
+                    renewalAnchor: start,
+                    confirmedNextRenewal: nextRenewal,
+                    billingTimeZoneIdentifier: "UTC",
+                    notes: "Personal note",
+                    initialStatus: .active
+                )
+            )
+        )
+
+        let stored = try #require(
+            repository.storedSubscription(id: subscriptionID)
+        )
+        #expect(result == .created(stored))
+        #expect(stored.serviceName == preset.serviceName.en)
+        #expect(stored.plan == verifiedOffer.planName.en)
+        #expect(stored.category == preset.category.en)
+        #expect(stored.originalAmount == Money(
+            minorUnits: 2_199,
+            currency: .eur
+        ))
+        #expect(stored.billingSchedule.interval == verifiedOffer.billingInterval)
+        #expect(stored.managementURL == preset.managementURL)
+        #expect(stored.serviceIdentity.rawValue == "catalog:\(preset.id)")
+    }
+
+    @Test("Verified catalog creation permits a valid billing interval override")
+    @MainActor
+    func verifiedCatalogCreationPermitsBillingIntervalOverride() throws {
+        let verifiedOffer = catalogOfferFixture(
+            id: "plus-monthly-us-web",
+            status: .verified
+        )
+        let preset = catalogPresetFixture(offers: [verifiedOffer])
+        let repository = InMemorySubscriptionRepository()
+        let subscriptionID = UUID(
+            uuidString: "ACACACAC-1111-2222-3333-FFFFFFFFFFFF"
+        )!
+        let start = Date(timeIntervalSince1970: 1_767_225_600)
+        let workspace = SubscriptionWorkspace(
+            repository: repository,
+            catalogRepository: StaticCatalogRepository(presets: [preset]),
+            identifierGenerator: { subscriptionID }
+        )
+        workspace.loadCatalog(locale: Locale(identifier: "en"))
+
+        let result = workspace.createCatalogSubscription(
+            presetID: preset.id,
+            command: .verifiedOffer(
+                CatalogOfferSubscriptionInput(
+                    offerID: verifiedOffer.id,
+                    actualChargeOverride: nil,
+                    billingIntervalSelection: .override(
+                        .custom(value: 3, unit: .week)
+                    ),
+                    startDate: start,
+                    renewalAnchor: start,
+                    confirmedNextRenewal:
+                        start.addingTimeInterval(86_400),
+                    billingTimeZoneIdentifier: "UTC",
+                    notes: "",
+                    initialStatus: .active
+                )
+            )
+        )
+
+        let stored = try #require(
+            repository.storedSubscription(id: subscriptionID)
+        )
+        #expect(result == .created(stored))
+        #expect(
+            stored.billingSchedule.interval
+                == .custom(value: 3, unit: .week)
+        )
+    }
+
+    @Test("Verified catalog creation validates a billing interval override")
+    @MainActor
+    func verifiedCatalogCreationValidatesBillingIntervalOverride() {
+        let verifiedOffer = catalogOfferFixture(
+            id: "plus-monthly-us-web",
+            status: .verified
+        )
+        let preset = catalogPresetFixture(offers: [verifiedOffer])
+        let repository = InMemorySubscriptionRepository()
+        let start = Date(timeIntervalSince1970: 1_767_225_600)
+        let workspace = SubscriptionWorkspace(
+            repository: repository,
+            catalogRepository: StaticCatalogRepository(presets: [preset])
+        )
+        workspace.loadCatalog(locale: Locale(identifier: "en"))
+
+        let result = workspace.createCatalogSubscription(
+            presetID: preset.id,
+            command: .verifiedOffer(
+                CatalogOfferSubscriptionInput(
+                    offerID: verifiedOffer.id,
+                    actualChargeOverride: nil,
+                    billingIntervalSelection: .override(
+                        .custom(value: 0, unit: .week)
+                    ),
+                    startDate: start,
+                    renewalAnchor: start,
+                    confirmedNextRenewal:
+                        start.addingTimeInterval(86_400),
+                    billingTimeZoneIdentifier: "UTC",
+                    notes: "",
+                    initialStatus: .active
+                )
+            )
+        )
+
+        #expect(result == .validationFailed)
+        #expect(
+            workspace.creationValidationErrors[.billingSchedule]
+                == .mustBePositive
+        )
+        #expect((try? repository.listSubscriptions())?.isEmpty == true)
+    }
+
+    @Test("Catalog creation rejects an unknown offer identifier")
+    @MainActor
+    func catalogCreationRejectsUnknownOffer() {
+        let preset = catalogPresetFixture(offers: [
+            catalogOfferFixture(
+                id: "plus-monthly-us-web",
+                status: .verified
+            )
+        ])
+        let repository = InMemorySubscriptionRepository()
+        let workspace = SubscriptionWorkspace(
+            repository: repository,
+            catalogRepository: StaticCatalogRepository(presets: [preset])
+        )
+        workspace.loadCatalog(locale: Locale(identifier: "en"))
+
+        let result = workspace.createCatalogSubscription(
+            presetID: preset.id,
+            command: .verifiedOffer(
+                catalogOfferInputFixture(offerID: "unknown")
+            )
+        )
+
+        #expect(result == .rejected(.offerNotFound))
+        #expect((try? repository.listSubscriptions())?.isEmpty == true)
+    }
+
+    @Test("Catalog creation rejects an offer that requires review")
+    @MainActor
+    func catalogCreationRejectsReviewRequiredOffer() {
+        let offer = catalogOfferFixture(
+            id: "research-only",
+            status: .reviewRequired
+        )
+        let preset = catalogPresetFixture(offers: [
+            offer,
+            catalogOfferFixture(id: "verified-baseline", status: .verified),
+        ])
+        let repository = InMemorySubscriptionRepository()
+        let workspace = SubscriptionWorkspace(
+            repository: repository,
+            catalogRepository: StaticCatalogRepository(presets: [preset])
+        )
+        workspace.loadCatalog(locale: Locale(identifier: "en"))
+
+        let result = workspace.createCatalogSubscription(
+            presetID: preset.id,
+            command: .verifiedOffer(
+                catalogOfferInputFixture(offerID: offer.id)
+            )
+        )
+
+        #expect(result == .rejected(.offerRequiresReview))
+        #expect((try? repository.listSubscriptions())?.isEmpty == true)
+    }
+
+    @Test("Catalog creation rejects legacy input when a verified offer exists")
+    @MainActor
+    func catalogCreationRequiresVerifiedOfferSelection() {
+        let preset = catalogPresetFixture(offers: [
+            catalogOfferFixture(
+                id: "plus-monthly-us-web",
+                status: .verified
+            )
+        ])
+        let repository = InMemorySubscriptionRepository()
+        let workspace = SubscriptionWorkspace(
+            repository: repository,
+            catalogRepository: StaticCatalogRepository(presets: [preset])
+        )
+        workspace.loadCatalog(locale: Locale(identifier: "en"))
+
+        let result = workspace.createCatalogSubscription(
+            presetID: preset.id,
+            command: .legacy(
+                SubscriptionCreationInput(
+                    serviceName: "Forged",
+                    plan: "Forged",
+                    category: "Forged",
+                    originalAmount: Money(minorUnits: 1, currency: .cny),
+                    startDate: .distantPast,
+                    confirmedNextRenewal: .distantFuture,
+                    managementURL: nil,
+                    notes: ""
+                )
+            )
+        )
+
+        #expect(result == .rejected(.verifiedOfferRequired))
+        #expect((try? repository.listSubscriptions())?.isEmpty == true)
     }
 
     @Test("Trial creation snapshots next renewal as first paid charge")
@@ -245,7 +3343,392 @@ struct SubscriptionWorkspaceTests {
                 firstPaidChargeAt: firstPaidCharge
             )
         )
+        #expect(
+            stored.billingSchedule.renewalAnchor == firstPaidCharge
+        )
+        #expect(stored.startDate == start)
+        #expect(stored.confirmedNextRenewal == firstPaidCharge)
         #expect(stored.isArchived == false)
+    }
+
+    @Test("Editing Trial Start and paid interval keeps First Paid Charge fixed")
+    @MainActor
+    func trialEditKeepsFirstPaidChargeIndependent() throws {
+        let repository = InMemorySubscriptionRepository()
+        let subscriptionID = UUID(
+            uuidString: "11111111-AAAA-BBBB-CCCC-333333333333"
+        )!
+        let calendar = utcCalendar()
+        let trialStart = try actionDate(
+            year: 2026,
+            month: 1,
+            day: 1,
+            hour: 12,
+            calendar: calendar
+        )
+        let firstPaidCharge = try actionDate(
+            year: 2026,
+            month: 1,
+            day: 15,
+            hour: 12,
+            calendar: calendar
+        )
+        let editedTrialStart = try actionDate(
+            year: 2026,
+            month: 1,
+            day: 5,
+            hour: 12,
+            calendar: calendar
+        )
+        let workspace = SubscriptionWorkspace(
+            repository: repository,
+            identifierGenerator: { subscriptionID },
+            calendar: calendar
+        )
+        workspace.createSubscription(
+            SubscriptionCreationInput(
+                serviceName: "Example",
+                plan: "Trial",
+                category: "Other",
+                originalAmount: Money(
+                    minorUnits: 999,
+                    currency: .usd
+                ),
+                billingInterval: .monthly,
+                startDate: trialStart,
+                confirmedNextRenewal: firstPaidCharge,
+                billingTimeZoneIdentifier: "UTC",
+                managementURL: nil,
+                notes: "",
+                initialStatus: .trial
+            )
+        )
+
+        workspace.editSubscription(
+            id: subscriptionID,
+            input: SubscriptionEditInput(
+                serviceName: "Example",
+                plan: "Trial",
+                category: "Other",
+                amount: Money(minorUnits: 999, currency: .usd),
+                billingSchedule: FixedBillingSchedule(
+                    interval: .yearly,
+                    renewalAnchor: editedTrialStart,
+                    timeZoneIdentifier: "UTC"
+                ),
+                startDate: editedTrialStart,
+                confirmedNextRenewal: firstPaidCharge,
+                managementURL: nil,
+                notes: ""
+            )
+        )
+
+        let stored = try #require(
+            repository.storedSubscription(id: subscriptionID)
+        )
+        #expect(stored.startDate == editedTrialStart)
+        #expect(stored.confirmedNextRenewal == firstPaidCharge)
+        #expect(
+            stored.lifecycle == .trial(
+                firstPaidChargeAt: firstPaidCharge
+            )
+        )
+        #expect(stored.billingSchedule.interval == .yearly)
+        #expect(
+            stored.billingSchedule.renewalAnchor == firstPaidCharge
+        )
+    }
+
+    @Test("Editing First Paid Charge updates the lifecycle boundary")
+    @MainActor
+    func editingFirstPaidChargeUpdatesLifecycleBoundary() throws {
+        let repository = InMemorySubscriptionRepository()
+        let subscriptionID = UUID(
+            uuidString: "11111111-AAAA-BBBB-CCCC-555555555555"
+        )!
+        let calendar = utcCalendar()
+        let trialStart = try actionDate(
+            year: 2026,
+            month: 1,
+            day: 1,
+            hour: 12,
+            calendar: calendar
+        )
+        let originalFirstPaidCharge = try actionDate(
+            year: 2026,
+            month: 1,
+            day: 15,
+            hour: 12,
+            calendar: calendar
+        )
+        let editedFirstPaidCharge = try actionDate(
+            year: 2026,
+            month: 1,
+            day: 20,
+            hour: 12,
+            calendar: calendar
+        )
+        let workspace = SubscriptionWorkspace(
+            repository: repository,
+            identifierGenerator: { subscriptionID },
+            calendar: calendar
+        )
+        workspace.createSubscription(
+            SubscriptionCreationInput(
+                serviceName: "Example",
+                plan: "Trial",
+                category: "Other",
+                originalAmount: Money(
+                    minorUnits: 999,
+                    currency: .usd
+                ),
+                billingInterval: .monthly,
+                startDate: trialStart,
+                confirmedNextRenewal: originalFirstPaidCharge,
+                billingTimeZoneIdentifier: "UTC",
+                managementURL: nil,
+                notes: "",
+                initialStatus: .trial
+            )
+        )
+
+        workspace.editSubscription(
+            id: subscriptionID,
+            input: SubscriptionEditInput(
+                serviceName: "Example",
+                plan: "Trial",
+                category: "Other",
+                amount: Money(minorUnits: 999, currency: .usd),
+                billingSchedule: FixedBillingSchedule(
+                    interval: .monthly,
+                    renewalAnchor: originalFirstPaidCharge,
+                    timeZoneIdentifier: "UTC"
+                ),
+                startDate: trialStart,
+                confirmedNextRenewal: editedFirstPaidCharge,
+                managementURL: nil,
+                notes: ""
+            )
+        )
+
+        let stored = try #require(
+            repository.storedSubscription(id: subscriptionID)
+        )
+        #expect(
+            stored.lifecycle == .trial(
+                firstPaidChargeAt: editedFirstPaidCharge
+            )
+        )
+        #expect(
+            stored.billingSchedule.renewalAnchor == editedFirstPaidCharge
+        )
+        #expect(stored.confirmedNextRenewal == editedFirstPaidCharge)
+        #expect(
+            stored.lifecycle.status(
+                asOf: try actionDate(
+                    year: 2026,
+                    month: 1,
+                    day: 16,
+                    hour: 12,
+                    calendar: calendar
+                ),
+                timeZone: try #require(TimeZone(identifier: "UTC"))
+            ) == .trial
+        )
+        #expect(
+            stored.lifecycle.status(
+                asOf: editedFirstPaidCharge,
+                timeZone: try #require(TimeZone(identifier: "UTC"))
+            ) == .active
+        )
+    }
+
+    @Test("Trial commands reject non-finite dates")
+    @MainActor
+    func trialCommandsRejectNonFiniteDates() throws {
+        let repository = InMemorySubscriptionRepository()
+        let subscriptionID = UUID(
+            uuidString: "11111111-AAAA-BBBB-CCCC-666666666666"
+        )!
+        let start = Date(timeIntervalSinceReferenceDate: 800_000_000)
+        let firstPaidCharge = start.addingTimeInterval(86_400)
+        let workspace = SubscriptionWorkspace(
+            repository: repository,
+            identifierGenerator: { subscriptionID }
+        )
+
+        workspace.createSubscription(
+            SubscriptionCreationInput(
+                serviceName: "Example",
+                plan: "Trial",
+                category: "Other",
+                originalAmount: Money(
+                    minorUnits: 999,
+                    currency: .usd
+                ),
+                startDate: Date(timeIntervalSinceReferenceDate: .nan),
+                confirmedNextRenewal: firstPaidCharge,
+                managementURL: nil,
+                notes: "",
+                initialStatus: .trial
+            )
+        )
+        #expect(
+            repository.storedSubscription(id: subscriptionID) == nil
+        )
+
+        workspace.createSubscription(
+            SubscriptionCreationInput(
+                serviceName: "Example",
+                plan: "Trial",
+                category: "Other",
+                originalAmount: Money(
+                    minorUnits: 999,
+                    currency: .usd
+                ),
+                startDate: start,
+                confirmedNextRenewal:
+                    Date(timeIntervalSinceReferenceDate: .infinity),
+                managementURL: nil,
+                notes: "",
+                initialStatus: .trial
+            )
+        )
+        #expect(
+            repository.storedSubscription(id: subscriptionID) == nil
+        )
+
+        workspace.createSubscription(
+            SubscriptionCreationInput(
+                serviceName: "Example",
+                plan: "Trial",
+                category: "Other",
+                originalAmount: Money(
+                    minorUnits: 999,
+                    currency: .usd
+                ),
+                startDate: start,
+                confirmedNextRenewal: firstPaidCharge,
+                managementURL: nil,
+                notes: "",
+                initialStatus: .trial
+            )
+        )
+        workspace.editSubscription(
+            id: subscriptionID,
+            input: SubscriptionEditInput(
+                serviceName: "Example",
+                plan: "Trial",
+                category: "Other",
+                amount: Money(minorUnits: 999, currency: .usd),
+                billingSchedule: FixedBillingSchedule(
+                    interval: .monthly,
+                    renewalAnchor: firstPaidCharge,
+                    timeZoneIdentifier: "UTC"
+                ),
+                startDate: start,
+                confirmedNextRenewal:
+                    Date(timeIntervalSinceReferenceDate: .nan),
+                managementURL: nil,
+                notes: ""
+            )
+        )
+
+        let stored = try #require(
+            repository.storedSubscription(id: subscriptionID)
+        )
+        #expect(stored.confirmedNextRenewal == firstPaidCharge)
+        #expect(
+            workspace.editingValidationErrors[
+                .confirmedNextRenewal
+            ] == .required
+        )
+    }
+
+    @Test("Trial forecast starts on First Paid Charge")
+    @MainActor
+    func trialForecastStartsOnFirstPaidCharge() throws {
+        let repository = InMemorySubscriptionRepository()
+        let subscriptionID = UUID(
+            uuidString: "11111111-AAAA-BBBB-CCCC-444444444444"
+        )!
+        let calendar = utcCalendar()
+        let trialStart = try actionDate(
+            year: 2026,
+            month: 1,
+            day: 1,
+            hour: 12,
+            calendar: calendar
+        )
+        let now = try actionDate(
+            year: 2026,
+            month: 1,
+            day: 10,
+            hour: 12,
+            calendar: calendar
+        )
+        let firstPaidCharge = try actionDate(
+            year: 2026,
+            month: 1,
+            day: 15,
+            hour: 12,
+            calendar: calendar
+        )
+        let horizon = try actionDate(
+            year: 2026,
+            month: 3,
+            day: 31,
+            hour: 12,
+            calendar: calendar
+        )
+        let workspace = SubscriptionWorkspace(
+            repository: repository,
+            identifierGenerator: { subscriptionID },
+            now: { now },
+            calendar: calendar
+        )
+
+        workspace.createSubscription(
+            SubscriptionCreationInput(
+                serviceName: "Example",
+                plan: "Trial",
+                category: "Other",
+                originalAmount: Money(
+                    minorUnits: 999,
+                    currency: .usd
+                ),
+                billingInterval: .monthly,
+                startDate: trialStart,
+                confirmedNextRenewal: firstPaidCharge,
+                billingTimeZoneIdentifier: "UTC",
+                managementURL: nil,
+                notes: "",
+                initialStatus: .trial
+            )
+        )
+        workspace.loadExpectedCharges(
+            subscriptionID: subscriptionID,
+            through: horizon
+        )
+
+        let charges = try #require(workspace.expectedCharges)
+        #expect(charges.map(\.scheduledDate) == [
+            firstPaidCharge,
+            try actionDate(
+                year: 2026,
+                month: 2,
+                day: 15,
+                hour: 12,
+                calendar: calendar
+            ),
+            try actionDate(
+                year: 2026,
+                month: 3,
+                day: 15,
+                hour: 12,
+                calendar: calendar
+            ),
+        ])
     }
 
     @Test("A non-positive amount is rejected as an invalid fixed charge")
@@ -275,6 +3758,110 @@ struct SubscriptionWorkspaceTests {
         #expect(workspace.libraryState == .empty(.current))
     }
 
+    @Test("Creation allows empty optional metadata")
+    @MainActor
+    func creationAllowsEmptyOptionalMetadata() throws {
+        let repository = InMemorySubscriptionRepository()
+        let workspace = SubscriptionWorkspace(
+            repository: repository,
+            now: { Date(timeIntervalSince1970: 1_769_904_000) }
+        )
+        let startDate = Date(timeIntervalSince1970: 1_767_225_600)
+
+        let result = workspace.createSubscription(
+            SubscriptionCreationInput(
+                serviceName: "Example",
+                plan: "",
+                category: "\n",
+                originalAmount: Money(minorUnits: 999, currency: .usd),
+                billingInterval: .monthly,
+                startDate: startDate,
+                confirmedNextRenewal: startDate,
+                billingTimeZoneIdentifier: "UTC",
+                managementURL: nil,
+                notes: ""
+            )
+        )
+
+        guard case .created(let created) = result else {
+            Issue.record("Expected creation to accept optional metadata.")
+            return
+        }
+        #expect(created.plan.isEmpty)
+        #expect(created.category.isEmpty)
+        #expect(workspace.creationValidationErrors.isEmpty)
+    }
+
+    @Test("Editing allows empty optional metadata")
+    @MainActor
+    func editingAllowsEmptyOptionalMetadata() throws {
+        let calendar = utcCalendar()
+        let now = try actionDate(
+            year: 2026,
+            month: 7,
+            day: 30,
+            hour: 12,
+            calendar: calendar
+        )
+        let startDate = try actionDate(
+            year: 2026,
+            month: 1,
+            day: 15,
+            hour: 12,
+            calendar: calendar
+        )
+        let nextRenewal = try actionDate(
+            year: 2026,
+            month: 8,
+            day: 15,
+            hour: 12,
+            calendar: calendar
+        )
+        let existing = makeSubscription(
+            id: UUID(uuidString: "AAAAAAAA-BBBB-CCCC-DDDD-EEEEEEEEEEEE")!,
+            billingSchedule: FixedBillingSchedule(
+                interval: .monthly,
+                renewalAnchor: startDate,
+                timeZoneIdentifier: "UTC"
+            ),
+            confirmedNextRenewal: nextRenewal
+        )
+        let repository = InMemorySubscriptionRepository(
+            subscriptions: [existing]
+        )
+        let workspace = SubscriptionWorkspace(
+            repository: repository,
+            now: { now },
+            calendar: calendar
+        )
+
+        workspace.editSubscription(
+            id: existing.id,
+            input: SubscriptionEditInput(
+                serviceName: existing.serviceName,
+                plan: "",
+                category: "\t",
+                amount: existing.amount(
+                    onBillingDay: existing.confirmedNextRenewal
+                ),
+                billingSchedule: existing.billingSchedule,
+                startDate: existing.startDate,
+                confirmedNextRenewal: existing.confirmedNextRenewal,
+                managementURL: nil,
+                notes: existing.notes
+            )
+        )
+
+        #expect(workspace.editingValidationErrors.isEmpty)
+        #expect(
+            repository.storedSubscription(id: existing.id)?.plan.isEmpty == true
+        )
+        #expect(
+            repository.storedSubscription(id: existing.id)?.category.isEmpty
+                == true
+        )
+    }
+
     @Test("Incomplete monthly input exposes field errors without creating a record")
     @MainActor
     func incompleteMonthlyInputExposesFieldErrors() {
@@ -298,10 +3885,7 @@ struct SubscriptionWorkspaceTests {
         #expect(
             workspace.creationValidationErrors == [
                 .serviceName: .required,
-                .plan: .required,
-                .category: .required,
                 .originalAmount: .required,
-                .confirmedNextRenewal: .beforeStartDate,
             ]
         )
         #expect(workspace.libraryState == .empty(.current))
@@ -328,12 +3912,16 @@ struct SubscriptionWorkspaceTests {
         )
         let creationWorkspace = SubscriptionWorkspace(
             repository: repository,
-            identifierGenerator: { subscriptionID }
+            identifierGenerator: { subscriptionID },
+            now: { startDate }
         )
 
         creationWorkspace.createSubscription(input)
 
-        let reloadedWorkspace = SubscriptionWorkspace(repository: repository)
+        let reloadedWorkspace = SubscriptionWorkspace(
+            repository: repository,
+            now: { startDate }
+        )
         reloadedWorkspace.loadLibrary()
         reloadedWorkspace.loadSubscription(id: subscriptionID)
 
@@ -381,7 +3969,8 @@ struct SubscriptionWorkspaceTests {
         let renewalDate = Date(timeIntervalSince1970: 1_769_904_000)
         let workspace = SubscriptionWorkspace(
             repository: repository,
-            identifierGenerator: { subscriptionID }
+            identifierGenerator: { subscriptionID },
+            now: { startDate }
         )
         let input = SubscriptionCreationInput(
             serviceName: " \n Example Cloud \t",
@@ -425,6 +4014,79 @@ struct SubscriptionWorkspaceTests {
         #expect(subscriptions.map(\.id) == [subscriptionID])
     }
 
+    @Test("Creation reports the one normalized record persisted by the workspace")
+    @MainActor
+    func creationReportsExactlyOnePersistedSubscription() throws {
+        let repository = InMemorySubscriptionRepository()
+        let subscriptionID = UUID(
+            uuidString: "33333333-4444-5555-6666-777777777777"
+        )!
+        let workspace = SubscriptionWorkspace(
+            repository: repository,
+            identifierGenerator: { subscriptionID }
+        )
+
+        let result = workspace.createSubscription(
+            SubscriptionCreationInput(
+                serviceName: " Atlas ",
+                plan: "Pro",
+                category: "Productivity",
+                originalAmount: Money(minorUnits: 1_299, currency: .usd),
+                startDate: Date(timeIntervalSince1970: 1_767_225_600),
+                confirmedNextRenewal: Date(timeIntervalSince1970: 1_769_904_000),
+                managementURL: nil,
+                notes: ""
+            )
+        )
+
+        guard case .created(let created) = result else {
+            Issue.record("Expected a persisted subscription result")
+            return
+        }
+        #expect(created.id == subscriptionID)
+        #expect(created.serviceName == "Atlas")
+        #expect(try repository.listSubscriptions() == [created])
+    }
+
+    @Test("Intent-facing queries keep stable records but exclude archived renewals")
+    @MainActor
+    func intentFacingQueriesUseTheSameWorkspaceRules() throws {
+        let currentID = UUID(
+            uuidString: "44444444-5555-6666-7777-888888888888"
+        )!
+        let archivedID = UUID(
+            uuidString: "55555555-6666-7777-8888-999999999999"
+        )!
+        let now = Date(timeIntervalSince1970: 1_767_225_600)
+        let current = makeSubscription(
+            id: currentID,
+            confirmedNextRenewal: now.addingTimeInterval(86_400),
+            serviceName: "Atlas"
+        )
+        let archived = makeSubscription(
+            id: archivedID,
+            isArchived: true,
+            confirmedNextRenewal: now.addingTimeInterval(43_200),
+            serviceName: "Beacon"
+        )
+        let workspace = SubscriptionWorkspace(
+            repository: InMemorySubscriptionRepository(
+                subscriptions: [archived, current]
+            ),
+            now: { now }
+        )
+
+        #expect(try workspace.subscriptions().map(\.id) == [currentID, archivedID])
+        #expect(try workspace.subscription(for: archivedID) == archived)
+        #expect(try workspace.subscription(for: UUID()) == nil)
+        #expect(
+            try workspace.upcomingRenewals(
+                from: now,
+                through: now.addingTimeInterval(40 * 86_400)
+            ).map(\.subscriptionID) == [currentID]
+        )
+    }
+
     @Test("The in-memory repository lists subscriptions in stable identifier order")
     @MainActor
     func inMemoryRepositoryListsSubscriptionsInStableIdentifierOrder() throws {
@@ -455,6 +4117,387 @@ struct SubscriptionWorkspaceTests {
         workspace.loadLibrary()
 
         #expect(workspace.libraryState == .empty(.current))
+    }
+
+    @Test("Remote import reloads synced preferences before requested consumers")
+    @MainActor
+    func remoteImportReloadsSyncedPreferencesBeforeRequestedConsumers() async throws {
+        let calendar = utcCalendar()
+        let now = try actionDate(
+            year: 2026,
+            month: 1,
+            day: 15,
+            hour: 12,
+            calendar: calendar
+        )
+        let renewal = try actionDate(
+            year: 2026,
+            month: 2,
+            day: 1,
+            hour: 12,
+            calendar: calendar
+        )
+        let preferences = CalendarPreferencesFixture(
+            preferences: UserPreferences(
+                primaryCurrency: .cny,
+                calendarProjectionHorizon: .twelveMonths,
+                hideAmountsInCalendar: false,
+                setupStatus: .completed
+            )
+        )
+        let subscriptionID = try #require(
+            UUID(
+                uuidString: "41000000-0000-4000-8000-000000000001"
+            )
+        )
+        let workspace = SubscriptionWorkspace(
+            repository: InMemorySubscriptionRepository(
+                subscriptions: [
+                    makeSubscription(
+                        id: subscriptionID,
+                        billingSchedule: FixedBillingSchedule(
+                            interval: .monthly,
+                            renewalAnchor: renewal,
+                            timeZoneIdentifier: "UTC"
+                        ),
+                        confirmedNextRenewal: renewal,
+                        originalAmount: Money(
+                            minorUnits: 1_299,
+                            currency: .usd
+                        )
+                    ),
+                ]
+            ),
+            preferencesRepository: preferences,
+            now: { now },
+            calendar: calendar
+        )
+        workspace.loadLibrary()
+        workspace.loadSetup(libraryIsEmpty: false)
+        #expect(
+            workspace.loadCalendarProjection(
+                locale: Locale(identifier: "en_US")
+            )
+        )
+        #expect(
+            workspace.calendarProjection.first?.notes.contains("12.99") == true
+        )
+        let importedPreferences = UserPreferences(
+            primaryCurrency: .usd,
+            calendarProjectionHorizon: .sixMonths,
+            hideAmountsInCalendar: true,
+            menuBarModeEnabled: true,
+            appearanceMode: .dark,
+            setupStatus: .skipped
+        )
+        preferences.replaceWithRemote(importedPreferences)
+
+        await workspace.reloadAfterRemoteImport()
+
+        #expect(workspace.setupState == .skipped(importedPreferences))
+        #expect(
+            workspace.calendarProjection.first?.notes.contains("12.99") == false
+        )
+        #expect(preferences.saveCount == 0)
+    }
+
+    @Test("Remote import refreshes newly required rates before active insights")
+    @MainActor
+    func remoteImportRefreshesNewRatesBeforeActiveInsights() async throws {
+        let now = Date(timeIntervalSince1970: 1_769_356_800)
+        let renewal = now.addingTimeInterval(86_400)
+        let subscriptionID = try #require(
+            UUID(
+                uuidString: "41000000-0000-4000-8000-000000000002"
+            )
+        )
+        let repository = InMemorySubscriptionRepository(
+            subscriptions: [
+                makeSubscription(
+                    id: subscriptionID,
+                    billingSchedule: FixedBillingSchedule(
+                        interval: .monthly,
+                        renewalAnchor: renewal,
+                        timeZoneIdentifier: "UTC"
+                    ),
+                    confirmedNextRenewal: renewal,
+                    originalAmount: Money(
+                        minorUnits: 840,
+                        currency: .cny
+                    )
+                ),
+            ]
+        )
+        let refreshedSnapshot = ExchangeRateSnapshot(
+            base: .eur,
+            providerDate: now,
+            fetchedAt: now,
+            source: "fixture",
+            rates: [.eur: 1, .usd: 1.2, .cny: 8.4]
+        )
+        let source = RecordingExchangeRateSource(
+            snapshot: refreshedSnapshot
+        )
+        let workspace = SubscriptionWorkspace(
+            repository: repository,
+            preferencesRepository: CalendarPreferencesFixture(
+                preferences: UserPreferences(
+                    primaryCurrency: .cny,
+                    calendarProjectionHorizon: .twelveMonths,
+                    setupStatus: .completed
+                )
+            ),
+            exchangeRateSource: source,
+            exchangeRateCache: InMemoryExchangeRateCache(
+                state: ExchangeRateCacheState(
+                    snapshot: ExchangeRateSnapshot(
+                        base: .eur,
+                        providerDate: now,
+                        fetchedAt: now,
+                        source: "fixture",
+                        rates: [.eur: 1, .cny: 8.4]
+                    ),
+                    lastAttemptAt: now
+                )
+            ),
+            now: { now },
+            calendar: utcCalendar()
+        )
+        workspace.loadSetup(libraryIsEmpty: false)
+        await workspace.refreshExchangeRates()
+        workspace.loadInsights(
+            mode: .expected,
+            from: now,
+            through: now.addingTimeInterval(172_800)
+        )
+        #expect(
+            workspace.insightsState.availableValue?.selectedRangeTotal
+                == Money(minorUnits: 840, currency: .cny)
+        )
+        #expect(source.requests.isEmpty)
+        try repository.updateSubscription(
+            makeSubscription(
+                id: subscriptionID,
+                billingSchedule: FixedBillingSchedule(
+                    interval: .monthly,
+                    renewalAnchor: renewal,
+                    timeZoneIdentifier: "UTC"
+                ),
+                confirmedNextRenewal: renewal,
+                originalAmount: Money(minorUnits: 120, currency: .usd)
+            )
+        )
+
+        await workspace.reloadAfterRemoteImport()
+
+        #expect(source.requests.map(\.quotes) == [[.cny, .usd]])
+        #expect(workspace.exchangeRateStatus == .fresh(refreshedSnapshot))
+        #expect(
+            workspace.insightsState.availableValue?.selectedRangeTotal
+                == Money(minorUnits: 840, currency: .cny)
+        )
+    }
+
+    @Test("Out-of-order remote import rates keep the newer imported state")
+    @MainActor
+    func remoteImportRejectsOutOfOrderExchangeRateResponse() async throws {
+        let now = Date(timeIntervalSince1970: 1_769_356_800)
+        let renewal = now.addingTimeInterval(86_400)
+        let subscriptionID = try #require(
+            UUID(
+                uuidString: "41000000-0000-4000-8000-000000000005"
+            )
+        )
+        let repository = InMemorySubscriptionRepository(
+            subscriptions: [
+                makeSubscription(
+                    id: subscriptionID,
+                    billingSchedule: FixedBillingSchedule(
+                        interval: .monthly,
+                        renewalAnchor: renewal,
+                        timeZoneIdentifier: "UTC"
+                    ),
+                    confirmedNextRenewal: renewal,
+                    originalAmount: Money(
+                        minorUnits: 120,
+                        currency: .usd
+                    )
+                ),
+            ]
+        )
+        let olderSnapshot = ExchangeRateSnapshot(
+            base: .eur,
+            providerDate: now,
+            fetchedAt: now,
+            source: "older-import",
+            rates: [.eur: 1, .usd: 1.2, .cny: 7]
+        )
+        let newerSnapshot = ExchangeRateSnapshot(
+            base: .eur,
+            providerDate: now,
+            fetchedAt: now,
+            source: "newer-import",
+            rates: [.eur: 1, .cny: 8.4]
+        )
+        let source = SuspendedExchangeRateSource(
+            responses: [
+                [.cny, .usd]: olderSnapshot,
+                [.cny]: newerSnapshot,
+            ]
+        )
+        let cache = InMemoryExchangeRateCache(state: nil)
+        let workspace = SubscriptionWorkspace(
+            repository: repository,
+            preferencesRepository: CalendarPreferencesFixture(
+                preferences: UserPreferences(
+                    primaryCurrency: .cny,
+                    calendarProjectionHorizon: .twelveMonths,
+                    setupStatus: .completed
+                )
+            ),
+            exchangeRateSource: source,
+            exchangeRateCache: cache,
+            now: { now },
+            calendar: utcCalendar()
+        )
+        workspace.loadSetup(libraryIsEmpty: false)
+        workspace.loadInsights(
+            mode: .expected,
+            from: now,
+            through: now.addingTimeInterval(172_800)
+        )
+
+        let olderImport = Task { @MainActor in
+            await workspace.reloadAfterRemoteImport()
+        }
+        await source.waitForSuspendedFetches(count: 1)
+        try repository.updateSubscription(
+            makeSubscription(
+                id: subscriptionID,
+                billingSchedule: FixedBillingSchedule(
+                    interval: .monthly,
+                    renewalAnchor: renewal,
+                    timeZoneIdentifier: "UTC"
+                ),
+                confirmedNextRenewal: renewal,
+                originalAmount: Money(
+                    minorUnits: 100,
+                    currency: .eur
+                )
+            )
+        )
+        let newerImport = Task { @MainActor in
+            await workspace.reloadAfterRemoteImport()
+        }
+        await source.waitForSuspendedFetches(count: 2)
+
+        source.release(quotes: [.cny])
+        await newerImport.value
+        source.release(quotes: [.cny, .usd])
+        await olderImport.value
+
+        #expect(source.requests == [[.cny, .usd], [.cny]])
+        #expect(workspace.exchangeRateStatus == .fresh(newerSnapshot))
+        #expect(cache.state?.snapshot == newerSnapshot)
+        #expect(
+            workspace.insightsState.availableValue?.selectedRangeTotal
+                == Money(minorUnits: 840, currency: .cny)
+        )
+    }
+
+    @Test("Remote preference deletion uses completed defaults for a nonempty library")
+    @MainActor
+    func remotePreferenceDeletionUsesCompletedDefaultsForNonemptyLibrary() async throws {
+        let preferences = CalendarPreferencesFixture(
+            preferences: UserPreferences(
+                primaryCurrency: .usd,
+                calendarProjectionHorizon: .sixMonths,
+                setupStatus: .skipped
+            )
+        )
+        let subscriptionID = try #require(
+            UUID(
+                uuidString: "41000000-0000-4000-8000-000000000003"
+            )
+        )
+        let workspace = SubscriptionWorkspace(
+            repository: InMemorySubscriptionRepository(
+                subscriptions: [makeSubscription(id: subscriptionID)]
+            ),
+            preferencesRepository: preferences
+        )
+        workspace.loadLibrary()
+        workspace.loadSetup(libraryIsEmpty: false)
+        #expect(workspace.setupState.requiresSetupInteraction == false)
+        preferences.replaceWithRemote(nil)
+
+        await workspace.reloadAfterRemoteImport()
+
+        #expect(workspace.setupState == .completed(.default))
+        #expect(workspace.setupRevision == 1)
+        #expect(preferences.saveCount == 0)
+    }
+
+    @Test("Remote preference deletion uses setup defaults for an empty library")
+    @MainActor
+    func remotePreferenceDeletionUsesSetupDefaultsForEmptyLibrary() async {
+        let preferences = CalendarPreferencesFixture(
+            preferences: UserPreferences(
+                primaryCurrency: .usd,
+                calendarProjectionHorizon: .sixMonths,
+                setupStatus: .skipped
+            )
+        )
+        let workspace = SubscriptionWorkspace(
+            repository: EmptySubscriptionRepository(),
+            preferencesRepository: preferences
+        )
+        workspace.loadLibrary()
+        workspace.loadSetup(libraryIsEmpty: true)
+        preferences.replaceWithRemote(nil)
+
+        await workspace.reloadAfterRemoteImport()
+
+        #expect(workspace.libraryState == .empty(.current))
+        #expect(workspace.setupState == .needsSetup(.default))
+        #expect(workspace.setupRevision == 1)
+        #expect(preferences.saveCount == 0)
+    }
+
+    @Test("Remote preference deletion does not turn a failed library into onboarding")
+    @MainActor
+    func remotePreferenceDeletionPreservesFailedLibraryUncertainty() async throws {
+        let preferences = CalendarPreferencesFixture(
+            preferences: UserPreferences(
+                primaryCurrency: .usd,
+                calendarProjectionHorizon: .sixMonths,
+                setupStatus: .completed
+            )
+        )
+        let subscriptionID = try #require(
+            UUID(
+                uuidString: "41000000-0000-4000-8000-000000000004"
+            )
+        )
+        let repository = InMemorySubscriptionRepository(
+            subscriptions: [makeSubscription(id: subscriptionID)]
+        )
+        let workspace = SubscriptionWorkspace(
+            repository: repository,
+            preferencesRepository: preferences
+        )
+        workspace.loadLibrary()
+        workspace.loadSetup(libraryIsEmpty: false)
+        repository.failure = .list
+        preferences.replaceWithRemote(nil)
+
+        await workspace.reloadAfterRemoteImport()
+
+        #expect(workspace.libraryState == .failed(.current))
+        #expect(workspace.setupState == .loadFailed)
+        #expect(workspace.setupState.requiresSetupInteraction == false)
+        #expect(workspace.setupRevision == 1)
+        #expect(preferences.saveCount == 0)
     }
 
     @Test("A repository failure produces a recoverable library state")
@@ -540,6 +4583,51 @@ struct SubscriptionWorkspaceTests {
         }
         #expect(archived.map(\.id) == [archivedID])
         #expect(archived.first?.nextExpectedCharge == nil)
+    }
+
+    @Test("Editing an archived subscription preserves the archived library scope")
+    @MainActor
+    func editingArchivedSubscriptionPreservesArchivedScope() throws {
+        let subscription = makeSubscription(
+            id: UUID(
+                uuidString: "25000000-0000-0000-0000-000000000002"
+            )!,
+            lifecycle: .cancelled(
+                cancelledAt: Date(timeIntervalSince1970: 1_770_000_000),
+                accessUntil: Date(timeIntervalSince1970: 1_780_000_000)
+            ),
+            isArchived: true
+        )
+        let repository = InMemorySubscriptionRepository(
+            subscriptions: [subscription]
+        )
+        let workspace = SubscriptionWorkspace(repository: repository)
+        workspace.loadLibrary(scope: .archived)
+
+        let didSave = workspace.editSubscription(
+            id: subscription.id,
+            input: SubscriptionEditInput(
+                serviceName: "Edited archived service",
+                plan: subscription.plan,
+                category: subscription.category,
+                amount: subscription.amount(
+                    onBillingDay: subscription.confirmedNextRenewal
+                ),
+                billingSchedule: subscription.billingSchedule,
+                startDate: subscription.startDate,
+                confirmedNextRenewal: subscription.confirmedNextRenewal,
+                managementURL: subscription.managementURL,
+                notes: subscription.notes
+            )
+        )
+
+        #expect(didSave)
+        guard case .loaded(.archived, let summaries) = workspace.libraryState
+        else {
+            Issue.record("Expected the archived library scope after editing")
+            return
+        }
+        #expect(summaries.map(\.serviceName) == ["Edited archived service"])
     }
 
     @Test("Archiving refreshes the currently selected library scope")
@@ -879,7 +4967,7 @@ struct SubscriptionWorkspaceTests {
     }
 
     @Test(
-        "Cancelled and expired subscriptions can reactivate on the current local day",
+        "Cancelled and expired subscriptions can reactivate with a future renewal",
         arguments: [
             LifecycleFixture.cancelledWithAccess,
             LifecycleFixture.expired,
@@ -911,8 +4999,15 @@ struct SubscriptionWorkspaceTests {
         )
         let normalizedRenewal = try actionDate(
             year: 2026,
+            month: 8,
+            day: 10,
+            hour: 12,
+            calendar: calendar
+        )
+        let expectedStart = try actionDate(
+            year: 2026,
             month: 7,
-            day: 28,
+            day: 10,
             hour: 12,
             calendar: calendar
         )
@@ -929,8 +5024,8 @@ struct SubscriptionWorkspaceTests {
             id: subscription.id,
             nextRenewal: try actionDate(
                 year: 2026,
-                month: 7,
-                day: 28,
+                month: 8,
+                day: 10,
                 hour: 1,
                 calendar: calendar
             )
@@ -940,10 +5035,14 @@ struct SubscriptionWorkspaceTests {
             repository.storedSubscription(id: subscription.id)
         )
         #expect(stored.lifecycle == .active)
-        #expect(stored.billingSchedule == subscription.billingSchedule)
+        #expect(stored.startDate == expectedStart)
+        #expect(
+            stored.billingSchedule.interval
+                == subscription.billingSchedule.interval
+        )
         #expect(
             stored.billingSchedule.renewalAnchor
-                == subscription.billingSchedule.renewalAnchor
+                == expectedStart
         )
         #expect(stored.confirmedNextRenewal == normalizedRenewal)
         #expect(stored.confirmedCharges == subscription.confirmedCharges)
@@ -965,6 +5064,90 @@ struct SubscriptionWorkspaceTests {
         }
         #expect(summaries.map(\.id) == [subscription.id])
         #expect(summaries.first?.status == .active)
+    }
+
+    @Test("Reactivation refreshes every loaded schedule consumer")
+    @MainActor
+    func reactivationRefreshesLoadedConsumers() async throws {
+        let calendar = actionCalendar()
+        let now = try actionDate(
+            year: 2026,
+            month: 7,
+            day: 28,
+            hour: 18,
+            calendar: calendar
+        )
+        let nextRenewal = try actionDate(
+            year: 2026,
+            month: 8,
+            day: 10,
+            hour: 12,
+            calendar: calendar
+        )
+        let through = try actionDate(
+            year: 2026,
+            month: 9,
+            day: 30,
+            hour: 12,
+            calendar: calendar
+        )
+        let subscription = try makeActionSubscription(
+            fixture: .cancelledWithAccess,
+            calendar: calendar
+        )
+        let repository = InMemorySubscriptionRepository(
+            subscriptions: [subscription]
+        )
+        let rateSnapshot = ExchangeRateSnapshot(
+            base: .eur,
+            providerDate: now,
+            fetchedAt: now,
+            source: "fixture",
+            rates: [.eur: 1, .usd: 1.2, .cny: 8.4]
+        )
+        let workspace = SubscriptionWorkspace(
+            repository: repository,
+            exchangeRateCache: InMemoryExchangeRateCache(
+                state: ExchangeRateCacheState(
+                    snapshot: rateSnapshot,
+                    lastAttemptAt: now
+                )
+            ),
+            now: { now },
+            calendar: calendar
+        )
+
+        await workspace.refreshExchangeRates()
+        workspace.loadLibrary()
+        workspace.loadSubscription(id: subscription.id)
+        workspace.loadUpcomingTimeline(from: now, through: through)
+        workspace.loadCalendarProjection(locale: Locale(identifier: "en"))
+        workspace.loadInsights(
+            mode: .expected,
+            from: now,
+            through: through
+        )
+        #expect(workspace.upcomingTimeline.isEmpty)
+        #expect(workspace.calendarProjection.isEmpty)
+        #expect(
+            workspace.insightsState.availableValue?.items.isEmpty == true
+        )
+
+        workspace.reactivate(
+            id: subscription.id,
+            nextRenewal: nextRenewal
+        )
+
+        #expect(workspace.upcomingTimeline.first?.date == nextRenewal)
+        #expect(workspace.calendarProjection.first?.startDate == nextRenewal)
+        #expect(
+            workspace.insightsState.availableValue?.items.first?.date
+                == nextRenewal
+        )
+        #expect(
+            workspace.makeWidgetSnapshot()?.nextRenewal?.renewalDate
+                == nextRenewal
+        )
     }
 
     @Test("Reactivation before the current billing-local day is rejected")
@@ -1023,6 +5206,177 @@ struct SubscriptionWorkspaceTests {
         #expect(workspace.detailState == detailBefore)
         #expect(workspace.expectedCharges == forecastBefore)
         #expect(workspace.libraryState == libraryBefore)
+    }
+
+    @Test("Reactivation on the current billing-local day is rejected")
+    @MainActor
+    func currentDayReactivationIsRejected() throws {
+        let calendar = actionCalendar()
+        let now = try actionDate(
+            year: 2026,
+            month: 7,
+            day: 28,
+            hour: 18,
+            calendar: calendar
+        )
+        let subscription = try makeActionSubscription(
+            fixture: .cancelledWithAccess,
+            calendar: calendar
+        )
+        let repository = InMemorySubscriptionRepository(
+            subscriptions: [subscription]
+        )
+        let workspace = SubscriptionWorkspace(
+            repository: repository,
+            now: { now },
+            calendar: calendar
+        )
+
+        loadActionPresentation(
+            workspace,
+            subscription: subscription,
+            scope: .current,
+            calendar: calendar
+        )
+        let detailBefore = workspace.detailState
+        let forecastBefore = workspace.expectedCharges
+        let libraryBefore = workspace.libraryState
+
+        workspace.reactivate(
+            id: subscription.id,
+            nextRenewal: try actionDate(
+                year: 2026,
+                month: 7,
+                day: 28,
+                hour: 23,
+                minute: 59,
+                calendar: calendar
+            )
+        )
+
+        #expect(workspace.lifecycleActionError == .nextRenewalInPast)
+        #expect(
+            repository.storedSubscription(id: subscription.id)
+                == subscription
+        )
+        #expect(repository.updateAttemptCount == 0)
+        #expect(workspace.detailState == detailBefore)
+        #expect(workspace.expectedCharges == forecastBefore)
+        #expect(workspace.libraryState == libraryBefore)
+    }
+
+    @Test("Pin commands persist recency and preserve it through archive")
+    @MainActor
+    func pinCommandsPersistRecencyAndPreserveArchive() throws {
+        let subscriptionID = UUID(
+            uuidString: "70000000-0000-0000-0000-000000000007"
+        )!
+        let now = Date(timeIntervalSinceReferenceDate: 810_000_000)
+        let subscription = makeSubscription(id: subscriptionID)
+        let repository = InMemorySubscriptionRepository(
+            subscriptions: [subscription]
+        )
+        let workspace = SubscriptionWorkspace(
+            repository: repository,
+            now: { now }
+        )
+
+        workspace.loadLibrary(scope: .current)
+        workspace.setPinned(id: subscriptionID, pinned: true)
+
+        var stored = try #require(
+            repository.storedSubscription(id: subscriptionID)
+        )
+        #expect(stored.pinnedAt == now)
+        #expect(repository.updateAttemptCount == 1)
+        guard case .loaded(.current, let pinnedSummaries) =
+            workspace.libraryState
+        else {
+            Issue.record("Expected refreshed current library")
+            return
+        }
+        #expect(pinnedSummaries.first?.pinnedAt == now)
+
+        workspace.setPinned(id: subscriptionID, pinned: true)
+        #expect(repository.updateAttemptCount == 1)
+
+        workspace.archive(id: subscriptionID)
+        stored = try #require(
+            repository.storedSubscription(id: subscriptionID)
+        )
+        #expect(stored.isArchived)
+        #expect(stored.pinnedAt == now)
+
+        workspace.restore(id: subscriptionID)
+        stored = try #require(
+            repository.storedSubscription(id: subscriptionID)
+        )
+        #expect(!stored.isArchived)
+        #expect(stored.pinnedAt == now)
+
+        workspace.setPinned(id: subscriptionID, pinned: false)
+        stored = try #require(
+            repository.storedSubscription(id: subscriptionID)
+        )
+        #expect(stored.pinnedAt == nil)
+        #expect(repository.updateAttemptCount == 4)
+
+        workspace.setPinned(id: subscriptionID, pinned: false)
+        #expect(repository.updateAttemptCount == 4)
+    }
+
+    @Test("Archived subscriptions cannot be newly pinned")
+    @MainActor
+    func archivedSubscriptionsCannotBeNewlyPinned() throws {
+        let subscription = makeSubscription(
+            id: UUID(
+                uuidString: "80000000-0000-0000-0000-000000000008"
+            )!,
+            isArchived: true
+        )
+        let repository = InMemorySubscriptionRepository(
+            subscriptions: [subscription]
+        )
+        let workspace = SubscriptionWorkspace(repository: repository)
+
+        workspace.setPinned(id: subscription.id, pinned: true)
+
+        #expect(
+            repository.storedSubscription(id: subscription.id)
+                == subscription
+        )
+        #expect(repository.updateAttemptCount == 0)
+        #expect(
+            workspace.lifecycleActionError == .invalidLifecycleTransition
+        )
+    }
+
+    @Test("A failed pin keeps persisted and presented state unchanged")
+    @MainActor
+    func failedPinKeepsStateUnchanged() {
+        let subscription = makeSubscription(
+            id: UUID(
+                uuidString: "90000000-0000-0000-0000-000000000009"
+            )!
+        )
+        let repository = InMemorySubscriptionRepository(
+            subscriptions: [subscription]
+        )
+        let workspace = SubscriptionWorkspace(repository: repository)
+        workspace.loadLibrary(scope: .current)
+        let libraryBefore = workspace.libraryState
+        repository.failure = .update
+
+        workspace.setPinned(id: subscription.id, pinned: true)
+
+        #expect(
+            repository.storedSubscription(id: subscription.id)
+                == subscription
+        )
+        #expect(workspace.libraryState == libraryBefore)
+        #expect(
+            workspace.lifecycleActionError == .persistenceFailed
+        )
     }
 
     @Test(
@@ -1140,12 +5494,28 @@ struct SubscriptionWorkspaceTests {
             Issue.record("Expected refreshed restored detail")
             return
         }
-        #expect(detail == stored)
+        #expect(
+            replacingConfirmedNextRenewal(
+                in: detail,
+                with: stored.confirmedNextRenewal
+            ) == stored
+        )
         #expect(status == fixture.status)
         #expect(
             (nextExpectedCharge != nil)
                 == fixture.isEligibleForExpectedCharges
         )
+        if case .active = fixture {
+            #expect(
+                detail.confirmedNextRenewal
+                    == nextExpectedCharge?.scheduledDate
+            )
+        } else {
+            #expect(
+                detail.confirmedNextRenewal
+                    == stored.confirmedNextRenewal
+            )
+        }
         #expect(
             (workspace.expectedCharges?.isEmpty == false)
                 == fixture.isEligibleForExpectedCharges
@@ -1306,6 +5676,7 @@ struct SubscriptionWorkspaceTests {
                 #expect(repository.deletedIDs == [target.id])
                 #expect(workspace.lifecycleActionError == nil)
                 #expect(workspace.detailState == .notFound)
+                #expect(workspace.paymentHistory.isEmpty)
                 #expect(workspace.expectedCharges == nil)
                 guard case .loaded(
                     let loadedScope,
@@ -1483,6 +5854,82 @@ struct SubscriptionWorkspaceTests {
         #expect(workspace.lifecycleActionError == nil)
     }
 
+    @Test("A detail lookup returning not found clears payment history")
+    @MainActor
+    func detailLookupNotFoundClearsPaymentHistory() throws {
+        let calendar = actionCalendar()
+        let now = try actionDate(
+            year: 2026,
+            month: 7,
+            day: 28,
+            hour: 18,
+            calendar: calendar
+        )
+        let subscription = try makeActionSubscription(
+            fixture: .active,
+            calendar: calendar
+        )
+        let repository = InMemorySubscriptionRepository(
+            subscriptions: [subscription]
+        )
+        let workspace = SubscriptionWorkspace(
+            repository: repository,
+            now: { now },
+            calendar: calendar
+        )
+
+        loadActionPresentation(
+            workspace,
+            subscription: subscription,
+            scope: .current,
+            calendar: calendar
+        )
+        repository.removeStoredSubscription(id: subscription.id)
+
+        workspace.loadSubscription(id: subscription.id)
+
+        #expect(workspace.detailState == .notFound)
+        #expect(workspace.paymentHistory.isEmpty)
+    }
+
+    @Test("A failed detail lookup clears payment history")
+    @MainActor
+    func failedDetailLookupClearsPaymentHistory() throws {
+        let calendar = actionCalendar()
+        let now = try actionDate(
+            year: 2026,
+            month: 7,
+            day: 28,
+            hour: 18,
+            calendar: calendar
+        )
+        let subscription = try makeActionSubscription(
+            fixture: .active,
+            calendar: calendar
+        )
+        let repository = InMemorySubscriptionRepository(
+            subscriptions: [subscription]
+        )
+        let workspace = SubscriptionWorkspace(
+            repository: repository,
+            now: { now },
+            calendar: calendar
+        )
+
+        loadActionPresentation(
+            workspace,
+            subscription: subscription,
+            scope: .current,
+            calendar: calendar
+        )
+        repository.failure = .lookup
+
+        workspace.loadSubscription(id: subscription.id)
+
+        #expect(workspace.detailState == .failed)
+        #expect(workspace.paymentHistory.isEmpty)
+    }
+
     @Test("Dismissing an action error clears it without changing content")
     @MainActor
     func dismissingActionErrorClearsItWithoutChangingContent() throws {
@@ -1624,6 +6071,1927 @@ struct SubscriptionWorkspaceTests {
         #expect(workspace.expectedCharges == forecastBefore)
         #expect(workspace.libraryState == libraryBefore)
     }
+
+    @Test("Manual ChatGPT Plus creation adopts the verified catalog offer")
+    @MainActor
+    func manualCreationReconcilesUniqueCatalogOffer() throws {
+        let repository = InMemorySubscriptionRepository()
+        let preset = catalogPresetFixture(
+            offers: [catalogOfferFixture(id: "plus", status: .verified)],
+            id: "chatgpt",
+            serviceName: CatalogLocalizedText(
+                en: "ChatGPT",
+                zhHans: "ChatGPT"
+            ),
+            matchAliases: ["ChatGPT Plus"]
+        )
+        let now = Date(timeIntervalSince1970: 1_769_731_200)
+        let workspace = SubscriptionWorkspace(
+            repository: repository,
+            catalogRepository: StaticCatalogRepository(presets: [preset]),
+            now: { now }
+        )
+        workspace.loadCatalog(locale: Locale(identifier: "en"))
+
+        let result = workspace.createSubscription(
+            SubscriptionCreationInput(
+                serviceName: "ChatGPT Plus",
+                plan: "Anything",
+                category: "Other",
+                originalAmount: Money(
+                    minorUnits: 2_000,
+                    currency: .usd
+                ),
+                billingInterval: .monthly,
+                startDate: now,
+                confirmedNextRenewal: now,
+                billingTimeZoneIdentifier: "UTC",
+                managementURL: nil,
+                notes: "Keep this",
+                initialStatus: .active
+            )
+        )
+
+        let created: Subscription
+        switch result {
+        case .created(let subscription):
+            created = subscription
+        case .validationFailed, .persistenceFailed:
+            Issue.record("Expected a reconciled subscription.")
+            return
+        }
+        #expect(created.serviceIdentity.rawValue == "catalog:chatgpt")
+        #expect(created.serviceName == "ChatGPT")
+        #expect(created.plan == "Plus")
+        #expect(created.category == "Productivity")
+        #expect(created.managementURL == preset.managementURL)
+        #expect(created.originalAmount.minorUnits == 2_000)
+        #expect(created.notes == "Keep this")
+    }
+
+    @Test("Manual editing uses the same catalog reconciliation seam")
+    @MainActor
+    func manualEditReconcilesUniqueCatalogOffer() throws {
+        let id = UUID(
+            uuidString: "90000000-0000-0000-0000-000000000047"
+        )!
+        let pinnedAt = Date(timeIntervalSince1970: 1_769_700_000)
+        let existing = makeSubscription(
+            id: id,
+            pinnedAt: pinnedAt,
+            originalAmount: Money(minorUnits: 2_000, currency: .usd),
+            serviceName: "Before Edit",
+            notes: "Original notes"
+        )
+        let repository = InMemorySubscriptionRepository(
+            subscriptions: [existing]
+        )
+        let preset = catalogPresetFixture(
+            offers: [catalogOfferFixture(id: "plus", status: .verified)],
+            id: "chatgpt",
+            serviceName: CatalogLocalizedText(
+                en: "ChatGPT",
+                zhHans: "ChatGPT"
+            ),
+            matchAliases: ["ChatGPT Plus"]
+        )
+        let now = Date(timeIntervalSince1970: 1_769_731_200)
+        let workspace = SubscriptionWorkspace(
+            repository: repository,
+            catalogRepository: StaticCatalogRepository(presets: [preset]),
+            now: { now }
+        )
+        workspace.loadCatalog(locale: Locale(identifier: "en"))
+
+        workspace.editSubscription(
+            id: id,
+            input: SubscriptionEditInput(
+                serviceName: "ChatGPT Plus",
+                plan: "Ignored Plan",
+                category: "Ignored Category",
+                amount: existing.amount(
+                    onBillingDay: existing.confirmedNextRenewal
+                ),
+                billingSchedule: existing.billingSchedule,
+                startDate: existing.startDate,
+                confirmedNextRenewal: existing.confirmedNextRenewal,
+                managementURL: nil,
+                notes: "Edited notes"
+            )
+        )
+
+        let edited = try #require(
+            repository.storedSubscription(id: id)
+        )
+        #expect(edited.serviceIdentity.rawValue == "catalog:chatgpt")
+        #expect(edited.serviceName == "ChatGPT")
+        #expect(edited.plan == "Plus")
+        #expect(edited.category == "Productivity")
+        #expect(edited.managementURL == preset.managementURL)
+        #expect(edited.notes == "Edited notes")
+        #expect(edited.pinnedAt == pinnedAt)
+    }
+
+    @Test("Renaming a catalog subscription clears its stale identity atomically")
+    @MainActor
+    func catalogRenameClearsStaleIdentityDuringAtomicEdit() throws {
+        let id = UUID(
+            uuidString: "91000000-0000-0000-0000-000000000047"
+        )!
+        let existing = makeSubscription(
+            id: id,
+            serviceIdentity: ServiceIdentity(rawValue: "catalog:chatgpt"),
+            originalAmount: Money(minorUnits: 2_000, currency: .usd),
+            serviceName: "ChatGPT",
+            plan: "Plus"
+        )
+        let preset = catalogPresetFixture(
+            offers: [catalogOfferFixture(id: "plus", status: .verified)],
+            id: "chatgpt",
+            serviceName: CatalogLocalizedText(
+                en: "ChatGPT",
+                zhHans: "ChatGPT"
+            ),
+            matchAliases: ["ChatGPT Plus"]
+        )
+        let repository = InMemorySubscriptionRepository(
+            subscriptions: [existing]
+        )
+        let workspace = SubscriptionWorkspace(
+            repository: repository,
+            catalogRepository: StaticCatalogRepository(presets: [preset]),
+            now: { Date(timeIntervalSince1970: 1_769_731_200) }
+        )
+        workspace.loadCatalog(locale: Locale(identifier: "en"))
+
+        workspace.editSubscription(
+            id: id,
+            input: SubscriptionEditInput(
+                serviceName: "Renamed Service",
+                plan: existing.plan,
+                category: existing.category,
+                amount: existing.amount(
+                    onBillingDay: existing.confirmedNextRenewal
+                ),
+                billingSchedule: existing.billingSchedule,
+                startDate: existing.startDate,
+                confirmedNextRenewal: existing.confirmedNextRenewal,
+                managementURL: existing.managementURL,
+                notes: existing.notes
+            )
+        )
+
+        let edited = try #require(repository.storedSubscription(id: id))
+        #expect(
+            edited.serviceIdentity
+                == ServiceIdentity(rawValue: "manual:\(id.uuidString)")
+        )
+        #expect(edited.serviceName == "Renamed Service")
+        #expect(repository.updateAttemptCount == 1)
+    }
+
+    @Test("A price-only catalog override retains catalog identity atomically")
+    @MainActor
+    func catalogPriceOnlyOverrideRetainsIdentityDuringAtomicEdit() throws {
+        let id = UUID(
+            uuidString: "92000000-0000-0000-0000-000000000047"
+        )!
+        let existing = makeSubscription(
+            id: id,
+            serviceIdentity: ServiceIdentity(rawValue: "catalog:chatgpt"),
+            originalAmount: Money(minorUnits: 2_000, currency: .usd),
+            serviceName: "ChatGPT",
+            plan: "Plus"
+        )
+        let preset = catalogPresetFixture(
+            offers: [catalogOfferFixture(id: "plus", status: .verified)],
+            id: "chatgpt",
+            serviceName: CatalogLocalizedText(
+                en: "ChatGPT",
+                zhHans: "ChatGPT"
+            )
+        )
+        let repository = InMemorySubscriptionRepository(
+            subscriptions: [existing]
+        )
+        let workspace = SubscriptionWorkspace(
+            repository: repository,
+            catalogRepository: StaticCatalogRepository(presets: [preset]),
+            now: { Date(timeIntervalSince1970: 1_769_731_200) }
+        )
+        workspace.loadCatalog(locale: Locale(identifier: "en"))
+
+        workspace.editSubscription(
+            id: id,
+            input: SubscriptionEditInput(
+                serviceName: existing.serviceName,
+                plan: existing.plan,
+                category: existing.category,
+                amount: Money(minorUnits: 3_000, currency: .usd),
+                billingSchedule: existing.billingSchedule,
+                startDate: existing.startDate,
+                confirmedNextRenewal: existing.confirmedNextRenewal,
+                managementURL: existing.managementURL,
+                notes: existing.notes
+            )
+        )
+
+        let edited = try #require(repository.storedSubscription(id: id))
+        #expect(
+            edited.serviceIdentity
+                == ServiceIdentity(rawValue: "catalog:chatgpt")
+        )
+        #expect(
+            edited.amount(onBillingDay: edited.confirmedNextRenewal)
+                == Money(minorUnits: 3_000, currency: .usd)
+        )
+        #expect(
+            workspace.catalogOfferAdjustment(for: edited)
+                == CatalogOfferAdjustment(
+                    isPriceAdjusted: true,
+                    isScheduleAdjusted: false
+                )
+        )
+        #expect(repository.updateAttemptCount == 1)
+    }
+
+    @Test("An interval-only catalog override retains catalog identity atomically")
+    @MainActor
+    func catalogIntervalOnlyOverrideRetainsIdentityDuringAtomicEdit() throws {
+        let calendar = utcCalendar()
+        let now = try actionDate(
+            year: 2026,
+            month: 7,
+            day: 15,
+            hour: 18,
+            calendar: calendar
+        )
+        let startDate = try actionDate(
+            year: 2026,
+            month: 7,
+            day: 1,
+            hour: 12,
+            calendar: calendar
+        )
+        let yearlyRenewal = try actionDate(
+            year: 2027,
+            month: 7,
+            day: 1,
+            hour: 12,
+            calendar: calendar
+        )
+        let id = UUID(
+            uuidString: "93000000-0000-0000-0000-000000000047"
+        )!
+        let existing = makeSubscription(
+            id: id,
+            serviceIdentity: ServiceIdentity(rawValue: "catalog:chatgpt"),
+            billingSchedule: FixedBillingSchedule(
+                interval: .monthly,
+                renewalAnchor: startDate,
+                timeZoneIdentifier: "UTC"
+            ),
+            confirmedNextRenewal: try actionDate(
+                year: 2026,
+                month: 8,
+                day: 1,
+                hour: 12,
+                calendar: calendar
+            ),
+            originalAmount: Money(minorUnits: 2_000, currency: .usd),
+            serviceName: "ChatGPT",
+            plan: "Plus"
+        )
+        let preset = catalogPresetFixture(
+            offers: [catalogOfferFixture(id: "plus", status: .verified)],
+            id: "chatgpt",
+            serviceName: CatalogLocalizedText(
+                en: "ChatGPT",
+                zhHans: "ChatGPT"
+            )
+        )
+        let repository = InMemorySubscriptionRepository(
+            subscriptions: [existing]
+        )
+        let workspace = SubscriptionWorkspace(
+            repository: repository,
+            catalogRepository: StaticCatalogRepository(presets: [preset]),
+            now: { now },
+            calendar: calendar
+        )
+        workspace.loadCatalog(locale: Locale(identifier: "en"))
+
+        workspace.editSubscription(
+            id: id,
+            input: SubscriptionEditInput(
+                serviceName: existing.serviceName,
+                plan: existing.plan,
+                category: existing.category,
+                amount: existing.amount(
+                    onBillingDay: existing.confirmedNextRenewal
+                ),
+                billingSchedule: FixedBillingSchedule(
+                    interval: .yearly,
+                    renewalAnchor: startDate,
+                    timeZoneIdentifier: "UTC"
+                ),
+                startDate: startDate,
+                confirmedNextRenewal: yearlyRenewal,
+                managementURL: existing.managementURL,
+                notes: existing.notes
+            )
+        )
+
+        let edited = try #require(repository.storedSubscription(id: id))
+        #expect(
+            edited.serviceIdentity
+                == ServiceIdentity(rawValue: "catalog:chatgpt")
+        )
+        #expect(
+            edited.billingSchedule.interval == BillingInterval.yearly
+        )
+        #expect(
+            workspace.catalogOfferAdjustment(for: edited)
+                == CatalogOfferAdjustment(
+                    isPriceAdjusted: false,
+                    isScheduleAdjusted: true
+                )
+        )
+        #expect(repository.updateAttemptCount == 1)
+    }
+
+    @Test("An empty catalog does not clear a catalog identity on edit")
+    @MainActor
+    func catalogEditWithEmptyCatalogRetainsIdentity() throws {
+        let id = UUID(
+            uuidString: "94000000-0000-0000-0000-000000000047"
+        )!
+        let existing = makeSubscription(
+            id: id,
+            serviceIdentity: ServiceIdentity(rawValue: "catalog:chatgpt"),
+            originalAmount: Money(minorUnits: 2_000, currency: .usd),
+            serviceName: "ChatGPT"
+        )
+        let repository = InMemorySubscriptionRepository(
+            subscriptions: [existing]
+        )
+        let workspace = SubscriptionWorkspace(
+            repository: repository,
+            catalogRepository: StaticCatalogRepository(presets: []),
+            now: { Date(timeIntervalSince1970: 1_769_731_200) }
+        )
+        workspace.loadCatalog(locale: Locale(identifier: "en"))
+
+        workspace.editSubscription(
+            id: id,
+            input: SubscriptionEditInput(
+                serviceName: existing.serviceName,
+                plan: existing.plan,
+                category: existing.category,
+                amount: existing.amount(
+                    onBillingDay: existing.confirmedNextRenewal
+                ),
+                billingSchedule: existing.billingSchedule,
+                startDate: existing.startDate,
+                confirmedNextRenewal: existing.confirmedNextRenewal,
+                managementURL: existing.managementURL,
+                notes: "Edited while catalog unavailable"
+            )
+        )
+
+        let edited = try #require(repository.storedSubscription(id: id))
+        #expect(
+            edited.serviceIdentity
+                == ServiceIdentity(rawValue: "catalog:chatgpt")
+        )
+        #expect(edited.notes == "Edited while catalog unavailable")
+        #expect(repository.updateAttemptCount == 1)
+    }
+
+    @Test(
+        "Explicit reconciliation preserves every non-catalog fact and is idempotent"
+    )
+    @MainActor
+    func explicitCatalogReconciliationPreservesFacts() throws {
+        let id = UUID(
+            uuidString: "A0000000-0000-0000-0000-000000000047"
+        )!
+        let now = Date(timeIntervalSince1970: 1_769_731_200)
+        let pinnedAt = now.addingTimeInterval(-300)
+        let existing = Subscription(
+            id: id,
+            serviceIdentity: ServiceIdentity(rawValue: "manual:\(id)"),
+            serviceName: "ChatGPT Plus",
+            plan: "User Plan",
+            category: "Other",
+            originalAmount: Money(minorUnits: 1_500, currency: .usd),
+            billingSchedule: FixedBillingSchedule(
+                interval: .monthly,
+                renewalAnchor: now,
+                timeZoneIdentifier: "UTC"
+            ),
+            startDate: now,
+            confirmedNextRenewal: now.addingTimeInterval(86_400),
+            managementURL: URL(string: "https://old.example.com"),
+            notes: "Preserved notes",
+            confirmedCharges: [
+                ConfirmedCharge(
+                    id: UUID(
+                        uuidString:
+                            "A0000000-0000-0000-0000-000000000048"
+                    )!,
+                    chargedDate: now.addingTimeInterval(-86_400),
+                    amount: Money(minorUnits: 1_500, currency: .usd)
+                ),
+            ],
+            priceChanges: [
+                PriceChange(
+                    id: UUID(
+                        uuidString:
+                            "A0000000-0000-0000-0000-000000000049"
+                    )!,
+                    effectiveDate: now.addingTimeInterval(-3_600),
+                    amount: Money(minorUnits: 2_000, currency: .usd)
+                ),
+            ],
+            lifecycle: .cancelled(
+                cancelledAt: now.addingTimeInterval(-1_800),
+                accessUntil: now.addingTimeInterval(86_400)
+            ),
+            isArchived: true,
+            pinnedAt: pinnedAt
+        )
+        let repository = InMemorySubscriptionRepository(
+            subscriptions: [existing]
+        )
+        let preset = catalogPresetFixture(
+            offers: [catalogOfferFixture(id: "plus", status: .verified)],
+            id: "chatgpt",
+            serviceName: CatalogLocalizedText(
+                en: "ChatGPT",
+                zhHans: "ChatGPT"
+            ),
+            matchAliases: ["ChatGPT Plus"]
+        )
+        let workspace = SubscriptionWorkspace(
+            repository: repository,
+            catalogRepository: StaticCatalogRepository(presets: [preset]),
+            now: { now }
+        )
+        workspace.loadCatalog(locale: Locale(identifier: "en"))
+
+        let first = workspace.reconcileCatalogAssociations(
+            locale: Locale(identifier: "en")
+        )
+        let normalized = try #require(
+            repository.storedSubscription(id: id)
+        )
+
+        #expect(first.normalizedIDs == [id])
+        #expect(first.unchangedIDs.isEmpty)
+        #expect(first.ambiguousIDs.isEmpty)
+        #expect(first.failedIDs.isEmpty)
+        #expect(first.commandError == nil)
+        #expect(normalized.serviceIdentity.rawValue == "catalog:chatgpt")
+        #expect(normalized.serviceName == "ChatGPT")
+        #expect(normalized.plan == "Plus")
+        #expect(normalized.category == "Productivity")
+        #expect(normalized.managementURL == preset.managementURL)
+        #expect(normalized.originalAmount == existing.originalAmount)
+        #expect(normalized.billingSchedule == existing.billingSchedule)
+        #expect(normalized.startDate == existing.startDate)
+        #expect(
+            normalized.confirmedNextRenewal
+                == existing.confirmedNextRenewal
+        )
+        #expect(normalized.notes == existing.notes)
+        #expect(normalized.confirmedCharges == existing.confirmedCharges)
+        #expect(normalized.priceChanges == existing.priceChanges)
+        #expect(normalized.lifecycle == existing.lifecycle)
+        #expect(normalized.isArchived == existing.isArchived)
+        #expect(normalized.pinnedAt == existing.pinnedAt)
+
+        let second = workspace.reconcileCatalogAssociations(
+            locale: Locale(identifier: "en")
+        )
+        #expect(second.normalizedIDs.isEmpty)
+        #expect(second.unchangedIDs == [id])
+        #expect(repository.updateAttemptCount == 1)
+    }
+
+    @Test("Reconciliation refreshes loaded consumers from persisted truth")
+    @MainActor
+    func reconciliationRefreshesLoadedConsumers() throws {
+        let id = UUID(
+            uuidString: "A1000000-0000-0000-0000-000000000047"
+        )!
+        let now = Date(timeIntervalSince1970: 1_768_521_600)
+        let existing = makeSubscription(
+            id: id,
+            originalAmount: Money(minorUnits: 2_000, currency: .usd),
+            serviceName: "ChatGPT Plus"
+        )
+        let repository = InMemorySubscriptionRepository(
+            subscriptions: [existing]
+        )
+        let preset = catalogPresetFixture(
+            offers: [catalogOfferFixture(id: "plus", status: .verified)],
+            id: "chatgpt",
+            serviceName: CatalogLocalizedText(
+                en: "ChatGPT",
+                zhHans: "ChatGPT"
+            ),
+            matchAliases: ["ChatGPT Plus"]
+        )
+        let workspace = SubscriptionWorkspace(
+            repository: repository,
+            catalogRepository: StaticCatalogRepository(presets: [preset]),
+            now: { now }
+        )
+        workspace.loadCatalog(locale: Locale(identifier: "en"))
+        workspace.loadLibrary()
+        workspace.loadSubscription(id: id)
+        workspace.loadUpcomingTimeline(
+            from: existing.startDate,
+            through: existing.confirmedNextRenewal.addingTimeInterval(
+                62 * 86_400
+            )
+        )
+        workspace.loadCalendarProjection(
+            locale: Locale(identifier: "en")
+        )
+        #expect(
+            workspace.upcomingTimeline.contains {
+                $0.serviceName == "ChatGPT Plus"
+            }
+        )
+        #expect(
+            workspace.calendarProjection.contains {
+                $0.title.contains("ChatGPT Plus")
+            }
+        )
+
+        workspace.reconcileCatalogAssociations(
+            locale: Locale(identifier: "en")
+        )
+
+        guard case .loaded(let detail, _, _) = workspace.detailState else {
+            Issue.record("Expected refreshed detail.")
+            return
+        }
+        #expect(detail.serviceName == "ChatGPT")
+        #expect(
+            workspace.upcomingTimeline.allSatisfy {
+                $0.serviceName == "ChatGPT"
+            }
+        )
+        #expect(
+            workspace.calendarProjection.allSatisfy {
+                !$0.title.contains("ChatGPT Plus")
+                    && $0.title.contains("ChatGPT")
+            }
+        )
+        #expect(
+            workspace.makeWidgetSnapshot()?.nextRenewal?.serviceName
+                == "ChatGPT"
+        )
+    }
+
+    @Test("Editing billing dates refreshes every loaded schedule consumer")
+    @MainActor
+    func editingBillingDatesRefreshesLoadedConsumers() async throws {
+        let calendar = utcCalendar()
+        let now = try actionDate(
+            year: 2026,
+            month: 1,
+            day: 15,
+            hour: 12,
+            calendar: calendar
+        )
+        let oldStart = try actionDate(
+            year: 2025,
+            month: 12,
+            day: 10,
+            hour: 12,
+            calendar: calendar
+        )
+        let oldRenewal = try actionDate(
+            year: 2026,
+            month: 2,
+            day: 10,
+            hour: 12,
+            calendar: calendar
+        )
+        let editedStart = try actionDate(
+            year: 2025,
+            month: 12,
+            day: 20,
+            hour: 12,
+            calendar: calendar
+        )
+        let editedRenewal = try actionDate(
+            year: 2026,
+            month: 1,
+            day: 20,
+            hour: 12,
+            calendar: calendar
+        )
+        let through = try actionDate(
+            year: 2026,
+            month: 3,
+            day: 31,
+            hour: 12,
+            calendar: calendar
+        )
+        let id = UUID(
+            uuidString: "A2000000-0000-0000-0000-000000000048"
+        )!
+        let existing = makeSubscription(
+            id: id,
+            billingSchedule: FixedBillingSchedule(
+                interval: .monthly,
+                renewalAnchor: oldStart,
+                timeZoneIdentifier: calendar.timeZone.identifier
+            ),
+            confirmedNextRenewal: oldRenewal,
+            serviceName: "Schedule Consumer"
+        )
+        let repository = InMemorySubscriptionRepository(
+            subscriptions: [existing]
+        )
+        let rateSnapshot = ExchangeRateSnapshot(
+            base: .eur,
+            providerDate: now,
+            fetchedAt: now,
+            source: "fixture",
+            rates: [.eur: 1, .usd: 1.2, .cny: 8.4]
+        )
+        let workspace = SubscriptionWorkspace(
+            repository: repository,
+            exchangeRateCache: InMemoryExchangeRateCache(
+                state: ExchangeRateCacheState(
+                    snapshot: rateSnapshot,
+                    lastAttemptAt: now
+                )
+            ),
+            now: { now },
+            calendar: calendar
+        )
+
+        await workspace.refreshExchangeRates()
+        workspace.loadLibrary()
+        workspace.loadSubscription(id: id)
+        workspace.loadUpcomingTimeline(
+            from: now.addingTimeInterval(1),
+            through: through
+        )
+        workspace.loadCalendarProjection(locale: Locale(identifier: "en"))
+        workspace.loadInsights(
+            mode: .expected,
+            from: now.addingTimeInterval(1),
+            through: through
+        )
+        #expect(workspace.upcomingTimeline.first?.date == oldRenewal)
+        #expect(
+            workspace.calendarProjection.first?.startDate
+                == oldRenewal
+        )
+        #expect(
+            workspace.insightsState.availableValue?.items.first?.date
+                == oldRenewal
+        )
+
+        workspace.editSubscription(
+            id: id,
+            input: SubscriptionEditInput(
+                serviceName: existing.serviceName,
+                plan: existing.plan,
+                category: existing.category,
+                amount: existing.amount(
+                    onBillingDay: existing.confirmedNextRenewal
+                ),
+                billingSchedule: FixedBillingSchedule(
+                    interval: .monthly,
+                    renewalAnchor: editedStart,
+                    timeZoneIdentifier: calendar.timeZone.identifier
+                ),
+                startDate: editedStart,
+                confirmedNextRenewal: editedRenewal,
+                managementURL: existing.managementURL,
+                notes: existing.notes
+            )
+        )
+
+        #expect(
+            repository.storedSubscription(id: id)?
+                .confirmedNextRenewal == editedRenewal
+        )
+        #expect(workspace.upcomingTimeline.first?.date == editedRenewal)
+        #expect(
+            workspace.calendarProjection.first?.startDate
+                == editedRenewal
+        )
+        #expect(
+            workspace.insightsState.availableValue?.items.first?.date
+                == editedRenewal
+        )
+        #expect(
+            workspace.makeWidgetSnapshot()?.nextRenewal?.renewalDate
+                == editedRenewal
+        )
+        guard case .loaded(let detail, _, _) = workspace.detailState else {
+            Issue.record("Expected refreshed detail.")
+            return
+        }
+        #expect(detail.confirmedNextRenewal == editedRenewal)
+    }
+
+    @Test("Ordinary edits correct effective amount and metadata atomically")
+    @MainActor
+    func editAtomicallyCorrectsEffectiveAmount() async throws {
+        let calendar = actionCalendar()
+        let timeZoneIdentifier = calendar.timeZone.identifier
+        let now = try actionDate(
+            year: 2026,
+            month: 7,
+            day: 15,
+            hour: 18,
+            calendar: calendar
+        )
+        let startDate = try actionDate(
+            year: 2026,
+            month: 7,
+            day: 1,
+            hour: 4,
+            calendar: calendar
+        )
+        let confirmedNextRenewal = try actionDate(
+            year: 2026,
+            month: 8,
+            day: 1,
+            hour: 20,
+            calendar: calendar
+        )
+        let existingChangeID = UUID(
+            uuidString: "A4000000-0000-0000-0000-000000000048"
+        )!
+        let id = UUID(
+            uuidString: "A4000000-0000-0000-0000-000000000049"
+        )!
+        let existing = Subscription(
+            id: id,
+            serviceIdentity: ServiceIdentity(rawValue: "manual:\(id)"),
+            serviceName: "Original Service",
+            plan: "Original Plan",
+            category: "Other",
+            originalAmount: Money(minorUnits: 999, currency: .usd),
+            billingSchedule: FixedBillingSchedule(
+                interval: .monthly,
+                renewalAnchor: startDate,
+                timeZoneIdentifier: timeZoneIdentifier
+            ),
+            startDate: startDate,
+            confirmedNextRenewal: confirmedNextRenewal,
+            managementURL: nil,
+            notes: "Original notes",
+            priceChanges: [
+                PriceChange(
+                    id: existingChangeID,
+                    effectiveDate: try actionDate(
+                        year: 2026,
+                        month: 8,
+                        day: 1,
+                        hour: 2,
+                        calendar: calendar
+                    ),
+                    amount: Money(minorUnits: 1_299, currency: .usd)
+                ),
+            ]
+        )
+        let repository = InMemorySubscriptionRepository(
+            subscriptions: [existing]
+        )
+        let preset = catalogPresetFixture(
+            offers: [
+                catalogOfferFixture(
+                    id: "edited-monthly",
+                    status: .verified,
+                    price: Money(minorUnits: 6_800, currency: .cny)
+                ),
+            ],
+            id: "edited.example",
+            serviceName: CatalogLocalizedText(
+                en: "Edited Service",
+                zhHans: "Edited Service"
+            )
+        )
+        let rateSnapshot = ExchangeRateSnapshot(
+            base: .eur,
+            providerDate: now,
+            fetchedAt: now,
+            source: "fixture",
+            rates: [.eur: 1, .usd: 1.2, .cny: 8.4]
+        )
+        let workspace = SubscriptionWorkspace(
+            repository: repository,
+            catalogRepository: StaticCatalogRepository(presets: [preset]),
+            exchangeRateCache: InMemoryExchangeRateCache(
+                state: ExchangeRateCacheState(
+                    snapshot: rateSnapshot,
+                    lastAttemptAt: now
+                )
+            ),
+            syncMonitor: SyncMonitorFixture(result: .current),
+            now: { now },
+            calendar: calendar
+        )
+
+        workspace.loadCatalog(locale: Locale(identifier: "en"))
+        await workspace.refreshSyncStatus()
+        await workspace.refreshExchangeRates()
+        workspace.loadLibrary()
+        workspace.loadSubscription(id: id)
+        let horizon = try actionDate(
+            year: 2026,
+            month: 10,
+            day: 1,
+            hour: 12,
+            calendar: calendar
+        )
+        workspace.loadExpectedCharges(
+            subscriptionID: id,
+            through: horizon,
+            maximumCount: 2
+        )
+        workspace.loadUpcomingTimeline(from: now, through: horizon)
+        workspace.loadCalendarProjection(locale: Locale(identifier: "en"))
+        workspace.loadInsights(mode: .expected, from: now, through: horizon)
+
+        let inputStartDate = try actionDate(
+            year: 2026,
+            month: 7,
+            day: 1,
+            hour: 6,
+            calendar: calendar
+        )
+        workspace.editSubscription(
+            id: id,
+            input: SubscriptionEditInput(
+                serviceName: "Edited Service",
+                plan: "Edited Plan",
+                category: "Edited Category",
+                amount: Money(minorUnits: 6_800, currency: .cny),
+                billingSchedule: FixedBillingSchedule(
+                    interval: .monthly,
+                    renewalAnchor: inputStartDate,
+                    timeZoneIdentifier: timeZoneIdentifier
+                ),
+                startDate: inputStartDate,
+                confirmedNextRenewal: confirmedNextRenewal,
+                managementURL: nil,
+                notes: "Edited notes"
+            )
+        )
+
+        let stored = try #require(repository.storedSubscription(id: id))
+        let normalizedRenewal = try actionDate(
+            year: 2026,
+            month: 8,
+            day: 1,
+            hour: 12,
+            calendar: calendar
+        )
+        let normalizedStart = try actionDate(
+            year: 2026,
+            month: 7,
+            day: 1,
+            hour: 12,
+            calendar: calendar
+        )
+        #expect(stored.id == id)
+        #expect(stored.originalAmount == Money(minorUnits: 999, currency: .usd))
+        #expect(stored.serviceName == "Edited Service")
+        #expect(stored.serviceIdentity.rawValue == "catalog:edited.example")
+        #expect(stored.confirmedNextRenewal == normalizedRenewal)
+        #expect(stored.startDate == normalizedStart)
+        #expect(stored.billingSchedule.renewalAnchor == normalizedStart)
+        #expect(stored.priceChanges.count == 1)
+        #expect(stored.priceChanges[0].id == existingChangeID)
+        #expect(stored.priceChanges[0].effectiveDate == normalizedRenewal)
+        #expect(
+            stored.priceChanges[0].amount
+                == Money(minorUnits: 6_800, currency: .cny)
+        )
+        #expect(repository.updateAttemptCount == 1)
+
+        guard case .loaded(.current, let summaries) = workspace.libraryState,
+              let summary = summaries.first
+        else {
+            Issue.record("Expected the edited subscription in the library.")
+            return
+        }
+        #expect(summary.amount == Money(minorUnits: 6_800, currency: .cny))
+        #expect(workspace.expectedCharges?.first?.amount == summary.amount)
+        #expect(workspace.upcomingTimeline.first?.amount == summary.amount)
+        #expect(
+            workspace.insightsState.availableValue?.items.first?.originalAmount
+                == summary.amount
+        )
+        #expect(workspace.calendarProjection.first?.startDate == normalizedRenewal)
+        #expect(workspace.makeWidgetSnapshot()?.nextRenewal?.serviceName == "Edited Service")
+        #expect(workspace.syncStatus == .synchronizing)
+    }
+
+    @Test("A failed ordinary edit does not partially record price history")
+    @MainActor
+    func editFailureDoesNotPartiallyRecordPrice() async throws {
+        let calendar = actionCalendar()
+        let now = try actionDate(
+            year: 2026,
+            month: 7,
+            day: 15,
+            hour: 18,
+            calendar: calendar
+        )
+        let startDate = try actionDate(
+            year: 2026,
+            month: 7,
+            day: 1,
+            hour: 12,
+            calendar: calendar
+        )
+        let renewal = try actionDate(
+            year: 2026,
+            month: 8,
+            day: 1,
+            hour: 12,
+            calendar: calendar
+        )
+        let id = UUID(
+            uuidString: "A5000000-0000-0000-0000-000000000049"
+        )!
+        let existing = Subscription(
+            id: id,
+            serviceIdentity: ServiceIdentity(rawValue: "manual:\(id)"),
+            serviceName: "Failure Service",
+            plan: "Standard",
+            category: "Other",
+            originalAmount: Money(minorUnits: 999, currency: .usd),
+            billingSchedule: FixedBillingSchedule(
+                interval: .monthly,
+                renewalAnchor: startDate,
+                timeZoneIdentifier: calendar.timeZone.identifier
+            ),
+            startDate: startDate,
+            confirmedNextRenewal: renewal,
+            managementURL: nil,
+            notes: "Before",
+            priceChanges: [
+                PriceChange(
+                    id: UUID(
+                        uuidString: "A5000000-0000-0000-0000-000000000048"
+                    )!,
+                    effectiveDate: renewal,
+                    amount: Money(minorUnits: 1_299, currency: .usd)
+                ),
+            ]
+        )
+        let repository = InMemorySubscriptionRepository(
+            subscriptions: [existing]
+        )
+        repository.failure = .update
+        let rateSnapshot = ExchangeRateSnapshot(
+            base: .eur,
+            providerDate: now,
+            fetchedAt: now,
+            source: "fixture",
+            rates: [.eur: 1, .usd: 1.2]
+        )
+        let workspace = SubscriptionWorkspace(
+            repository: repository,
+            exchangeRateCache: InMemoryExchangeRateCache(
+                state: ExchangeRateCacheState(
+                    snapshot: rateSnapshot,
+                    lastAttemptAt: now
+                )
+            ),
+            syncMonitor: SyncMonitorFixture(result: .current),
+            now: { now },
+            calendar: calendar
+        )
+
+        await workspace.refreshSyncStatus()
+        await workspace.refreshExchangeRates()
+        let horizon = try actionDate(
+            year: 2026,
+            month: 10,
+            day: 1,
+            hour: 12,
+            calendar: calendar
+        )
+        workspace.loadLibrary()
+        workspace.loadSubscription(id: id)
+        workspace.loadExpectedCharges(
+            subscriptionID: id,
+            through: horizon,
+            maximumCount: 2
+        )
+        workspace.loadUpcomingTimeline(from: now, through: horizon)
+        workspace.loadCalendarProjection(locale: Locale(identifier: "en"))
+        workspace.loadInsights(mode: .expected, from: now, through: horizon)
+
+        let libraryBefore = workspace.libraryState
+        let expectedBefore = workspace.expectedCharges
+        let upcomingBefore = workspace.upcomingTimeline
+        let calendarBefore = workspace.calendarProjection
+        let insightsBefore = workspace.insightsState
+        let widgetBefore = workspace.makeWidgetSnapshot()
+        let syncBefore = workspace.syncStatus
+        let historyBefore = workspace.paymentHistory
+        let detailBefore = workspace.detailState
+
+        let didSave = workspace.editSubscription(
+            id: id,
+            input: SubscriptionEditInput(
+                serviceName: "Edited Failure Service",
+                plan: "Changed",
+                category: "Changed",
+                amount: Money(minorUnits: 6_800, currency: .cny),
+                billingSchedule: existing.billingSchedule,
+                startDate: existing.startDate,
+                confirmedNextRenewal: existing.confirmedNextRenewal,
+                managementURL: nil,
+                notes: "After"
+            )
+        )
+
+        #expect(repository.updateAttemptCount == 1)
+        #expect(repository.storedSubscription(id: id) == existing)
+        #expect(workspace.libraryState == libraryBefore)
+        #expect(workspace.expectedCharges == expectedBefore)
+        #expect(workspace.upcomingTimeline == upcomingBefore)
+        #expect(workspace.calendarProjection == calendarBefore)
+        #expect(workspace.insightsState == insightsBefore)
+        #expect(workspace.makeWidgetSnapshot() == widgetBefore)
+        #expect(workspace.syncStatus == syncBefore)
+        #expect(workspace.paymentHistory == historyBefore)
+        #expect(workspace.detailState == detailBefore)
+        #expect(!didSave)
+    }
+
+    @Test("Active edit validates the supplied renewal day and normalizes derived dates")
+    @MainActor
+    func activeEditValidatesRenewalDayAndNormalizesDerivedDates() throws {
+        let calendar = actionCalendar()
+        let now = try actionDate(
+            year: 2026,
+            month: 7,
+            day: 15,
+            hour: 18,
+            calendar: calendar
+        )
+        let startDate = try actionDate(
+            year: 2026,
+            month: 6,
+            day: 1,
+            hour: 12,
+            calendar: calendar
+        )
+        let renewal = try actionDate(
+            year: 2026,
+            month: 7,
+            day: 1,
+            hour: 12,
+            calendar: calendar
+        )
+        let id = UUID(
+            uuidString: "A6000000-0000-0000-0000-000000000049"
+        )!
+        let existing = makeSubscription(
+            id: id,
+            billingSchedule: FixedBillingSchedule(
+                interval: .monthly,
+                renewalAnchor: startDate,
+                timeZoneIdentifier: calendar.timeZone.identifier
+            ),
+            confirmedNextRenewal: renewal
+        )
+        let repository = InMemorySubscriptionRepository(
+            subscriptions: [existing]
+        )
+        let workspace = SubscriptionWorkspace(
+            repository: repository,
+            now: { now },
+            calendar: calendar
+        )
+        let amount = existing.amount(onBillingDay: existing.confirmedNextRenewal)
+
+        workspace.editSubscription(
+            id: id,
+            input: SubscriptionEditInput(
+                serviceName: existing.serviceName,
+                plan: existing.plan,
+                category: existing.category,
+                amount: amount,
+                billingSchedule: existing.billingSchedule,
+                startDate: startDate,
+                confirmedNextRenewal: try actionDate(
+                    year: 2026,
+                    month: 9,
+                    day: 2,
+                    hour: 12,
+                    calendar: calendar
+                ),
+                managementURL: nil,
+                notes: existing.notes
+            )
+        )
+        #expect(repository.updateAttemptCount == 0)
+        #expect(repository.storedSubscription(id: id) == existing)
+        #expect(
+            workspace.editingValidationErrors[.confirmedNextRenewal]
+                == .required
+        )
+
+        let selectedRenewal = try actionDate(
+            year: 2026,
+            month: 8,
+            day: 1,
+            hour: 21,
+            calendar: calendar
+        )
+        let selectedStart = try #require(
+            BillingDateResolver().previousCycleStart(
+                before: selectedRenewal,
+                interval: .monthly,
+                timeZone: calendar.timeZone
+            )
+        )
+        workspace.editSubscription(
+            id: id,
+            input: SubscriptionEditInput(
+                serviceName: existing.serviceName,
+                plan: existing.plan,
+                category: existing.category,
+                amount: amount,
+                billingSchedule: FixedBillingSchedule(
+                    interval: .monthly,
+                    renewalAnchor: selectedStart,
+                    timeZoneIdentifier: calendar.timeZone.identifier
+                ),
+                startDate: selectedStart,
+                confirmedNextRenewal: selectedRenewal,
+                managementURL: nil,
+                notes: existing.notes
+            )
+        )
+
+        let stored = try #require(repository.storedSubscription(id: id))
+        let expectedStart = try actionDate(
+            year: 2026,
+            month: 7,
+            day: 1,
+            hour: 12,
+            calendar: calendar
+        )
+        let expectedRenewal = try actionDate(
+            year: 2026,
+            month: 8,
+            day: 1,
+            hour: 12,
+            calendar: calendar
+        )
+        #expect(repository.updateAttemptCount == 1)
+        #expect(stored.startDate == expectedStart)
+        #expect(stored.billingSchedule.renewalAnchor == expectedStart)
+        #expect(stored.confirmedNextRenewal == expectedRenewal)
+    }
+
+    @Test("An ordinary edit rejects a non-positive amount without updating")
+    @MainActor
+    func editRejectsInvalidAmountWithoutUpdating() throws {
+        let calendar = utcCalendar()
+        let subscription = makeSubscription(
+            id: UUID(uuidString: "A7000000-0000-0000-0000-000000000049")!,
+            billingSchedule: FixedBillingSchedule(
+                interval: .monthly,
+                renewalAnchor: Date(timeIntervalSince1970: 1_767_225_600),
+                timeZoneIdentifier: "UTC"
+            )
+        )
+        let repository = InMemorySubscriptionRepository(
+            subscriptions: [subscription]
+        )
+        let workspace = SubscriptionWorkspace(
+            repository: repository,
+            calendar: calendar
+        )
+
+        workspace.editSubscription(
+            id: subscription.id,
+            input: SubscriptionEditInput(
+                serviceName: subscription.serviceName,
+                plan: subscription.plan,
+                category: subscription.category,
+                amount: Money(minorUnits: 0, currency: .usd),
+                billingSchedule: subscription.billingSchedule,
+                startDate: subscription.startDate,
+                confirmedNextRenewal: subscription.confirmedNextRenewal,
+                managementURL: subscription.managementURL,
+                notes: subscription.notes
+            )
+        )
+
+        #expect(repository.updateAttemptCount == 0)
+        #expect(repository.storedSubscription(id: subscription.id) == subscription)
+        #expect(workspace.editingValidationErrors[.originalAmount] == .mustBePositive)
+    }
+
+    @Test("An edit rejects a start billing day after an existing price change")
+    @MainActor
+    func editRejectsStartAfterExistingPriceChange() throws {
+        let calendar = utcCalendar()
+        let startDate = try actionDate(
+            year: 2026,
+            month: 6,
+            day: 1,
+            hour: 12,
+            calendar: calendar
+        )
+        let currentRenewal = try actionDate(
+            year: 2026,
+            month: 7,
+            day: 1,
+            hour: 12,
+            calendar: calendar
+        )
+        let laterStartDate = try actionDate(
+            year: 2026,
+            month: 7,
+            day: 2,
+            hour: 8,
+            calendar: calendar
+        )
+        let laterRenewal = try actionDate(
+            year: 2026,
+            month: 8,
+            day: 2,
+            hour: 12,
+            calendar: calendar
+        )
+        let id = UUID(
+            uuidString: "AA000000-0000-0000-0000-000000000049"
+        )!
+        let existing = makeSubscription(
+            id: id,
+            billingSchedule: FixedBillingSchedule(
+                interval: .monthly,
+                renewalAnchor: startDate,
+                timeZoneIdentifier: calendar.timeZone.identifier
+            ),
+            confirmedNextRenewal: currentRenewal
+        )
+        let repository = InMemorySubscriptionRepository(
+            subscriptions: [existing]
+        )
+        let now = try actionDate(
+            year: 2026,
+            month: 7,
+            day: 15,
+            hour: 18,
+            calendar: calendar
+        )
+        let workspace = SubscriptionWorkspace(
+            repository: repository,
+            now: { now },
+            calendar: calendar
+        )
+
+        workspace.recordPriceChange(
+            id: id,
+            effectiveDate: currentRenewal,
+            amount: Money(minorUnits: 1_299, currency: .usd)
+        )
+        let persistedAfterPriceChange = try #require(
+            repository.storedSubscription(id: id)
+        )
+        let historyBeforeEdit = workspace.paymentHistory
+        let updateAttemptsBeforeEdit = repository.updateAttemptCount
+
+        let didSave = workspace.editSubscription(
+            id: id,
+            input: SubscriptionEditInput(
+                serviceName: persistedAfterPriceChange.serviceName,
+                plan: persistedAfterPriceChange.plan,
+                category: persistedAfterPriceChange.category,
+                amount: persistedAfterPriceChange.amount(
+                    onBillingDay: currentRenewal
+                ),
+                billingSchedule: FixedBillingSchedule(
+                    interval: .monthly,
+                    renewalAnchor: laterStartDate,
+                    timeZoneIdentifier: calendar.timeZone.identifier
+                ),
+                startDate: laterStartDate,
+                confirmedNextRenewal: laterRenewal,
+                managementURL: persistedAfterPriceChange.managementURL,
+                notes: persistedAfterPriceChange.notes
+            )
+        )
+
+        #expect(!didSave)
+        #expect(repository.updateAttemptCount == updateAttemptsBeforeEdit)
+        #expect(repository.storedSubscription(id: id) == persistedAfterPriceChange)
+        #expect(workspace.paymentHistory == historyBeforeEdit)
+    }
+
+    @Test("An unchanged amount preserves the complete price history")
+    @MainActor
+    func editUnchangedAmountPreservesPriceHistory() throws {
+        let calendar = utcCalendar()
+        let id = UUID(
+            uuidString: "A8000000-0000-0000-0000-000000000049"
+        )!
+        let renewal = try actionDate(
+            year: 2026,
+            month: 8,
+            day: 1,
+            hour: 12,
+            calendar: calendar
+        )
+        let first = PriceChange(
+            id: UUID(uuidString: "A8000000-0000-0000-0000-000000000048")!,
+            effectiveDate: try actionDate(
+                year: 2026,
+                month: 7,
+                day: 1,
+                hour: 12,
+                calendar: calendar
+            ),
+            amount: Money(minorUnits: 1_099, currency: .usd)
+        )
+        let second = PriceChange(
+            id: UUID(uuidString: "A8000000-0000-0000-0000-000000000047")!,
+            effectiveDate: renewal,
+            amount: Money(minorUnits: 1_299, currency: .usd)
+        )
+        let existing = Subscription(
+            id: id,
+            serviceIdentity: ServiceIdentity(rawValue: "manual:\(id)"),
+            serviceName: "History Service",
+            plan: "Standard",
+            category: "Other",
+            originalAmount: Money(minorUnits: 999, currency: .usd),
+            billingSchedule: FixedBillingSchedule(
+                interval: .monthly,
+                renewalAnchor: try actionDate(
+                    year: 2026,
+                    month: 7,
+                    day: 1,
+                    hour: 12,
+                    calendar: calendar
+                ),
+                timeZoneIdentifier: calendar.timeZone.identifier
+            ),
+            startDate: try actionDate(
+                year: 2026,
+                month: 7,
+                day: 1,
+                hour: 12,
+                calendar: calendar
+            ),
+            confirmedNextRenewal: renewal,
+            managementURL: nil,
+            notes: "Before",
+            priceChanges: [first, second]
+        )
+        let repository = InMemorySubscriptionRepository(
+            subscriptions: [existing]
+        )
+        let now = try actionDate(
+            year: 2026,
+            month: 7,
+            day: 15,
+            hour: 12,
+            calendar: calendar
+        )
+        let workspace = SubscriptionWorkspace(
+            repository: repository,
+            now: { now },
+            calendar: calendar
+        )
+        workspace.editSubscription(
+            id: id,
+            input: SubscriptionEditInput(
+                serviceName: "History Service",
+                plan: "Changed Metadata",
+                category: "Other",
+                amount: Money(minorUnits: 1_299, currency: .usd),
+                billingSchedule: existing.billingSchedule,
+                startDate: existing.startDate,
+                confirmedNextRenewal: existing.confirmedNextRenewal,
+                managementURL: nil,
+                notes: "After"
+            )
+        )
+
+        let stored = try #require(repository.storedSubscription(id: id))
+        #expect(stored.priceChanges == [first, second])
+        #expect(stored.originalAmount == existing.originalAmount)
+        #expect(stored.plan == "Changed Metadata")
+        #expect(repository.updateAttemptCount == 1)
+    }
+
+    @Test("Editing an amount replaces the deterministic same-day winner")
+    @MainActor
+    func editReplacesDeterministicSameDayPriceChangeWinner() throws {
+        let calendar = utcCalendar()
+        let id = UUID(
+            uuidString: "A9000000-0000-0000-0000-000000000049"
+        )!
+        let startDate = try actionDate(
+            year: 2026,
+            month: 7,
+            day: 1,
+            hour: 12,
+            calendar: calendar
+        )
+        let renewal = try actionDate(
+            year: 2026,
+            month: 8,
+            day: 1,
+            hour: 12,
+            calendar: calendar
+        )
+        let lowerID = UUID(
+            uuidString: "00000000-0000-0000-0000-000000000001"
+        )!
+        let higherID = UUID(
+            uuidString: "00000000-0000-0000-0000-000000000002"
+        )!
+        let lower = PriceChange(
+            id: lowerID,
+            effectiveDate: try actionDate(
+                year: 2026,
+                month: 8,
+                day: 1,
+                hour: 2,
+                calendar: calendar
+            ),
+            amount: Money(minorUnits: 1_100, currency: .usd)
+        )
+        let higher = PriceChange(
+            id: higherID,
+            effectiveDate: try actionDate(
+                year: 2026,
+                month: 8,
+                day: 1,
+                hour: 22,
+                calendar: calendar
+            ),
+            amount: Money(minorUnits: 1_200, currency: .usd)
+        )
+        let importedHistory = PriceChange(
+            id: UUID(
+                uuidString: "00000000-0000-0000-0000-000000000003"
+            )!,
+            effectiveDate: try actionDate(
+                year: 2026,
+                month: 7,
+                day: 10,
+                hour: 12,
+                calendar: calendar
+            ),
+            amount: Money(minorUnits: 1_050, currency: .usd)
+        )
+        let existing = Subscription(
+            id: id,
+            serviceIdentity: ServiceIdentity(rawValue: "manual:\(id)"),
+            serviceName: "Imported History Service",
+            plan: "Standard",
+            category: "Other",
+            originalAmount: Money(minorUnits: 999, currency: .usd),
+            billingSchedule: FixedBillingSchedule(
+                interval: .monthly,
+                renewalAnchor: startDate,
+                timeZoneIdentifier: calendar.timeZone.identifier
+            ),
+            startDate: startDate,
+            confirmedNextRenewal: renewal,
+            managementURL: nil,
+            notes: "Before",
+            priceChanges: [lower, higher, importedHistory]
+        )
+        let repository = InMemorySubscriptionRepository(
+            subscriptions: [existing]
+        )
+        let now = try actionDate(
+            year: 2026,
+            month: 7,
+            day: 15,
+            hour: 12,
+            calendar: calendar
+        )
+        let workspace = SubscriptionWorkspace(
+            repository: repository,
+            now: { now },
+            calendar: calendar
+        )
+        let editedAmount = Money(minorUnits: 1_500, currency: .usd)
+
+        workspace.editSubscription(
+            id: id,
+            input: SubscriptionEditInput(
+                serviceName: existing.serviceName,
+                plan: existing.plan,
+                category: existing.category,
+                amount: editedAmount,
+                billingSchedule: existing.billingSchedule,
+                startDate: startDate,
+                confirmedNextRenewal: renewal,
+                managementURL: nil,
+                notes: "After"
+            )
+        )
+
+        let stored = try #require(repository.storedSubscription(id: id))
+        let expectedWinner = PriceChange(
+            id: higherID,
+            effectiveDate: renewal,
+            amount: editedAmount
+        )
+        #expect(stored.priceChanges[0] == lower)
+        #expect(stored.priceChanges[1] == expectedWinner)
+        #expect(stored.priceChanges[2] == importedHistory)
+        #expect(stored.amount(onBillingDay: renewal) == editedAmount)
+    }
+
+    @Test("Price changes refresh every loaded amount consumer")
+    @MainActor
+    func priceChangesRefreshLoadedConsumers() async throws {
+        let calendar = utcCalendar()
+        let now = try actionDate(
+            year: 2026,
+            month: 1,
+            day: 15,
+            hour: 12,
+            calendar: calendar
+        )
+        let start = try actionDate(
+            year: 2025,
+            month: 12,
+            day: 10,
+            hour: 12,
+            calendar: calendar
+        )
+        let renewal = try actionDate(
+            year: 2026,
+            month: 2,
+            day: 10,
+            hour: 12,
+            calendar: calendar
+        )
+        let effectiveDate = try actionDate(
+            year: 2026,
+            month: 1,
+            day: 16,
+            hour: 12,
+            calendar: calendar
+        )
+        let through = try actionDate(
+            year: 2026,
+            month: 3,
+            day: 31,
+            hour: 12,
+            calendar: calendar
+        )
+        let originalAmount = Money(minorUnits: 999, currency: .usd)
+        let changedAmount = Money(minorUnits: 1_999, currency: .usd)
+        let id = UUID(
+            uuidString: "A3000000-0000-0000-0000-000000000048"
+        )!
+        let existing = makeSubscription(
+            id: id,
+            billingSchedule: FixedBillingSchedule(
+                interval: .monthly,
+                renewalAnchor: start,
+                timeZoneIdentifier: calendar.timeZone.identifier
+            ),
+            confirmedNextRenewal: renewal,
+            originalAmount: originalAmount,
+            serviceName: "Amount Consumer"
+        )
+        let repository = InMemorySubscriptionRepository(
+            subscriptions: [existing]
+        )
+        let catalogPreset = catalogPresetFixture(
+            offers: [
+                catalogOfferFixture(
+                    id: "amount-consumer",
+                    status: .verified,
+                    price: changedAmount
+                ),
+            ],
+            id: "amount-consumer",
+            serviceName: CatalogLocalizedText(
+                en: "Amount Consumer",
+                zhHans: "Amount Consumer"
+            )
+        )
+        let rateSnapshot = ExchangeRateSnapshot(
+            base: .eur,
+            providerDate: now,
+            fetchedAt: now,
+            source: "fixture",
+            rates: [.eur: 1, .usd: 1.2, .cny: 8.4]
+        )
+        let workspace = SubscriptionWorkspace(
+            repository: repository,
+            catalogRepository: StaticCatalogRepository(
+                presets: [catalogPreset]
+            ),
+            exchangeRateCache: InMemoryExchangeRateCache(
+                state: ExchangeRateCacheState(
+                    snapshot: rateSnapshot,
+                    lastAttemptAt: now
+                )
+            ),
+            now: { now },
+            calendar: calendar
+        )
+
+        await workspace.refreshExchangeRates()
+        workspace.loadExpectedCharges(
+            subscriptionID: id,
+            through: through,
+            maximumCount: 1
+        )
+        workspace.loadUpcomingTimeline(from: now, through: through)
+        workspace.loadCalendarProjection(locale: Locale(identifier: "en_US"))
+        workspace.loadInsights(
+            mode: .expected,
+            from: now,
+            through: through
+        )
+        workspace.loadLibrary()
+        guard case .loaded(.current, let summaries) = workspace.libraryState,
+              let summary = summaries.first
+        else {
+            Issue.record("Expected the current library summary to load.")
+            return
+        }
+        #expect(summary.amount == originalAmount)
+        #expect(summary.originalAmount == originalAmount)
+        #expect(
+            SubscriptionTableQuery(sort: .amount).apply(to: summaries)
+                .first?.amount == originalAmount
+        )
+        #expect(workspace.expectedCharges?.first?.amount == originalAmount)
+        #expect(workspace.upcomingTimeline.first?.amount == originalAmount)
+        #expect(
+            workspace.insightsState.availableValue?
+                .items.first?.originalAmount == originalAmount
+        )
+
+        workspace.recordPriceChange(
+            id: id,
+            effectiveDate: effectiveDate,
+            amount: changedAmount
+        )
+
+        guard case .loaded(.current, let refreshedSummaries) = workspace.libraryState,
+              let refreshedSummary = refreshedSummaries.first
+        else {
+            Issue.record("Expected the refreshed current library summary.")
+            return
+        }
+        #expect(refreshedSummary.amount == changedAmount)
+        #expect(refreshedSummary.originalAmount == originalAmount)
+        #expect(
+            SubscriptionTableQuery(sort: .amount).apply(to: refreshedSummaries)
+                .first?.amount == changedAmount
+        )
+        #expect(repository.storedSubscription(id: id)?.originalAmount == originalAmount)
+
+        let catalogSummary = workspace.reconcileCatalogAssociations(
+            locale: Locale(identifier: "en")
+        )
+        #expect(catalogSummary.normalizedIDs == [id])
+        #expect(
+            repository.storedSubscription(id: id)?.amount(
+                onBillingDay: renewal
+            ) == changedAmount
+        )
+
+        #expect(workspace.expectedCharges?.first?.amount == changedAmount)
+        #expect(workspace.upcomingTimeline.first?.amount == changedAmount)
+        #expect(
+            workspace.calendarProjection.first?.title.contains("19.99")
+                == true
+        )
+        #expect(
+            workspace.insightsState.availableValue?
+                .items.first?.originalAmount == changedAmount
+        )
+        #expect(
+            workspace.makeWidgetSnapshot()?.nextRenewal?
+                .amountDescription?.contains("19.99") == true
+        )
+    }
+
+    @Test("Reconciliation reports ambiguity and partial persistence failure")
+    @MainActor
+    func reconciliationReportsAmbiguityAndFailure() throws {
+        let ambiguousID = UUID(
+            uuidString: "B0000000-0000-0000-0000-000000000047"
+        )!
+        let failedID = UUID(
+            uuidString: "B0000000-0000-0000-0000-000000000048"
+        )!
+        let successfulID = UUID(
+            uuidString: "B0000000-0000-0000-0000-000000000049"
+        )!
+        let ambiguous = makeSubscription(
+            id: ambiguousID,
+            originalAmount: Money(minorUnits: 2_000, currency: .usd),
+            serviceName: "Shared Alias"
+        )
+        let failed = makeSubscription(
+            id: failedID,
+            originalAmount: Money(minorUnits: 2_000, currency: .usd),
+            serviceName: "ChatGPT Plus"
+        )
+        let successful = makeSubscription(
+            id: successfulID,
+            originalAmount: Money(minorUnits: 2_000, currency: .usd),
+            serviceName: "ChatGPT Plus"
+        )
+        let repository = InMemorySubscriptionRepository(
+            subscriptions: [ambiguous, failed, successful]
+        )
+        repository.failingUpdateIDs = [failedID]
+        let offer = catalogOfferFixture(id: "plus", status: .verified)
+        let chatGPT = catalogPresetFixture(
+            offers: [offer],
+            id: "chatgpt",
+            serviceName: CatalogLocalizedText(
+                en: "ChatGPT",
+                zhHans: "ChatGPT"
+            ),
+            matchAliases: ["ChatGPT Plus", "Shared Alias"]
+        )
+        let competing = catalogPresetFixture(
+            offers: [
+                CatalogOffer(
+                    id: "shared",
+                    planName: offer.planName,
+                    price: offer.price,
+                    billingInterval: offer.billingInterval,
+                    market: offer.market,
+                    purchaseChannel: offer.purchaseChannel,
+                    sourceURL: offer.sourceURL,
+                    verifiedOn: offer.verifiedOn,
+                    reviewStatus: .verified
+                ),
+            ],
+            id: "competing",
+            serviceName: CatalogLocalizedText(
+                en: "Competing",
+                zhHans: "竞争者"
+            ),
+            matchAliases: ["Shared Alias"]
+        )
+        let workspace = SubscriptionWorkspace(
+            repository: repository,
+            catalogRepository: StaticCatalogRepository(
+                presets: [chatGPT, competing]
+            )
+        )
+        workspace.loadCatalog(locale: Locale(identifier: "en"))
+
+        let summary = workspace.reconcileCatalogAssociations(
+            locale: Locale(identifier: "en")
+        )
+
+        #expect(summary.normalizedIDs == [successfulID])
+        #expect(summary.unchangedIDs.isEmpty)
+        #expect(summary.ambiguousIDs == [ambiguousID])
+        #expect(summary.failedIDs == [failedID])
+        #expect(summary.commandError == .persistenceFailed)
+        #expect(
+            repository.storedSubscription(id: failedID) == failed
+        )
+        #expect(
+            repository.storedSubscription(id: successfulID)?
+                .serviceIdentity.rawValue == "catalog:chatgpt"
+        )
+    }
+
+    @Test("Reconciliation distinguishes unavailable catalog and storage")
+    @MainActor
+    func reconciliationReportsCommandLevelFailures() {
+        let unavailableCatalogWorkspace = SubscriptionWorkspace(
+            repository: InMemorySubscriptionRepository()
+        )
+
+        let catalogSummary =
+            unavailableCatalogWorkspace.reconcileCatalogAssociations(
+                locale: Locale(identifier: "en")
+            )
+
+        #expect(catalogSummary.commandError == .catalogUnavailable)
+        #expect(
+            unavailableCatalogWorkspace.catalogReconciliationError
+                == .catalogUnavailable
+        )
+
+        let failingRepository = InMemorySubscriptionRepository()
+        failingRepository.failure = .list
+        let storageWorkspace = SubscriptionWorkspace(
+            repository: failingRepository,
+            catalogRepository: StaticCatalogRepository(
+                presets: [
+                    catalogPresetFixture(
+                        offers: [
+                            catalogOfferFixture(
+                                id: "plus",
+                                status: .verified
+                            ),
+                        ]
+                    ),
+                ]
+            )
+        )
+
+        let storageSummary = storageWorkspace
+            .reconcileCatalogAssociations(
+                locale: Locale(identifier: "en")
+            )
+
+        #expect(storageSummary.commandError == .persistenceFailed)
+        #expect(
+            storageWorkspace.catalogReconciliationError
+                == .persistenceFailed
+        )
+    }
+}
+
+private func catalogPresetFixture(
+    offers: [CatalogOffer],
+    id: String = "provider.example",
+    serviceName: CatalogLocalizedText = CatalogLocalizedText(
+        en: "Provider",
+        zhHans: "服务商"
+    ),
+    matchAliases: [String] = []
+) -> CatalogPreset {
+    CatalogPreset(
+        id: id,
+        serviceName: serviceName,
+        category: CatalogLocalizedText(
+            en: "Productivity",
+            zhHans: "效率"
+        ),
+        suggestedInterval: .monthly,
+        managementURL: URL(string: "https://example.com/account"),
+        icon: .productivity,
+        matchAliases: matchAliases,
+        offers: offers
+    )
+}
+
+private func catalogOfferFixture(
+    id: String,
+    status: CatalogOfferReviewStatus,
+    price: Money = Money(minorUnits: 2_000, currency: .usd)
+) -> CatalogOffer {
+    CatalogOffer(
+        id: id,
+        planName: CatalogLocalizedText(en: "Plus", zhHans: "Plus"),
+        price: price,
+        billingInterval: .monthly,
+        market: "US",
+        purchaseChannel: .web,
+        sourceURL: URL(string: "https://example.com/pricing")!,
+        verifiedOn: "2026-07-30",
+        reviewStatus: status
+    )
+}
+
+private func catalogOfferInputFixture(
+    offerID: String
+) -> CatalogOfferSubscriptionInput {
+    let start = Date(timeIntervalSince1970: 1_767_225_600)
+    return CatalogOfferSubscriptionInput(
+        offerID: offerID,
+        actualChargeOverride: nil,
+        startDate: start,
+        renewalAnchor: start,
+        confirmedNextRenewal: start.addingTimeInterval(86_400),
+        billingTimeZoneIdentifier: "UTC",
+        notes: "",
+        initialStatus: .active
+    )
 }
 
 @MainActor
@@ -1663,11 +8031,110 @@ private struct StaticCatalogRepository: CatalogRepository {
 }
 
 @MainActor
-private struct StaticCatalogUpdateSource: CatalogUpdateSource {
-    let data: Data
+private final class CountingCatalogRepository: CatalogRepository {
+    private let presets: [CatalogPreset]
+    private(set) var loadCount = 0
+
+    init(presets: [CatalogPreset]) {
+        self.presets = presets
+    }
+
+    func loadSnapshot() throws -> CatalogSnapshot {
+        loadCount += 1
+        return try CatalogSnapshot(
+            schemaVersion: CatalogSnapshot.currentSchemaVersion,
+            presets: presets
+        )
+    }
+}
+
+@MainActor
+private final class StaticCatalogUpdateSource: CatalogUpdateSource {
+    var data: Data
+    var shouldFail = false
+
+    init(data: Data) {
+        self.data = data
+    }
 
     func fetchCatalogData() async throws -> Data {
-        data
+        if shouldFail {
+            throw NSError(domain: "CatalogUpdateFixture", code: 1)
+        }
+        return data
+    }
+}
+
+@MainActor
+private final class SuspendedCatalogUpdateSource: CatalogUpdateSource {
+    private struct PendingFetch {
+        let version: Int
+        let continuation: CheckedContinuation<Data, Error>
+    }
+
+    private var responses: [Int: Data]
+    private var requestVersions: [Int]
+    private var pendingFetches: [PendingFetch] = []
+    private var suspendedFetchWaiters: [
+        (count: Int, continuation: CheckedContinuation<Void, Never>)
+    ] = []
+
+    init(responses: [Int: Data], requestVersions: [Int]) {
+        self.responses = responses
+        self.requestVersions = requestVersions
+    }
+
+    func fetchCatalogData() async throws -> Data {
+        let version = requestVersions.removeFirst()
+        return try await withCheckedThrowingContinuation { continuation in
+            pendingFetches.append(
+                PendingFetch(version: version, continuation: continuation)
+            )
+            resumeSatisfiedWaiters()
+        }
+    }
+
+    func waitForSuspendedFetches(count: Int) async {
+        guard pendingFetches.count < count else { return }
+        await withCheckedContinuation { continuation in
+            suspendedFetchWaiters.append((count, continuation))
+        }
+    }
+
+    func release(version: Int) {
+        guard let index = pendingFetches.firstIndex(where: {
+            $0.version == version
+        }) else {
+            preconditionFailure("No suspended fetch for catalog version \(version)")
+        }
+        let pending = pendingFetches.remove(at: index)
+        pending.continuation.resume(returning: responses.removeValue(
+            forKey: version
+        )!)
+    }
+
+    func fail(version: Int) {
+        guard let index = pendingFetches.firstIndex(where: {
+            $0.version == version
+        }) else {
+            preconditionFailure("No suspended fetch for catalog version \(version)")
+        }
+        let pending = pendingFetches.remove(at: index)
+        pending.continuation.resume(
+            throwing: NSError(domain: "CatalogUpdateFixture", code: version)
+        )
+    }
+
+    private func resumeSatisfiedWaiters() {
+        let ready = suspendedFetchWaiters.filter {
+            pendingFetches.count >= $0.count
+        }
+        suspendedFetchWaiters.removeAll {
+            pendingFetches.count >= $0.count
+        }
+        for waiter in ready {
+            waiter.continuation.resume()
+        }
     }
 }
 
@@ -1681,7 +8148,562 @@ private final class InMemoryCatalogCache: CatalogCache {
 }
 
 @MainActor
+private final class RecordingExchangeRateSource: ExchangeRateSource {
+    private(set) var requests: [(base: Currency, quotes: Set<Currency>)] = []
+    private let result: Result<ExchangeRateSnapshot, ExchangeRateFixtureError>
+
+    init(snapshot: ExchangeRateSnapshot) {
+        result = .success(snapshot)
+    }
+
+    init(error: ExchangeRateFixtureError) {
+        result = .failure(error)
+    }
+
+    func fetchRates(
+        base: Currency,
+        quotes: Set<Currency>
+    ) async throws -> ExchangeRateSnapshot {
+        requests.append((base: base, quotes: quotes))
+        if case .failure(.cancelled) = result {
+            throw CancellationError()
+        }
+        return try result.get()
+    }
+}
+
+@MainActor
+private final class SuspendedExchangeRateSource: ExchangeRateSource {
+    private struct PendingFetch {
+        let quotes: Set<Currency>
+        let continuation: CheckedContinuation<ExchangeRateSnapshot, Never>
+    }
+
+    private var responses: [Set<Currency>: ExchangeRateSnapshot]
+    private var pendingFetches: [PendingFetch] = []
+    private var suspendedFetchWaiters: [
+        (count: Int, continuation: CheckedContinuation<Void, Never>)
+    ] = []
+    private(set) var requests: [Set<Currency>] = []
+
+    init(responses: [Set<Currency>: ExchangeRateSnapshot]) {
+        self.responses = responses
+    }
+
+    func fetchRates(
+        base: Currency,
+        quotes: Set<Currency>
+    ) async throws -> ExchangeRateSnapshot {
+        precondition(base == .eur)
+        requests.append(quotes)
+        return await withCheckedContinuation { continuation in
+            pendingFetches.append(
+                PendingFetch(quotes: quotes, continuation: continuation)
+            )
+            resumeSatisfiedWaiters()
+        }
+    }
+
+    func waitForSuspendedFetches(count: Int) async {
+        guard pendingFetches.count < count else { return }
+        await withCheckedContinuation { continuation in
+            suspendedFetchWaiters.append((count, continuation))
+        }
+    }
+
+    func release(quotes: Set<Currency>) {
+        guard let index = pendingFetches.firstIndex(where: {
+            $0.quotes == quotes
+        }),
+        let response = responses.removeValue(forKey: quotes)
+        else {
+            preconditionFailure("No suspended exchange-rate fetch for \(quotes)")
+        }
+        let pending = pendingFetches.remove(at: index)
+        pending.continuation.resume(returning: response)
+    }
+
+    private func resumeSatisfiedWaiters() {
+        let ready = suspendedFetchWaiters.filter {
+            pendingFetches.count >= $0.count
+        }
+        suspendedFetchWaiters.removeAll {
+            pendingFetches.count >= $0.count
+        }
+        for waiter in ready {
+            waiter.continuation.resume()
+        }
+    }
+}
+
+private enum ExchangeRateFixtureError: Error {
+    case offline
+    case cacheSaveFailed
+    case cancelled
+}
+
+@MainActor
+private final class CalendarPreferencesFixture: UserPreferencesRepository {
+    private var preferences: UserPreferences?
+    private(set) var saveCount = 0
+
+    init(preferences: UserPreferences) {
+        self.preferences = preferences
+    }
+
+    func loadPreferences() throws -> UserPreferences? {
+        preferences
+    }
+
+    func savePreferences(_ preferences: UserPreferences) throws {
+        saveCount += 1
+        self.preferences = preferences
+    }
+
+    func replaceWithRemote(_ preferences: UserPreferences?) {
+        self.preferences = preferences
+    }
+}
+
+@MainActor
+private final class CalendarImporterFixture: CalendarProjectionImporter {
+    private let result: CalendarProjectionImportResult
+    private var events: [CalendarProjectionEvent]?
+
+    init(result: CalendarProjectionImportResult) {
+        self.result = result
+    }
+
+    func importProjection(
+        events: [CalendarProjectionEvent]
+    ) async -> CalendarProjectionImportResult {
+        self.events = events
+        return result
+    }
+
+    func importedEvents() -> [CalendarProjectionEvent]? { events }
+}
+
+@MainActor
+private final class CalendarReconcilerFixture: CalendarProjectionReconciler {
+    private(set) var commands: [CalendarReconciliationCommand] = []
+    private(set) var maximumConcurrentCalls = 0
+
+    private let results: [CalendarReconciliationResult]
+    private let suspendedCallNumbers: Set<Int>
+    private var activeCallCount = 0
+    private var startedCallNumbers: Set<Int> = []
+    private var releasedCallNumbers: Set<Int> = []
+    private var callContinuations: [
+        Int: CheckedContinuation<Void, Never>
+    ] = [:]
+
+    init(
+        results: [CalendarReconciliationResult],
+        suspendedCallNumbers: Set<Int> = []
+    ) {
+        precondition(!results.isEmpty)
+        self.results = results
+        self.suspendedCallNumbers = suspendedCallNumbers
+    }
+
+    convenience init(
+        result: CalendarReconciliationResult,
+        suspendFirstCall: Bool = false
+    ) {
+        self.init(
+            results: [result],
+            suspendedCallNumbers: suspendFirstCall ? Set([1]) : []
+        )
+    }
+
+    func waitForCallStart(_ callNumber: Int) async -> Bool {
+        for _ in 0..<1_000 {
+            if startedCallNumbers.contains(callNumber) {
+                return true
+            }
+            await Task.yield()
+        }
+        return startedCallNumbers.contains(callNumber)
+    }
+
+    func releaseCall(_ callNumber: Int) {
+        guard let continuation = callContinuations.removeValue(
+            forKey: callNumber
+        ) else {
+            Issue.record(
+                "No suspended calendar reconciler call \(callNumber) to release."
+            )
+            releasedCallNumbers.insert(callNumber)
+            return
+        }
+        continuation.resume()
+    }
+
+    func perform(
+        _ command: CalendarReconciliationCommand
+    ) async -> CalendarReconciliationResult {
+        activeCallCount += 1
+        maximumConcurrentCalls = max(
+            maximumConcurrentCalls,
+            activeCallCount
+        )
+        commands.append(command)
+        let callNumber = commands.count
+
+        if suspendedCallNumbers.contains(callNumber),
+           releasedCallNumbers.remove(callNumber) == nil {
+            await withCheckedContinuation { continuation in
+                callContinuations[callNumber] = continuation
+                startedCallNumbers.insert(callNumber)
+            }
+        } else {
+            startedCallNumbers.insert(callNumber)
+        }
+
+        activeCallCount -= 1
+        return results[min(callNumber - 1, results.count - 1)]
+    }
+}
+
+private enum CalendarPendingRequest {
+    case reconcile(Locale)
+    case rebuild(Locale)
+
+    var kind: CalendarPendingCommandKind {
+        switch self {
+        case .reconcile:
+            .reconcile
+        case .rebuild:
+            .rebuild
+        }
+    }
+
+    @MainActor
+    func enqueue(on workspace: SubscriptionWorkspace) async {
+        switch self {
+        case .reconcile(let locale):
+            await workspace.reconcileCalendarProjection(locale: locale)
+        case .rebuild(let locale):
+            await workspace.rebuildCalendarProjection(locale: locale)
+        }
+    }
+}
+
+private enum CalendarPendingCommandKind {
+    case reconcile
+    case rebuild
+}
+
+@MainActor
+private func assertCalendarReconcilerCallStarted(
+    _ callNumber: Int,
+    on reconciler: CalendarReconcilerFixture
+) async -> Bool {
+    let started = await reconciler.waitForCallStart(callNumber)
+    guard !started else { return true }
+    Issue.record(
+        "Timed out waiting for calendar reconciler call \(callNumber) to start."
+    )
+    reconciler.releaseCall(callNumber)
+    return false
+}
+
+@MainActor
+private func makeCalendarReconciliationWorkspace(
+    repository: InMemorySubscriptionRepository,
+    reconciler: CalendarReconcilerFixture,
+    now: Date,
+    calendar: Calendar
+) -> SubscriptionWorkspace {
+    SubscriptionWorkspace(
+        repository: repository,
+        preferencesRepository: CalendarPreferencesFixture(
+            preferences: UserPreferences(
+                primaryCurrency: .usd,
+                calendarProjectionHorizon: .sixMonths,
+                setupStatus: .completed
+            )
+        ),
+        calendarProjectionReconciler: reconciler,
+        now: { now },
+        calendar: calendar
+    )
+}
+
+private func calendarProjectionEvents(
+    in command: CalendarReconciliationCommand
+) -> [CalendarProjectionEvent]? {
+    switch command {
+    case .reconcile(let events), .rebuild(let events):
+        events
+    case .disable:
+        nil
+    }
+}
+
+@MainActor
+private func assertPendingProjectionUsesFreshProjection(
+    _ pending: CalendarPendingRequest
+) async throws {
+    let calendar = utcCalendar()
+    let now = try actionDate(
+        year: 2026,
+        month: 1,
+        day: 15,
+        hour: 12,
+        calendar: calendar
+    )
+    let subscriptionID = UUID(
+        uuidString: "99999999-2222-3333-4444-555555555555"
+    )!
+    let repository = InMemorySubscriptionRepository(
+        subscriptions: [makeSubscription(id: subscriptionID)]
+    )
+    let reconciler = CalendarReconcilerFixture(
+        results: [.reconciled, .reconciled],
+        suspendedCallNumbers: Set([1, 2])
+    )
+    let workspace = makeCalendarReconciliationWorkspace(
+        repository: repository,
+        reconciler: reconciler,
+        now: now,
+        calendar: calendar
+    )
+
+    let firstRequest = Task { @MainActor in
+        await workspace.reconcileCalendarProjection(
+            locale: Locale(identifier: "en_US")
+        )
+    }
+    guard await assertCalendarReconcilerCallStarted(1, on: reconciler) else {
+        await firstRequest.value
+        return
+    }
+    let firstCommand = try #require(reconciler.commands.first)
+    let oldProjection = try #require(
+        calendarProjectionEvents(in: firstCommand)
+    )
+
+    try repository.createSubscription(
+        makeSubscription(
+            id: subscriptionID,
+            serviceName: "Updated"
+        )
+    )
+    let pendingRequest = Task { @MainActor in
+        await pending.enqueue(on: workspace)
+    }
+    await pendingRequest.value
+    #expect(reconciler.commands.count == 1)
+
+    reconciler.releaseCall(1)
+    guard await assertCalendarReconcilerCallStarted(2, on: reconciler) else {
+        await firstRequest.value
+        return
+    }
+    #expect(workspace.calendarReconciliationState == .reconciling)
+    #expect(reconciler.commands.count == 2)
+
+    let secondCommand = try #require(reconciler.commands.last)
+    let secondProjection = try #require(
+        calendarProjectionEvents(in: secondCommand)
+    )
+    #expect(secondProjection != oldProjection)
+    #expect(secondProjection.allSatisfy { $0.title.hasPrefix("Updated") })
+    switch (pending.kind, secondCommand) {
+    case (.reconcile, .reconcile), (.rebuild, .rebuild):
+        break
+    default:
+        Issue.record("Pending request used the wrong adapter command.")
+    }
+
+    reconciler.releaseCall(2)
+    await firstRequest.value
+    #expect(reconciler.maximumConcurrentCalls == 1)
+    #expect(workspace.calendarReconciliationState == .current)
+}
+
+@MainActor
+private func assertPendingProjectionReadFailure(
+    _ pending: CalendarPendingRequest
+) async throws {
+    let calendar = utcCalendar()
+    let now = try actionDate(
+        year: 2026,
+        month: 1,
+        day: 15,
+        hour: 12,
+        calendar: calendar
+    )
+    let subscriptionID = UUID(
+        uuidString: "99999999-2222-3333-4444-555555555555"
+    )!
+    let repository = InMemorySubscriptionRepository(
+        subscriptions: [makeSubscription(id: subscriptionID)]
+    )
+    let reconciler = CalendarReconcilerFixture(
+        results: [.reconciled],
+        suspendedCallNumbers: Set([1])
+    )
+    let workspace = makeCalendarReconciliationWorkspace(
+        repository: repository,
+        reconciler: reconciler,
+        now: now,
+        calendar: calendar
+    )
+
+    let firstRequest = Task { @MainActor in
+        await workspace.reconcileCalendarProjection(
+            locale: Locale(identifier: "en_US")
+        )
+    }
+    guard await assertCalendarReconcilerCallStarted(1, on: reconciler) else {
+        await firstRequest.value
+        return
+    }
+    repository.failure = .list
+    let pendingRequest = Task { @MainActor in
+        await pending.enqueue(on: workspace)
+    }
+    await pendingRequest.value
+    #expect(reconciler.commands.count == 1)
+
+    reconciler.releaseCall(1)
+    await firstRequest.value
+
+    #expect(reconciler.commands.count == 1)
+    #expect(workspace.calendarProjection.isEmpty)
+    #expect(workspace.calendarReconciliationState == .unavailable)
+    #expect(reconciler.maximumConcurrentCalls == 1)
+}
+
+@MainActor
+private func assertPendingPriorityScenario(
+    firstPending: CalendarPendingRequest,
+    secondPending: CalendarPendingRequest,
+    expectedKind: CalendarPendingCommandKind,
+    expectedDifferentProjection: Bool = false
+) async throws {
+    let calendar = utcCalendar()
+    let now = try actionDate(
+        year: 2026,
+        month: 1,
+        day: 15,
+        hour: 12,
+        calendar: calendar
+    )
+    let subscriptionID = UUID(
+        uuidString: "99999999-2222-3333-4444-555555555555"
+    )!
+    let repository = InMemorySubscriptionRepository(
+        subscriptions: [makeSubscription(id: subscriptionID)]
+    )
+    let reconciler = CalendarReconcilerFixture(
+        results: [.reconciled, .reconciled],
+        suspendedCallNumbers: Set([1, 2])
+    )
+    let workspace = makeCalendarReconciliationWorkspace(
+        repository: repository,
+        reconciler: reconciler,
+        now: now,
+        calendar: calendar
+    )
+
+    let firstRequest = Task { @MainActor in
+        await workspace.reconcileCalendarProjection(
+            locale: Locale(identifier: "en_US")
+        )
+    }
+    guard await assertCalendarReconcilerCallStarted(1, on: reconciler) else {
+        await firstRequest.value
+        return
+    }
+    let firstCommand = try #require(reconciler.commands.first)
+    let firstProjection = try #require(
+        calendarProjectionEvents(in: firstCommand)
+    )
+
+    let firstPendingRequest = Task { @MainActor in
+        await firstPending.enqueue(on: workspace)
+    }
+    await firstPendingRequest.value
+    let secondPendingRequest = Task { @MainActor in
+        await secondPending.enqueue(on: workspace)
+    }
+    await secondPendingRequest.value
+    #expect(reconciler.commands.count == 1)
+
+    reconciler.releaseCall(1)
+    guard await assertCalendarReconcilerCallStarted(2, on: reconciler) else {
+        await firstRequest.value
+        return
+    }
+    #expect(workspace.calendarReconciliationState == .reconciling)
+    #expect(reconciler.commands.count == 2)
+
+    let secondCommand = try #require(reconciler.commands.last)
+    let secondProjection = try #require(
+        calendarProjectionEvents(in: secondCommand)
+    )
+    switch (expectedKind, secondCommand) {
+    case (.reconcile, .reconcile), (.rebuild, .rebuild):
+        break
+    default:
+        Issue.record("Pending priority selected the wrong command.")
+    }
+    if expectedDifferentProjection {
+        #expect(firstProjection != secondProjection)
+    }
+
+    reconciler.releaseCall(2)
+    await firstRequest.value
+    #expect(reconciler.commands.count == 2)
+    #expect(reconciler.maximumConcurrentCalls == 1)
+    #expect(workspace.calendarReconciliationState == .current)
+}
+
+private struct SyncMonitorFixture: LibrarySyncMonitor {
+    let result: LibrarySyncStatus
+
+    func refreshStatus() async -> LibrarySyncStatus {
+        result
+    }
+}
+
+@MainActor
+private final class InMemoryExchangeRateCache: ExchangeRateCache {
+    private(set) var state: ExchangeRateCacheState?
+    private let saveError: ExchangeRateFixtureError?
+
+    init(
+        state: ExchangeRateCacheState?,
+        saveError: ExchangeRateFixtureError? = nil
+    ) {
+        self.state = state
+        self.saveError = saveError
+    }
+
+    func loadState() throws -> ExchangeRateCacheState? {
+        state
+    }
+
+    func saveState(_ state: ExchangeRateCacheState) throws {
+        if let saveError {
+            throw saveError
+        }
+        self.state = state
+    }
+}
+
+@MainActor
 private struct FailingSubscriptionRepository: SubscriptionRepository {
+    let subscriptions: [Subscription]
+
+    init(subscriptions: [Subscription] = []) {
+        self.subscriptions = subscriptions
+    }
+
     func createSubscription(_ subscription: Subscription) throws {
         throw RepositoryError.unavailable
     }
@@ -1711,14 +8733,32 @@ private struct FailingSubscriptionRepository: SubscriptionRepository {
         let calendar = actionCalendar()
         let now = try actionDate(
             year: 2026,
-            month: 7,
-            day: 29,
-            hour: 12,
+            month: 8,
+            day: 28,
+            hour: 18,
             calendar: calendar
         )
-        let subscription = try makeActionSubscription(
+        let fixtureSubscription = try makeActionSubscription(
             fixture: .active,
             calendar: calendar
+        )
+        let subscription = Subscription(
+            id: fixtureSubscription.id,
+            serviceIdentity: fixtureSubscription.serviceIdentity,
+            serviceName: fixtureSubscription.serviceName,
+            plan: fixtureSubscription.plan,
+            category: fixtureSubscription.category,
+            originalAmount: fixtureSubscription.originalAmount,
+            billingSchedule: fixtureSubscription.billingSchedule,
+            startDate: fixtureSubscription.startDate,
+            confirmedNextRenewal: fixtureSubscription.confirmedNextRenewal,
+            managementURL: fixtureSubscription.managementURL,
+            notes: fixtureSubscription.notes,
+            confirmedCharges: [],
+            priceChanges: fixtureSubscription.priceChanges,
+            lifecycle: fixtureSubscription.lifecycle,
+            isArchived: fixtureSubscription.isArchived,
+            pinnedAt: fixtureSubscription.pinnedAt
         )
         let repository = InMemorySubscriptionRepository(
             subscriptions: [subscription]
@@ -1728,21 +8768,52 @@ private struct FailingSubscriptionRepository: SubscriptionRepository {
             now: { now },
             calendar: calendar
         )
-        let scheduledDate = try actionDate(
+        let actualAmount = Money(minorUnits: 1_299, currency: .usd)
+
+        let horizon = try actionDate(
             year: 2026,
-            month: 7,
+            month: 9,
             day: 28,
             hour: 12,
             calendar: calendar
         )
-        let actualAmount = Money(minorUnits: 1_299, currency: .usd)
-
-        workspace.confirmCharge(
-            id: subscription.id,
-            scheduledDate: scheduledDate,
-            chargedDate: scheduledDate,
-            amount: actualAmount
+        workspace.loadExpectedCharges(
+            subscriptionID: subscription.id,
+            through: horizon,
+            maximumCount: 2
         )
+        let targetExpectedCharge = try #require(workspace.expectedCharges?.first)
+        let nextExpectedDate = try #require(workspace.expectedCharges?[1].scheduledDate)
+        let scheduledDate = targetExpectedCharge.scheduledDate
+        let alreadyConfirmed = ConfirmedCharge(
+            id: UUID(uuidString: "70000000-0000-0000-0000-000000000008")!,
+            chargedDate: scheduledDate,
+            amount: actualAmount,
+            sourceScheduledChargeID: targetExpectedCharge.id
+        )
+        let persistedSubscription = Subscription(
+            id: subscription.id,
+            serviceIdentity: subscription.serviceIdentity,
+            serviceName: subscription.serviceName,
+            plan: subscription.plan,
+            category: subscription.category,
+            originalAmount: subscription.originalAmount,
+            billingSchedule: subscription.billingSchedule,
+            startDate: subscription.startDate,
+            confirmedNextRenewal: subscription.confirmedNextRenewal,
+            managementURL: subscription.managementURL,
+            notes: subscription.notes,
+            confirmedCharges: subscription.confirmedCharges + [alreadyConfirmed],
+            priceChanges: subscription.priceChanges,
+            lifecycle: subscription.lifecycle,
+            isArchived: subscription.isArchived,
+            pinnedAt: subscription.pinnedAt
+        )
+        try repository.updateSubscription(
+            persistedSubscription
+        )
+        let setupUpdateCount = repository.updateAttemptCount
+
         workspace.confirmCharge(
             id: subscription.id,
             scheduledDate: scheduledDate,
@@ -1753,8 +8824,12 @@ private struct FailingSubscriptionRepository: SubscriptionRepository {
         let stored = try #require(
             repository.storedSubscription(id: subscription.id)
         )
-        #expect(stored.confirmedCharges.count == 2)
-        #expect(stored.confirmedCharges.last?.amount == actualAmount)
+        #expect(stored.confirmedCharges.count == 1)
+        #expect(stored.confirmedCharges.last == alreadyConfirmed)
+        #expect(repository.updateAttemptCount == setupUpdateCount)
+        #expect(workspace.expectedCharges?.count == 1)
+        #expect(workspace.expectedCharges?.first?.id != targetExpectedCharge.id)
+        #expect(workspace.expectedCharges?.first?.scheduledDate == nextExpectedDate)
     }
 
     @Test("A scheduled charge on the current billing day can be confirmed")
@@ -1765,7 +8840,7 @@ private struct FailingSubscriptionRepository: SubscriptionRepository {
             year: 2026, month: 7, day: 29, hour: 12, calendar: calendar
         )
         let now = try actionDate(
-            year: 2026, month: 7, day: 29, hour: 14, calendar: calendar
+            year: 2026, month: 7, day: 29, hour: 10, calendar: calendar
         )
         let nextRenewal = try actionDate(
             year: 2026, month: 8, day: 29, hour: 12, calendar: calendar
@@ -1783,7 +8858,7 @@ private struct FailingSubscriptionRepository: SubscriptionRepository {
                 timeZoneIdentifier: calendar.timeZone.identifier
             ),
             startDate: scheduledDate,
-            confirmedNextRenewal: nextRenewal,
+            confirmedNextRenewal: scheduledDate,
             managementURL: nil,
             notes: ""
         )
@@ -1792,6 +8867,15 @@ private struct FailingSubscriptionRepository: SubscriptionRepository {
         )
         let workspace = SubscriptionWorkspace(
             repository: repository, now: { now }, calendar: calendar
+        )
+
+        workspace.loadExpectedCharges(
+            subscriptionID: subscription.id,
+            through: nextRenewal,
+            maximumCount: 1
+        )
+        #expect(
+            workspace.expectedCharges?.first?.scheduledDate == scheduledDate
         )
 
         workspace.confirmCharge(
@@ -1805,7 +8889,125 @@ private struct FailingSubscriptionRepository: SubscriptionRepository {
             repository.storedSubscription(id: subscription.id)?
                 .confirmedCharges.count == 1
         )
+        #expect(
+            workspace.expectedCharges?.first?.scheduledDate == nextRenewal
+        )
         #expect(workspace.paymentHistoryActionError == nil)
+    }
+
+    @Test("A failed charge confirmation preserves the loaded presentation")
+    @MainActor
+    func failedChargeConfirmationPreservesLoadedPresentation() throws {
+        let calendar = actionCalendar()
+        let now = try actionDate(
+            year: 2026,
+            month: 7,
+            day: 29,
+            hour: 12,
+            calendar: calendar
+        )
+        let subscription = try makeActionSubscription(
+            fixture: .active,
+            calendar: calendar
+        )
+        let repository = InMemorySubscriptionRepository(
+            subscriptions: [subscription]
+        )
+        let workspace = SubscriptionWorkspace(
+            repository: repository,
+            now: { now },
+            calendar: calendar
+        )
+        loadActionPresentation(
+            workspace,
+            subscription: subscription,
+            scope: .current,
+            calendar: calendar
+        )
+
+        let detailBefore = workspace.detailState
+        let historyBefore = workspace.paymentHistory
+        let expectedChargesBefore = workspace.expectedCharges
+        repository.failure = .update
+
+        let scheduledDate = try actionDate(
+            year: 2026,
+            month: 7,
+            day: 28,
+            hour: 12,
+            calendar: calendar
+        )
+        workspace.confirmCharge(
+            id: subscription.id,
+            scheduledDate: scheduledDate,
+            chargedDate: scheduledDate,
+            amount: subscription.originalAmount
+        )
+
+        #expect(workspace.paymentHistoryActionError == .persistenceFailed)
+        #expect(workspace.detailState == detailBefore)
+        #expect(workspace.paymentHistory == historyBefore)
+        #expect(workspace.expectedCharges == expectedChargesBefore)
+    }
+
+    @Test("A failed price change preserves the loaded presentation")
+    @MainActor
+    func failedPriceChangePreservesLoadedPresentation() throws {
+        let calendar = actionCalendar()
+        let now = try actionDate(
+            year: 2026,
+            month: 7,
+            day: 29,
+            hour: 12,
+            calendar: calendar
+        )
+        let subscription = try makeActionSubscription(
+            fixture: .active,
+            calendar: calendar
+        )
+        let repository = InMemorySubscriptionRepository(
+            subscriptions: [subscription]
+        )
+        let workspace = SubscriptionWorkspace(
+            repository: repository,
+            now: { now },
+            calendar: calendar
+        )
+        loadActionPresentation(
+            workspace,
+            subscription: subscription,
+            scope: .current,
+            calendar: calendar
+        )
+
+        let detailBefore = workspace.detailState
+        let historyBefore = workspace.paymentHistory
+        let expectedChargesBefore = workspace.expectedCharges
+        let storedBefore = try #require(
+            repository.storedSubscription(id: subscription.id)
+        )
+        #expect(!historyBefore.isEmpty)
+        #expect(expectedChargesBefore?.isEmpty == false)
+        repository.failure = .update
+
+        let effectiveDate = try actionDate(
+            year: 2026,
+            month: 7,
+            day: 28,
+            hour: 12,
+            calendar: calendar
+        )
+        workspace.recordPriceChange(
+            id: subscription.id,
+            effectiveDate: effectiveDate,
+            amount: Money(minorUnits: 1_499, currency: .usd)
+        )
+
+        #expect(workspace.paymentHistoryActionError == .persistenceFailed)
+        #expect(workspace.detailState == detailBefore)
+        #expect(workspace.paymentHistory == historyBefore)
+        #expect(workspace.expectedCharges == expectedChargesBefore)
+        #expect(repository.storedSubscription(id: subscription.id) == storedBefore)
     }
 
     @Test("Price changes apply on their effective billing day without rewriting facts")
@@ -1881,6 +9083,7 @@ private struct PopulatedSubscriptionRepository: SubscriptionRepository {
 private final class InMemorySubscriptionRepository: SubscriptionRepository {
     private var subscriptions: [UUID: Subscription] = [:]
     var failure: RepositoryFailure?
+    var failingUpdateIDs: Set<UUID> = []
     private(set) var updateAttemptCount = 0
     private(set) var deletedIDs: [UUID] = []
 
@@ -1896,7 +9099,7 @@ private final class InMemorySubscriptionRepository: SubscriptionRepository {
 
     func updateSubscription(_ subscription: Subscription) throws {
         updateAttemptCount += 1
-        if failure == .update {
+        if failure == .update || failingUpdateIDs.contains(subscription.id) {
             throw RepositoryFailureError.unavailable
         }
         subscriptions[subscription.id] = subscription
@@ -1929,6 +9132,10 @@ private final class InMemorySubscriptionRepository: SubscriptionRepository {
         subscriptions[id]
     }
 
+    func removeStoredSubscription(id: UUID) {
+        subscriptions[id] = nil
+    }
+
     private enum RepositoryFailureError: Error {
         case unavailable
     }
@@ -1957,9 +9164,17 @@ private func makeSubscription(
     id: UUID,
     lifecycle: SubscriptionLifecycle = .active,
     isArchived: Bool = false,
+    pinnedAt: Date? = nil,
+    serviceIdentity: ServiceIdentity? = nil,
     billingSchedule: FixedBillingSchedule? = nil,
     confirmedNextRenewal: Date? = nil,
-    confirmedCharges: [ConfirmedCharge] = []
+    confirmedCharges: [ConfirmedCharge] = [],
+    originalAmount: Money = Money(minorUnits: 999, currency: .usd),
+    priceChanges: [PriceChange] = [],
+    category: String = "Other",
+    serviceName: String = "Example",
+    plan: String = "Standard",
+    notes: String = ""
 ) -> Subscription {
     let startDate = Date(timeIntervalSince1970: 1_767_225_600)
     let schedule = billingSchedule ?? FixedBillingSchedule(
@@ -1970,22 +9185,48 @@ private func makeSubscription(
     let renewalDate =
         confirmedNextRenewal
         ?? Date(timeIntervalSince1970: 1_769_904_000)
-    let amount = Money(minorUnits: 999, currency: .usd)
     return Subscription(
         id: id,
-        serviceIdentity: ServiceIdentity(rawValue: "manual:\(id.uuidString)"),
-        serviceName: "Example",
-        plan: "Standard",
-        category: "Other",
-        originalAmount: amount,
+        serviceIdentity: serviceIdentity
+            ?? ServiceIdentity(rawValue: "manual:\(id.uuidString)"),
+        serviceName: serviceName,
+        plan: plan,
+        category: category,
+        originalAmount: originalAmount,
         billingSchedule: schedule,
         startDate: schedule.renewalAnchor,
         confirmedNextRenewal: renewalDate,
         managementURL: nil,
-        notes: "",
+        notes: notes,
         confirmedCharges: confirmedCharges,
+        priceChanges: priceChanges,
         lifecycle: lifecycle,
-        isArchived: isArchived
+        isArchived: isArchived,
+        pinnedAt: pinnedAt
+    )
+}
+
+private func replacingConfirmedNextRenewal(
+    in subscription: Subscription,
+    with confirmedNextRenewal: Date
+) -> Subscription {
+    Subscription(
+        id: subscription.id,
+        serviceIdentity: subscription.serviceIdentity,
+        serviceName: subscription.serviceName,
+        plan: subscription.plan,
+        category: subscription.category,
+        originalAmount: subscription.originalAmount,
+        billingSchedule: subscription.billingSchedule,
+        startDate: subscription.startDate,
+        confirmedNextRenewal: confirmedNextRenewal,
+        managementURL: subscription.managementURL,
+        notes: subscription.notes,
+        confirmedCharges: subscription.confirmedCharges,
+        priceChanges: subscription.priceChanges,
+        lifecycle: subscription.lifecycle,
+        isArchived: subscription.isArchived,
+        pinnedAt: subscription.pinnedAt
     )
 }
 

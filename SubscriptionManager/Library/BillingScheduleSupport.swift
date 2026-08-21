@@ -20,8 +20,43 @@ func normalizedBillingDate(
     return calendar.date(from: components)
 }
 
+func effectiveEditAmount(
+    for subscription: Subscription,
+    onBillingDay date: Date
+) -> Money {
+    subscription.amount(onBillingDay: date)
+}
+
 func billingTimeZone(identifier: String) -> TimeZone {
     TimeZone(identifier: identifier) ?? .autoupdatingCurrent
+}
+
+func billingLocalDay(
+    _ instant: Date,
+    billingTimeZoneIdentifier: String,
+    displayCalendar: Calendar
+) -> Date {
+    var billingCalendar = Calendar(identifier: .gregorian)
+    billingCalendar.timeZone = billingTimeZone(
+        identifier: billingTimeZoneIdentifier
+    )
+    let components = billingCalendar.dateComponents(
+        [.year, .month, .day],
+        from: instant
+    )
+
+    var displayGregorianCalendar = Calendar(identifier: .gregorian)
+    displayGregorianCalendar.timeZone = displayCalendar.timeZone
+    guard let year = components.year,
+          let month = components.month,
+          let day = components.day,
+          let displayDate = displayGregorianCalendar.date(
+              from: DateComponents(year: year, month: month, day: day)
+          )
+    else {
+        return displayCalendar.startOfDay(for: instant)
+    }
+    return displayCalendar.startOfDay(for: displayDate)
 }
 
 func formattedBillingDate(
@@ -36,6 +71,87 @@ func formattedBillingDate(
     formatter.dateStyle = .medium
     formatter.timeStyle = .none
     return formatter.string(from: date)
+}
+
+func defaultNextRenewal(
+    after date: Date,
+    interval: BillingInterval,
+    timeZoneIdentifier: String
+) -> Date {
+    guard let timeZone = TimeZone(identifier: timeZoneIdentifier) else {
+        return date
+    }
+    return BillingDateResolver().nextRenewal(
+        afterStart: date,
+        interval: interval,
+        asOf: date,
+        timeZone: timeZone
+    ) ?? date
+}
+
+struct BillingDateValues: Equatable {
+    let startDate: Date
+    let nextRenewal: Date
+}
+
+struct BillingDateEditState {
+    private let resolver = BillingDateResolver()
+
+    func editingStartDate(
+        _ startDate: Date,
+        interval: BillingInterval,
+        asOf: Date,
+        timeZoneIdentifier: String
+    ) -> BillingDateValues? {
+        guard let timeZone = TimeZone(identifier: timeZoneIdentifier),
+              let nextRenewal = resolver.nextRenewal(
+                  afterStart: startDate,
+                  interval: interval,
+                  asOf: asOf,
+                  timeZone: timeZone
+              )
+        else {
+            return nil
+        }
+        return BillingDateValues(
+            startDate: startDate,
+            nextRenewal: nextRenewal
+        )
+    }
+
+    func editingNextRenewal(
+        _ nextRenewal: Date,
+        interval: BillingInterval,
+        timeZoneIdentifier: String
+    ) -> BillingDateValues? {
+        guard let timeZone = TimeZone(identifier: timeZoneIdentifier),
+              let startDate = resolver.previousCycleStart(
+                  before: nextRenewal,
+                  interval: interval,
+                  timeZone: timeZone
+              )
+        else {
+            return nil
+        }
+        return BillingDateValues(
+            startDate: startDate,
+            nextRenewal: nextRenewal
+        )
+    }
+
+    func changingInterval(
+        startDate: Date,
+        interval: BillingInterval,
+        asOf: Date,
+        timeZoneIdentifier: String
+    ) -> BillingDateValues? {
+        editingStartDate(
+            startDate,
+            interval: interval,
+            asOf: asOf,
+            timeZoneIdentifier: timeZoneIdentifier
+        )
+    }
 }
 
 enum BillingIntervalChoice: String, CaseIterable, Identifiable {
@@ -106,6 +222,24 @@ enum BillingIntervalChoice: String, CaseIterable, Identifiable {
     }
 }
 
+struct BillingIntervalFormValues {
+    let choice: BillingIntervalChoice
+    let customValueText: String
+    let customUnit: BillingIntervalUnit
+
+    init(interval: BillingInterval) {
+        choice = BillingIntervalChoice(interval: interval)
+        switch interval {
+        case .custom(let value, let unit):
+            customValueText = String(value)
+            customUnit = unit
+        default:
+            customValueText = ""
+            customUnit = .day
+        }
+    }
+}
+
 struct BillingScheduleFields: View {
     @Binding var intervalChoice: BillingIntervalChoice
     @Binding var customValueText: String
@@ -141,6 +275,17 @@ struct BillingScheduleFields: View {
                 billingScheduleValidationText(for: validationError),
                 identifier: "subscription.validation.billing-schedule"
             )
+        }
+    }
+}
+
+extension CatalogPurchaseChannel {
+    var localizedTitle: String {
+        switch self {
+        case .web:
+            String(localized: "Web")
+        case .ios:
+            String(localized: "iOS App Store")
         }
     }
 }

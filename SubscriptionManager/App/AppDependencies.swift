@@ -4,26 +4,119 @@ import SubscriptionCore
 
 @MainActor
 struct AppDependencies {
+    enum CloudKitSelection: Equatable {
+        case privateContainer(String)
+        case disabled
+    }
+
+    static let cloudKitContainerID = "iCloud.com.klausc06.SubscriptionManager"
+
     let modelContainer: ModelContainer
     let workspace: SubscriptionWorkspace
 
+    static func cloudKitSelection(
+        for selection: AppStoreSelection,
+        hasCloudKitEntitlement: Bool = true
+    ) -> CloudKitSelection {
+        switch selection {
+        case .production where hasCloudKitEntitlement:
+            .privateContainer(cloudKitContainerID)
+        case .production, .ephemeralUITesting, .namedUITesting:
+            .disabled
+        }
+    }
+
+    static func cloudKitDatabase(
+        for selection: AppStoreSelection,
+        hasCloudKitEntitlement: Bool = true
+    ) -> ModelConfiguration.CloudKitDatabase {
+        switch cloudKitSelection(
+            for: selection,
+            hasCloudKitEntitlement: hasCloudKitEntitlement
+        ) {
+        case .privateContainer(let containerID):
+            .private(containerID)
+        case .disabled:
+            .none
+        }
+    }
+
     static func live(
         arguments: [String] = ProcessInfo.processInfo.arguments,
-        storeDirectory: URL? = nil
+        storeDirectory: URL? = nil,
+        isRunningTests: Bool = ProcessInfo.processInfo.environment[
+            "XCTestConfigurationFilePath"
+        ] != nil,
+        hasCloudKitEntitlement: Bool =
+            AppRuntimeEntitlements.hasCloudKitContainer,
+        hasAppGroupEntitlement: Bool =
+            AppRuntimeEntitlements.hasAppGroup,
+        legacyCalendarProjectionMappingValidator:
+            any LegacyCalendarProjectionMappingValidating =
+                EventKitLegacyCalendarProjectionMappingValidator()
     ) -> AppStartupState {
-        let schema = Schema([SubscriptionRecord.self])
+        let schema = Schema([
+            SubscriptionRecord.self,
+            ConfirmedChargeRecord.self,
+            PriceChangeRecord.self,
+            UserPreferencesRecord.self,
+            CalendarProjectionMappingRecord.self
+        ])
+        let cloudSchema = Schema([
+            SubscriptionRecord.self,
+            ConfirmedChargeRecord.self,
+            PriceChangeRecord.self,
+            UserPreferencesRecord.self
+        ])
+        let localMappingSchema = Schema([
+            CalendarProjectionMappingRecord.self
+        ])
+        let effectiveArguments = (isRunningTests
+            && !arguments.contains("--ui-testing"))
+            ? arguments + ["--ui-testing"]
+            : arguments
+        let selection: AppStoreSelection
+        do {
+            selection = try storeSelection(arguments: effectiveArguments)
+        } catch {
+            return .failed(AppStartupFailure(underlyingError: error))
+        }
         #if DEBUG
-        let failsLifecycleMutations = arguments.contains("--ui-testing")
-            && arguments.contains("--ui-testing-fail-lifecycle-mutations")
+        let failsLifecycleMutations = effectiveArguments.contains("--ui-testing")
+            && effectiveArguments.contains("--ui-testing-fail-lifecycle-mutations")
         #else
         let failsLifecycleMutations = false
         #endif
+        let seedsLegacyChatGPTPlus =
+            effectiveArguments.contains("--ui-testing")
+            && effectiveArguments.contains(
+                "--ui-testing-seed-legacy-chatgpt-plus"
+            )
+        let seedsTask6OccurrenceFixture =
+            effectiveArguments.contains("--ui-testing")
+            && effectiveArguments.contains(
+                "--ui-testing-seed-task6-occurrence-fixture"
+            )
 
         return make(
-            failsLifecycleMutations: failsLifecycleMutations
+            failsLifecycleMutations: failsLifecycleMutations,
+            seedsLegacyChatGPTPlus: seedsLegacyChatGPTPlus,
+            seedsTask6OccurrenceFixture: seedsTask6OccurrenceFixture,
+            allowsExchangeRateNetworking: !effectiveArguments.contains("--ui-testing"),
+            allowsCalendarImport: selection == .production,
+            widgetSnapshotPublisher: selection == .production
+                && hasAppGroupEntitlement
+                ? AppGroupWidgetSnapshotPublisher()
+                : nil,
+            syncMonitor: selection == .production
+                && hasCloudKitEntitlement
+                ? CloudKitLibrarySyncMonitor()
+                : nil
         ) {
-            let configuration: ModelConfiguration
-            switch try storeSelection(arguments: arguments) {
+            let cloudConfiguration: ModelConfiguration
+            let localMappingConfiguration: ModelConfiguration
+            let legacyStoreURL: URL?
+            switch selection {
             case .namedUITesting(let token):
                 let rootDirectory: URL
                 if let storeDirectory {
@@ -44,30 +137,244 @@ struct AppDependencies {
                     at: directory,
                     withIntermediateDirectories: true
                 )
-                configuration = ModelConfiguration(
+                cloudConfiguration = ModelConfiguration(
                     "UITesting-\(token)",
-                    schema: schema,
+                    schema: cloudSchema,
                     url: directory.appending(path: "\(token).store"),
+                    allowsSave: true,
+                    cloudKitDatabase: cloudKitDatabase(
+                        for: .namedUITesting(token: token)
+                    )
+                )
+                legacyStoreURL = directory.appending(path: "\(token).store")
+                localMappingConfiguration = ModelConfiguration(
+                    "UITesting-\(token)-CalendarMappings",
+                    schema: localMappingSchema,
+                    url: directory.appending(
+                        path: "\(token).calendar-mappings.store"
+                    ),
                     allowsSave: true,
                     cloudKitDatabase: .none
                 )
             case .ephemeralUITesting:
-                configuration = ModelConfiguration(
-                    schema: schema,
-                    isStoredInMemoryOnly: true
+                legacyStoreURL = nil
+                cloudConfiguration = ModelConfiguration(
+                    "EphemeralCloudLibrary",
+                    schema: cloudSchema,
+                    isStoredInMemoryOnly: true,
+                    cloudKitDatabase: cloudKitDatabase(
+                        for: .ephemeralUITesting,
+                        hasCloudKitEntitlement: hasCloudKitEntitlement
+                    )
+                )
+                localMappingConfiguration = ModelConfiguration(
+                    "EphemeralCalendarMappings",
+                    schema: localMappingSchema,
+                    isStoredInMemoryOnly: true,
+                    cloudKitDatabase: .none
                 )
             case .production:
-                configuration = ModelConfiguration(schema: schema)
+                cloudConfiguration = ModelConfiguration(
+                    schema: cloudSchema,
+                    cloudKitDatabase: cloudKitDatabase(
+                        for: .production,
+                        hasCloudKitEntitlement: hasCloudKitEntitlement
+                    )
+                )
+                legacyStoreURL = cloudConfiguration.url
+                let applicationSupportDirectory = try FileManager.default.url(
+                    for: .applicationSupportDirectory,
+                    in: .userDomainMask,
+                    appropriateFor: nil,
+                    create: true
+                ).appending(
+                    path: "SubscriptionManager",
+                    directoryHint: .isDirectory
+                )
+                try FileManager.default.createDirectory(
+                    at: applicationSupportDirectory,
+                    withIntermediateDirectories: true
+                )
+                localMappingConfiguration = ModelConfiguration(
+                    "CalendarProjectionMappings",
+                    schema: localMappingSchema,
+                    url: applicationSupportDirectory.appending(
+                        path: "CalendarProjectionMappings.store"
+                    ),
+                    allowsSave: true,
+                    cloudKitDatabase: .none
+                )
+            }
+            if let legacyStoreURL {
+                try migrateLegacyCalendarProjectionMappings(
+                    legacySchema: schema,
+                    legacyStoreURL: legacyStoreURL,
+                    localMappingSchema: localMappingSchema,
+                    localMappingConfiguration: localMappingConfiguration,
+                    validator: legacyCalendarProjectionMappingValidator
+                )
             }
             return try ModelContainer(
                 for: schema,
-                configurations: [configuration]
+                configurations: [
+                    cloudConfiguration,
+                    localMappingConfiguration,
+                ]
             )
         }
     }
 
+    private struct LegacyCalendarProjectionMapping {
+        let projectionUID: String
+        let eventIdentifier: String
+        let calendarIdentifier: String
+        let calendarSyncDisabled: Bool
+    }
+
+    private static func migrateLegacyCalendarProjectionMappings(
+        legacySchema: Schema,
+        legacyStoreURL: URL,
+        localMappingSchema: Schema,
+        localMappingConfiguration: ModelConfiguration,
+        validator: any LegacyCalendarProjectionMappingValidating
+    ) throws {
+        let localContainer = try ModelContainer(
+            for: localMappingSchema,
+            configurations: [localMappingConfiguration]
+        )
+        let localContext = ModelContext(localContainer)
+        let localMappings = try localContext.fetch(
+            FetchDescriptor<CalendarProjectionMappingRecord>()
+        )
+        if localMappings.contains(where: {
+            $0.projectionUID.isEmpty
+                && $0.legacyMappingMigrationCompleted
+        }) {
+            return
+        }
+        if !localMappings.isEmpty {
+            let localMetadata: CalendarProjectionMappingRecord
+            if let existingMetadata = localMappings.first(where: {
+                $0.projectionUID.isEmpty
+            }) {
+                localMetadata = existingMetadata
+            } else {
+                localMetadata = CalendarProjectionMappingRecord(
+                    calendarIdentifier: ""
+                )
+                localContext.insert(localMetadata)
+            }
+            localMetadata.legacyMappingMigrationCompleted = true
+            try localContext.save()
+            return
+        }
+        guard validator.availability == .available,
+              FileManager.default.fileExists(atPath: legacyStoreURL.path)
+        else {
+            return
+        }
+
+        let legacyConfiguration = ModelConfiguration(
+            "LegacyCalendarProjectionMappings",
+            schema: legacySchema,
+            url: legacyStoreURL,
+            allowsSave: true,
+            cloudKitDatabase: .none
+        )
+        let legacyContainer = try ModelContainer(
+            for: legacySchema,
+            configurations: [legacyConfiguration]
+        )
+        let legacyContext = ModelContext(legacyContainer)
+        let legacyMappings = try legacyContext.fetch(
+            FetchDescriptor<CalendarProjectionMappingRecord>()
+        ).map {
+            LegacyCalendarProjectionMapping(
+                projectionUID: $0.projectionUID,
+                eventIdentifier: $0.eventIdentifier,
+                calendarIdentifier: $0.calendarIdentifier,
+                calendarSyncDisabled: $0.calendarSyncDisabled
+            )
+        }
+        let orderedLegacyMappings = legacyMappings.sorted(
+            by: legacyMappingPrecedes
+        )
+        let selectedCalendarIdentifier = orderedLegacyMappings.first(where: {
+            $0.projectionUID.isEmpty
+                && !$0.calendarIdentifier.isEmpty
+                && validator.containsCalendar(identifier: $0.calendarIdentifier)
+        })?.calendarIdentifier ?? orderedLegacyMappings.first(where: {
+            !$0.calendarIdentifier.isEmpty
+                && validator.containsCalendar(identifier: $0.calendarIdentifier)
+        })?.calendarIdentifier
+        guard let selectedCalendarIdentifier else {
+            let metadata = CalendarProjectionMappingRecord(
+                calendarIdentifier: ""
+            )
+            metadata.legacyMappingMigrationCompleted = true
+            localContext.insert(metadata)
+            try localContext.save()
+            return
+        }
+
+        let metadata = CalendarProjectionMappingRecord(
+            calendarIdentifier: selectedCalendarIdentifier
+        )
+        metadata.calendarSyncDisabled = orderedLegacyMappings.contains {
+            $0.projectionUID.isEmpty
+                && $0.calendarIdentifier == selectedCalendarIdentifier
+                && $0.calendarSyncDisabled
+        }
+        metadata.legacyMappingMigrationCompleted = true
+        localContext.insert(metadata)
+
+        var migratedProjectionUIDs = Set<String>()
+        for mapping in orderedLegacyMappings where !mapping.projectionUID.isEmpty {
+            guard mapping.calendarIdentifier == selectedCalendarIdentifier,
+                  !mapping.eventIdentifier.isEmpty,
+                  validator.containsEvent(
+                      identifier: mapping.eventIdentifier,
+                      inCalendarWithIdentifier: selectedCalendarIdentifier
+                  ),
+                  migratedProjectionUIDs.insert(mapping.projectionUID).inserted
+            else {
+                continue
+            }
+            localContext.insert(
+                CalendarProjectionMappingRecord(
+                    projectionUID: mapping.projectionUID,
+                    eventIdentifier: mapping.eventIdentifier,
+                    calendarIdentifier: selectedCalendarIdentifier
+                )
+            )
+        }
+        try localContext.save()
+    }
+
+    private static func legacyMappingPrecedes(
+        _ lhs: LegacyCalendarProjectionMapping,
+        _ rhs: LegacyCalendarProjectionMapping
+    ) -> Bool {
+        if lhs.calendarIdentifier != rhs.calendarIdentifier {
+            return lhs.calendarIdentifier < rhs.calendarIdentifier
+        }
+        if lhs.projectionUID != rhs.projectionUID {
+            return lhs.projectionUID < rhs.projectionUID
+        }
+        if lhs.eventIdentifier != rhs.eventIdentifier {
+            return lhs.eventIdentifier < rhs.eventIdentifier
+        }
+        return lhs.calendarSyncDisabled && !rhs.calendarSyncDisabled
+    }
+
     static func make(
         failsLifecycleMutations: Bool = false,
+        seedsLegacyChatGPTPlus: Bool = false,
+        seedsTask6OccurrenceFixture: Bool = false,
+        allowsExchangeRateNetworking: Bool = true,
+        allowsCalendarImport: Bool = false,
+        widgetSnapshotPublisher: (any WidgetSnapshotPublishing)? = nil,
+        syncMonitor: (any LibrarySyncMonitor)? = nil,
         modelContainer: () throws -> ModelContainer
     ) -> AppStartupState {
         do {
@@ -75,6 +382,38 @@ struct AppDependencies {
             let repository = SwiftDataSubscriptionRepository(
                 modelContainer: modelContainer
             )
+            let preferencesRepository = SwiftDataUserPreferencesRepository(
+                modelContainer: modelContainer
+            )
+            if seedsLegacyChatGPTPlus {
+                try seedLegacyChatGPTPlusSubscription(
+                    repository: repository,
+                    preferencesRepository: preferencesRepository
+                )
+            }
+            if seedsTask6OccurrenceFixture {
+                try seedTask6OccurrenceFixture(
+                    repository: repository,
+                    preferencesRepository: preferencesRepository
+                )
+            }
+            let portableBackupImportRepository =
+                SwiftDataPortableBackupImportRepository(
+                    modelContainer: modelContainer
+                )
+            let calendarProjectionImporter: any CalendarProjectionImporter
+            let calendarProjectionReconciler:
+                (any CalendarProjectionReconciler)?
+            if allowsCalendarImport {
+                let adapter = EventKitCalendarProjectionImporter(
+                    modelContainer: modelContainer
+                )
+                calendarProjectionImporter = adapter
+                calendarProjectionReconciler = adapter
+            } else {
+                calendarProjectionImporter = UnavailableCalendarProjectionImporter()
+                calendarProjectionReconciler = nil
+            }
             let workspaceRepository: any SubscriptionRepository
             #if DEBUG
             workspaceRepository = failsLifecycleMutations
@@ -83,33 +422,282 @@ struct AppDependencies {
             #else
             workspaceRepository = repository
             #endif
-            let catalogDirectory = try FileManager.default.url(
+            let applicationSupportDirectory = try FileManager.default.url(
                 for: .applicationSupportDirectory,
                 in: .userDomainMask,
                 appropriateFor: nil,
                 create: true
             )
-            .appending(path: "SubscriptionManager/Catalog", directoryHint: .isDirectory)
+            .appending(path: "SubscriptionManager", directoryHint: .isDirectory)
+            let catalogDirectory = applicationSupportDirectory.appending(
+                path: "Catalog",
+                directoryHint: .isDirectory
+            )
+            let exchangeRateDirectory = applicationSupportDirectory.appending(
+                path: "Insights",
+                directoryHint: .isDirectory
+            )
             let catalogCache = FileCatalogCache(directory: catalogDirectory)
+            let exchangeRateCache = FileExchangeRateCache(
+                directory: exchangeRateDirectory
+            )
             let bundledCatalog = BundledCatalogRepository()
             let catalogRepository = CachedCatalogRepository(
                 bundled: bundledCatalog,
                 cache: catalogCache
             )
+            let workspace = SubscriptionWorkspace(
+                repository: workspaceRepository,
+                preferencesRepository: preferencesRepository,
+                portableBackupImportRepository:
+                    portableBackupImportRepository,
+                widgetSnapshotPublisher: widgetSnapshotPublisher,
+                catalogRepository: catalogRepository,
+                catalogUpdateSource: GitHubCatalogUpdateSource(),
+                catalogCache: catalogCache,
+                exchangeRateSource: allowsExchangeRateNetworking
+                    ? FrankfurterExchangeRateSource()
+                    : nil,
+                exchangeRateCache: allowsExchangeRateNetworking
+                    ? exchangeRateCache
+                    : nil,
+                syncMonitor: syncMonitor,
+                calendarProjectionImporter: calendarProjectionImporter,
+                calendarProjectionReconciler: calendarProjectionReconciler
+            )
+            if let syncMonitor = syncMonitor as?
+                CloudKitLibrarySyncMonitor
+            {
+                syncMonitor.setWorkspaceReloadHandler { [weak workspace] in
+                    await workspace?.reloadAfterRemoteImport()
+                }
+            }
             return .ready(
                 AppDependencies(
                     modelContainer: modelContainer,
-                    workspace: SubscriptionWorkspace(
-                        repository: workspaceRepository,
-                        catalogRepository: catalogRepository,
-                        catalogUpdateSource: GitHubCatalogUpdateSource(),
-                        catalogCache: catalogCache
-                    )
+                    workspace: workspace
                 )
             )
         } catch {
             return .failed(AppStartupFailure(underlyingError: error))
         }
+    }
+
+    private static func seedLegacyChatGPTPlusSubscription(
+        repository: SwiftDataSubscriptionRepository,
+        preferencesRepository: SwiftDataUserPreferencesRepository
+    ) throws {
+        let legacyIdentity = ServiceIdentity(
+            rawValue: "catalog:chatgpt-plus"
+        )
+        let seedID = UUID(
+            uuidString: "C0DEC0DE-0000-4000-8000-000000000023"
+        )!
+        if try !repository.listSubscriptions().contains(where: {
+            $0.id == seedID || $0.serviceIdentity == legacyIdentity
+        }) {
+            let start = Date(timeIntervalSince1970: 1_767_225_600)
+            let calendar = BillingCalendar.calendar(
+                timeZone: TimeZone(identifier: "UTC")!
+            )
+            let nextRenewal = calendar.date(
+                byAdding: .month,
+                value: 1,
+                to: start
+            ) ?? start
+            try repository.createSubscription(
+                Subscription(
+                    id: seedID,
+                    serviceIdentity: legacyIdentity,
+                    serviceName: "ChatGPT Plus",
+                    plan: "Plus",
+                    category: "Productivity",
+                    originalAmount: Money(
+                        minorUnits: 2_000,
+                        currency: .usd
+                    ),
+                    billingSchedule: FixedBillingSchedule(
+                        interval: .monthly,
+                        renewalAnchor: start,
+                        timeZoneIdentifier: "UTC"
+                    ),
+                    startDate: start,
+                    confirmedNextRenewal: nextRenewal,
+                    managementURL: URL(string: "https://chatgpt.com/"),
+                    notes: ""
+                )
+            )
+        }
+        try preferencesRepository.savePreferences(.default)
+    }
+
+    private static func seedTask6OccurrenceFixture(
+        repository: SwiftDataSubscriptionRepository,
+        preferencesRepository: SwiftDataUserPreferencesRepository
+    ) throws {
+        let now = Date()
+        let fixtureTimeZone = TimeZone(identifier: "UTC")!
+        var calendar = BillingCalendar.calendar(timeZone: fixtureTimeZone)
+        calendar.locale = Locale(identifier: "en_US_POSIX")
+        let today = calendar.startOfDay(for: now)
+
+        func date(
+            monthsFromToday: Int,
+            hour: Int = 12
+        ) -> Date {
+            let shifted = calendar.date(
+                byAdding: .month,
+                value: monthsFromToday,
+                to: today
+            ) ?? today
+            return calendar.date(
+                bySettingHour: hour,
+                minute: 0,
+                second: 0,
+                of: shifted
+            ) ?? shifted
+        }
+
+        func scheduledID(
+            subscriptionID: UUID,
+            scheduledDate: Date
+        ) -> ScheduledChargeID {
+            let components = calendar.dateComponents(
+                [.year, .month, .day],
+                from: scheduledDate
+            )
+            return ScheduledChargeID(
+                subscriptionID: subscriptionID,
+                year: components.year!,
+                month: components.month!,
+                day: components.day!
+            )
+        }
+
+        func fixtureSubscription(
+            id: UUID,
+            serviceName: String,
+            interval: BillingInterval,
+            anchor: Date,
+            startDate: Date,
+            confirmedCharges: [ConfirmedCharge] = []
+        ) -> Subscription {
+            Subscription(
+                id: id,
+                serviceIdentity: ServiceIdentity(
+                    rawValue: "manual:\(id.uuidString.lowercased())"
+                ),
+                serviceName: serviceName,
+                plan: "Fixture Plan",
+                category: "Testing",
+                originalAmount: Money(
+                    minorUnits: 3_000,
+                    currency: .usd
+                ),
+                billingSchedule: FixedBillingSchedule(
+                    interval: interval,
+                    renewalAnchor: anchor,
+                    timeZoneIdentifier: fixtureTimeZone.identifier
+                ),
+                startDate: startDate,
+                confirmedNextRenewal: anchor,
+                managementURL: nil,
+                notes: "",
+                confirmedCharges: confirmedCharges
+            )
+        }
+
+        let directID = UUID(
+            uuidString: "C0DEC0DE-0000-4000-8000-000000000061"
+        )!
+        let archivedID = UUID(
+            uuidString: "C0DEC0DE-0000-4000-8000-000000000062"
+        )!
+        let dueTodayID = UUID(
+            uuidString: "C0DEC0DE-0000-4000-8000-000000000063"
+        )!
+        let overdueID = UUID(
+            uuidString: "C0DEC0DE-0000-4000-8000-000000000064"
+        )!
+        let futureID = UUID(
+            uuidString: "C0DEC0DE-0000-4000-8000-000000000065"
+        )!
+        let confirmedID = UUID(
+            uuidString: "C0DEC0DE-0000-4000-8000-000000000066"
+        )!
+
+        let dueToday = date(monthsFromToday: 0)
+        let overdue = date(monthsFromToday: -2)
+        let future = date(monthsFromToday: 1)
+        let confirmedOccurrence = date(monthsFromToday: 0)
+        let fixtures = [
+            fixtureSubscription(
+                id: directID,
+                serviceName: "Direct Editor Fixture",
+                interval: .monthly,
+                anchor: date(monthsFromToday: 1),
+                startDate: date(monthsFromToday: -1)
+            ),
+            fixtureSubscription(
+                id: archivedID,
+                serviceName: "Archived Editor Fixture",
+                interval: .monthly,
+                anchor: date(monthsFromToday: 1),
+                startDate: date(monthsFromToday: -1)
+            ),
+            fixtureSubscription(
+                id: dueTodayID,
+                serviceName: "Due Today Fixture",
+                interval: .quarterly,
+                anchor: dueToday,
+                startDate: dueToday
+            ),
+            fixtureSubscription(
+                id: overdueID,
+                serviceName: "Overdue Quarterly Fixture",
+                interval: .quarterly,
+                anchor: overdue,
+                startDate: overdue
+            ),
+            fixtureSubscription(
+                id: futureID,
+                serviceName: "Future Quarterly Fixture",
+                interval: .quarterly,
+                anchor: future,
+                startDate: future
+            ),
+            fixtureSubscription(
+                id: confirmedID,
+                serviceName: "Confirmed Quarterly Fixture",
+                interval: .quarterly,
+                anchor: confirmedOccurrence,
+                startDate: confirmedOccurrence,
+                confirmedCharges: [
+                    ConfirmedCharge(
+                        id: UUID(
+                            uuidString:
+                                "C0DEC0DE-0000-4000-8000-000000000067"
+                        )!,
+                        chargedDate: now,
+                        amount: Money(
+                            minorUnits: 3_000,
+                            currency: .usd
+                        ),
+                        sourceScheduledChargeID: scheduledID(
+                            subscriptionID: confirmedID,
+                            scheduledDate: confirmedOccurrence
+                        )
+                    )
+                ]
+            ),
+        ]
+        let existingIDs = Set(
+            try repository.listSubscriptions().map(\.id)
+        )
+        for fixture in fixtures where !existingIDs.contains(fixture.id) {
+            try repository.createSubscription(fixture)
+        }
+        try preferencesRepository.savePreferences(.default)
     }
 
     static func storeSelection(
@@ -147,6 +735,14 @@ struct AppDependencies {
         }
         return token
     }
+}
+
+enum AppRuntimeEntitlements {
+    static let hasAppGroup = FileManager.default.containerURL(
+        forSecurityApplicationGroupIdentifier:
+            WidgetSnapshotStore.appGroupIdentifier
+    ) != nil
+    static let hasCloudKitContainer = hasAppGroup
 }
 
 enum AppStoreSelection: Equatable {

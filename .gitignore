@@ -4,9 +4,14 @@
 .omo/
 work/
 outputs/
+artifacts/
+__pycache__/
+*.py[cod]
 
 # Xcode
 DerivedData/
+.derived-data/
+.derived-data-*/
 *.xcresult
 *.xcuserstate
 xcuserdata/

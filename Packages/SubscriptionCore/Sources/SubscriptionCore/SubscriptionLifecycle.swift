@@ -73,6 +73,8 @@ extension Subscription {
     func replacingLifecycleFacts(
         lifecycle: SubscriptionLifecycle? = nil,
         isArchived: Bool? = nil,
+        billingSchedule: FixedBillingSchedule? = nil,
+        startDate: Date? = nil,
         confirmedNextRenewal: Date? = nil
     ) -> Subscription {
         Subscription(
@@ -82,8 +84,8 @@ extension Subscription {
             plan: plan,
             category: category,
             originalAmount: originalAmount,
-            billingSchedule: billingSchedule,
-            startDate: startDate,
+            billingSchedule: billingSchedule ?? self.billingSchedule,
+            startDate: startDate ?? self.startDate,
             confirmedNextRenewal:
                 confirmedNextRenewal ?? self.confirmedNextRenewal,
             managementURL: managementURL,
@@ -91,7 +93,8 @@ extension Subscription {
             confirmedCharges: confirmedCharges,
             priceChanges: priceChanges,
             lifecycle: lifecycle ?? self.lifecycle,
-            isArchived: isArchived ?? self.isArchived
+            isArchived: isArchived ?? self.isArchived,
+            pinnedAt: pinnedAt
         )
     }
 
@@ -114,7 +117,56 @@ extension Subscription {
             confirmedCharges: confirmedCharges ?? self.confirmedCharges,
             priceChanges: priceChanges ?? self.priceChanges,
             lifecycle: lifecycle,
-            isArchived: isArchived
+            isArchived: isArchived,
+            pinnedAt: pinnedAt
+        )
+    }
+
+    func replacingPinnedAt(_ pinnedAt: Date?) -> Subscription {
+        Subscription(
+            id: id,
+            serviceIdentity: serviceIdentity,
+            serviceName: serviceName,
+            plan: plan,
+            category: category,
+            originalAmount: originalAmount,
+            billingSchedule: billingSchedule,
+            startDate: startDate,
+            confirmedNextRenewal: confirmedNextRenewal,
+            managementURL: managementURL,
+            notes: notes,
+            confirmedCharges: confirmedCharges,
+            priceChanges: priceChanges,
+            lifecycle: lifecycle,
+            isArchived: isArchived,
+            pinnedAt: pinnedAt
+        )
+    }
+
+    func replacingCatalogAssociation(
+        serviceIdentity: ServiceIdentity,
+        serviceName: String,
+        plan: String,
+        category: String,
+        managementURL: URL?
+    ) -> Subscription {
+        Subscription(
+            id: id,
+            serviceIdentity: serviceIdentity,
+            serviceName: serviceName,
+            plan: plan,
+            category: category,
+            originalAmount: originalAmount,
+            billingSchedule: billingSchedule,
+            startDate: startDate,
+            confirmedNextRenewal: confirmedNextRenewal,
+            managementURL: managementURL,
+            notes: notes,
+            confirmedCharges: confirmedCharges,
+            priceChanges: priceChanges,
+            lifecycle: lifecycle,
+            isArchived: isArchived,
+            pinnedAt: pinnedAt
         )
     }
 }

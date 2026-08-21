@@ -1,6 +1,18 @@
 import SubscriptionCore
 import SwiftUI
 
+func minimumReactivationDate(
+    now: Date,
+    timeZone: TimeZone
+) -> Date {
+    var calendar = Calendar(identifier: .gregorian)
+    calendar.locale = Locale(identifier: "en_US_POSIX")
+    calendar.timeZone = timeZone
+    let today = calendar.startOfDay(for: now)
+    return calendar.date(byAdding: .day, value: 1, to: today)
+        ?? .distantFuture
+}
+
 func subscriptionStatusLocalizationKey(
     _ status: SubscriptionStatus
 ) -> String {
@@ -43,7 +55,7 @@ func lifecycleActionErrorTextKey(
     case .accessEndsBeforeCancellation:
         "Access Until cannot be before the cancellation date."
     case .nextRenewalInPast:
-        "The next renewal cannot be in the past."
+        "The next renewal must be after today."
     case .persistenceFailed:
         "Couldn’t save lifecycle changes. Try again."
     }

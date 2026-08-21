@@ -28,6 +28,14 @@ enum ManagementURLParser {
     }
 }
 
+func billingStartDateLabelKey(isTrial: Bool) -> String {
+    isTrial ? "Trial Start" : "Start Date"
+}
+
+func billingNextDateLabelKey(isTrial: Bool) -> String {
+    isTrial ? "First Paid Charge" : "Next Renewal"
+}
+
 struct ValidationMessage: View {
     let text: LocalizedStringKey
     let identifier: String
@@ -140,5 +148,119 @@ extension View {
         #else
             self
         #endif
+    }
+}
+
+/// A picker-friendly adapter for the draft's optional billing interval.
+///
+/// The editor deliberately keeps the unselected state as `nil`; callers must
+/// provide a visible `Select Billing Interval` row rather than silently
+/// choosing a monthly schedule. Custom interval text and unit edits use the
+/// same adapter so changing a valid value also rederives linked dates.
+func subscriptionBillingIntervalBinding(
+    _ draft: Binding<SubscriptionDraft>,
+    asOf now: Date = Date()
+) -> Binding<String?> {
+    Binding(
+        get: {
+            draft.wrappedValue.billingInterval?.storageIdentifier
+        },
+        set: { rawValue in
+            var updated = draft.wrappedValue
+            guard let rawValue else {
+                updated.billingInterval = nil
+                draft.wrappedValue = updated
+                return
+            }
+
+            if rawValue == "custom" {
+                let value = Int(
+                    updated.customIntervalValueText
+                        .trimmingCharacters(in: .whitespacesAndNewlines)
+                ) ?? 0
+                applyEditorInterval(
+                    .custom(value: value, unit: updated.customIntervalUnit),
+                    to: &updated,
+                    asOf: now
+                )
+            } else if let interval = BillingInterval(rawValue: rawValue) {
+                applyEditorInterval(interval, to: &updated, asOf: now)
+            } else {
+                updated.billingInterval = nil
+            }
+            draft.wrappedValue = updated
+        }
+    )
+}
+
+func subscriptionCustomIntervalValueBinding(
+    _ draft: Binding<SubscriptionDraft>,
+    asOf now: Date = Date()
+) -> Binding<String> {
+    Binding(
+        get: { draft.wrappedValue.customIntervalValueText },
+        set: { text in
+            var updated = draft.wrappedValue
+            updated.customIntervalValueText = text
+            let value = Int(text.trimmingCharacters(in: .whitespacesAndNewlines))
+                ?? 0
+            applyEditorInterval(
+                .custom(value: value, unit: updated.customIntervalUnit),
+                to: &updated,
+                asOf: now
+            )
+            draft.wrappedValue = updated
+        }
+    )
+}
+
+func subscriptionCustomIntervalUnitBinding(
+    _ draft: Binding<SubscriptionDraft>,
+    asOf now: Date = Date()
+) -> Binding<String> {
+    Binding(
+        get: { draft.wrappedValue.customIntervalUnit.rawValue },
+        set: { rawValue in
+            guard let unit = BillingIntervalUnit(rawValue: rawValue) else {
+                return
+            }
+            var updated = draft.wrappedValue
+            updated.customIntervalUnit = unit
+            let value = Int(
+                updated.customIntervalValueText
+                    .trimmingCharacters(in: .whitespacesAndNewlines)
+            ) ?? 0
+            applyEditorInterval(
+                .custom(value: value, unit: unit),
+                to: &updated,
+                asOf: now
+            )
+            draft.wrappedValue = updated
+        }
+    )
+}
+
+private func applyEditorInterval(
+    _ interval: BillingInterval,
+    to draft: inout SubscriptionDraft,
+    asOf now: Date
+) {
+    switch interval {
+    case .custom(_, let unit):
+        draft.customIntervalUnit = unit
+    default:
+        draft.customIntervalValueText = ""
+        draft.customIntervalUnit = .day
+    }
+
+    // Before a user accepts a date, changing the interval must not turn a
+    // placeholder date into accepted evidence. Once a date is accepted, use
+    // SubscriptionDraft's operation so linked dates stay consistent.
+    guard !draft.acceptedDateSources.isEmpty else {
+        draft.billingInterval = interval
+        return
+    }
+    if !draft.changeBillingInterval(interval, asOf: now) {
+        draft.billingInterval = interval
     }
 }

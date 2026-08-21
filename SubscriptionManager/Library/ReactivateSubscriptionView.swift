@@ -16,8 +16,18 @@ struct ReactivateSubscriptionView: View {
     ) {
         self.workspace = workspace
         self.subscription = subscription
+        let minimumDate = minimumReactivationDate(
+            now: Date(),
+            timeZone: billingTimeZone(
+                identifier:
+                    subscription.billingSchedule.timeZoneIdentifier
+            )
+        )
         _selectedNextRenewal = State(
-            initialValue: max(Date(), subscription.confirmedNextRenewal)
+            initialValue: max(
+                minimumDate,
+                subscription.confirmedNextRenewal
+            )
         )
     }
 
@@ -27,6 +37,7 @@ struct ReactivateSubscriptionView: View {
                 DatePicker(
                     "Next Renewal",
                     selection: $selectedNextRenewal,
+                    in: minimumNextRenewal...,
                     displayedComponents: .date
                 )
                 .datePickerStyle(.graphical)
@@ -76,6 +87,16 @@ struct ReactivateSubscriptionView: View {
                 .accessibilityIdentifier("subscription.reactivation.save")
             }
         }
+    }
+
+    private var minimumNextRenewal: Date {
+        minimumReactivationDate(
+            now: Date(),
+            timeZone: billingTimeZone(
+                identifier:
+                    subscription.billingSchedule.timeZoneIdentifier
+            )
+        )
     }
 
     private func save() {

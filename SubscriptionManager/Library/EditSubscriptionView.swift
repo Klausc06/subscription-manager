@@ -2,81 +2,84 @@ import Foundation
 import SubscriptionCore
 import SwiftUI
 
+private struct EditDateTaskPresentation: Identifiable {
+    let source: SubscriptionDraft.DateSource
+
+    var id: String {
+        switch source {
+        case .startDate:
+            "start-date"
+        case .nextRenewal:
+            "next-renewal"
+        }
+    }
+}
+
+/// The direct editor for an existing subscription.
+///
+/// All editable values live in one `SubscriptionDraft`. The view only owns
+/// the presentation state for the date task and the save result; it does not
+/// parse money, derive billing dates, or mirror individual draft fields.
 struct EditSubscriptionView: View {
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.locale) private var locale
 
     let workspace: SubscriptionWorkspace
     let subscription: Subscription
+    let onRecordCancellation: () -> Void
+    let onReactivate: () -> Void
+    let onConfirmCharge: (ExpectedCharge) -> Void
+    let onSave: (() -> Void)?
+    let onCancel: (() -> Void)?
 
-    @State private var serviceName: String
-    @State private var plan: String
-    @State private var category: String
-    @State private var intervalChoice: BillingIntervalChoice
-    @State private var customValueText: String
-    @State private var customUnit: BillingIntervalUnit
-    @State private var startDate: Date
-    @State private var renewalAnchor: Date
-    @State private var confirmedNextRenewal: Date
-    @State private var managementURLText: String
-    @State private var notes: String
-    @State private var managementURLIsInvalid = false
+    @State private var draft: SubscriptionDraft
+    @State private var dateTaskPresentation: EditDateTaskPresentation?
+    @State private var didAttemptSave = false
     @State private var saveFailed = false
+    private let initialDraft: SubscriptionDraft
+    private let now: Date
 
     init(
         workspace: SubscriptionWorkspace,
-        subscription: Subscription
+        subscription: Subscription,
+        locale: Locale = .current,
+        now: Date = Date(),
+        onRecordCancellation: @escaping () -> Void = {},
+        onReactivate: @escaping () -> Void = {},
+        onConfirmCharge: @escaping (ExpectedCharge) -> Void = { _ in },
+        onSave: (() -> Void)? = nil,
+        onCancel: (() -> Void)? = nil
     ) {
         self.workspace = workspace
         self.subscription = subscription
-        _serviceName = State(initialValue: subscription.serviceName)
-        _plan = State(initialValue: subscription.plan)
-        _category = State(initialValue: subscription.category)
-        _intervalChoice = State(
-            initialValue: BillingIntervalChoice(
-                interval: subscription.billingSchedule.interval
-            )
+        self.now = now
+        self.onRecordCancellation = onRecordCancellation
+        self.onReactivate = onReactivate
+        self.onConfirmCharge = onConfirmCharge
+        self.onSave = onSave
+        self.onCancel = onCancel
+        let initialDraft = SubscriptionDraft.editing(
+            subscription: subscription,
+            locale: locale
         )
-        _customValueText = State(
-            initialValue: subscription.billingSchedule.interval.customValue
-                .map(String.init) ?? ""
-        )
-        _customUnit = State(
-            initialValue:
-                subscription.billingSchedule.interval.customUnit ?? .day
-        )
-        let timeZoneIdentifier =
-            subscription.billingSchedule.timeZoneIdentifier
-        _startDate = State(
-            initialValue: normalizedBillingDate(
-                subscription.startDate,
-                timeZoneIdentifier: timeZoneIdentifier
-            ) ?? subscription.startDate
-        )
-        _renewalAnchor = State(
-            initialValue: normalizedBillingDate(
-                subscription.billingSchedule.renewalAnchor,
-                timeZoneIdentifier: timeZoneIdentifier
-            ) ?? subscription.billingSchedule.renewalAnchor
-        )
-        _confirmedNextRenewal = State(
-            initialValue: normalizedBillingDate(
-                subscription.confirmedNextRenewal,
-                timeZoneIdentifier: timeZoneIdentifier
-            ) ?? subscription.confirmedNextRenewal
-        )
-        _managementURLText = State(
-            initialValue: subscription.managementURL?.absoluteString ?? ""
-        )
-        _notes = State(initialValue: subscription.notes)
+        self.initialDraft = initialDraft
+        _draft = State(initialValue: initialDraft)
     }
 
     var body: some View {
         Form {
-            serviceSection
-            subscriptionSection
-            billingScheduleSection
-            billingDatesSection
-            optionalSection
+            SubscriptionEditorSections(
+                draft: $draft,
+                nextExpectedCharge: editorNextExpectedCharge,
+                catalogOfferAdjustment: workspace.catalogOfferAdjustment(
+                    for: subscription
+                ),
+                showsValidation: didAttemptSave,
+                onEditDate: beginDateTask
+            )
+
+            paymentHistorySection
+            lifecycleSection
 
             if saveFailed {
                 Section {
@@ -95,10 +98,11 @@ struct EditSubscriptionView: View {
         #if os(iOS)
             .navigationBarTitleDisplayMode(.inline)
         #endif
+        .interactiveDismissDisabled(isDirty)
         .toolbar {
             ToolbarItem(placement: .cancellationAction) {
-                Button("Cancel") {
-                    dismiss()
+                Button("Cancel", role: .cancel) {
+                    cancel()
                 }
                 .accessibilityIdentifier("subscription.form.cancel")
             }
@@ -109,173 +113,280 @@ struct EditSubscriptionView: View {
                 .accessibilityIdentifier("subscription.form.save")
             }
         }
-    }
-
-    private var serviceSection: some View {
-        Section("Service") {
-            TextField("Service Name", text: $serviceName)
-                .textContentType(.organizationName)
-                .accessibilityIdentifier("subscription.form.service-name")
-            validationMessage(for: .serviceName)
-        }
-    }
-
-    private var subscriptionSection: some View {
-        Section("Subscription Details") {
-            TextField("Plan", text: $plan)
-                .accessibilityIdentifier("subscription.form.plan")
-            validationMessage(for: .plan)
-
-            TextField("Category", text: $category)
-                .accessibilityIdentifier("subscription.form.category")
-            validationMessage(for: .category)
-        }
-    }
-
-    private var billingScheduleSection: some View {
-        Section("Billing Schedule") {
-            BillingScheduleFields(
-                intervalChoice: $intervalChoice,
-                customValueText: $customValueText,
-                customUnit: $customUnit,
-                validationError:
-                    workspace.editingValidationErrors[.billingSchedule]
-            )
-        }
-    }
-
-    private var billingDatesSection: some View {
-        Section("Billing Dates") {
-            DatePicker(
-                "Start Date",
-                selection: $startDate,
-                displayedComponents: .date
-            )
-            .accessibilityIdentifier("subscription.form.start-date")
-
-            DatePicker(
-                "Renewal Anchor",
-                selection: $renewalAnchor,
-                displayedComponents: .date
-            )
-            .accessibilityIdentifier("subscription.form.renewal-anchor")
-
-            DatePicker(
-                "Next Renewal",
-                selection: $confirmedNextRenewal,
-                displayedComponents: .date
-            )
-            .accessibilityIdentifier("subscription.form.next-renewal")
-
-            validationMessage(for: .renewalAnchor)
-            validationMessage(for: .confirmedNextRenewal)
-        }
-        .environment(
-            \.timeZone,
-            TimeZone(
-                identifier: subscription.billingSchedule.timeZoneIdentifier
-            ) ?? .autoupdatingCurrent
-        )
-    }
-
-    private var optionalSection: some View {
-        Section("Optional") {
-            TextField("Management URL", text: $managementURLText)
-                .textContentType(.URL)
-                .subscriptionURLKeyboard()
-                .accessibilityIdentifier("subscription.form.management-url")
-
-            if managementURLIsInvalid {
-                ValidationMessage(
-                    "Enter a complete HTTP or HTTPS URL.",
-                    identifier: "subscription.validation.management-url"
+        .sheet(item: $dateTaskPresentation) { presentation in
+            NavigationStack {
+                BillingDateTaskView(
+                    draft: $draft,
+                    source: presentation.source,
+                    now: now
                 )
             }
-
-            TextField("Notes", text: $notes, axis: .vertical)
-                .lineLimit(3 ... 8)
-                .accessibilityIdentifier("subscription.form.notes")
         }
     }
 
     @ViewBuilder
-    private func validationMessage(
-        for field: SubscriptionCreationField
-    ) -> some View {
-        if let error = workspace.editingValidationErrors[field] {
-            ValidationMessage(
-                validationText(for: error, field: field),
-                identifier: "subscription.validation.\(field.identifier)"
-            )
+    private var paymentHistorySection: some View {
+        if !workspace.paymentHistory.isEmpty {
+            Section("Payment History") {
+                ForEach(
+                    Array(workspace.paymentHistory.enumerated()),
+                    id: \.offset
+                ) { _, entry in
+                    EditorPaymentHistoryRow(
+                        entry: entry,
+                        timeZoneIdentifier:
+                            currentSubscription.billingSchedule
+                                .timeZoneIdentifier,
+                        locale: locale,
+                        canConfirm: canConfirm,
+                        onConfirm: onConfirmCharge
+                    )
+                }
+            }
         }
+    }
+
+    @ViewBuilder
+    private var lifecycleSection: some View {
+        Section {
+            if currentSubscription.isArchived {
+                LabeledContent("Status", value: String(localized: "Archived"))
+                    .accessibilityIdentifier(
+                        "subscription.editor.status"
+                    )
+            } else {
+                switch editorStatus {
+                case .trial, .active:
+                    Button(
+                        "Record Cancellation",
+                        systemImage: "xmark.circle",
+                        action: onRecordCancellation
+                    )
+                    .accessibilityIdentifier(
+                        "subscription.lifecycle.record-cancellation"
+                    )
+
+                case .cancelledWithAccess, .expired:
+                    Button(
+                        "Reactivate",
+                        systemImage: "arrow.clockwise",
+                        action: onReactivate
+                    )
+                    .accessibilityIdentifier(
+                        "subscription.lifecycle.reactivate"
+                    )
+
+                case nil:
+                    EmptyView()
+                }
+            }
+        } header: {
+            Text("Lifecycle")
+                .accessibilityIdentifier("subscription.lifecycle.section")
+        }
+    }
+
+    private var currentSubscription: Subscription {
+        guard case .loaded(
+            let loadedSubscription,
+            _,
+            _
+        ) = workspace.detailState,
+        loadedSubscription.id == subscription.id
+        else {
+            return subscription
+        }
+        return loadedSubscription
+    }
+
+    private func canConfirm(_ expectedOccurrence: ExpectedCharge) -> Bool {
+        let confirmedIDs = Set(
+            currentSubscription.confirmedCharges.compactMap(
+                \.sourceScheduledChargeID
+            )
+        )
+        return ConfirmChargeEligibility.isEligible(
+            expectedOccurrence: expectedOccurrence,
+            confirmedIDs: confirmedIDs,
+            now: now,
+            billingTimeZone: billingTimeZone(
+                identifier: currentSubscription.billingSchedule
+                    .timeZoneIdentifier
+            )
+        )
+    }
+
+    private var editorStatus: SubscriptionStatus? {
+        guard case .loaded(
+            let loadedSubscription,
+            let status,
+            _
+        ) = workspace.detailState,
+        loadedSubscription.id == subscription.id
+        else {
+            return nil
+        }
+        guard !loadedSubscription.isArchived else { return nil }
+        return status
+    }
+
+    private var editorNextExpectedCharge: ExpectedCharge? {
+        guard case .loaded(
+            let loadedSubscription,
+            _,
+            let nextExpectedCharge
+        ) = workspace.detailState,
+        loadedSubscription.id == subscription.id
+        else {
+            return nil
+        }
+        return nextExpectedCharge
+    }
+
+    private func beginDateTask(_ source: SubscriptionDraft.DateSource) {
+        dateTaskPresentation = EditDateTaskPresentation(source: source)
     }
 
     private func save() {
-        let managementURLResult = ManagementURLParser.parse(managementURLText)
-        managementURLIsInvalid = managementURLResult == .invalid
+        didAttemptSave = true
         saveFailed = false
 
-        guard !managementURLIsInvalid else {
-            return
-        }
-        let timeZoneIdentifier =
-            subscription.billingSchedule.timeZoneIdentifier
-        guard let normalizedStartDate = normalizedBillingDate(
-                  startDate,
-                  timeZoneIdentifier: timeZoneIdentifier
-              ),
-              let normalizedRenewalAnchor = normalizedBillingDate(
-                  renewalAnchor,
-                  timeZoneIdentifier: timeZoneIdentifier
-              ),
-              let normalizedNextRenewal = normalizedBillingDate(
-                  confirmedNextRenewal,
-                  timeZoneIdentifier: timeZoneIdentifier
-              )
-        else {
-            saveFailed = true
+        // `makeEditInput` is the sole app-layer conversion boundary. It
+        // delegates money parsing, URL handling, date normalization, and the
+        // lifecycle-aware schedule construction to the shared draft.
+        guard let input = draft.makeEditInput(locale: locale) else {
+            // The shared sections now reveal draft validation only after this
+            // attempt. Leaving the draft untouched keeps every invalid value
+            // visible for repair without presenting a persistence failure.
             return
         }
 
-        let interval = intervalChoice.interval(
-            customValueText: customValueText,
-            customUnit: customUnit
-        )
-        workspace.editSubscription(
+        // This is the one ordinary-edit persistence command. Do not retry or
+        // issue a second update while waiting for the stored aggregate below.
+        let didSave = workspace.editSubscription(
             id: subscription.id,
-            input: SubscriptionEditInput(
-                serviceName: serviceName,
-                plan: plan,
-                category: category,
-                billingSchedule: FixedBillingSchedule(
-                    interval: interval,
-                    renewalAnchor: normalizedRenewalAnchor,
-                    timeZoneIdentifier: timeZoneIdentifier
-                ),
-                startDate: normalizedStartDate,
-                confirmedNextRenewal: normalizedNextRenewal,
-                managementURL: managementURL(from: managementURLResult),
-                notes: notes
-            )
+            input: input
         )
 
-        guard workspace.editingValidationErrors.isEmpty else {
+        guard didSave,
+              workspace.editingValidationErrors.isEmpty,
+              case .loaded(let savedSubscription, _, _) = workspace.detailState,
+              savedSubscription.id == subscription.id
+        else {
+            // Validation or persistence failure keeps this editor (and its
+            // draft) on screen. A successful command publishes the loaded
+            // aggregate only after repository update has completed.
+            saveFailed = true
             return
         }
 
-        if case .loaded = workspace.detailState {
-            dismiss()
+        #if os(macOS)
+        if let onSave {
+            onSave()
         } else {
-            saveFailed = true
+            draft = SubscriptionDraft.editing(
+                subscription: savedSubscription,
+                locale: locale
+            )
+            didAttemptSave = false
+            workspace.beginEditing()
+        }
+        #else
+        if let onSave {
+            onSave()
+        } else {
+            dismiss()
+        }
+        #endif
+    }
+
+    private var isDirty: Bool {
+        draft != initialDraft
+    }
+
+    private func cancel() {
+        if let onCancel {
+            onCancel()
+        } else {
+            dismiss()
+        }
+    }
+}
+
+private struct EditorPaymentHistoryRow: View {
+    let entry: SubscriptionHistoryEntry
+    let timeZoneIdentifier: String
+    let locale: Locale
+    let canConfirm: (ExpectedCharge) -> Bool
+    let onConfirm: (ExpectedCharge) -> Void
+
+    var body: some View {
+        switch entry {
+        case .expected(let charge):
+            HStack(spacing: 12) {
+                historyDescription(
+                    title: "Expected Charge",
+                    date: charge.scheduledDate,
+                    amount: charge.amount
+                )
+
+                if canConfirm(charge) {
+                    Button {
+                        onConfirm(charge)
+                    } label: {
+                        Label(
+                            "Confirm Charge",
+                            systemImage: "checkmark.circle"
+                        )
+                    }
+                    .buttonStyle(.borderless)
+                    .accessibilityIdentifier(
+                        "subscription.history.expected.confirm"
+                    )
+                }
+            }
+            .accessibilityElement(children: .contain)
+            .accessibilityIdentifier("subscription.history.expected")
+
+        case .confirmed(let charge):
+            historyDescription(
+                title: "Confirmed Payment",
+                date: charge.chargedDate,
+                amount: charge.amount
+            )
+            .accessibilityIdentifier("subscription.history.confirmed")
+
+        case .priceChange(let change):
+            historyDescription(
+                title: "Price Change",
+                date: change.effectiveDate,
+                amount: change.amount
+            )
+            .accessibilityIdentifier("subscription.history.price-change")
         }
     }
 
-    private func managementURL(
-        from result: ManagementURLParseResult
-    ) -> URL? {
-        guard case .valid(let url) = result else {
-            return nil
+    private func historyDescription(
+        title: LocalizedStringKey,
+        date: Date,
+        amount: Money
+    ) -> some View {
+        HStack(spacing: 12) {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title)
+                Text(
+                    formattedBillingDate(
+                        date,
+                        timeZoneIdentifier: timeZoneIdentifier,
+                        locale: locale
+                    )
+                )
+                .font(.footnote)
+                .foregroundStyle(.secondary)
+            }
+            Spacer(minLength: 12)
+            Text(formattedMoney(amount))
         }
-        return url
+        .accessibilityElement(children: .combine)
     }
 }

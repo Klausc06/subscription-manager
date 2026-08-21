@@ -1,6 +1,18 @@
 # Triage Labels
 
-The engineering skills use five canonical triage roles. This file maps each role to the label used in this repository.
+Every triaged issue has exactly one category and one state.
+
+## Categories
+
+| Canonical role | GitHub label | Meaning |
+| --- | --- | --- |
+| `bug` | `bug` | Existing behavior is broken |
+| `enhancement` | `enhancement` | New behavior or an improvement |
+
+## States
+
+The engineering skills use five canonical state roles. This table maps each
+role to the label used in this repository.
 
 | Canonical role | GitHub label | Meaning |
 | --- | --- | --- |
@@ -10,4 +22,5 @@ The engineering skills use five canonical triage roles. This file maps each role
 | `ready-for-human` | `ready-for-human` | Requires human implementation |
 | `wontfix` | `wontfix` | Will not be actioned |
 
-When a skill mentions a triage role, use the corresponding GitHub label from this table.
+When a skill mentions a category or state role, use the corresponding GitHub
+label from these tables.

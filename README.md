@@ -1,17 +1,33 @@
 # Subscription Manager
 
-A local-first, open-source subscription manager built natively for iOS 27,
-iPadOS 27, and macOS 27.
+A local-first, open-source subscription manager built natively for iPhone,
+iPad, and Mac. The Subscription Library is the source of truth; Calendar,
+widgets, App Intents, and the Mac menu-bar extra do not own competing state.
 
-The project is intentionally at the walking-skeleton stage. The current app
-opens an empty SwiftData-backed library in English or Simplified Chinese and
-keeps all application behavior behind `SubscriptionWorkspace`.
+## Current capabilities
+
+- Add a subscription from the bundled offline catalog or enter it manually,
+  then edit its schedule, price, payment history, and lifecycle.
+- Pin, archive, restore, record a cancellation, reactivate, or deliberately
+  delete a tracked subscription.
+- Review upcoming charges in list and month/day views and compare spending in
+  CNY, USD, or EUR with cached exchange-rate snapshots.
+- Preview or export a permission-free ICS file, or explicitly import and
+  reconcile renewals with Apple Calendar.
+- Export JSON or CSV and restore a portable JSON backup.
+- Use the iOS widget and App Intents, or the native Mac window and optional
+  menu-bar extra.
+- Store the library in SwiftData, with the private CloudKit configuration when
+  the signed app has the required iCloud entitlement.
+
+The app ships in English and Simplified Chinese and supports system, light, and
+dark appearance. The near-term product boundary is defined in
+[Product Goal](docs/product-goal.md).
 
 ## Requirements
 
-- Xcode 27
-- Swift 6.4
-- XcodeGen 2.46 or later
+- Xcode with the iOS 27 and macOS 27 SDKs
+- XcodeGen
 
 Install XcodeGen with Homebrew:
 
@@ -54,31 +70,36 @@ swift test --package-path Packages/SubscriptionCore
 - `SubscriptionCore` owns `SubscriptionWorkspace` and user-observable state.
 - SwiftUI calls the workspace instead of coordinating persistence or system
   services directly.
-- The app target supplies a local SwiftData repository.
-- Future catalog, exchange-rate, Calendar, synchronization, and export
-  integrations enter through injected adapters.
+- The app target supplies SwiftData, CloudKit-status, catalog, exchange-rate,
+  Calendar, widget, preferences, and portable-backup adapters.
 - Standard SwiftUI navigation and controls receive the current system
   appearance, including Liquid Glass, without decorative glass content cards.
 
 See [ADR 0001](docs/adr/0001-subscription-workspace-boundaries.md) for the
 dependency-boundary decision.
 
-## Privacy
+## Data and network boundaries
 
-The walking skeleton performs no network request, creates no custom account,
-and asks for no Calendar or other protected-resource permission. Signing
-credentials, personal Xcode state, and generated build output are excluded
-from version control.
+- The bundled catalog works offline. Catalog refreshes use the repository's
+  published catalog, and spending conversion uses Frankfurter exchange rates.
+- ICS preview and export do not require Calendar permission. Apple Calendar
+  import is an explicit action and requires the system permission.
+- iCloud uses the app's private CloudKit container; future iCloud feature work
+  is frozen by the current [Product Goal](docs/product-goal.md).
+- Signing credentials, personal Xcode state, and generated build output are
+  excluded from version control.
+
+See the [Evidence Index](docs/evidence-index.md) for source authority,
+historical research artifacts, and rules for volatile external facts.
 
 ## Contributing
 
-Start from the first open `ready-for-agent` GitHub issue whose native blockers
-are closed. Keep each change within one ticket, write the externally observable
-test first, and run the affected platform builds before opening a pull request.
+Repository work follows [AGENTS.md](AGENTS.md) and the binding
+[Production Flow](docs/agents/production-flow.md). Keep each change within one
+approved GitHub issue and do not expand its acceptance criteria opportunistically.
 
-Application code is licensed under Apache-2.0. Original catalog metadata added
-later will use CC0; third-party marks and assets are not covered by either
-grant.
+Application code is licensed under Apache-2.0. Original catalog metadata uses
+CC0; third-party marks and assets are not covered by either grant.
 
 Validate the shipped catalog before publishing a data-only update:
 

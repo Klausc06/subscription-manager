@@ -7,10 +7,22 @@
         "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "添加订阅" } }
       }
     },
+    "Additional Details" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Additional Details" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "其他详情" } }
+      }
+    },
     "Additional Information" : {
       "localizations" : {
         "en" : { "stringUnit" : { "state" : "translated", "value" : "Additional Information" } },
         "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "其他信息" } }
+      }
+    },
+    "Adjust Actual Charge" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Adjust Actual Charge" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "调整实际扣款" } }
       }
     },
     "Amount" : {
@@ -31,6 +43,12 @@
         "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "账单周期" } }
       }
     },
+    "Billing Period" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Billing Period" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "计费周期" } }
+      }
+    },
     "Billing Schedule" : {
       "localizations" : {
         "en" : { "stringUnit" : { "state" : "translated", "value" : "Billing Schedule" } },
@@ -41,6 +59,12 @@
       "localizations" : {
         "en" : { "stringUnit" : { "state" : "translated", "value" : "Billing Dates" } },
         "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "计费日期" } }
+      }
+    },
+    "Choose a billing date." : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Choose a billing date." } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "请选择计费日期。" } }
       }
     },
     "Cancel" : {
@@ -73,6 +97,12 @@
         "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "类别" } }
       }
     },
+    "My Subscriptions" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "My Subscriptions" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "我的订阅" } }
+      }
+    },
     "Couldn’t Load Subscription" : {
       "localizations" : {
         "en" : { "stringUnit" : { "state" : "translated", "value" : "Couldn’t Load Subscription" } },
@@ -83,6 +113,12 @@
       "localizations" : {
         "en" : { "stringUnit" : { "state" : "translated", "value" : "Couldn’t save this subscription. Try again." } },
         "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "无法保存此订阅，请重试。" } }
+      }
+    },
+    "Couldn’t Update Pin" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Couldn’t Update Pin" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "无法更新置顶状态" } }
       }
     },
     "Couldn’t Load Subscriptions" : {
@@ -101,6 +137,12 @@
         }
       }
     },
+    "Couldn’t Load Setup Data" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Couldn’t Load Setup Data" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "无法加载设置数据" } }
+      }
+    },
     "Currency" : {
       "localizations" : {
         "en" : { "stringUnit" : { "state" : "translated", "value" : "Currency" } },
@@ -110,6 +152,18 @@
     "Date" : {
       "localizations" : {
         "en" : { "stringUnit" : { "state" : "translated", "value" : "Date" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "日期" } }
+      }
+    },
+    "Date Summary" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Date Summary" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "日期摘要" } }
+      }
+    },
+    "Dates" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Dates" } },
         "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "日期" } }
       }
     },
@@ -131,16 +185,22 @@
         "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "编辑订阅" } }
       }
     },
+    "Derived" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Derived" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "推导" } }
+      }
+    },
+    "Done" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Done" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "完成" } }
+      }
+    },
     "Enter a valid amount." : {
       "localizations" : {
         "en" : { "stringUnit" : { "state" : "translated", "value" : "Enter a valid amount." } },
         "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "请输入有效金额。" } }
-      }
-    },
-    "Enter a complete HTTP or HTTPS URL." : {
-      "localizations" : {
-        "en" : { "stringUnit" : { "state" : "translated", "value" : "Enter a complete HTTP or HTTPS URL." } },
-        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "请输入完整的 HTTP 或 HTTPS 网址。" } }
       }
     },
     "Enter an amount greater than zero." : {
@@ -189,12 +249,6 @@
         "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "正在加载订阅" } }
       }
     },
-    "Management URL" : {
-      "localizations" : {
-        "en" : { "stringUnit" : { "state" : "translated", "value" : "Management URL" } },
-        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "管理网址" } }
-      }
-    },
     "Monthly" : {
       "localizations" : {
         "en" : { "stringUnit" : { "state" : "translated", "value" : "Monthly" } },
@@ -235,22 +289,40 @@
         }
       }
     },
+    "Note" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Note" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "备注" } }
+      }
+    },
     "Notes" : {
       "localizations" : {
         "en" : { "stringUnit" : { "state" : "translated", "value" : "Notes" } },
         "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "备注" } }
       }
     },
-    "Open Management Page" : {
-      "localizations" : {
-        "en" : { "stringUnit" : { "state" : "translated", "value" : "Open Management Page" } },
-        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "打开管理页面" } }
-      }
-    },
     "Optional" : {
       "localizations" : {
         "en" : { "stringUnit" : { "state" : "translated", "value" : "Optional" } },
         "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "选填" } }
+      }
+    },
+    "Enter a price." : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Enter a price." } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "请输入价格。" } }
+      }
+    },
+    "Official Offer" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Official Offer" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "官方套餐" } }
+      }
+    },
+    "Official Price" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Official Price" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "官方价格" } }
       }
     },
     "Original Amount" : {
@@ -305,6 +377,12 @@
         "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "保存" } }
       }
     },
+    "Select Billing Interval" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Select Billing Interval" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "选择账单周期" } }
+      }
+    },
     "Saved Subscription" : {
       "localizations" : {
         "en" : {
@@ -333,10 +411,28 @@
         "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "服务名称" } }
       }
     },
+    "Source" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Source" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "来源" } }
+      }
+    },
+    "Status" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Status" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "状态" } }
+      }
+    },
     "Start Date" : {
       "localizations" : {
         "en" : { "stringUnit" : { "state" : "translated", "value" : "Start Date" } },
         "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "开始日期" } }
+      }
+    },
+    "Subscription" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Subscription" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "订阅" } }
       }
     },
     "Subscription Details" : {
@@ -451,10 +547,22 @@
         "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "永久删除" } }
       }
     },
+    "Delete" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Delete" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "删除" } }
+      }
+    },
     "Expired" : {
       "localizations" : {
         "en" : { "stringUnit" : { "state" : "translated", "value" : "Expired" } },
         "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "已过期" } }
+      }
+    },
+    "First Paid Charge" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "First Paid Charge" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "首次付费" } }
       }
     },
     "Initial Status" : {
@@ -487,10 +595,28 @@
         "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "永久删除" } }
       }
     },
+    "Pin" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Pin" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "置顶" } }
+      }
+    },
+    "Pinned" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Pinned" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "已置顶" } }
+      }
+    },
     "Permanently Delete “%@”?" : {
       "localizations" : {
         "en" : { "stringUnit" : { "state" : "translated", "value" : "Permanently Delete “%@”?" } },
         "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "永久删除“%@”？" } }
+      }
+    },
+    "Permanently Delete “%@” (%@)?" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Permanently Delete “%1$@” (%2$@)?" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "永久删除“%1$@”（%2$@）？" } }
       }
     },
     "Reactivate" : {
@@ -529,16 +655,28 @@
         "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "取消日期不能晚于今天。" } }
       }
     },
-    "The next renewal cannot be in the past." : {
+    "The next renewal must be after today." : {
       "localizations" : {
-        "en" : { "stringUnit" : { "state" : "translated", "value" : "The next renewal cannot be in the past." } },
-        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "下次续费日期不能早于今天。" } }
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "The next renewal must be after today." } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "下次续费日期必须晚于今天。" } }
       }
     },
     "This action cannot be undone." : {
       "localizations" : {
         "en" : { "stringUnit" : { "state" : "translated", "value" : "This action cannot be undone." } },
         "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "此操作无法撤销。" } }
+      }
+    },
+    "This permanently removes its schedule, notes, lifecycle details, and payment history. This action cannot be undone." : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "This permanently removes its schedule, notes, lifecycle details, and payment history. This action cannot be undone." } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "这会永久删除该订阅的账单计划、备注、生命周期信息和付款历史。此操作无法撤销。" } }
+      }
+    },
+    "The subscription stayed unchanged. Try again." : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "The subscription stayed unchanged. Try again." } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "订阅未发生更改，请重试。" } }
       }
     },
     "This action isn’t available for the subscription’s current status." : {
@@ -551,6 +689,30 @@
       "localizations" : {
         "en" : { "stringUnit" : { "state" : "translated", "value" : "Trial" } },
         "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "试用中" } }
+      }
+    },
+    "Trial Start" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Trial Start" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "试用开始" } }
+      }
+    },
+    "User-adjusted price" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "User-adjusted price" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "用户调整后的价格" } }
+      }
+    },
+    "User-adjusted schedule" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "User-adjusted schedule" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "用户调整后的账单周期" } }
+      }
+    },
+    "Unpin" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Unpin" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "取消置顶" } }
       }
     },
     "Unit" : {
@@ -600,24 +762,154 @@
     "The effective date cannot be before the subscription starts." : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "The effective date cannot be before the subscription starts." } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "生效日期不能早于订阅开始日期。" } } } },
     "The payment date cannot be in the future." : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "The payment date cannot be in the future." } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "付款日期不能在未来。" } } } },
     "The scheduled date cannot be in the future." : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "The scheduled date cannot be in the future." } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "计划日期不能在未来。" } } } },
-    "All Categories" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "All Categories" } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "所有类别" } } } },
+    "Categories" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Categories" } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "类别" } } } },
+    "Add Manually" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Add Manually" } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "手动添加" } } } },
     "Browse Catalog" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Browse Catalog" } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "浏览目录" } } } },
     "Catalog" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Catalog" } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "目录" } } } },
-    "Catalog Details" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Catalog Details" } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "目录详情" } } } },
+    "Catalog version %lld · %@" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Catalog version %lld · %@" } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "目录版本 %lld · %@" } } } },
     "Bundled" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Bundled" } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "内置" } } } },
     "Updated" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Updated" } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "已更新" } } } },
     "Check for Catalog Updates" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Check for Catalog Updates" } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "检查目录更新" } } } },
     "Couldn’t update the catalog. Your offline catalog is still available." : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Couldn’t update the catalog. Your offline catalog is still available." } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "无法更新目录，离线目录仍然可用。" } } } },
+    "Confirm" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Confirm" } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "确认" } } } },
     "Confirm Subscription" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Confirm Subscription" } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "确认订阅信息" } } } },
     "Couldn’t Load Catalog" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Couldn’t Load Catalog" } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "无法加载目录" } } } },
     "Loading Catalog" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Loading Catalog" } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "正在加载目录" } } } },
-    "Or enter all subscription terms manually below." : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Or enter all subscription terms manually below." } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "也可以在下方手动填写全部订阅条款。" } } } },
     "Search services or categories" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Search services or categories" } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "搜索服务或类别" } } } },
-    "Suggested Billing Interval" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Suggested Billing Interval" } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "建议账单周期" } } } },
-    "Suggested Details" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Suggested Details" } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "建议信息" } } } },
     "Try reopening the app." : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Try reopening the app." } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "请重新打开应用后再试。" } } } },
-    "Use This Preset" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Use This Preset" } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "使用此预设" } } } },
-    "Confirm your actual plan, price, currency, and renewal dates before saving." : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Confirm your actual plan, price, currency, and renewal dates before saving." } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "保存前请确认实际的套餐、价格、货币和续费日期。" } } } },
+    "Choose a longer date range or add a subscription." : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Choose a longer date range or add a subscription." } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "请选择更长的日期范围，或添加订阅。" } } } },
+    "Date Range" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Date Range" } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "日期范围" } } } },
+    "Data" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Data" } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "数据" } } } },
+    "Insights" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Insights" } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "洞察" } } } },
+    "Insights will be available after currency conversion is added." : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Insights will be available after currency conversion is added." } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "添加货币换算后即可使用洞察功能。" } } } },
+    "Next 30 Days" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Next 30 Days" } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "未来 30 天" } } } },
+    "Next 90 Days" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Next 90 Days" } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "未来 90 天" } } } },
+    "No Upcoming Charges" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "No Upcoming Charges" } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "没有即将到期的扣费" } } } },
+    "Today" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Today" } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "今天" } } } },
+    "Upcoming" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Upcoming" } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "即将到期" } } } },
+    "Upcoming Unavailable" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Upcoming Unavailable" } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "即将续费暂不可用" } } } },
+    "Renewals could not be loaded. Try again later." : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Renewals could not be loaded. Try again later." } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "无法加载续费信息，请稍后重试。" } } } },
+    "Add Manually Instead" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Add Manually Instead" } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "改为手动添加" } } } },
+    "Back" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Back" } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "返回" } } } },
+    "Calendar Projection" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Calendar Projection" } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "日历预测周期" } } } },
+    "Calendar Preview" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Calendar Preview" } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "日历预览" } } } },
+    "Calendar Import" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Calendar Import" } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "导入日历" } } } },
+    "Calendar content was deleted outside Subscription Manager." : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Calendar content was deleted outside Subscription Manager." } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "订阅管理之外删除了日历内容。" } } } },
+    "Calendar import completed." : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Calendar import completed." } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "日历导入已完成。" } } } },
+    "Calendar access was not granted. You can still export an ICS file." : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Calendar access was not granted. You can still export an ICS file." } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "未获得日历访问权限；你仍可导出 ICS 文件。" } } } },
+    "Export ICS" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Export ICS" } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "导出 ICS" } } } },
+    "Export Backup & CSV" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Export Backup & CSV" } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "导出备份与 CSV" } } } },
+    "Export CSV" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Export CSV" } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "导出 CSV" } } } },
+    "Export Data" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Export Data" } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "导出数据" } } } },
+    "Export Format" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Export Format" } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "导出格式" } } } },
+    "Export JSON Backup" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Export JSON Backup" } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "导出 JSON 备份" } } } },
+    "Restore JSON Backup" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Restore JSON Backup" } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "恢复 JSON 备份" } } } },
+    "Restore Backup" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Restore Backup" } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "恢复备份" } } } },
+    "Choose JSON Backup" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Choose JSON Backup" } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "选择 JSON 备份" } } } },
+    "Choose a JSON backup to inspect it before any changes are made." : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Choose a JSON backup to inspect it before any changes are made." } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "选择 JSON 备份，在任何更改前先检查其内容。" } } } },
+    "Apply Restore" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Apply Restore" } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "应用恢复" } } } },
+    "Conflicts" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Conflicts" } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "冲突" } } } },
+    "Jump to %@" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Jump to %@" } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "跳转到 %@" } } } },
+    "Keep Local" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Keep Local" } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "保留本地版本" } } } },
+    "Use Backup" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Use Backup" } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "使用备份版本" } } } },
+    "Additions" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Additions" } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "新增项目" } } } },
+    "Preferences" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Preferences" } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "偏好设置" } } } },
+    "Resolution" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Resolution" } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "处理方式" } } } },
+    "Retained Locally" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Retained Locally" } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "保留在本地" } } } },
+    "No new subscriptions in this backup." : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "No new subscriptions in this backup." } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "此备份中没有新增订阅。" } } } },
+    "Only the selected additions and explicitly resolved conflicts will change." : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Only the selected additions and explicitly resolved conflicts will change." } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "只有选中的新增项目和已明确处理的冲突会发生更改。" } } } },
+    "This backup could not be restored. Choose a valid JSON backup." : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "This backup could not be restored. Choose a valid JSON backup." } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "无法恢复此备份，请选择有效的 JSON 备份。" } } } },
+    "Restore failed. Your library was not changed." : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Restore failed. Your library was not changed." } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "恢复失败，订阅库未被更改。" } } } },
+    "Your library was not changed. Try loading it again." : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Your library was not changed. Try loading it again." } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "订阅库未被更改，请重新加载。" } } } },
+    "Create offline copies of your subscriptions and preferences. Exports include archived subscriptions, but never device Calendar identifiers or iCloud data." : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Create offline copies of your subscriptions and preferences. Exports include archived subscriptions, but never device Calendar identifiers or iCloud data." } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "创建订阅和偏好的离线副本。导出包含已归档订阅，但绝不包含设备日历标识符或 iCloud 数据。" } } } },
+    "Couldn’t create the export. Try again." : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Couldn’t create the export. Try again." } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "无法创建导出文件，请重试。" } } } },
+    "Hide Amounts in Calendar" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Hide Amounts in Calendar" } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "在日历中隐藏金额" } } } },
+    "No Upcoming Renewals" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "No Upcoming Renewals" } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "没有即将到期的续费" } } } },
+    "Preview & Export ICS" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Preview & Export ICS" } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "预览并导出 ICS" } } } },
+    "Reminders" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Reminders" } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "提醒" } } } },
+    "Renewal Events" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Renewal Events" } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "续费事件" } } } },
+    "Import to Calendar" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Import to Calendar" } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "导入到日历" } } } },
+    "Import Renewals to Calendar" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Import Renewals to Calendar" } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "将续费导入日历" } } } },
+    "Importing Calendar Events" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Importing Calendar Events" } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "正在导入日历事件" } } } },
+    "No writable Calendar source is available. You can still export an ICS file." : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "No writable Calendar source is available. You can still export an ICS file." } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "没有可写入的日历来源；你仍可导出 ICS 文件。" } } } },
+    "Retry Calendar Import" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Retry Calendar Import" } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "重试导入日历" } } } },
+    "Retry Calendar Sync" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Retry Calendar Sync" } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "重试同步日历" } } } },
+    "Rebuild Calendar" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Rebuild Calendar" } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "重建日历" } } } },
+    "Disable Calendar Sync" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Disable Calendar Sync" } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "停用日历同步" } } } },
+    "Reconciling Calendar" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Reconciling Calendar" } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "正在同步日历" } } } },
+    "Calendar sync is unavailable. Check Calendar access and try again." : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Calendar sync is unavailable. Check Calendar access and try again." } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "日历同步不可用。请检查日历访问权限，然后重试。" } } } },
+    "Calendar sync is incomplete. 1 event failed." : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Calendar sync is incomplete. 1 event failed." } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "日历同步未完成，1 个事件同步失败。" } } } },
+    "Calendar sync is incomplete. %lld events failed." : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Calendar sync is incomplete. %lld events failed." } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "日历同步未完成，%lld 个事件同步失败。" } } } },
+    "Some Calendar events could not be imported. Try again to add the missing events." : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Some Calendar events could not be imported. Try again to add the missing events." } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "部分日历事件未能导入；请重试以添加缺失事件。" } } } },
+    "This will add the previewed renewal events to a dedicated Subscription Manager calendar." : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "This will add the previewed renewal events to a dedicated Subscription Manager calendar." } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "这会将预览中的续费事件添加到专用的 Subscription Manager 日历。" } } } },
+    "Renewals in your selected planning period appear here." : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Renewals in your selected planning period appear here." } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "所选规划周期内的续费会显示在这里。" } } } },
+    "Choose Subscriptions" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Choose Subscriptions" } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "选择订阅" } } } },
+    "Choose any services you use. You will confirm the actual plan, price, currency, and dates for each one before it is saved." : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Choose any services you use. You will confirm the actual plan, price, currency, and dates for each one before it is saved." } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "选择你正在使用的服务；每一项都会在保存前确认实际套餐、价格、货币和日期。" } } } },
+    "Choose the defaults you want to use throughout the app." : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Choose the defaults you want to use throughout the app." } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "选择要在整个应用中使用的默认设置。" } } } },
+    "Confirm Selected Subscriptions" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Confirm Selected Subscriptions" } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "确认所选订阅" } } } },
+    "Continue" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Continue" } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "继续" } } } },
+    "Couldn’t save preferences. Try again." : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Couldn’t save preferences. Try again." } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "无法保存偏好设置，请重试。" } } } },
+    "Appearance" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Appearance" } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "外观" } } } },
+    "System" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "System" } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "跟随系统" } } } },
+    "Light" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Light" } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "日间" } } } },
+    "Dark" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Dark" } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "夜间" } } } },
+    "Finish Setup" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Finish Setup" } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "完成设置" } } } },
+    "Primary Currency" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Primary Currency" } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "主显示货币" } } } },
+    "Run Setup Again" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Run Setup Again" } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "重新运行设置" } } } },
+    "Set Up Your Library" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Set Up Your Library" } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "设置你的订阅库" } } } },
+    "Settings" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Settings" } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "设置" } } } },
+    "Skip for Now" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Skip for Now" } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "暂时跳过" } } } },
+    "This only saves a future planning preference. Calendar access is requested separately when you choose to import renewals." : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "This only saves a future planning preference. Calendar access is requested separately when you choose to import renewals." } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "这只保存未来规划偏好；仅在你选择导入续费时才会单独请求日历权限。" } } } },
+    "6 Months" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "6 Months" } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "6 个月" } } } },
+    "12 Months" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "12 Months" } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "12 个月" } } } },
+    "Checking iCloud" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Checking iCloud" } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "正在检查 iCloud" } } } },
+    "iCloud" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "iCloud" } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "iCloud" } } } },
+    "iCloud Needs Attention" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "iCloud Needs Attention" } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "iCloud 需要处理" } } } },
+    "iCloud Signed Out" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "iCloud Signed Out" } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "iCloud 未登录" } } } },
+    "iCloud Up to Date" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "iCloud Up to Date" } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "iCloud 已是最新" } } } },
+    "Stored on This Device" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Stored on This Device" } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "仅存储在此设备" } } } },
+    "Syncing with iCloud" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Syncing with iCloud" } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "正在与 iCloud 同步" } } } },
+    "Try Again" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Try Again" } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "重试" } } } },
+    "Choose one subscription to inspect its details." : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Choose one subscription to inspect its details." } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "请选择一项订阅以查看其详情。" } } } },
+    "Choose a row to inspect and edit it." : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Choose a row to inspect and edit it." } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "请选择一行以查看和编辑。" } } } },
+    "Multiple Subscriptions Selected" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Multiple Subscriptions Selected" } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "已选择多项订阅" } } } },
+    "No Archived Subscriptions" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "No Archived Subscriptions" } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "没有已归档的订阅" } } } },
+    "Search Subscriptions" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Search Subscriptions" } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "搜索订阅" } } } },
+    "Select a Subscription" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Select a Subscription" } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "选择一项订阅" } } } },
+    "Sort" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Sort" } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "排序" } } } },
+    "Annualized" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Annualized" } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "年化" } } } },
+    "Category Totals" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Category Totals" } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "分类总额" } } } },
+    "Confirmed" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Confirmed" } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "已确认" } } } },
+    "Exchange rates are unavailable. Original subscription values are unchanged." : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Exchange rates are unavailable. Original subscription values are unchanged." } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "汇率暂不可用。原始订阅金额不会改变。" } } } },
+    "Expected" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Expected" } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "预计" } } } },
+    "Insights Unavailable" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Insights Unavailable" } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "洞察暂不可用" } } } },
+    "Loading Insights" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Loading Insights" } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "正在载入洞察" } } } },
+    "Rates updated %@" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Rates updated %@" } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "汇率更新于 %@" } } } },
+    "Selected Range" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Selected Range" } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "所选范围" } } } },
+    "Spending by Category" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Spending by Category" } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "按分类支出" } } } },
+    "Total" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Total" } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "总额" } } } },
+    "Total Mode" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Total Mode" } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "汇总方式" } } } },
+    "Using cached rates from %@" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Using cached rates from %@" } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "正在使用 %@ 的缓存汇率" } } } },
+    "Verified" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Verified" } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "已核验" } } } },
+    "Web" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Web" } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "网页" } } } },
+    "iOS App Store" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "iOS App Store" } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "iOS App Store" } } } },
+    "Add a subscription to your library." : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Add a subscription to your library." } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "将订阅添加到你的订阅库。" } } } },
+    "Show Upcoming Renewals" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Show Upcoming Renewals" } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "显示即将续费" } } } },
+    "Show Monthly Forecast" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Show Monthly Forecast" } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "显示月度预测" } } } },
+    "Show your upcoming subscription renewals." : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Show your upcoming subscription renewals." } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "显示你即将续费的订阅。" } } } },
+    "Show this month’s expected subscription spending." : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Show this month’s expected subscription spending." } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "显示本月预计订阅支出。" } } } },
+    "Subscription added." : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Subscription added." } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "已添加订阅。" } } } },
+    "Approve Subscription Manager in Login Items to finish enabling launch at login." : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Approve Subscription Manager in Login Items to finish enabling launch at login." } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "请在“登录项”中批准 Subscription Manager，以完成开机启动设置。" } } } },
+    "Couldn’t update launch at login. Try again." : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Couldn’t update launch at login. Try again." } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "无法更新开机启动设置，请重试。" } } } },
+    "Keep Subscription Manager in the Menu Bar" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Keep Subscription Manager in the Menu Bar" } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "在菜单栏中保留 Subscription Manager" } } } },
+    "Launch at Login" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Launch at Login" } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "登录时启动" } } } },
+    "Menu Bar" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Menu Bar" } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "菜单栏" } } } },
+    "Next: %@" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Next: %@" } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "下一项：%@" } } } },
+    "Open App" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Open App" } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "打开应用" } } } },
+    "Quick Add" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Quick Add" } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "快速添加" } } } },
+    "Quit Subscription Manager" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Quit Subscription Manager" } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "退出 Subscription Manager" } } } },
+    "This Month: %@" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "This Month: %@" } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "本月：%@" } } } },
+    "This Month: Forecast Unavailable" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "This Month: Forecast Unavailable" } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "本月：预测暂不可用" } } } },
     "Your subscriptions will appear here." : {
       "localizations" : {
         "en" : {

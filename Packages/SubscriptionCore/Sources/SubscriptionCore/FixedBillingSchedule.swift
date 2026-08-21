@@ -1,5 +1,23 @@
 import Foundation
 
+public enum BillingCalendar {
+    public static func calendar(timeZone: TimeZone) -> Calendar {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.locale = Locale(identifier: "en_US_POSIX")
+        calendar.timeZone = timeZone
+        return calendar
+    }
+
+    public static func calendar(
+        timeZoneIdentifier: String
+    ) -> Calendar? {
+        guard let timeZone = TimeZone(identifier: timeZoneIdentifier) else {
+            return nil
+        }
+        return calendar(timeZone: timeZone)
+    }
+}
+
 public enum BillingIntervalUnit: String, CaseIterable, Codable, Sendable {
     case day
     case week
@@ -86,10 +104,16 @@ public enum BillingInterval: Codable, Equatable, RawRepresentable, Sendable {
     }
 
     public var isValid: Bool {
-        guard case .custom(let value, _) = self else {
+        guard case .custom(let value, let unit) = self else {
             return true
         }
-        return value > 0
+        guard value > 0 else {
+            return false
+        }
+        guard unit == .week else {
+            return true
+        }
+        return !value.multipliedReportingOverflow(by: 7).overflow
     }
 
     public init(from decoder: any Decoder) throws {
