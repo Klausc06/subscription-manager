@@ -238,6 +238,7 @@ struct AddSubscriptionView: View {
             Text("Trial").tag(SubscriptionInitialStatus.trial)
         }
         .pickerStyle(.segmented)
+        .accessibilityLabel("Initial Status")
         .accessibilityIdentifier("subscription.form.initial-status")
         .listRowInsets(EdgeInsets(top: 8, leading: 0, bottom: 8, trailing: 0))
         .listRowBackground(Color.clear)
@@ -283,6 +284,13 @@ struct AddSubscriptionView: View {
         // also guarantees malformed optional URL text and unaccepted dates do
         // not reach any Workspace creation branch.
         guard let input = draft.makeCreationInput(locale: locale) else {
+            postAccessibilityAnnouncement(
+                String(
+                    localized: String.LocalizationValue(
+                        "Fix the highlighted fields before saving."
+                    )
+                )
+            )
             return
         }
 
@@ -331,6 +339,12 @@ struct AddSubscriptionView: View {
 
         guard wasCreated, workspace.creationValidationErrors.isEmpty else {
             saveFailed = true
+            postAccessibilityAnnouncement(
+                validationFailureAnnouncement(
+                    workspace.creationValidationErrors,
+                    fallbackKey: "Couldn’t save this subscription. Try again."
+                )
+            )
             return
         }
 

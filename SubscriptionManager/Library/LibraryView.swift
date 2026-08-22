@@ -274,6 +274,7 @@ private struct InsightsView: View {
                     Text("Confirmed").tag(SpendingReportMode.confirmed)
                 }
                 .pickerStyle(.segmented)
+                .accessibilityLabel("Total Mode")
                 .accessibilityIdentifier("insights.mode")
                 .listRowInsets(
                     EdgeInsets(top: 8, leading: 0, bottom: 8, trailing: 0)
@@ -650,6 +651,9 @@ private struct UpcomingView: View {
                     .accessibilityIdentifier(dayIdentifier(for: day.date))
                     .accessibilityValue(
                         selectedDay == day.date ? "Selected" : ""
+                    )
+                    .accessibilityAddTraits(
+                        selectedDay == day.date ? .isSelected : []
                     )
                 }
             }
@@ -1194,6 +1198,7 @@ struct FirstRunSetupView: View {
                 }
             }
             .pickerStyle(.segmented)
+            .accessibilityLabel("Primary Currency")
             .accessibilityIdentifier("setup.primary-currency")
             .listRowInsets(EdgeInsets(top: 8, leading: 0, bottom: 8, trailing: 0))
             .listRowBackground(Color.clear)
@@ -1205,6 +1210,7 @@ struct FirstRunSetupView: View {
                     Text("12 Months").tag(CalendarProjectionHorizon.twelveMonths)
                 }
                 .pickerStyle(.segmented)
+                .accessibilityLabel("Calendar Projection")
                 .accessibilityIdentifier("setup.calendar-horizon")
 
                 Text("This only saves a future planning preference. Calendar access is requested separately when you choose to import renewals.")
@@ -1287,6 +1293,9 @@ struct FirstRunSetupView: View {
                         selectedPresetIDs.contains(preset.id)
                             ? LocalizedStringKey("Selected")
                             : LocalizedStringKey("Not selected")
+                    )
+                    .accessibilityAddTraits(
+                        selectedPresetIDs.contains(preset.id) ? .isSelected : []
                     )
                     .accessibilityIdentifier("setup.preset.\(preset.id)")
                 }
@@ -1989,6 +1998,7 @@ struct UserPreferencesView: View {
                 ? LocalizedStringKey("Selected")
                 : LocalizedStringKey("Not selected")
         )
+        .accessibilityAddTraits(isSelected ? .isSelected : [])
         .accessibilityIdentifier(identifier)
     }
 

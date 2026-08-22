@@ -36,6 +36,41 @@ func billingNextDateLabelKey(isTrial: Bool) -> String {
     isTrial ? "First Paid Charge" : "Next Renewal"
 }
 
+/// Posts an announcement for assistive tech when a visible inline message
+/// alone would go unheard (for example a failed form save).
+func postAccessibilityAnnouncement(_ message: String) {
+    #if canImport(UIKit)
+    UIAccessibility.post(notification: .announcement, argument: message)
+    #else
+    guard let app = NSApp else { return }
+    NSAccessibility.post(
+        element: app.mainWindow ?? app as NSAccessibilityElement,
+        notification: .announcementRequested,
+        userInfo: [
+            NSAccessibility.NotificationUserInfoKey.announcement: message
+        ]
+    )
+    #endif
+}
+
+func validationFailureAnnouncement(
+    _ errors: [SubscriptionCreationField: SubscriptionCreationValidationError],
+    fallbackKey: String
+) -> String {
+    let problem = errors
+        .sorted(by: { String(describing: $0.key) < String(describing: $1.key) })
+        .first
+        .map {
+            String(
+                localized: String.LocalizationValue(
+                    validationTextKey(for: $0.value, field: $0.key)
+                )
+            )
+        }
+    let fallback = String(localized: String.LocalizationValue(fallbackKey))
+    return problem.map { "\(fallback) \($0)" } ?? fallback
+}
+
 struct ValidationMessage: View {
     let text: LocalizedStringKey
     let identifier: String
@@ -49,6 +84,7 @@ struct ValidationMessage: View {
         Label(text, systemImage: "exclamationmark.circle")
             .font(.footnote)
             .foregroundStyle(.red)
+            .accessibilityElement(children: .combine)
             .accessibilityIdentifier(identifier)
     }
 }
