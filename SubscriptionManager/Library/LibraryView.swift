@@ -2036,6 +2036,7 @@ private struct SyncStatusView: View {
     var body: some View {
         HStack {
             Label(title, systemImage: symbol)
+                .accessibilityElement(children: .combine)
             Spacer()
             if workspace.syncStatus == .requiresAttention {
                 Button("Try Again") {
@@ -2043,7 +2044,6 @@ private struct SyncStatusView: View {
                 }
             }
         }
-        .accessibilityElement(children: .combine)
         .accessibilityIdentifier("sync.status.\(identifier)")
     }
 

@@ -10,6 +10,7 @@ struct RecordCancellationView: View {
 
     @State private var selectedCancellationDate: Date
     @State private var selectedAccessUntil: Date
+    @State private var isSaveConfirmationPresented = false
 
     init(
         workspace: SubscriptionWorkspace,
@@ -91,10 +92,25 @@ struct RecordCancellationView: View {
             }
             ToolbarItem(placement: .confirmationAction) {
                 Button("Save Cancellation") {
-                    save()
+                    isSaveConfirmationPresented = true
                 }
                 .accessibilityIdentifier("subscription.cancellation.save")
             }
+        }
+        .confirmationDialog(
+            "Record This Cancellation?",
+            isPresented: $isSaveConfirmationPresented,
+            titleVisibility: .visible
+        ) {
+            Button("Record Cancellation", role: .destructive) {
+                save()
+            }
+            .accessibilityIdentifier("subscription.cancellation.confirm")
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text(
+                "This marks “\(subscription.serviceName)” as cancelled and ends access on the selected date."
+            )
         }
     }
 
