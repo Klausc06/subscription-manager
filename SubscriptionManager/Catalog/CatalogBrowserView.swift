@@ -25,6 +25,7 @@ struct CatalogAddFlowView: View {
 
 struct CatalogBrowserView: View {
     @Environment(\.locale) private var locale
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     let workspace: SubscriptionWorkspace
     let onSubscriptionCreated: () -> Void
@@ -162,8 +163,12 @@ struct CatalogBrowserView: View {
                         CatalogAlphabetIndex(
                             letters: sections.map(\.id)
                         ) { letter in
-                            withAnimation(.snappy) {
+                            if reduceMotion {
                                 proxy.scrollTo(letter, anchor: .top)
+                            } else {
+                                withAnimation(.snappy) {
+                                    proxy.scrollTo(letter, anchor: .top)
+                                }
                             }
                         }
                         .padding(.trailing, 2)

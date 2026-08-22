@@ -952,7 +952,11 @@ private struct UpcomingMonthCalendar: UIViewRepresentable {
         let monthComponents = monthComponents(for: displayedMonth)
         if calendarView.visibleDateComponents.year != monthComponents.year
             || calendarView.visibleDateComponents.month != monthComponents.month {
-            calendarView.setVisibleDateComponents(monthComponents, animated: true)
+            // Respect Reduce Motion: jump straight to the paged month.
+            calendarView.setVisibleDateComponents(
+                monthComponents,
+                animated: !UIAccessibility.isReduceMotionEnabled
+            )
         }
 
         if let selection = calendarView.selectionBehavior
