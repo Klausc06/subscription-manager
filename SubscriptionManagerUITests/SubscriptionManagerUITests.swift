@@ -2843,8 +2843,8 @@ final class SubscriptionManagerUITests: XCTestCase {
         app.buttons["subscription.cancellation.save"].tap()
 
         let confirmCancellation = app.buttons[
-            "subscription.cancellation.confirm"
-        ]
+            "subscription.cancellation.confirmDialog"
+        ].firstMatch
         XCTAssertTrue(confirmCancellation.waitForExistence(timeout: 5))
         confirmCancellation.tap()
 
@@ -2888,8 +2888,8 @@ final class SubscriptionManagerUITests: XCTestCase {
         app.buttons["subscription.cancellation.save"].tap()
 
         let confirmCancellation = app.buttons[
-            "subscription.cancellation.confirm"
-        ]
+            "subscription.cancellation.confirmDialog"
+        ].firstMatch
         XCTAssertTrue(confirmCancellation.waitForExistence(timeout: 5))
         confirmCancellation.tap()
 

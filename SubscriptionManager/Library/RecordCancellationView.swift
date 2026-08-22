@@ -105,7 +105,7 @@ struct RecordCancellationView: View {
             Button("Record Cancellation", role: .destructive) {
                 save()
             }
-            .accessibilityIdentifier("subscription.cancellation.confirm")
+            .accessibilityIdentifier("subscription.cancellation.confirmDialog")
             Button("Cancel", role: .cancel) {}
         } message: {
             Text(
