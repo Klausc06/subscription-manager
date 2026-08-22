@@ -1353,6 +1353,7 @@ public final class SubscriptionWorkspace {
             guard isEligibleForExpectedCharges(subscription) else { return [] }
             return makeExpectedCharges(
                 for: subscription,
+                from: from,
                 through: through,
                 maximumCount: .max
             )

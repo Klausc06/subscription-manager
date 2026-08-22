@@ -1862,6 +1862,106 @@ struct SubscriptionWorkspaceTests {
         #expect(recomputed.selectedRangeTotal == Money(minorUnits: 120, currency: .usd))
     }
 
+    @Test("Expected insights surface charges for historical ranges")
+    @MainActor
+    func expectedInsightsSurfaceHistoricalRangeCharges() async throws {
+        let calendar = actionCalendar()
+        let now = try actionDate(
+            year: 2026,
+            month: 7,
+            day: 15,
+            hour: 18,
+            calendar: calendar
+        )
+        let renewalAnchor = try actionDate(
+            year: 2026,
+            month: 1,
+            day: 10,
+            hour: 9,
+            calendar: calendar
+        )
+        let confirmedNextRenewal = try actionDate(
+            year: 2026,
+            month: 8,
+            day: 10,
+            hour: 9,
+            calendar: calendar
+        )
+        let rangeStart = try actionDate(
+            year: 2026,
+            month: 6,
+            day: 1,
+            hour: 0,
+            calendar: calendar
+        )
+        let rangeEnd = try actionDate(
+            year: 2026,
+            month: 6,
+            day: 30,
+            hour: 23,
+            minute: 59,
+            calendar: calendar
+        )
+        let juneBillingDay = try actionDate(
+            year: 2026,
+            month: 6,
+            day: 10,
+            hour: 9,
+            calendar: calendar
+        )
+        let id = UUID(
+            uuidString: "C7000000-0000-0000-0000-000000000087"
+        )!
+        let snapshot = ExchangeRateSnapshot(
+            base: .eur,
+            providerDate: now,
+            fetchedAt: now,
+            source: "fixture",
+            rates: [.eur: 1, .usd: 1.2, .cny: 8.4]
+        )
+        let workspace = SubscriptionWorkspace(
+            repository: InMemorySubscriptionRepository(subscriptions: [
+                makeSubscription(
+                    id: id,
+                    billingSchedule: FixedBillingSchedule(
+                        interval: .monthly,
+                        renewalAnchor: renewalAnchor,
+                        timeZoneIdentifier: calendar.timeZone.identifier
+                    ),
+                    confirmedNextRenewal: confirmedNextRenewal,
+                    originalAmount: Money(minorUnits: 2_500, currency: .usd),
+                    serviceName: "Historical Insight"
+                ),
+            ]),
+            exchangeRateCache: InMemoryExchangeRateCache(
+                state: ExchangeRateCacheState(
+                    snapshot: snapshot,
+                    lastAttemptAt: now
+                )
+            ),
+            now: { now },
+            calendar: calendar
+        )
+
+        await workspace.refreshExchangeRates()
+        workspace.loadInsights(
+            mode: .expected,
+            from: rangeStart,
+            through: rangeEnd
+        )
+
+        let insights = try #require(workspace.insightsState.availableValue)
+        #expect(insights.items.map(\.date) == [juneBillingDay])
+        #expect(
+            insights.items.first?.originalAmount
+                == Money(minorUnits: 2_500, currency: .usd)
+        )
+        #expect(
+            insights.items.first?.id
+                == "expected:\(id.uuidString)-2026-6-10"
+        )
+    }
+
     @Test("Annualized insights count both endpoints in a thirty-day range")
     @MainActor
     func annualizedInsightsCountBothEndpoints() async throws {
