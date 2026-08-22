@@ -1,824 +1,66 @@
 import Foundation
 import Observation
 
-public enum Currency: String, CaseIterable, Codable, Hashable, Sendable {
-    case cny = "CNY"
-    case usd = "USD"
-    case eur = "EUR"
-}
-
-public struct Money: Codable, Equatable, Sendable {
-    public let minorUnits: Int64
-    public let currency: Currency
-
-    public init(minorUnits: Int64, currency: Currency) {
-        self.minorUnits = minorUnits
-        self.currency = currency
-    }
-}
-
-public struct ServiceIdentity: Codable, Equatable, Hashable, Sendable {
-    public let rawValue: String
-
-    public init(rawValue: String) {
-        self.rawValue = rawValue
-    }
-}
-
-public struct ExpectedCharge: Codable, Equatable, Sendable {
-    public let id: ScheduledChargeID
-    public let subscriptionID: UUID
-    public let scheduledDate: Date
-    public let amount: Money
-
-    public init(
-        id: ScheduledChargeID,
-        subscriptionID: UUID,
-        scheduledDate: Date,
-        amount: Money
-    ) {
-        self.id = id
-        self.subscriptionID = subscriptionID
-        self.scheduledDate = scheduledDate
-        self.amount = amount
-    }
-}
-
-public struct UpcomingTimelineItem: Equatable, Identifiable, Sendable {
-    public enum Kind: Equatable, Sendable {
-        case expected
-        case confirmed
-    }
-
-    public let id: String
-    public let kind: Kind
-    public let subscriptionID: UUID
-    public let serviceName: String
-    public let date: Date
-    public let amount: Money
-
-    public init(
-        id: String,
-        kind: Kind,
-        subscriptionID: UUID,
-        serviceName: String,
-        date: Date,
-        amount: Money
-    ) {
-        self.id = id
-        self.kind = kind
-        self.subscriptionID = subscriptionID
-        self.serviceName = serviceName
-        self.date = date
-        self.amount = amount
-    }
-}
-
-public struct UpcomingCalendarDay: Equatable, Identifiable, Sendable {
-    public let date: Date
-    public let items: [UpcomingTimelineItem]
-
-    public var id: Date { date }
-
-    public init(date: Date, items: [UpcomingTimelineItem]) {
-        self.date = date
-        self.items = items
-    }
-}
-
-/// A presentation-ready month slice of an existing Upcoming timeline. This
-/// groups already-resolved charge facts; it does not query persistence or
-/// generate billing recurrences.
-public struct UpcomingCalendarProjection: Equatable, Sendable {
-    public let monthStart: Date
-    public let days: [UpcomingCalendarDay]
-
-    public init(
-        monthContaining date: Date,
-        items: [UpcomingTimelineItem],
-        calendar: Calendar
-    ) {
-        guard let monthInterval = calendar.dateInterval(of: .month, for: date)
-        else {
-            monthStart = calendar.startOfDay(for: date)
-            days = []
-            return
-        }
-
-        monthStart = monthInterval.start
-        let grouped = Dictionary(grouping: items.filter {
-            monthInterval.contains($0.date)
-        }) { item in
-            calendar.startOfDay(for: item.date)
-        }
-        days = grouped
-            .map { date, items in
-                UpcomingCalendarDay(
-                    date: date,
-                    items: items.sorted { lhs, rhs in
-                        if lhs.date != rhs.date { return lhs.date < rhs.date }
-                        return lhs.id < rhs.id
-                    }
-                )
-            }
-            .sorted { $0.date < $1.date }
-    }
-}
-
-public enum SubscriptionHistoryEntry: Equatable, Sendable {
-    case expected(ExpectedCharge)
-    case confirmed(ConfirmedCharge)
-    case priceChange(PriceChange)
-}
-
-public enum PaymentHistoryActionError: Equatable, Sendable {
-    case archivedSubscription
-    case invalidScheduledOccurrence
-    case scheduledDateInFuture
-    case chargedDateInFuture
-    case effectiveDateBeforeStart
-    case duplicatePriceChangeDay
-    case mustBePositive
-    case persistenceFailed
-}
-
-internal enum HistoryOccurrenceSearch {
-    /// Returns the newest unconfirmed past occurrence without crossing the
-    /// supplied lower bound. Occurrence dates must move earlier as indexes
-    /// decrease so the lower-bound check can terminate the search.
-    static func firstUnconfirmedPastOccurrence(
-        candidateIndex: Int,
-        lowerBoundDay: Date,
-        todayDay: Date,
-        occurrenceAt: (Int) -> Date?,
-        day: (Date) -> Date,
-        isConfirmed: (Date) -> Bool
-    ) -> Date? {
-        var nextIndex = candidateIndex == Int.max
-            ? candidateIndex
-            : candidateIndex + 1
-        while nextIndex >= 0 {
-            let occurrenceIndex = nextIndex
-            nextIndex = occurrenceIndex == 0 ? -1 : occurrenceIndex - 1
-            guard let occurrence = occurrenceAt(occurrenceIndex) else {
-                continue
-            }
-            let occurrenceDay = day(occurrence)
-            guard occurrenceDay >= lowerBoundDay else {
-                return nil
-            }
-            guard occurrenceDay <= todayDay,
-                  !isConfirmed(occurrence)
-            else {
-                continue
-            }
-            return occurrence
-        }
-        return nil
-    }
-}
-
-public struct Subscription: Codable, Equatable, Identifiable, Sendable {
-    public let id: UUID
-    public let serviceIdentity: ServiceIdentity
-    public let serviceName: String
-    public let plan: String
-    public let category: String
-    public let originalAmount: Money
-    public let billingSchedule: FixedBillingSchedule
-    public let startDate: Date
-    public let confirmedNextRenewal: Date
-    public let managementURL: URL?
-    public let notes: String
-    public let confirmedCharges: [ConfirmedCharge]
-    public let priceChanges: [PriceChange]
-    public let lifecycle: SubscriptionLifecycle
-    public let isArchived: Bool
-    public let pinnedAt: Date?
-
-    public var billingCycle: BillingInterval {
-        billingSchedule.interval
-    }
-
-    /// Returns the amount due for the billing-local calendar day containing
-    /// `date`, applying the latest applicable price change.
-    public func amount(onBillingDay date: Date) -> Money {
-        let timeZone = TimeZone(
-            identifier: billingSchedule.timeZoneIdentifier
-        ) ?? .gmt
-        let calendar = billingLocalCalendar(timeZone: timeZone)
-        let billingDay = calendar.startOfDay(for: date)
-        return priceChanges
-            .filter {
-                calendar.startOfDay(for: $0.effectiveDate) <= billingDay
-            }
-            .max { left, right in
-                let leftDay = calendar.startOfDay(for: left.effectiveDate)
-                let rightDay = calendar.startOfDay(for: right.effectiveDate)
-                if leftDay == rightDay {
-                    return left.id.uuidString < right.id.uuidString
-                }
-                return leftDay < rightDay
-            }?
-            .amount ?? originalAmount
-    }
-
-    public init(
-        id: UUID,
-        serviceIdentity: ServiceIdentity,
-        serviceName: String,
-        plan: String,
-        category: String,
-        originalAmount: Money,
-        billingSchedule: FixedBillingSchedule,
-        startDate: Date,
-        confirmedNextRenewal: Date? = nil,
-        managementURL: URL?,
-        notes: String,
-        confirmedCharges: [ConfirmedCharge] = [],
-        priceChanges: [PriceChange] = [],
-        lifecycle: SubscriptionLifecycle = .active,
-        isArchived: Bool = false,
-        pinnedAt: Date? = nil
-    ) {
-        self.id = id
-        self.serviceIdentity = serviceIdentity
-        self.serviceName = serviceName
-        self.plan = plan
-        self.category = category
-        self.originalAmount = originalAmount
-        self.billingSchedule = billingSchedule
-        self.startDate = startDate
-        self.confirmedNextRenewal =
-            confirmedNextRenewal ?? billingSchedule.renewalAnchor
-        self.managementURL = managementURL
-        self.notes = notes
-        self.confirmedCharges = confirmedCharges
-        self.priceChanges = priceChanges
-        self.lifecycle = lifecycle
-        self.isArchived = isArchived
-        self.pinnedAt = pinnedAt
-    }
-
-    public init(
-        id: UUID,
-        serviceIdentity: ServiceIdentity,
-        serviceName: String,
-        plan: String,
-        category: String,
-        originalAmount: Money,
-        billingCycle: BillingInterval,
-        startDate: Date,
-        confirmedNextRenewal: Date,
-        billingTimeZoneIdentifier: String = TimeZone.autoupdatingCurrent.identifier,
-        managementURL: URL?,
-        notes: String,
-        confirmedCharges: [ConfirmedCharge] = [],
-        priceChanges: [PriceChange] = [],
-        lifecycle: SubscriptionLifecycle = .active,
-        isArchived: Bool = false,
-        pinnedAt: Date? = nil
-    ) {
-        self.init(
-            id: id,
-            serviceIdentity: serviceIdentity,
-            serviceName: serviceName,
-            plan: plan,
-            category: category,
-            originalAmount: originalAmount,
-            billingSchedule: FixedBillingSchedule(
-                interval: billingCycle,
-                renewalAnchor: startDate,
-                timeZoneIdentifier: billingTimeZoneIdentifier
-            ),
-            startDate: startDate,
-            confirmedNextRenewal: confirmedNextRenewal,
-            managementURL: managementURL,
-            notes: notes,
-            confirmedCharges: confirmedCharges,
-            priceChanges: priceChanges,
-            lifecycle: lifecycle,
-            isArchived: isArchived,
-            pinnedAt: pinnedAt
-        )
-    }
-}
-
-public struct SubscriptionSummary: Codable, Equatable, Identifiable, Sendable {
-    private enum CodingKeys: String, CodingKey {
-        case id
-        case serviceIdentity
-        case serviceName
-        case plan
-        case category
-        case originalAmount
-        case amount
-        case billingSchedule
-        case confirmedNextRenewal
-        case status
-        case nextExpectedCharge
-        case pinnedAt
-    }
-
-    public let id: UUID
-    public let serviceIdentity: ServiceIdentity
-    public let serviceName: String
-    public let plan: String
-    public let category: String
-    public let originalAmount: Money
-    public let amount: Money
-    public let billingSchedule: FixedBillingSchedule
-    public let confirmedNextRenewal: Date
-    public let status: SubscriptionStatus
-    public let nextExpectedCharge: ExpectedCharge?
-    public let pinnedAt: Date?
-
-    public init(
-        subscription: Subscription,
-        status: SubscriptionStatus,
-        nextExpectedCharge: ExpectedCharge?
-    ) {
-        id = subscription.id
-        serviceIdentity = subscription.serviceIdentity
-        serviceName = subscription.serviceName
-        plan = subscription.plan
-        category = subscription.category
-        originalAmount = subscription.originalAmount
-        amount = nextExpectedCharge?.amount
-            ?? subscription.amount(
-                onBillingDay: subscription.confirmedNextRenewal
-            )
-        billingSchedule = subscription.billingSchedule
-        confirmedNextRenewal = subscription.confirmedNextRenewal
-        self.status = status
-        self.nextExpectedCharge = nextExpectedCharge
-        pinnedAt = subscription.pinnedAt
-    }
-
-    public init(from decoder: Decoder) throws {
-        let container = try decoder.container(keyedBy: CodingKeys.self)
-        id = try container.decode(UUID.self, forKey: .id)
-        serviceIdentity = try container.decode(
-            ServiceIdentity.self,
-            forKey: .serviceIdentity
-        )
-        serviceName = try container.decode(String.self, forKey: .serviceName)
-        plan = try container.decode(String.self, forKey: .plan)
-        category = try container.decode(String.self, forKey: .category)
-        originalAmount = try container.decode(
-            Money.self,
-            forKey: .originalAmount
-        )
-        amount = try container.decodeIfPresent(Money.self, forKey: .amount)
-            ?? originalAmount
-        billingSchedule = try container.decode(
-            FixedBillingSchedule.self,
-            forKey: .billingSchedule
-        )
-        confirmedNextRenewal = try container.decode(
-            Date.self,
-            forKey: .confirmedNextRenewal
-        )
-        status = try container.decode(
-            SubscriptionStatus.self,
-            forKey: .status
-        )
-        nextExpectedCharge = try container.decodeIfPresent(
-            ExpectedCharge.self,
-            forKey: .nextExpectedCharge
-        )
-        pinnedAt = try container.decodeIfPresent(Date.self, forKey: .pinnedAt)
-    }
-
-    public func encode(to encoder: Encoder) throws {
-        var container = encoder.container(keyedBy: CodingKeys.self)
-        try container.encode(id, forKey: .id)
-        try container.encode(serviceIdentity, forKey: .serviceIdentity)
-        try container.encode(serviceName, forKey: .serviceName)
-        try container.encode(plan, forKey: .plan)
-        try container.encode(category, forKey: .category)
-        try container.encode(originalAmount, forKey: .originalAmount)
-        try container.encode(amount, forKey: .amount)
-        try container.encode(billingSchedule, forKey: .billingSchedule)
-        try container.encode(
-            confirmedNextRenewal,
-            forKey: .confirmedNextRenewal
-        )
-        try container.encode(status, forKey: .status)
-        try container.encodeIfPresent(
-            nextExpectedCharge,
-            forKey: .nextExpectedCharge
-        )
-        try container.encodeIfPresent(pinnedAt, forKey: .pinnedAt)
-    }
-}
-
-public struct SubscriptionCreationInput: Equatable, Sendable {
-    public let serviceName: String
-    public let plan: String
-    public let category: String
-    public let originalAmount: Money?
-    public let billingInterval: BillingInterval
-    public let startDate: Date
-    public let renewalAnchor: Date
-    public let confirmedNextRenewal: Date
-    public let billingTimeZoneIdentifier: String
-    public let managementURL: URL?
-    public let notes: String
-    public let initialStatus: SubscriptionInitialStatus
-
-    public init(
-        serviceName: String,
-        plan: String,
-        category: String,
-        originalAmount: Money?,
-        billingInterval: BillingInterval = .monthly,
-        startDate: Date,
-        renewalAnchor: Date? = nil,
-        confirmedNextRenewal: Date,
-        billingTimeZoneIdentifier: String = TimeZone.autoupdatingCurrent.identifier,
-        managementURL: URL?,
-        notes: String,
-        initialStatus: SubscriptionInitialStatus = .active
-    ) {
-        self.serviceName = serviceName
-        self.plan = plan
-        self.category = category
-        self.originalAmount = originalAmount
-        self.billingInterval = billingInterval
-        self.startDate = startDate
-        self.renewalAnchor = renewalAnchor ?? startDate
-        self.confirmedNextRenewal = confirmedNextRenewal
-        self.billingTimeZoneIdentifier = billingTimeZoneIdentifier
-        self.managementURL = managementURL
-        self.notes = notes
-        self.initialStatus = initialStatus
-    }
-}
-
-public enum CatalogBillingIntervalSelection: Equatable, Sendable {
-    case official
-    case `override`(BillingInterval)
-}
-
-public struct CatalogOfferSubscriptionInput: Equatable, Sendable {
-    public let offerID: String
-    public let actualChargeOverride: Money?
-    public let billingIntervalSelection: CatalogBillingIntervalSelection
-    public let startDate: Date
-    public let renewalAnchor: Date
-    public let confirmedNextRenewal: Date
-    public let billingTimeZoneIdentifier: String
-    public let notes: String
-    public let initialStatus: SubscriptionInitialStatus
-
-    public init(
-        offerID: String,
-        actualChargeOverride: Money?,
-        billingIntervalSelection: CatalogBillingIntervalSelection = .official,
-        startDate: Date,
-        renewalAnchor: Date,
-        confirmedNextRenewal: Date,
-        billingTimeZoneIdentifier: String,
-        notes: String,
-        initialStatus: SubscriptionInitialStatus
-    ) {
-        self.offerID = offerID
-        self.actualChargeOverride = actualChargeOverride
-        self.billingIntervalSelection = billingIntervalSelection
-        self.startDate = startDate
-        self.renewalAnchor = renewalAnchor
-        self.confirmedNextRenewal = confirmedNextRenewal
-        self.billingTimeZoneIdentifier = billingTimeZoneIdentifier
-        self.notes = notes
-        self.initialStatus = initialStatus
-    }
-}
-
-public enum CatalogSubscriptionCreationCommand: Equatable, Sendable {
-    case verifiedOffer(CatalogOfferSubscriptionInput)
-    case legacy(SubscriptionCreationInput)
-}
-
-public enum CatalogSubscriptionCreationRejection: Equatable, Sendable {
-    case presetNotFound
-    case offerNotFound
-    case offerRequiresReview
-    case verifiedOfferRequired
-}
-
-public enum CatalogSubscriptionCreationResult: Equatable, Sendable {
-    case created(Subscription)
-    case rejected(CatalogSubscriptionCreationRejection)
-    case validationFailed
-    case persistenceFailed
-}
-
-@available(*, deprecated, renamed: "SubscriptionCreationInput")
-public typealias MonthlySubscriptionCreationInput = SubscriptionCreationInput
-
-public struct SubscriptionEditInput: Equatable, Sendable {
-    public let serviceName: String
-    public let plan: String
-    public let category: String
-    public let amount: Money
-    public let billingSchedule: FixedBillingSchedule
-    public let startDate: Date
-    public let confirmedNextRenewal: Date
-    public let managementURL: URL?
-    public let notes: String
-
-    public init(
-        serviceName: String,
-        plan: String,
-        category: String,
-        amount: Money,
-        billingSchedule: FixedBillingSchedule,
-        startDate: Date,
-        confirmedNextRenewal: Date? = nil,
-        managementURL: URL?,
-        notes: String
-    ) {
-        self.serviceName = serviceName
-        self.plan = plan
-        self.category = category
-        self.amount = amount
-        self.billingSchedule = billingSchedule
-        self.startDate = startDate
-        self.confirmedNextRenewal =
-            confirmedNextRenewal ?? billingSchedule.renewalAnchor
-        self.managementURL = managementURL
-        self.notes = notes
-    }
-
-    public init(
-        subscription: Subscription,
-        billingSchedule: FixedBillingSchedule
-    ) {
-        self.init(
-            serviceName: subscription.serviceName,
-            plan: subscription.plan,
-            category: subscription.category,
-            amount: subscription.amount(
-                onBillingDay: subscription.confirmedNextRenewal
-            ),
-            billingSchedule: billingSchedule,
-            startDate: subscription.startDate,
-            confirmedNextRenewal: subscription.confirmedNextRenewal,
-            managementURL: subscription.managementURL,
-            notes: subscription.notes
-        )
-    }
-}
-
-public enum SubscriptionCreationField: Hashable, Sendable {
-    case serviceName
-    case plan
-    case category
-    case originalAmount
-    case renewalAnchor
-    case confirmedNextRenewal
-    case billingSchedule
-}
-
-public enum SubscriptionCreationValidationError: Equatable, Sendable {
-    case required
-    case mustBePositive
-    case beforeStartDate
-}
-
-public enum SubscriptionCreationResult: Equatable, Sendable {
-    case created(Subscription)
-    case validationFailed
-    case persistenceFailed
-}
-
-public enum SubscriptionLibraryScope: Hashable, Sendable {
-    case current
-    case archived
-}
-
-public enum SubscriptionLibraryState: Equatable, Sendable {
-    case loading(SubscriptionLibraryScope)
-    case empty(SubscriptionLibraryScope)
-    case loaded(SubscriptionLibraryScope, [SubscriptionSummary])
-    case failed(SubscriptionLibraryScope)
-}
-
-public enum UpcomingTimelineState: Equatable, Sendable {
-    case notLoaded
-    case empty
-    case loaded([UpcomingTimelineItem])
-    case failed
-}
-
-public enum SubscriptionTableSort: String, CaseIterable, Codable, Sendable {
-    case serviceName
-    case plan
-    case category
-    case nextRenewal
-    case amount
-}
-
-public struct SubscriptionTableQuery: Equatable, Sendable {
-    public let searchText: String
-    public let sort: SubscriptionTableSort
-    public let ascending: Bool
-
-    public init(
-        searchText: String = "",
-        sort: SubscriptionTableSort = .serviceName,
-        ascending: Bool = true
-    ) {
-        self.searchText = searchText
-        self.sort = sort
-        self.ascending = ascending
-    }
-
-    public func apply(
-        to summaries: [SubscriptionSummary],
-        locale: Locale = .current
-    ) -> [SubscriptionSummary] {
-        let query = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
-        return summaries
-            .filter { summary in
-                guard !query.isEmpty else { return true }
-                return [summary.serviceName, summary.plan, summary.category]
-                    .contains {
-                        $0.range(
-                            of: query,
-                            options: [.caseInsensitive, .diacriticInsensitive],
-                            range: nil,
-                            locale: locale
-                        ) != nil
-                    }
-            }
-            .sorted { lhs, rhs in
-                switch (lhs.pinnedAt, rhs.pinnedAt) {
-                case let (left?, right?):
-                    if left != right {
-                        return left > right
-                    }
-                    return lhs.id.uuidString < rhs.id.uuidString
-                case (_?, nil):
-                    return true
-                case (nil, _?):
-                    return false
-                case (nil, nil):
-                    break
-                }
-                let order = comparison(of: lhs, and: rhs, locale: locale)
-                if order == .orderedSame {
-                    return lhs.id.uuidString < rhs.id.uuidString
-                }
-                return ascending
-                    ? order == .orderedAscending
-                    : order == .orderedDescending
-            }
-    }
-
-    private func comparison(
-        of lhs: SubscriptionSummary,
-        and rhs: SubscriptionSummary,
-        locale: Locale
-    ) -> ComparisonResult {
-        switch sort {
-        case .serviceName:
-            return lhs.serviceName.localizedCompare(rhs.serviceName)
-        case .plan:
-            return lhs.plan.localizedCompare(rhs.plan)
-        case .category:
-            return lhs.category.localizedCompare(rhs.category)
-        case .nextRenewal:
-            return lhs.confirmedNextRenewal.compare(rhs.confirmedNextRenewal)
-        case .amount:
-            let currencyOrder = lhs.amount.currency.rawValue
-                .localizedCompare(rhs.amount.currency.rawValue)
-            if currencyOrder != .orderedSame {
-                return currencyOrder
-            } else if lhs.amount.minorUnits == rhs.amount.minorUnits {
-                return .orderedSame
-            } else {
-                return lhs.amount.minorUnits < rhs.amount.minorUnits
-                    ? .orderedAscending
-                    : .orderedDescending
-            }
-        }
-    }
-}
-
-public enum SubscriptionDetailState: Equatable, Sendable {
-    case notLoaded
-    case loaded(
-        subscription: Subscription,
-        status: SubscriptionStatus,
-        nextExpectedCharge: ExpectedCharge?
-    )
-    case notFound
-    case failed
-}
-
-@MainActor
-public protocol SubscriptionRepository {
-    func createSubscription(_ subscription: Subscription) throws
-    func updateSubscription(_ subscription: Subscription) throws
-    func deleteSubscription(id: UUID) throws
-    func listSubscriptions() throws -> [Subscription]
-    func subscription(id: UUID) throws -> Subscription?
-}
-
-/// Adopted by repositories that silently drop unreadable records during
-/// loads so callers can surface how much of the library was not returned.
-@MainActor
-public protocol SkippedRecordReporting {
-    var skippedRecordCountAfterLastLoad: Int { get }
-}
-
-/// A portable backup together with a count of unreadable local records that
-/// were skipped while reading the library for that export.
-public struct PortableBackupExport: Equatable, Sendable {
-    public let backup: PortableBackup
-    public let skippedRecordCount: Int
-
-    public init(backup: PortableBackup, skippedRecordCount: Int) {
-        self.backup = backup
-        self.skippedRecordCount = skippedRecordCount
-    }
-}
-
-public enum LibrarySyncStatus: Equatable, Sendable {
-    case notLoaded
-    case localOnly
-    case synchronizing
-    case current
-    case signedOut
-    case requiresAttention
-}
-
-public protocol LibrarySyncMonitor: Sendable {
-    func refreshStatus() async -> LibrarySyncStatus
-}
-
 @MainActor
 @Observable
 public final class SubscriptionWorkspace {
-    public private(set) var libraryState: SubscriptionLibraryState =
+    public internal(set) var libraryState: SubscriptionLibraryState =
         .loading(.current)
-    public private(set) var detailState: SubscriptionDetailState = .notLoaded
-    public private(set) var creationValidationErrors:
+    public internal(set) var detailState: SubscriptionDetailState = .notLoaded
+    public internal(set) var creationValidationErrors:
         [SubscriptionCreationField: SubscriptionCreationValidationError] = [:]
-    public private(set) var editingValidationErrors:
+    public internal(set) var editingValidationErrors:
         [SubscriptionCreationField: SubscriptionCreationValidationError] = [:]
-    public private(set) var expectedCharges: [ExpectedCharge]?
-    public private(set) var upcomingTimeline: [UpcomingTimelineItem] = []
-    public private(set) var upcomingTimelineState: UpcomingTimelineState =
+    public internal(set) var expectedCharges: [ExpectedCharge]?
+    public internal(set) var upcomingTimeline: [UpcomingTimelineItem] = []
+    public internal(set) var upcomingTimelineState: UpcomingTimelineState =
         .notLoaded
-    public private(set) var calendarProjection: [CalendarProjectionEvent] = []
-    public private(set) var calendarImportState: CalendarImportState =
+    public internal(set) var calendarProjection: [CalendarProjectionEvent] = []
+    public internal(set) var calendarImportState: CalendarImportState =
         .notRequested
-    public private(set) var calendarReconciliationState:
+    public internal(set) var calendarReconciliationState:
         CalendarReconciliationState = .notConfigured
-    public private(set) var lifecycleActionError:
+    public internal(set) var lifecycleActionError:
         SubscriptionLifecycleActionError?
-    public private(set) var paymentHistoryActionError:
+    public internal(set) var paymentHistoryActionError:
         PaymentHistoryActionError?
-    public private(set) var paymentHistory: [SubscriptionHistoryEntry] = []
-    public private(set) var catalogState: CatalogState = .notLoaded
-    public private(set) var catalogDiagnostics: CatalogDiagnostics?
-    public private(set) var catalogReconciliationError:
+    public internal(set) var paymentHistory: [SubscriptionHistoryEntry] = []
+    public internal(set) var catalogState: CatalogState = .notLoaded
+    public internal(set) var catalogDiagnostics: CatalogDiagnostics?
+    public internal(set) var catalogReconciliationError:
         CatalogAssociationReconciliationError? = nil
-    public private(set) var setupState: SetupState = .notLoaded
-    public private(set) var setupRevision: UInt64 = 0
-    public private(set) var exchangeRateStatus: ExchangeRateStatus = .notLoaded
-    public private(set) var insightsState: SpendingInsightsState = .notLoaded
-    public private(set) var syncStatus: LibrarySyncStatus = .notLoaded
+    public internal(set) var setupState: SetupState = .notLoaded
+    public internal(set) var setupRevision: UInt64 = 0
+    public internal(set) var exchangeRateStatus: ExchangeRateStatus = .notLoaded
+    public internal(set) var insightsState: SpendingInsightsState = .notLoaded
+    public internal(set) var syncStatus: LibrarySyncStatus = .notLoaded
 
-    private let repository: any SubscriptionRepository
-    private let preferencesRepository: (any UserPreferencesRepository)?
-    private let portableBackupImportRepository:
+    let repository: any SubscriptionRepository
+    let preferencesRepository: (any UserPreferencesRepository)?
+    let portableBackupImportRepository:
         (any PortableBackupImportRepository)?
-    private let widgetSnapshotPublisher: (any WidgetSnapshotPublishing)?
-    private let catalogRepository: (any CatalogRepository)?
-    private let catalogUpdateSource: (any CatalogUpdateSource)?
-    private let catalogCache: (any CatalogCache)?
-    private let exchangeRateSource: (any ExchangeRateSource)?
-    private let exchangeRateCache: (any ExchangeRateCache)?
-    private let syncMonitor: (any LibrarySyncMonitor)?
-    private let calendarProjectionImporter: (any CalendarProjectionImporter)?
-    private let calendarProjectionReconciler:
+    let widgetSnapshotPublisher: (any WidgetSnapshotPublishing)?
+    let catalogRepository: (any CatalogRepository)?
+    let catalogUpdateSource: (any CatalogUpdateSource)?
+    let catalogCache: (any CatalogCache)?
+    let exchangeRateSource: (any ExchangeRateSource)?
+    let exchangeRateCache: (any ExchangeRateCache)?
+    let syncMonitor: (any LibrarySyncMonitor)?
+    let calendarProjectionImporter: (any CalendarProjectionImporter)?
+    let calendarProjectionReconciler:
         (any CalendarProjectionReconciler)?
-    private let identifierGenerator: () -> UUID
-    private let now: () -> Date
-    private let calendar: Calendar
-    private enum SetupPreferencesLoadResult {
+    let identifierGenerator: () -> UUID
+    let now: () -> Date
+    let calendar: Calendar
+    enum SetupPreferencesLoadResult {
         case unknown
         case missing
         case stored
         case failed
     }
-    private var setupPreferencesLoadResult: SetupPreferencesLoadResult =
+    var setupPreferencesLoadResult: SetupPreferencesLoadResult =
         .unknown
-    private enum CalendarReconciliationRequest {
+    enum CalendarReconciliationRequest {
         case reconcile(Locale)
         case rebuild(Locale)
         case disable
@@ -834,26 +76,26 @@ public final class SubscriptionWorkspace {
             }
         }
     }
-    private var expectedChargesRequest: ExpectedChargesRequest?
-    private var insightsRequest: InsightsRequest?
-    private var upcomingTimelineRequest: UpcomingTimelineRequest?
-    private var calendarProjectionLocale: Locale?
-    private var pendingCalendarReconciliationRequest:
+    var expectedChargesRequest: ExpectedChargesRequest?
+    var insightsRequest: InsightsRequest?
+    var upcomingTimelineRequest: UpcomingTimelineRequest?
+    var calendarProjectionLocale: Locale?
+    var pendingCalendarReconciliationRequest:
         CalendarReconciliationRequest?
-    private var catalogSnapshot: CatalogSnapshot?
-    private var catalogRefreshGeneration: UInt64 = 0
-    private var catalogLocale = Locale.current
-    private var catalogSearchQuery = ""
-    private var catalogCategoryID: String?
-    private struct ExchangeRateAttemptKey: Hashable {
+    var catalogSnapshot: CatalogSnapshot?
+    var catalogRefreshGeneration: UInt64 = 0
+    var catalogLocale = Locale.current
+    var catalogSearchQuery = ""
+    var catalogCategoryID: String?
+    struct ExchangeRateAttemptKey: Hashable {
         let day: Date
         let quotes: Set<Currency>
     }
-    private enum ExchangeRateRefreshError: Error {
+    enum ExchangeRateRefreshError: Error {
         case incompleteSnapshot
     }
-    private var exchangeRateRefreshGeneration: UInt64 = 0
-    private var exchangeRateAttempts: Set<ExchangeRateAttemptKey> = []
+    var exchangeRateRefreshGeneration: UInt64 = 0
+    var exchangeRateAttempts: Set<ExchangeRateAttemptKey> = []
 
     public init(
         repository: any SubscriptionRepository,
@@ -895,7 +137,7 @@ public final class SubscriptionWorkspace {
         syncStatus = await syncMonitor?.refreshStatus() ?? .localOnly
     }
 
-    private func markLocalChangesForSync() {
+    func markLocalChangesForSync() {
         switch syncStatus {
         case .current, .synchronizing:
             syncStatus = .synchronizing
@@ -913,7 +155,7 @@ public final class SubscriptionWorkspace {
         )
     }
 
-    private func loadSetup(
+    func loadSetup(
         libraryIsEmptyWhenPreferencesAreMissing: Bool?
     ) {
         let fallback = UserPreferences.default
@@ -1047,7 +289,7 @@ public final class SubscriptionWorkspace {
         )
     }
 
-    private var currentPreferences: UserPreferences {
+    var currentPreferences: UserPreferences {
         switch setupState {
         case .notLoaded, .loadFailed:
             .default
@@ -1060,7 +302,7 @@ public final class SubscriptionWorkspace {
         }
     }
 
-    private func persistPreferences(
+    func persistPreferences(
         _ preferences: UserPreferences,
         stateOnSuccess: ((UserPreferences) -> SetupState)? = nil,
         stateOnFailure: ((UserPreferences) -> SetupState)? = nil
@@ -1092,7 +334,7 @@ public final class SubscriptionWorkspace {
         }
     }
 
-    private func setupState(for preferences: UserPreferences) -> SetupState {
+    func setupState(for preferences: UserPreferences) -> SetupState {
         switch preferences.setupStatus {
         case .notCompleted:
             .needsSetup(preferences)
@@ -1213,7 +455,7 @@ public final class SubscriptionWorkspace {
         }
     }
 
-    private func snapshotContainsRequiredCurrencies(
+    func snapshotContainsRequiredCurrencies(
         _ snapshot: ExchangeRateSnapshot,
         requiredCurrencies: Set<Currency>
     ) -> Bool {
@@ -1278,14 +520,14 @@ public final class SubscriptionWorkspace {
         }
     }
 
-    private var currentExchangeRateSnapshot: ExchangeRateSnapshot? {
+    var currentExchangeRateSnapshot: ExchangeRateSnapshot? {
         switch exchangeRateStatus {
         case .fresh(let snapshot), .stale(let snapshot): snapshot
         case .notLoaded, .unavailable: nil
         }
     }
 
-    private func reloadInsightsIfNeeded() {
+    func reloadInsightsIfNeeded() {
         guard let insightsRequest else { return }
         loadInsights(
             mode: insightsRequest.mode,
@@ -1294,7 +536,7 @@ public final class SubscriptionWorkspace {
         )
     }
 
-    private func makeInsights(
+    func makeInsights(
         mode: SpendingReportMode,
         displayCurrency: Currency,
         from: Date,
@@ -1360,7 +602,7 @@ public final class SubscriptionWorkspace {
         )
     }
 
-    private func makeSpendingInsightItems(
+    func makeSpendingInsightItems(
         for subscription: Subscription,
         mode: SpendingReportMode,
         from: Date,
@@ -1699,7 +941,7 @@ public final class SubscriptionWorkspace {
     }
 
     @discardableResult
-    private func createSubscription(
+    func createSubscription(
         _ input: SubscriptionCreationInput,
         serviceIdentity: (UUID) -> ServiceIdentity
     ) -> SubscriptionCreationResult {
@@ -1783,526 +1025,14 @@ public final class SubscriptionWorkspace {
     }
 
     @discardableResult
-    public func editSubscription(
-        id: UUID,
-        input: SubscriptionEditInput,
-        forecastThrough: Date? = nil
-    ) -> Bool {
-        editingValidationErrors = [:]
-        let scope = carriedLibraryScope
 
-        do {
-            guard let existing = try repository.subscription(id: id) else {
-                detailState = .notFound
-                return false
-            }
-            editingValidationErrors = validate(
-                input,
-                lifecycle: existing.lifecycle
-            )
-            guard editingValidationErrors.isEmpty else {
-                return false
-            }
-            let whitespace = CharacterSet.whitespacesAndNewlines
-            guard let timeZone = TimeZone(
-                identifier: input.billingSchedule.timeZoneIdentifier
-            ),
-            let normalizedStartDate = normalizedBillingLocalNoon(
-                input.startDate,
-                timeZone: timeZone
-            ) else {
-                editingValidationErrors[.billingSchedule] = .required
-                return false
-            }
-            let localCalendar = billingLocalCalendar(timeZone: timeZone)
-            guard !existing.priceChanges.contains(where: {
-                localCalendar.startOfDay(for: $0.effectiveDate)
-                    < localCalendar.startOfDay(for: normalizedStartDate)
-            }) else {
-                editingValidationErrors[.billingSchedule] = .beforeStartDate
-                return false
-            }
-            let confirmedNextRenewal: Date
-            let renewalAnchor: Date
-            switch existing.lifecycle {
-            case .active:
-                guard let resolvedRenewal = BillingDateResolver().nextRenewal(
-                    afterStart: input.startDate,
-                    interval: input.billingSchedule.interval,
-                    asOf: now(),
-                    timeZone: timeZone
-                ),
-                localCalendar.isDate(
-                    resolvedRenewal,
-                    inSameDayAs: input.confirmedNextRenewal
-                ),
-                let normalizedRenewal = normalizedBillingLocalNoon(
-                    resolvedRenewal,
-                    timeZone: timeZone
-                ) else {
-                    editingValidationErrors[.confirmedNextRenewal] = .required
-                    return false
-                }
-                confirmedNextRenewal = normalizedRenewal
-                renewalAnchor = normalizedStartDate
-            case .trial, .cancelled:
-                guard let normalizedRenewal = normalizedBillingLocalNoon(
-                    input.confirmedNextRenewal,
-                    timeZone: timeZone
-                ) else {
-                    editingValidationErrors[.confirmedNextRenewal] = .required
-                    return false
-                }
-                confirmedNextRenewal = normalizedRenewal
-                renewalAnchor = switch existing.lifecycle {
-                case .trial:
-                    normalizedRenewal
-                case .cancelled:
-                    existing.billingSchedule.renewalAnchor
-                case .active:
-                    normalizedStartDate
-                }
-            }
-            let billingSchedule = FixedBillingSchedule(
-                interval: input.billingSchedule.interval,
-                renewalAnchor: renewalAnchor,
-                timeZoneIdentifier:
-                    input.billingSchedule.timeZoneIdentifier
-            )
-            let lifecycle = switch existing.lifecycle {
-            case .trial:
-                SubscriptionLifecycle.trial(
-                    firstPaidChargeAt: confirmedNextRenewal
-                )
-            case .active, .cancelled:
-                existing.lifecycle
-            }
-            let edited = Subscription(
-                id: existing.id,
-                serviceIdentity: existing.serviceIdentity,
-                serviceName: input.serviceName.trimmingCharacters(
-                    in: whitespace
-                ),
-                plan: input.plan.trimmingCharacters(in: whitespace),
-                category: input.category.trimmingCharacters(in: whitespace),
-                originalAmount: existing.originalAmount,
-                billingSchedule: billingSchedule,
-                startDate: normalizedStartDate,
-                confirmedNextRenewal: confirmedNextRenewal,
-                managementURL: input.managementURL,
-                notes: input.notes,
-                confirmedCharges: existing.confirmedCharges,
-                priceChanges: editedPriceChanges(
-                    for: existing,
-                    amount: input.amount,
-                    confirmedNextRenewal: confirmedNextRenewal,
-                    calendar: localCalendar
-                ),
-                lifecycle: lifecycle,
-                isArchived: existing.isArchived,
-                pinnedAt: existing.pinnedAt
-            )
-            let editedToPersist = reconciledCatalogAssociation(
-                for: edited,
-                locale: catalogLocale
-            )
-            try repository.updateSubscription(editedToPersist)
-            markLocalChangesForSync()
-            detailState = makeDetail(editedToPersist)
-            loadLibrary(scope: scope)
-            if let forecastThrough {
-                expectedChargesRequest = ExpectedChargesRequest(
-                    subscriptionID: id,
-                    horizon: forecastThrough,
-                    maximumCount: .max
-                )
-            }
-            reloadRequestedConsumers()
-            return true
-        } catch {
-            return false
-        }
-    }
 
-    public func recordCancellation(
-        id: UUID,
-        cancelledAt: Date,
-        accessUntil: Date
-    ) {
-        lifecycleActionError = nil
 
-        do {
-            guard let existing = try repository.subscription(id: id) else {
-                detailState = .notFound
-                return
-            }
-            guard !existing.isArchived else {
-                lifecycleActionError = .invalidLifecycleTransition
-                return
-            }
-            switch existing.lifecycle {
-            case .trial, .active:
-                break
-            case .cancelled:
-                lifecycleActionError = .invalidLifecycleTransition
-                return
-            }
 
-            let timeZone = billingTimeZone(for: existing)
-            let localCalendar = billingLocalCalendar(timeZone: timeZone)
-            let cancellationDay = localCalendar.startOfDay(for: cancelledAt)
-            let accessUntilDay = localCalendar.startOfDay(for: accessUntil)
-            let today = localCalendar.startOfDay(for: now())
-            guard cancellationDay <= today else {
-                lifecycleActionError = .cancellationDateInFuture
-                return
-            }
-            guard accessUntilDay >= cancellationDay else {
-                lifecycleActionError = .accessEndsBeforeCancellation
-                return
-            }
-            guard let normalizedCancellation = normalizedBillingLocalNoon(
-                cancelledAt,
-                timeZone: timeZone
-            ),
-            let normalizedAccessUntil = normalizedBillingLocalNoon(
-                accessUntil,
-                timeZone: timeZone
-            ) else {
-                lifecycleActionError = .persistenceFailed
-                return
-            }
 
-            let updated = existing.replacingLifecycleFacts(
-                lifecycle: .cancelled(
-                    cancelledAt: normalizedCancellation,
-                    accessUntil: normalizedAccessUntil
-                )
-            )
-            try repository.updateSubscription(updated)
-            finishLifecycleUpdate(updated)
-        } catch {
-            lifecycleActionError = .persistenceFailed
-        }
-    }
 
-    public func confirmCharge(
-        id: UUID,
-        scheduledDate: Date,
-        chargedDate: Date,
-        amount: Money
-    ) {
-        paymentHistoryActionError = nil
-        do {
-            guard let existing = try repository.subscription(id: id) else {
-                detailState = .notFound
-                return
-            }
-            guard !existing.isArchived else {
-                paymentHistoryActionError = .archivedSubscription
-                return
-            }
-            switch existing.lifecycle {
-            case .trial, .active:
-                break
-            case .cancelled:
-                paymentHistoryActionError = .invalidScheduledOccurrence
-                return
-            }
 
-            let timeZone = billingTimeZone(for: existing)
-            let localCalendar = billingLocalCalendar(timeZone: timeZone)
-            let today = localCalendar.startOfDay(for: now())
-            guard amount.minorUnits > 0 else {
-                paymentHistoryActionError = .mustBePositive
-                return
-            }
-            guard let normalizedScheduledDate = normalizedBillingLocalNoon(
-                      scheduledDate,
-                      timeZone: timeZone
-                  ),
-                  let normalizedChargedDate = normalizedBillingLocalNoon(
-                      chargedDate,
-                      timeZone: timeZone
-                  ),
-                  localCalendar.startOfDay(for: normalizedScheduledDate)
-                    <= today
-            else {
-                paymentHistoryActionError = .scheduledDateInFuture
-                return
-            }
-            guard localCalendar.startOfDay(for: normalizedChargedDate)
-                <= today
-            else {
-                paymentHistoryActionError = .chargedDateInFuture
-                return
-            }
-            guard isScheduledOccurrence(
-                normalizedScheduledDate,
-                for: existing,
-                calendar: localCalendar
-            ) else {
-                paymentHistoryActionError = .invalidScheduledOccurrence
-                return
-            }
 
-            let components = localCalendar.dateComponents(
-                [.year, .month, .day],
-                from: normalizedScheduledDate
-            )
-            guard let year = components.year,
-                  let month = components.month,
-                  let day = components.day
-            else {
-                return
-            }
-            let sourceScheduledChargeID = ScheduledChargeID(
-                subscriptionID: existing.id,
-                year: year,
-                month: month,
-                day: day
-            )
-            guard !existing.confirmedCharges.contains(where: {
-                $0.sourceScheduledChargeID == sourceScheduledChargeID
-            }) else {
-                detailState = makeDetail(existing)
-                reloadRequestedConsumers()
-                return
-            }
-
-            let updated = existing.replacingPaymentHistory(
-                confirmedCharges: existing.confirmedCharges + [
-                    ConfirmedCharge(
-                        id: identifierGenerator(),
-                        chargedDate: normalizedChargedDate,
-                        amount: amount,
-                        sourceScheduledChargeID: sourceScheduledChargeID
-                    )
-                ]
-            )
-            try repository.updateSubscription(updated)
-            markLocalChangesForSync()
-            detailState = makeDetail(updated)
-            loadLibrary()
-            reloadRequestedConsumers()
-        } catch {
-            paymentHistoryActionError = .persistenceFailed
-        }
-    }
-
-    public func recordPriceChange(
-        id: UUID,
-        effectiveDate: Date,
-        amount: Money
-    ) {
-        paymentHistoryActionError = nil
-        do {
-            guard let existing = try repository.subscription(id: id) else {
-                detailState = .notFound
-                return
-            }
-            guard !existing.isArchived else {
-                paymentHistoryActionError = .archivedSubscription
-                return
-            }
-            guard amount.minorUnits > 0 else {
-                paymentHistoryActionError = .mustBePositive
-                return
-            }
-            let timeZone = billingTimeZone(for: existing)
-            let localCalendar = billingLocalCalendar(timeZone: timeZone)
-            guard let normalizedEffectiveDate = normalizedBillingLocalNoon(
-                effectiveDate,
-                timeZone: timeZone
-            ) else {
-                paymentHistoryActionError = .persistenceFailed
-                return
-            }
-            guard normalizedEffectiveDate >= localCalendar.startOfDay(
-                for: existing.startDate
-            ) else {
-                paymentHistoryActionError = .effectiveDateBeforeStart
-                return
-            }
-            guard !existing.priceChanges.contains(where: {
-                localCalendar.isDate(
-                    $0.effectiveDate,
-                    inSameDayAs: normalizedEffectiveDate
-                )
-            }) else {
-                paymentHistoryActionError = .duplicatePriceChangeDay
-                return
-            }
-            let updated = existing.replacingPaymentHistory(
-                priceChanges: existing.priceChanges + [
-                    PriceChange(
-                        id: identifierGenerator(),
-                        effectiveDate: normalizedEffectiveDate,
-                        amount: amount
-                    )
-                ]
-            )
-            try repository.updateSubscription(updated)
-            markLocalChangesForSync()
-            detailState = makeDetail(updated)
-            loadLibrary()
-            reloadRequestedConsumers()
-        } catch {
-            paymentHistoryActionError = .persistenceFailed
-        }
-    }
-
-    public func reactivate(id: UUID, nextRenewal: Date) {
-        lifecycleActionError = nil
-
-        do {
-            guard let existing = try repository.subscription(id: id) else {
-                detailState = .notFound
-                return
-            }
-            guard !existing.isArchived,
-                  case .cancelled = existing.lifecycle
-            else {
-                lifecycleActionError = .invalidLifecycleTransition
-                return
-            }
-
-            let timeZone = billingTimeZone(for: existing)
-            let localCalendar = billingLocalCalendar(timeZone: timeZone)
-            let renewalDay = localCalendar.startOfDay(for: nextRenewal)
-            let today = localCalendar.startOfDay(for: now())
-            guard renewalDay > today else {
-                lifecycleActionError = .nextRenewalInPast
-                return
-            }
-            guard let normalizedRenewal = normalizedBillingLocalNoon(
-                nextRenewal,
-                timeZone: timeZone
-            ),
-            let startDate = BillingDateResolver().previousCycleStart(
-                before: normalizedRenewal,
-                interval: existing.billingSchedule.interval,
-                timeZone: timeZone
-            ) else {
-                lifecycleActionError = .persistenceFailed
-                return
-            }
-
-            let updated = existing.replacingLifecycleFacts(
-                lifecycle: .active,
-                billingSchedule: FixedBillingSchedule(
-                    interval: existing.billingSchedule.interval,
-                    renewalAnchor: startDate,
-                    timeZoneIdentifier:
-                        existing.billingSchedule.timeZoneIdentifier
-                ),
-                startDate: startDate,
-                confirmedNextRenewal: normalizedRenewal
-            )
-            try repository.updateSubscription(updated)
-            finishLifecycleUpdate(updated)
-        } catch {
-            lifecycleActionError = .persistenceFailed
-        }
-    }
-
-    public func setPinned(id: UUID, pinned: Bool) {
-        lifecycleActionError = nil
-
-        do {
-            guard let existing = try repository.subscription(id: id) else {
-                detailState = .notFound
-                return
-            }
-            guard !existing.isArchived else {
-                lifecycleActionError = .invalidLifecycleTransition
-                return
-            }
-            guard (existing.pinnedAt != nil) != pinned else {
-                return
-            }
-
-            let updated = existing.replacingPinnedAt(
-                pinned ? now() : nil
-            )
-            try repository.updateSubscription(updated)
-            finishLifecycleUpdate(updated)
-        } catch {
-            lifecycleActionError = .persistenceFailed
-        }
-    }
-
-    public func archive(id: UUID) {
-        lifecycleActionError = nil
-
-        do {
-            guard let existing = try repository.subscription(id: id) else {
-                detailState = .notFound
-                return
-            }
-            guard !existing.isArchived else {
-                lifecycleActionError = .invalidLifecycleTransition
-                return
-            }
-
-            let updated = existing.replacingLifecycleFacts(isArchived: true)
-            try repository.updateSubscription(updated)
-            finishLifecycleUpdate(updated)
-        } catch {
-            lifecycleActionError = .persistenceFailed
-        }
-    }
-
-    public func restore(id: UUID) {
-        lifecycleActionError = nil
-
-        do {
-            guard let existing = try repository.subscription(id: id) else {
-                detailState = .notFound
-                return
-            }
-            guard existing.isArchived else {
-                lifecycleActionError = .invalidLifecycleTransition
-                return
-            }
-
-            let updated = existing.replacingLifecycleFacts(isArchived: false)
-            try repository.updateSubscription(updated)
-            finishLifecycleUpdate(updated)
-        } catch {
-            lifecycleActionError = .persistenceFailed
-        }
-    }
-
-    public func deletePermanently(id: UUID) {
-        lifecycleActionError = nil
-
-        do {
-            guard try repository.subscription(id: id) != nil else {
-                detailState = .notFound
-                return
-            }
-
-            let scope = carriedLibraryScope
-            let clearsExpectedCharges =
-                expectedChargesRequest?.subscriptionID == id
-            let refreshedExpectedCharges: [ExpectedCharge]? =
-                clearsExpectedCharges ? nil : expectedCharges
-            try repository.deleteSubscription(id: id)
-            markLocalChangesForSync()
-
-            detailState = .notFound
-            paymentHistory = []
-            expectedCharges = refreshedExpectedCharges
-            if clearsExpectedCharges {
-                expectedChargesRequest = nil
-            }
-            loadLibrary(scope: scope)
-            reloadRequestedConsumers()
-        } catch {
-            lifecycleActionError = .persistenceFailed
-        }
-    }
 
     public func loadLibrary(
         scope: SubscriptionLibraryScope = .current
@@ -2330,7 +1060,7 @@ public final class SubscriptionWorkspace {
         reloadRequestedConsumers()
     }
 
-    private func reloadPreferencesAfterRemoteImport() {
+    func reloadPreferencesAfterRemoteImport() {
         guard preferencesRepository != nil else { return }
         let previousState = setupState
         loadSetup(
@@ -2342,7 +1072,7 @@ public final class SubscriptionWorkspace {
         }
     }
 
-    private var libraryIsEmptyAfterRemoteImport: Bool? {
+    var libraryIsEmptyAfterRemoteImport: Bool? {
         switch libraryState {
         case .loaded:
             false
@@ -2382,9 +1112,6 @@ public final class SubscriptionWorkspace {
         }
     }
 
-    public func clearLifecycleActionError() {
-        lifecycleActionError = nil
-    }
 
     public func beginEditing() {
         editingValidationErrors = [:]
@@ -2475,204 +1202,22 @@ public final class SubscriptionWorkspace {
     }
 
     @discardableResult
-    public func loadCalendarProjection(locale: Locale) -> Bool {
-        calendarProjectionLocale = locale
-        let horizon = calendar.date(
-            byAdding: .month,
-            value: currentPreferences.calendarProjectionHorizon.rawValue,
-            to: now()
-        ) ?? now()
-        do {
-            calendarProjection = try repository.listSubscriptions()
-                .flatMap { subscription in
-                    makeCalendarProjectionEvents(
-                        for: subscription,
-                        through: horizon,
-                        locale: locale,
-                        hidesAmounts: currentPreferences.hideAmountsInCalendar
-                    )
-                }
-                .sorted { lhs, rhs in
-                    if lhs.startDate != rhs.startDate {
-                        return lhs.startDate < rhs.startDate
-                    }
-                    return lhs.uid < rhs.uid
-                }
-            return true
-        } catch {
-            calendarProjection = []
-            return false
-        }
-    }
 
-    public func makePortableBackup() -> PortableBackup? {
-        do {
-            let subscriptions = try repository.listSubscriptions()
-            let preferences = try preferencesRepository?.loadPreferences()
-                ?? currentPreferences
-            return PortableBackup(
-                preferences: preferences,
-                subscriptions: subscriptions
-            )
-        } catch {
-            return nil
-        }
-    }
 
     /// Exports a portable backup and reports how many unreadable local
     /// records the repository skipped during that load, so callers can
     /// surface incomplete exports instead of failing silently.
-    public func makePortableBackupExport() -> PortableBackupExport? {
-        guard let backup = makePortableBackup() else { return nil }
-        return PortableBackupExport(
-            backup: backup,
-            skippedRecordCount: (repository as? SkippedRecordReporting)?
-                .skippedRecordCountAfterLastLoad ?? 0
-        )
-    }
 
-    public func preparePortableBackupImport(
-        _ data: Data
-    ) throws -> PortableBackupMergePreview {
-        let asOf = now()
-        let backup = try PortableBackupValidator().decode(
-            data,
-            asOf: asOf
-        )
-        let localSubscriptions = try repository.listSubscriptions()
-        let localPreferences = try preferencesRepository?.loadPreferences()
-            ?? currentPreferences
-        return try PortableBackupMergePlanner().makePreview(
-            backup: backup,
-            localSubscriptions: localSubscriptions,
-            localPreferences: localPreferences,
-            asOf: asOf
-        )
-    }
 
-    public func applyPortableBackupImport(
-        preview: PortableBackupMergePreview,
-        selectedAdditionIDs: Set<UUID>,
-        conflictResolutions: [UUID: PortableBackupConflictResolution],
-        preferencesResolution: PortableBackupConflictResolution?
-    ) throws {
-        guard let portableBackupImportRepository else {
-            throw PortableBackupImportError.unavailable
-        }
-        let merge = try PortableBackupMergePlanner().makeMerge(
-            preview: preview,
-            selectedAdditionIDs: selectedAdditionIDs,
-            conflictResolutions: conflictResolutions,
-            preferencesResolution: preferencesResolution
-        )
-        try portableBackupImportRepository.apply(merge)
-        markLocalChangesForSync()
-        loadLibrary()
-        loadSetup(libraryIsEmpty: false)
-        reloadRequestedConsumers()
-    }
 
-    public func importCalendarProjection(
-        _ events: [CalendarProjectionEvent]
-    ) async {
-        guard !events.isEmpty else {
-            calendarImportState = .imported(
-                CalendarProjectionImportSummary(
-                    createdCount: 0,
-                    updatedCount: 0
-                )
-            )
-            return
-        }
-        guard let calendarProjectionImporter else {
-            calendarImportState = .unavailable
-            return
-        }
-        calendarImportState = .importing
-        let result = await calendarProjectionImporter.importProjection(
-            events: events
-        )
-        calendarImportState = CalendarImportState(result: result)
-    }
 
-    public func reconcileCalendarProjection(locale: Locale) async {
-        await enqueueCalendarReconciliation(.reconcile(locale))
-    }
 
-    public func rebuildCalendarProjection(locale: Locale) async {
-        await enqueueCalendarReconciliation(.rebuild(locale))
-    }
 
-    public func disableCalendarReconciliation() async {
-        await enqueueCalendarReconciliation(.disable)
-    }
 
-    private func enqueueCalendarReconciliation(
-        _ request: CalendarReconciliationRequest
-    ) async {
-        guard calendarProjectionReconciler != nil else {
-            calendarReconciliationState = .notConfigured
-            return
-        }
-        guard calendarReconciliationState != .reconciling else {
-            pendingCalendarReconciliationRequest =
-                coalescedCalendarReconciliationRequest(
-                    pending: pendingCalendarReconciliationRequest,
-                    incoming: request
-                )
-            return
-        }
-        calendarReconciliationState = .reconciling
 
-        var request = request
-        while true {
-            let result = await performCalendarReconciliation(request)
-            guard let pending = pendingCalendarReconciliationRequest else {
-                calendarReconciliationState = CalendarReconciliationState(
-                    result: result
-                )
-                return
-            }
-            pendingCalendarReconciliationRequest = nil
-            request = pending
-        }
-    }
 
-    private func coalescedCalendarReconciliationRequest(
-        pending: CalendarReconciliationRequest?,
-        incoming: CalendarReconciliationRequest
-    ) -> CalendarReconciliationRequest {
-        guard let pending else { return incoming }
-        return incoming.priority >= pending.priority ? incoming : pending
-    }
 
-    private func performCalendarReconciliation(
-        _ request: CalendarReconciliationRequest
-    ) async -> CalendarReconciliationResult {
-        guard let calendarProjectionReconciler else {
-            return .notConfigured
-        }
-        switch request {
-        case .reconcile(let locale):
-            guard loadCalendarProjection(locale: locale) else {
-                return .unavailable
-            }
-            return await calendarProjectionReconciler.perform(
-                .reconcile(calendarProjection)
-            )
-        case .rebuild(let locale):
-            guard loadCalendarProjection(locale: locale) else {
-                return .unavailable
-            }
-            return await calendarProjectionReconciler.perform(
-                .rebuild(calendarProjection)
-            )
-        case .disable:
-            return await calendarProjectionReconciler.perform(.disable)
-        }
-    }
-
-    private func validate(
+    func validate(
         _ input: SubscriptionCreationInput
     ) -> [SubscriptionCreationField: SubscriptionCreationValidationError] {
         var errors:
@@ -2713,7 +1258,7 @@ public final class SubscriptionWorkspace {
         return errors
     }
 
-    private func validate(
+    func validate(
         _ input: SubscriptionEditInput,
         lifecycle: SubscriptionLifecycle
     ) -> [SubscriptionCreationField: SubscriptionCreationValidationError] {
@@ -2777,7 +1322,7 @@ public final class SubscriptionWorkspace {
         return errors
     }
 
-    private func editedPriceChanges(
+    func editedPriceChanges(
         for existing: Subscription,
         amount: Money,
         confirmedNextRenewal: Date,
@@ -2822,7 +1367,7 @@ public final class SubscriptionWorkspace {
         ]
     }
 
-    private func billingTimeZone(
+    func billingTimeZone(
         for subscription: Subscription
     ) -> TimeZone {
         TimeZone(
@@ -2830,18 +1375,18 @@ public final class SubscriptionWorkspace {
         ) ?? calendar.timeZone
     }
 
-    private func publishWidgetSnapshot() {
+    func publishWidgetSnapshot() {
         guard let snapshot = makeWidgetSnapshot() else { return }
         widgetSnapshotPublisher?.publish(snapshot)
     }
 
-    private func formattedWidgetAmount(_ money: Money) -> String {
+    func formattedWidgetAmount(_ money: Money) -> String {
         (Decimal(money.minorUnits) / 100).formatted(
             .currency(code: money.currency.rawValue).locale(.current)
         )
     }
 
-    private func finishLifecycleUpdate(
+    func finishLifecycleUpdate(
         _ subscription: Subscription
     ) {
         markLocalChangesForSync()
@@ -2853,7 +1398,7 @@ public final class SubscriptionWorkspace {
         reloadRequestedConsumers()
     }
 
-    private func reloadRequestedConsumers() {
+    func reloadRequestedConsumers() {
         if case .loaded(let subscription, _, _) = detailState {
             loadSubscription(id: subscription.id)
         }
@@ -2876,7 +1421,7 @@ public final class SubscriptionWorkspace {
         reloadInsightsIfNeeded()
     }
 
-    private func makeLibraryState(
+    func makeLibraryState(
         scope: SubscriptionLibraryScope
     ) throws -> SubscriptionLibraryState {
         let subscriptions = try repository.listSubscriptions()
@@ -2890,7 +1435,7 @@ public final class SubscriptionWorkspace {
             : .loaded(scope, orderedSummaries)
     }
 
-    private var carriedLibraryScope: SubscriptionLibraryScope {
+    var carriedLibraryScope: SubscriptionLibraryScope {
         switch libraryState {
         case .loading(let scope),
              .empty(let scope),
@@ -2900,14 +1445,14 @@ public final class SubscriptionWorkspace {
         }
     }
 
-    private func matchingCatalogSnapshot() -> CatalogSnapshot? {
+    func matchingCatalogSnapshot() -> CatalogSnapshot? {
         if let catalogSnapshot {
             return catalogSnapshot
         }
         return try? catalogRepository?.loadSnapshot()
     }
 
-    private func reconciledCatalogAssociation(
+    func reconciledCatalogAssociation(
         for subscription: Subscription,
         locale: Locale,
         snapshot providedSnapshot: CatalogSnapshot? = nil
@@ -2958,7 +1503,7 @@ public final class SubscriptionWorkspace {
         }
     }
 
-    private func normalizedCatalogAssociation(
+    func normalizedCatalogAssociation(
         for subscription: Subscription,
         candidate: CatalogOfferMatchCandidate,
         locale: Locale
@@ -2974,7 +1519,7 @@ public final class SubscriptionWorkspace {
         )
     }
 
-    private func refreshCatalogState() {
+    func refreshCatalogState() {
         guard let catalogSnapshot else {
             return
         }
@@ -2995,7 +1540,7 @@ public final class SubscriptionWorkspace {
         )
     }
 
-    private func makeExpectedCharges(
+    func makeExpectedCharges(
         for subscription: Subscription,
         through horizon: Date,
         maximumCount: Int
@@ -3053,7 +1598,7 @@ public final class SubscriptionWorkspace {
         return charges
     }
 
-    private func makeUpcomingTimelineItems(
+    func makeUpcomingTimelineItems(
         for subscription: Subscription,
         from: Date,
         through: Date
@@ -3096,7 +1641,7 @@ public final class SubscriptionWorkspace {
         return expectedItems + confirmedItems
     }
 
-    private func makeExpectedCharges(
+    func makeExpectedCharges(
         for subscription: Subscription,
         from: Date,
         through: Date,
@@ -3164,7 +1709,7 @@ public final class SubscriptionWorkspace {
         return charges
     }
 
-    private func makeCalendarProjectionEvents(
+    func makeCalendarProjectionEvents(
         for subscription: Subscription,
         through horizon: Date,
         locale: Locale,
@@ -3236,7 +1781,7 @@ public final class SubscriptionWorkspace {
         }
     }
 
-    private func formattedCalendarAmount(
+    func formattedCalendarAmount(
         _ money: Money,
         locale: Locale
     ) -> String {
@@ -3245,7 +1790,7 @@ public final class SubscriptionWorkspace {
         )
     }
 
-    private func expectedCharge(
+    func expectedCharge(
         for subscription: Subscription,
         scheduledDate: Date,
         calendar: Calendar
@@ -3269,7 +1814,7 @@ public final class SubscriptionWorkspace {
         )
     }
 
-    private func isScheduledOccurrence(
+    func isScheduledOccurrence(
         _ date: Date,
         for subscription: Subscription,
         calendar: Calendar
@@ -3301,7 +1846,7 @@ public final class SubscriptionWorkspace {
         return false
     }
 
-    private func makeSummary(
+    func makeSummary(
         _ subscription: Subscription
     ) -> SubscriptionSummary {
         let presentation = makePresentation(for: subscription)
@@ -3312,7 +1857,7 @@ public final class SubscriptionWorkspace {
         )
     }
 
-    private func makeDetail(
+    func makeDetail(
         _ subscription: Subscription
     ) -> SubscriptionDetailState {
         let presentation = makePresentation(for: subscription)
@@ -3324,7 +1869,7 @@ public final class SubscriptionWorkspace {
         )
     }
 
-    private func makeHistory(
+    func makeHistory(
         for subscription: Subscription
     ) -> [SubscriptionHistoryEntry] {
         let timeZone = billingTimeZone(for: subscription)
@@ -3430,7 +1975,7 @@ public final class SubscriptionWorkspace {
         }
     }
 
-    private func historySortKey(
+    func historySortKey(
         _ entry: SubscriptionHistoryEntry
     ) -> (date: Date, kindOrder: Int) {
         switch entry {
@@ -3443,7 +1988,7 @@ public final class SubscriptionWorkspace {
         }
     }
 
-    private func makePresentation(
+    func makePresentation(
         for subscription: Subscription
     ) -> (
         subscription: Subscription,
@@ -3478,7 +2023,7 @@ public final class SubscriptionWorkspace {
         )
     }
 
-    private func makePresentationNextExpectedCharge(
+    func makePresentationNextExpectedCharge(
         for subscription: Subscription
     ) -> ExpectedCharge? {
         guard isEligibleForExpectedCharges(subscription),
@@ -3528,7 +2073,7 @@ public final class SubscriptionWorkspace {
         return nil
     }
 
-    private func isEligibleForExpectedCharges(
+    func isEligibleForExpectedCharges(
         _ subscription: Subscription
     ) -> Bool {
         guard !subscription.isArchived else {
@@ -3540,7 +2085,7 @@ public final class SubscriptionWorkspace {
         return true
     }
 
-    private func estimatedOccurrenceIndex(
+    func estimatedOccurrenceIndex(
         for schedule: FixedBillingSchedule,
         onOrAfter targetDate: Date,
         calendar: Calendar
@@ -3634,7 +2179,7 @@ public final class SubscriptionWorkspace {
         return max(0, estimate - 1)
     }
 
-    private func estimatedDayOccurrenceIndex(
+    func estimatedDayOccurrenceIndex(
         anchor: Date,
         targetDate: Date,
         intervalDays: Int,
@@ -3651,7 +2196,7 @@ public final class SubscriptionWorkspace {
         return max(0, dayDistance / intervalDays)
     }
 
-    private func estimatedMonthOccurrenceIndex(
+    func estimatedMonthOccurrenceIndex(
         anchor: Date,
         targetDate: Date,
         intervalMonths: Int,
@@ -3680,7 +2225,7 @@ public final class SubscriptionWorkspace {
         return max(0, monthDistance / intervalMonths)
     }
 
-    private func scheduledDate(
+    func scheduledDate(
         for schedule: FixedBillingSchedule,
         occurrenceIndex: Int,
         calendar: Calendar
@@ -3772,7 +2317,7 @@ public final class SubscriptionWorkspace {
         }
     }
 
-    private func dayBasedDate(
+    func dayBasedDate(
         anchor: Date,
         intervalDays: Int,
         occurrenceIndex: Int,
@@ -3787,7 +2332,7 @@ public final class SubscriptionWorkspace {
         return calendar.date(byAdding: .day, value: days, to: anchor)
     }
 
-    private func monthBasedDate(
+    func monthBasedDate(
         anchor: Date,
         intervalMonths: Int,
         occurrenceIndex: Int,
@@ -3846,7 +2391,7 @@ public final class SubscriptionWorkspace {
         return calendar.date(from: anchorComponents)
     }
 
-    private struct RawSpendingInsightItem {
+    struct RawSpendingInsightItem {
         let id: String
         let subscriptionID: UUID
         let serviceName: String
@@ -3855,19 +2400,19 @@ public final class SubscriptionWorkspace {
         let amount: Money
     }
 
-    private struct InsightsRequest {
+    struct InsightsRequest {
         let mode: SpendingReportMode
         let from: Date
         let through: Date
     }
 
-    private struct ExpectedChargesRequest {
+    struct ExpectedChargesRequest {
         let subscriptionID: UUID
         let horizon: Date
         let maximumCount: Int
     }
 
-    private struct UpcomingTimelineRequest {
+    struct UpcomingTimelineRequest {
         let from: Date
         let through: Date
     }
