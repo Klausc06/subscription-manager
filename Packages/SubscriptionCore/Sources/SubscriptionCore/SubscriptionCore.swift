@@ -1470,7 +1470,26 @@ public final class SubscriptionWorkspace {
                 onBillingDay: subscription.confirmedNextRenewal
             ) {
             case .none:
-                unchangedIDs.append(subscription.id)
+                // Reuse the per-subscription reconcile contract so a stale
+                // `catalog:` identity demotes to `manual:<uuid>` exactly as
+                // the create and edit paths do.
+                let reconciled = reconciledCatalogAssociation(
+                    for: subscription,
+                    locale: locale,
+                    snapshot: snapshot
+                )
+                guard reconciled != subscription else {
+                    unchangedIDs.append(subscription.id)
+                    continue
+                }
+                do {
+                    try repository.updateSubscription(reconciled)
+                    normalizedIDs.append(subscription.id)
+                    normalizedByID[subscription.id] = reconciled
+                } catch {
+                    failedIDs.append(subscription.id)
+                    catalogReconciliationError = .persistenceFailed
+                }
             case .ambiguous:
                 ambiguousIDs.append(subscription.id)
             case .unique(let candidate):
@@ -2859,9 +2878,11 @@ public final class SubscriptionWorkspace {
 
     private func reconciledCatalogAssociation(
         for subscription: Subscription,
-        locale: Locale
+        locale: Locale,
+        snapshot providedSnapshot: CatalogSnapshot? = nil
     ) -> Subscription {
-        guard let snapshot = matchingCatalogSnapshot() else {
+        guard let snapshot = providedSnapshot ?? matchingCatalogSnapshot()
+        else {
             return subscription
         }
         let matcher = CatalogOfferMatcher()

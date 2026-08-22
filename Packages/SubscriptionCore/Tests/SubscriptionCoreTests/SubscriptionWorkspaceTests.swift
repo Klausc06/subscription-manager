@@ -6679,6 +6679,83 @@ struct SubscriptionWorkspaceTests {
         #expect(repository.updateAttemptCount == 1)
     }
 
+    @Test(
+        "Bulk reconciliation demotes stale catalog identities like an edit"
+    )
+    @MainActor
+    func bulkReconciliationDemotesStaleCatalogIdentities() throws {
+        let staleID = UUID(
+            uuidString: "A2000000-0000-0000-0000-000000000047"
+        )!
+        let matchingID = UUID(
+            uuidString: "A3000000-0000-0000-0000-000000000047"
+        )!
+        let now = Date(timeIntervalSince1970: 1_769_731_200)
+        let staleSubscription = makeSubscription(
+            id: staleID,
+            serviceIdentity: ServiceIdentity(rawValue: "catalog:chatgpt"),
+            originalAmount: Money(minorUnits: 2_000, currency: .usd),
+            category: "Other",
+            serviceName: "Renamed Service",
+            plan: "Plus",
+            notes: "User notes"
+        )
+        let stillMatching = makeSubscription(
+            id: matchingID,
+            serviceIdentity: ServiceIdentity(rawValue: "catalog:chatgpt"),
+            originalAmount: Money(minorUnits: 3_000, currency: .usd),
+            serviceName: "ChatGPT",
+            plan: "Plus"
+        )
+        let repository = InMemorySubscriptionRepository(
+            subscriptions: [staleSubscription, stillMatching]
+        )
+        let preset = catalogPresetFixture(
+            offers: [catalogOfferFixture(id: "plus", status: .verified)],
+            id: "chatgpt",
+            serviceName: CatalogLocalizedText(
+                en: "ChatGPT",
+                zhHans: "ChatGPT"
+            ),
+            matchAliases: ["ChatGPT Plus"]
+        )
+        let workspace = SubscriptionWorkspace(
+            repository: repository,
+            catalogRepository: StaticCatalogRepository(presets: [preset]),
+            now: { now }
+        )
+        workspace.loadCatalog(locale: Locale(identifier: "en"))
+
+        let summary = workspace.reconcileCatalogAssociations(
+            locale: Locale(identifier: "en")
+        )
+
+        let demoted = try #require(repository.storedSubscription(id: staleID))
+        #expect(
+            demoted.serviceIdentity
+                == ServiceIdentity(rawValue: "manual:\(staleID.uuidString)")
+        )
+        #expect(demoted.serviceName == "Renamed Service")
+        #expect(demoted.plan == "Plus")
+        #expect(demoted.category == "Other")
+        #expect(demoted.notes == "User notes")
+        #expect(demoted.originalAmount == staleSubscription.originalAmount)
+        #expect(demoted.billingSchedule == staleSubscription.billingSchedule)
+
+        let retained = try #require(
+            repository.storedSubscription(id: matchingID)
+        )
+        #expect(retained == stillMatching)
+        #expect(retained.serviceIdentity.rawValue == "catalog:chatgpt")
+
+        #expect(summary.normalizedIDs == [staleID])
+        #expect(summary.unchangedIDs == [matchingID])
+        #expect(summary.ambiguousIDs.isEmpty)
+        #expect(summary.failedIDs.isEmpty)
+        #expect(summary.commandError == nil)
+        #expect(repository.updateAttemptCount == 1)
+    }
+
     @Test("Reconciliation refreshes loaded consumers from persisted truth")
     @MainActor
     func reconciliationRefreshesLoadedConsumers() throws {
