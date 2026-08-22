@@ -265,6 +265,7 @@ struct LibraryView: View {
 private struct InsightsView: View {
     let workspace: SubscriptionWorkspace
     @State private var mode: SpendingReportMode = .expected
+    @State private var isRefreshingRates = false
 
     var body: some View {
         NavigationStack {
@@ -280,6 +281,20 @@ private struct InsightsView: View {
                 )
                 .listRowBackground(Color.clear)
                 .listRowSeparator(.hidden)
+
+                if isRefreshingRates, !isInsightsLoading {
+                    Section {
+                        HStack(spacing: 10) {
+                            ProgressView()
+                            Text("Updating exchange rates…")
+                                .foregroundStyle(.secondary)
+                        }
+                        .accessibilityElement(children: .combine)
+                        .accessibilityIdentifier("insights.rates-refreshing")
+                    }
+                    .listRowBackground(Color.clear)
+                    .listRowSeparator(.hidden)
+                }
 
                 switch workspace.insightsState {
                 case .notLoaded:
@@ -334,36 +349,55 @@ private struct InsightsView: View {
             .navigationTitle("Insights")
         }
         .task(id: mode) {
-            await workspace.refreshExchangeRates()
-            let calendar = Calendar.current
-            let today = calendar.startOfDay(for: Date())
-            let rangeStart = mode == .expected
-                ? today
-                : calendar.date(
-                    byAdding: .day,
-                    value: -29,
-                    to: today
-                ) ?? today
-            let finalDay = mode == .expected
-                ? calendar.date(
-                    byAdding: .day,
-                    value: 29,
-                    to: today
-                ) ?? today
-                : today
-            let rangeEnd = calendar.dateInterval(of: .day, for: finalDay).flatMap {
-                calendar.date(
-                    byAdding: .nanosecond,
-                    value: -1,
-                    to: $0.end
-                )
-            } ?? finalDay
-            workspace.loadInsights(
-                mode: mode,
-                from: rangeStart,
-                through: rangeEnd
-            )
+            await reloadInsights(for: mode)
         }
+    }
+
+    private var isInsightsLoading: Bool {
+        if case .notLoaded = workspace.insightsState { return true }
+        return false
+    }
+
+    /// Renders the mode's totals from whatever snapshot is already available
+    /// before awaiting the network, so switching Expected/Confirmed never
+    /// blanks out or freezes on stale figures.
+    private func reloadInsights(for selectedMode: SpendingReportMode) async {
+        loadInsights(for: selectedMode)
+        isRefreshingRates = true
+        await workspace.refreshExchangeRates()
+        isRefreshingRates = false
+        loadInsights(for: selectedMode)
+    }
+
+    private func loadInsights(for selectedMode: SpendingReportMode) {
+        let calendar = Calendar.current
+        let today = calendar.startOfDay(for: Date())
+        let rangeStart = selectedMode == .expected
+            ? today
+            : calendar.date(
+                byAdding: .day,
+                value: -29,
+                to: today
+            ) ?? today
+        let finalDay = selectedMode == .expected
+            ? calendar.date(
+                byAdding: .day,
+                value: 29,
+                to: today
+            ) ?? today
+            : today
+        let rangeEnd = calendar.dateInterval(of: .day, for: finalDay).flatMap {
+            calendar.date(
+                byAdding: .nanosecond,
+                value: -1,
+                to: $0.end
+            )
+        } ?? finalDay
+        workspace.loadInsights(
+            mode: selectedMode,
+            from: rangeStart,
+            through: rangeEnd
+        )
     }
 
     @ViewBuilder
@@ -407,11 +441,14 @@ private struct UpcomingView: View {
     @State private var selectsFirstChargeAfterMonthChange = false
     @State private var confirmationPresentation:
         UpcomingConfirmationPresentation?
+    @State private var subscriptionsByID: [UUID: Subscription] = [:]
+    @State private var confirmedSourceChargeIDsBySubscription:
+        [UUID: Set<ScheduledChargeID>] = [:]
+    @State private var cachedProjection: UpcomingCalendarProjection?
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     var body: some View {
-        let subscriptionsByID = self.subscriptionsByID()
-        let projection = makeProjection(subscriptionsByID: subscriptionsByID)
+        let projection = calendarProjection
         let selectedDayItems = selectedDayItems(in: projection)
         NavigationStack {
             GeometryReader { geometry in
@@ -480,8 +517,7 @@ private struct UpcomingView: View {
                         } else {
                             ForEach(selectedDayItems) { item in
                                 let confirmation = confirmationContext(
-                                    for: item,
-                                    subscriptionsByID: subscriptionsByID
+                                    for: item
                                 )
                                 HStack(alignment: .firstTextBaseline, spacing: 12) {
                                     NavigationLink(value: item.subscriptionID) {
@@ -555,10 +591,17 @@ private struct UpcomingView: View {
             .presentationCornerRadius(28)
         }
         .onAppear {
+            refreshSubscriptionCaches()
             loadTimeline()
         }
         .task(id: displayedMonth) {
             loadTimeline()
+        }
+        .onChange(of: workspace.upcomingTimeline) { _, _ in
+            rebuildProjection()
+        }
+        .onChange(of: workspace.libraryState) { _, _ in
+            refreshSubscriptionCaches()
         }
     }
 
@@ -678,10 +721,19 @@ private struct UpcomingView: View {
         calendar.dateInterval(of: .month, for: displayedMonth)
     }
 
-    private func makeProjection(
-        subscriptionsByID: [UUID: Subscription]
-    ) -> UpcomingCalendarProjection {
-        UpcomingCalendarProjection(
+    private var calendarProjection: UpcomingCalendarProjection {
+        cachedProjection ?? UpcomingCalendarProjection(
+            monthContaining: displayedMonth,
+            items: [],
+            calendar: calendar
+        )
+    }
+
+    /// Rebuilds the month projection from the already-loaded timeline and
+    /// subscription cache. This never touches persistence, so it is safe to
+    /// run on every timeline change without re-fetching the library.
+    private func rebuildProjection() {
+        cachedProjection = UpcomingCalendarProjection(
             monthContaining: displayedMonth,
             items: workspace.upcomingTimeline.map { item in
                 UpcomingTimelineItem(
@@ -704,6 +756,27 @@ private struct UpcomingView: View {
         )
     }
 
+    /// Fetches the subscriptions once and derives every per-row lookup the
+    /// agenda needs, including confirmed-charge ID sets that used to be
+    /// rebuilt inside each ForEach row.
+    private func refreshSubscriptionCaches() {
+        guard let subscriptions = try? workspace.subscriptions() else { return }
+        var subscriptionsByID: [UUID: Subscription] = [:]
+        var confirmedIDsBySubscription:
+            [UUID: Set<ScheduledChargeID>] = [:]
+        for subscription in subscriptions {
+            subscriptionsByID[subscription.id] = subscription
+            confirmedIDsBySubscription[subscription.id] = Set(
+                subscription.confirmedCharges.compactMap(
+                    \.sourceScheduledChargeID
+                )
+            )
+        }
+        self.subscriptionsByID = subscriptionsByID
+        confirmedSourceChargeIDsBySubscription = confirmedIDsBySubscription
+        rebuildProjection()
+    }
+
     private func selectedDayItems(
         in projection: UpcomingCalendarProjection
     ) -> [UpcomingTimelineItem] {
@@ -717,14 +790,6 @@ private struct UpcomingView: View {
                 if lhs.date != rhs.date { return lhs.date < rhs.date }
                 return lhs.id < rhs.id
             }
-    }
-
-    private func subscriptionsByID() -> [UUID: Subscription] {
-        Dictionary(
-            uniqueKeysWithValues: ((try? workspace.subscriptions()) ?? []).map {
-                ($0.id, $0)
-            }
-        )
     }
 
     private var hasUpcomingFailure: Bool {
@@ -755,12 +820,11 @@ private struct UpcomingView: View {
             from: queryStart,
             through: queryEnd
         )
+        rebuildProjection()
 
         if selectsFirstChargeAfterMonthChange {
-            let projection = makeProjection(
-                subscriptionsByID: subscriptionsByID()
-            )
-            selectedDay = projection.days.first?.date ?? monthInterval.start
+            selectedDay = calendarProjection.days.first?.date
+                ?? monthInterval.start
             selectsFirstChargeAfterMonthChange = false
         }
     }
@@ -798,8 +862,7 @@ private struct UpcomingView: View {
     }
 
     private func confirmationContext(
-        for item: UpcomingTimelineItem,
-        subscriptionsByID: [UUID: Subscription]
+        for item: UpcomingTimelineItem
     ) -> UpcomingConfirmationPresentation? {
         guard item.kind == .expected,
               let subscription = subscriptionsByID[item.subscriptionID]
@@ -832,11 +895,9 @@ private struct UpcomingView: View {
             scheduledDate: item.date,
             amount: item.amount
         )
-        let confirmedIDs = Set(
-            subscription.confirmedCharges.compactMap(
-                \.sourceScheduledChargeID
-            )
-        )
+        let confirmedIDs = confirmedSourceChargeIDsBySubscription[
+            subscription.id
+        ] ?? []
         guard ConfirmChargeEligibility.isEligible(
             expectedOccurrence: expectedOccurrence,
             confirmedIDs: confirmedIDs,
@@ -891,7 +952,11 @@ private struct UpcomingMonthCalendar: UIViewRepresentable {
         let monthComponents = monthComponents(for: displayedMonth)
         if calendarView.visibleDateComponents.year != monthComponents.year
             || calendarView.visibleDateComponents.month != monthComponents.month {
-            calendarView.setVisibleDateComponents(monthComponents, animated: true)
+            // Respect Reduce Motion: jump straight to the paged month.
+            calendarView.setVisibleDateComponents(
+                monthComponents,
+                animated: !UIAccessibility.isReduceMotionEnabled
+            )
         }
 
         if let selection = calendarView.selectionBehavior
