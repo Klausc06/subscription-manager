@@ -627,12 +627,16 @@ struct SwiftDataSubscriptionRepositoryTests {
         try SwiftDataSubscriptionRepository(modelContainer: container)
             .createSubscription(original)
 
+        let historyRecordStore = PostSaveFailingSubscriptionHistoryRecordStore(
+            wrapping: SwiftDataSubscriptionHistoryRecordStore()
+        )
         let repository = SwiftDataSubscriptionRepository(
             modelContainer: container,
-            save: { try $0.save() },
-            priceChangeSnapshotLoader: { _ in
-                throw PriceChangeSnapshotFailure.unavailable
-            }
+            save: { context in
+                try context.save()
+                historyRecordStore.markSaved()
+            },
+            historyRecordStore: historyRecordStore
         )
         try repository.updateSubscription(
             replacingPaymentHistory(
@@ -1353,12 +1357,21 @@ struct SwiftDataSubscriptionRepositoryTests {
         )
         try SwiftDataSubscriptionRepository(modelContainer: container)
             .createSubscription(original)
+        let conflictContext = ModelContext(container)
+        conflictContext.insert(
+            PriceChangeRecord(
+                id: priceChangeID,
+                sequence: 1,
+                appendOrderDate: Date(timeIntervalSince1970: 1_700_086_400),
+                effectiveDate: currentChange.effectiveDate,
+                amountMinorUnits: currentChange.amount.minorUnits,
+                currencyRawValue: "USD",
+                subscriptionID: subscriptionID
+            )
+        )
+        try conflictContext.save()
         let staleRepository = SwiftDataSubscriptionRepository(
-            modelContainer: container,
-            save: { try $0.save() },
-            priceChangeSnapshotLoader: { _ in
-                [originalChange, currentChange]
-            }
+            modelContainer: container
         )
         let staleSnapshot = try #require(
             try staleRepository.subscription(id: subscriptionID)
@@ -2515,6 +2528,46 @@ private final class RecordingSubscriptionHistoryRecordStore:
         in context: ModelContext
     ) throws -> [PriceChangeRecord] {
         priceChangeScopes.append(scope)
+        return try wrapped.priceChangeRecords(for: scope, in: context)
+    }
+}
+
+/// Protocol-level test seam: serves real data until `markSaved()` flips the
+/// flag, after which any price-change fetch fails. Lets tests prove a durable
+/// update never queries price changes once the save has committed.
+private enum PostSavePriceChangeFetchFailure: Error {
+    case unavailable
+}
+
+@MainActor
+private final class PostSaveFailingSubscriptionHistoryRecordStore:
+    SubscriptionHistoryRecordStore
+{
+    private let wrapped: any SubscriptionHistoryRecordStore
+    private var saved = false
+
+    init(wrapping wrapped: any SubscriptionHistoryRecordStore) {
+        self.wrapped = wrapped
+    }
+
+    func markSaved() {
+        saved = true
+    }
+
+    func confirmedChargeRecords(
+        for scope: SubscriptionHistoryRecordScope,
+        in context: ModelContext
+    ) throws -> [ConfirmedChargeRecord] {
+        try wrapped.confirmedChargeRecords(for: scope, in: context)
+    }
+
+    func priceChangeRecords(
+        for scope: SubscriptionHistoryRecordScope,
+        in context: ModelContext
+    ) throws -> [PriceChangeRecord] {
+        if saved {
+            throw PostSavePriceChangeFetchFailure.unavailable
+        }
         return try wrapped.priceChangeRecords(for: scope, in: context)
     }
 }

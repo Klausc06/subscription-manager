@@ -102,9 +102,6 @@ public enum CatalogSubscriptionCreationResult: Equatable, Sendable {
     case persistenceFailed
 }
 
-@available(*, deprecated, renamed: "SubscriptionCreationInput")
-public typealias MonthlySubscriptionCreationInput = SubscriptionCreationInput
-
 public struct SubscriptionEditInput: Equatable, Sendable {
     public let serviceName: String
     public let plan: String

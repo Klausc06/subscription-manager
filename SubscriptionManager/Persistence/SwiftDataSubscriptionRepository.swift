@@ -92,7 +92,6 @@ final class SwiftDataSubscriptionRepository:
     private let save: (ModelContext) throws -> Void
     private let defaultBillingTimeZone: () -> TimeZone
     private let appendOrderDate: () -> Date
-    private let priceChangeSnapshotLoader: ((UUID) throws -> [PriceChange])?
     private let historyRecordStore: any SubscriptionHistoryRecordStore
     private let decoder = JSONDecoder()
     private var priceChangeSnapshots: [UUID: [UUID: PriceChange]] = [:]
@@ -124,7 +123,6 @@ final class SwiftDataSubscriptionRepository:
             .autoupdatingCurrent
         },
         appendOrderDate: @escaping () -> Date = Date.init,
-        priceChangeSnapshotLoader: ((UUID) throws -> [PriceChange])? = nil,
         historyRecordStore: any SubscriptionHistoryRecordStore =
             SwiftDataSubscriptionHistoryRecordStore()
     ) {
@@ -133,7 +131,6 @@ final class SwiftDataSubscriptionRepository:
         self.save = save
         self.defaultBillingTimeZone = defaultBillingTimeZone
         self.appendOrderDate = appendOrderDate
-        self.priceChangeSnapshotLoader = priceChangeSnapshotLoader
         self.historyRecordStore = historyRecordStore
     }
 
@@ -843,9 +840,6 @@ final class SwiftDataSubscriptionRepository:
     private func currentPriceChanges(
         for subscriptionID: UUID
     ) throws -> [PriceChange] {
-        if let priceChangeSnapshotLoader {
-            return try priceChangeSnapshotLoader(subscriptionID)
-        }
         let context = ModelContext(modelContainer)
         let records = try priceChangeRecords(
             for: subscriptionID,
