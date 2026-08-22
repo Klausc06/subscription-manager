@@ -255,6 +255,13 @@ struct EditSubscriptionView: View {
         // delegates money parsing, URL handling, date normalization, and the
         // lifecycle-aware schedule construction to the shared draft.
         guard let input = draft.makeEditInput(locale: locale) else {
+            postAccessibilityAnnouncement(
+                String(
+                    localized: String.LocalizationValue(
+                        "Fix the highlighted fields before saving."
+                    )
+                )
+            )
             // The shared sections now reveal draft validation only after this
             // attempt. Leaving the draft untouched keeps every invalid value
             // visible for repair without presenting a persistence failure.
@@ -277,6 +284,12 @@ struct EditSubscriptionView: View {
             // draft) on screen. A successful command publishes the loaded
             // aggregate only after repository update has completed.
             saveFailed = true
+            postAccessibilityAnnouncement(
+                validationFailureAnnouncement(
+                    workspace.editingValidationErrors,
+                    fallbackKey: "Couldn’t save this subscription. Try again."
+                )
+            )
             return
         }
 
