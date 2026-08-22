@@ -265,6 +265,7 @@ struct LibraryView: View {
 private struct InsightsView: View {
     let workspace: SubscriptionWorkspace
     @State private var mode: SpendingReportMode = .expected
+    @State private var isRefreshingRates = false
 
     var body: some View {
         NavigationStack {
@@ -280,6 +281,20 @@ private struct InsightsView: View {
                 )
                 .listRowBackground(Color.clear)
                 .listRowSeparator(.hidden)
+
+                if isRefreshingRates, !isInsightsLoading {
+                    Section {
+                        HStack(spacing: 10) {
+                            ProgressView()
+                            Text("Updating exchange rates…")
+                                .foregroundStyle(.secondary)
+                        }
+                        .accessibilityElement(children: .combine)
+                        .accessibilityIdentifier("insights.rates-refreshing")
+                    }
+                    .listRowBackground(Color.clear)
+                    .listRowSeparator(.hidden)
+                }
 
                 switch workspace.insightsState {
                 case .notLoaded:
@@ -334,36 +349,55 @@ private struct InsightsView: View {
             .navigationTitle("Insights")
         }
         .task(id: mode) {
-            await workspace.refreshExchangeRates()
-            let calendar = Calendar.current
-            let today = calendar.startOfDay(for: Date())
-            let rangeStart = mode == .expected
-                ? today
-                : calendar.date(
-                    byAdding: .day,
-                    value: -29,
-                    to: today
-                ) ?? today
-            let finalDay = mode == .expected
-                ? calendar.date(
-                    byAdding: .day,
-                    value: 29,
-                    to: today
-                ) ?? today
-                : today
-            let rangeEnd = calendar.dateInterval(of: .day, for: finalDay).flatMap {
-                calendar.date(
-                    byAdding: .nanosecond,
-                    value: -1,
-                    to: $0.end
-                )
-            } ?? finalDay
-            workspace.loadInsights(
-                mode: mode,
-                from: rangeStart,
-                through: rangeEnd
-            )
+            await reloadInsights(for: mode)
         }
+    }
+
+    private var isInsightsLoading: Bool {
+        if case .notLoaded = workspace.insightsState { return true }
+        return false
+    }
+
+    /// Renders the mode's totals from whatever snapshot is already available
+    /// before awaiting the network, so switching Expected/Confirmed never
+    /// blanks out or freezes on stale figures.
+    private func reloadInsights(for selectedMode: SpendingReportMode) async {
+        loadInsights(for: selectedMode)
+        isRefreshingRates = true
+        await workspace.refreshExchangeRates()
+        isRefreshingRates = false
+        loadInsights(for: selectedMode)
+    }
+
+    private func loadInsights(for selectedMode: SpendingReportMode) {
+        let calendar = Calendar.current
+        let today = calendar.startOfDay(for: Date())
+        let rangeStart = selectedMode == .expected
+            ? today
+            : calendar.date(
+                byAdding: .day,
+                value: -29,
+                to: today
+            ) ?? today
+        let finalDay = selectedMode == .expected
+            ? calendar.date(
+                byAdding: .day,
+                value: 29,
+                to: today
+            ) ?? today
+            : today
+        let rangeEnd = calendar.dateInterval(of: .day, for: finalDay).flatMap {
+            calendar.date(
+                byAdding: .nanosecond,
+                value: -1,
+                to: $0.end
+            )
+        } ?? finalDay
+        workspace.loadInsights(
+            mode: selectedMode,
+            from: rangeStart,
+            through: rangeEnd
+        )
     }
 
     @ViewBuilder

@@ -1589,6 +1589,75 @@ struct SubscriptionWorkspaceTests {
         #expect(cache.state?.lastAttemptAt == now)
     }
 
+    @Test("Insights load from the cached snapshot while a refresh is suspended")
+    @MainActor
+    func insightsLoadFromCachedSnapshotWhileRefreshIsSuspended() async throws {
+        let now = Date(timeIntervalSince1970: 1_769_356_800)
+        let renewal = now.addingTimeInterval(86_400)
+        let cachedSnapshot = ExchangeRateSnapshot(
+            base: .eur,
+            providerDate: now,
+            fetchedAt: now.addingTimeInterval(-172_800),
+            source: "fixture",
+            rates: [.eur: 1, .usd: 1.2, .cny: 8.4]
+        )
+        let refreshedSnapshot = ExchangeRateSnapshot(
+            base: .eur,
+            providerDate: now,
+            fetchedAt: now,
+            source: "fixture",
+            rates: [.eur: 1, .usd: 1.2, .cny: 8.4]
+        )
+        let source = SuspendedExchangeRateSource(responses: [
+            [.cny, .usd]: refreshedSnapshot,
+        ])
+        let cache = InMemoryExchangeRateCache(
+            state: ExchangeRateCacheState(
+                snapshot: cachedSnapshot,
+                lastAttemptAt: now.addingTimeInterval(-172_800)
+            )
+        )
+        let workspace = SubscriptionWorkspace(
+            repository: InMemorySubscriptionRepository(subscriptions: [
+                makeSubscription(
+                    id: UUID(uuidString: "11111111-2222-3333-4444-555555555555")!,
+                    billingSchedule: FixedBillingSchedule(
+                        interval: .monthly,
+                        renewalAnchor: renewal,
+                        timeZoneIdentifier: "UTC"
+                    ),
+                    confirmedNextRenewal: renewal,
+                    originalAmount: Money(minorUnits: 120, currency: .usd),
+                    category: "Video"
+                ),
+            ]),
+            exchangeRateSource: source,
+            exchangeRateCache: cache,
+            now: { now }
+        )
+
+        // The view's cached-first sequencing: totals render from the cached
+        // snapshot without awaiting the in-flight network refresh.
+        let refreshTask = Task { @MainActor in
+            await workspace.refreshExchangeRates()
+        }
+        await source.waitForSuspendedFetches(count: 1)
+
+        workspace.loadInsights(
+            mode: .expected,
+            from: now,
+            through: now.addingTimeInterval(172_800)
+        )
+        let staleInsights = try #require(workspace.insightsState.availableValue)
+        #expect(staleInsights.selectedRangeTotal == Money(minorUnits: 840, currency: .cny))
+
+        // Once the refresh completes, the same reload surfaces fresh totals.
+        source.release(quotes: [.cny, .usd])
+        await refreshTask.value
+
+        #expect(workspace.exchangeRateStatus == .fresh(refreshedSnapshot))
+    }
+
     @Test("An incomplete same-day rate cache requests its missing currency")
     @MainActor
     func incompleteSameDayRateCacheRequestsMissingCurrency() async {

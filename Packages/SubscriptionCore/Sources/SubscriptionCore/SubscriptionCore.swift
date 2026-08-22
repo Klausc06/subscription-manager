@@ -157,7 +157,12 @@ public final class SubscriptionWorkspace {
     var currentExchangeRateSnapshot: ExchangeRateSnapshot? {
         switch exchangeRateStatus {
         case .fresh(let snapshot), .stale(let snapshot): snapshot
-        case .notLoaded, .unavailable: nil
+        case .notLoaded, .unavailable:
+            // Insights render from the persisted cache before the first
+            // refresh of the session completes; conversion re-validates
+            // every required currency, so an incomplete cache still ends
+            // up unavailable.
+            try? exchangeRateCache?.loadState()?.snapshot
         }
     }
 
