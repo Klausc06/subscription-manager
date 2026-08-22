@@ -637,6 +637,12 @@
         "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "记录取消" } }
       }
     },
+    "Record This Cancellation?" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Record This Cancellation?" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "记录此次取消？" } }
+      }
+    },
     "Restore" : {
       "localizations" : {
         "en" : { "stringUnit" : { "state" : "translated", "value" : "Restore" } },
@@ -653,6 +659,12 @@
       "localizations" : {
         "en" : { "stringUnit" : { "state" : "translated", "value" : "The cancellation date cannot be in the future." } },
         "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "取消日期不能晚于今天。" } }
+      }
+    },
+    "This marks “%@” as cancelled and ends access on the selected date." : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "This marks “%@” as cancelled and ends access on the selected date." } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "这会将“%@”标记为已取消，并在所选日期结束访问。" } }
       }
     },
     "The next renewal must be after today." : {

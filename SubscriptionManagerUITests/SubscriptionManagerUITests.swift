@@ -2842,6 +2842,12 @@ final class SubscriptionManagerUITests: XCTestCase {
         )
         app.buttons["subscription.cancellation.save"].tap()
 
+        let confirmCancellation = app.buttons[
+            "subscription.cancellation.confirm"
+        ]
+        XCTAssertTrue(confirmCancellation.waitForExistence(timeout: 5))
+        confirmCancellation.tap()
+
         XCTAssertFalse(
             app.descendants(matching: .any)["subscription.editor.status"].exists
         )
@@ -2880,6 +2886,12 @@ final class SubscriptionManagerUITests: XCTestCase {
                 .waitForExistence(timeout: 5)
         )
         app.buttons["subscription.cancellation.save"].tap()
+
+        let confirmCancellation = app.buttons[
+            "subscription.cancellation.confirm"
+        ]
+        XCTAssertTrue(confirmCancellation.waitForExistence(timeout: 5))
+        confirmCancellation.tap()
 
         let reactivate = app.descendants(matching: .any)[
             "subscription.lifecycle.reactivate"
