@@ -11,6 +11,7 @@ struct PortableExportView: View {
     @State private var isExportingJSON = false
     @State private var isExportingCSV = false
     @State private var exportFailed = false
+    @State private var skippedRecordCount = 0
 
     var body: some View {
         List {
@@ -39,6 +40,20 @@ struct PortableExportView: View {
                         .foregroundStyle(.red)
                 }
             }
+
+            if skippedRecordCount > 0 {
+                Section {
+                    Label(
+                        "Skipped Records",
+                        systemImage: "exclamationmark.triangle"
+                    )
+                    .foregroundStyle(.orange)
+                    Text(
+                        "\(skippedRecordCount) unreadable subscription records were skipped during the export. The backup may be incomplete."
+                    )
+                    .foregroundStyle(.secondary)
+                }
+            }
         }
         .navigationTitle("Export Data")
         .fileExporter(
@@ -56,25 +71,28 @@ struct PortableExportView: View {
     }
 
     private func exportJSON() {
-        guard let backup = workspace.makePortableBackup(),
-              let data = try? PortableBackupEncoder().encode(backup) else {
+        guard let export = workspace.makePortableBackupExport(),
+              let data = try? PortableBackupEncoder().encode(export.backup)
+        else {
             exportFailed = true
             return
         }
         jsonDocument = PortableExportDocument(data: data)
         exportFailed = false
+        skippedRecordCount = export.skippedRecordCount
         isExportingJSON = true
     }
 
     private func exportCSV() {
-        guard let backup = workspace.makePortableBackup() else {
+        guard let export = workspace.makePortableBackupExport() else {
             exportFailed = true
             return
         }
+        skippedRecordCount = export.skippedRecordCount
         csvDocument = PortableExportDocument(
             data: PortableCSVEncoder().encode(
-                preferences: backup.preferences,
-                subscriptions: backup.subscriptions
+                preferences: export.backup.preferences,
+                subscriptions: export.backup.subscriptions
             )
         )
         exportFailed = false

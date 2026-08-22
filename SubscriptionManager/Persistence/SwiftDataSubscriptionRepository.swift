@@ -79,7 +79,10 @@ struct SwiftDataSubscriptionHistoryRecordStore:
 }
 
 @MainActor
-final class SwiftDataSubscriptionRepository: SubscriptionRepository {
+final class SwiftDataSubscriptionRepository:
+    SubscriptionRepository,
+    SkippedRecordReporting
+{
     private static let logger = Logger(
         subsystem: "com.klausc06.SubscriptionManager",
         category: "persistence"
@@ -93,6 +96,7 @@ final class SwiftDataSubscriptionRepository: SubscriptionRepository {
     private let historyRecordStore: any SubscriptionHistoryRecordStore
     private let decoder = JSONDecoder()
     private var priceChangeSnapshots: [UUID: [UUID: PriceChange]] = [:]
+    private(set) var skippedRecordCountAfterLastLoad = 0
 
     convenience init(modelContainer: ModelContainer) {
         self.init(
@@ -223,6 +227,7 @@ final class SwiftDataSubscriptionRepository: SubscriptionRepository {
             )
             var subscriptions: [Subscription] = []
             var needsSave = false
+            skippedRecordCountAfterLastLoad = 0
             var migrationReadyRecords: [SubscriptionRecord] = []
             var confirmedChargeRecordsBySubscriptionID =
                 groupConfirmedChargeRecordsBySubscriptionID(
@@ -260,6 +265,7 @@ final class SwiftDataSubscriptionRepository: SubscriptionRepository {
                     switch error {
                     case is DecodingError,
                          RepositoryError.invalidLifecycleStorage:
+                        skippedRecordCountAfterLastLoad += 1
                         Self.logger.error(
                             "Skipping unreadable subscription record \(record.id.uuidString, privacy: .public): \(String(describing: error), privacy: .public)"
                         )
@@ -292,6 +298,7 @@ final class SwiftDataSubscriptionRepository: SubscriptionRepository {
                     switch error {
                     case is DecodingError,
                          RepositoryError.invalidLifecycleStorage:
+                        skippedRecordCountAfterLastLoad += 1
                         Self.logger.error(
                             "Skipping unreadable subscription record \(record.id.uuidString, privacy: .public): \(String(describing: error), privacy: .public)"
                         )

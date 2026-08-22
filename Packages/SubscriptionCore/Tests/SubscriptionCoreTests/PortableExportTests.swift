@@ -288,6 +288,68 @@ struct PortableExportTests {
         #expect(try repository.listSubscriptions() == [archived])
     }
 
+    @Test(
+        "Export reports skipped unreadable records without including them"
+    )
+    @MainActor
+    func exportReportsSkippedUnreadableRecords() throws {
+        let firstGood = portableSubscription(
+            id: UUID(uuidString: "12111111-2222-3333-4444-555555555555")!,
+            name: "Good one"
+        )
+        let secondGood = portableSubscription(
+            id: UUID(uuidString: "12222222-2222-3333-4444-555555555555")!,
+            name: "Good two"
+        )
+        let repository = SkippedRecordRepositoryFixture(
+            readableSubscriptions: [firstGood, secondGood],
+            skippedRecordCount: 1
+        )
+        let workspace = SubscriptionWorkspace(repository: repository)
+
+        let export = try #require(workspace.makePortableBackupExport())
+
+        #expect(export.backup.subscriptions == [firstGood, secondGood])
+        #expect(export.skippedRecordCount == 1)
+    }
+
+    @Test("A clean library export reports no skipped records")
+    @MainActor
+    func cleanLibraryExportReportsNoSkippedRecords() throws {
+        let subscription = portableSubscription(
+            id: UUID(uuidString: "12333333-2222-3333-4444-555555555555")!,
+            name: "Only good"
+        )
+        let repository = SkippedRecordRepositoryFixture(
+            readableSubscriptions: [subscription],
+            skippedRecordCount: 0
+        )
+        let workspace = SubscriptionWorkspace(repository: repository)
+
+        let export = try #require(workspace.makePortableBackupExport())
+
+        #expect(export.backup.subscriptions == [subscription])
+        #expect(export.skippedRecordCount == 0)
+    }
+
+    @Test(
+        "Repositories without skip reporting export zero skipped records"
+    )
+    @MainActor
+    func repositoriesWithoutSkipReportingDefaultToZeroSkipped() throws {
+        let subscription = portableSubscription(
+            id: UUID(uuidString: "12444444-2222-3333-4444-555555555555")!,
+            name: "Reported"
+        )
+        let repository = ExportRepositoryFixture(subscriptions: [subscription])
+        let workspace = SubscriptionWorkspace(repository: repository)
+
+        let export = try #require(workspace.makePortableBackupExport())
+
+        #expect(export.backup.subscriptions == [subscription])
+        #expect(export.skippedRecordCount == 0)
+    }
+
     @Test("Backup validation rejects unsupported schemas and previews stable merge buckets")
     func validatorAndMergePlannerRejectAndClassify() throws {
         let unchanged = portableSubscription(
@@ -718,6 +780,49 @@ private final class ExportRepositoryFixture: SubscriptionRepository {
     }
 
     func subscription(id: UUID) throws -> Subscription? { subscriptions[id] }
+}
+
+@MainActor
+private final class SkippedRecordRepositoryFixture:
+    SubscriptionRepository,
+    SkippedRecordReporting
+{
+    private let readableSubscriptions: [Subscription]
+    private let skippedRecordCount: Int
+    private(set) var skippedRecordCountAfterLastLoad = 0
+
+    init(
+        readableSubscriptions: [Subscription],
+        skippedRecordCount: Int
+    ) {
+        self.readableSubscriptions = readableSubscriptions
+        self.skippedRecordCount = skippedRecordCount
+    }
+
+    func createSubscription(_ subscription: Subscription) throws {
+        fatalError("Unused by export tests")
+    }
+
+    func updateSubscription(_ subscription: Subscription) throws {
+        fatalError("Unused by export tests")
+    }
+
+    func deleteSubscription(id: UUID) throws {
+        fatalError("Unused by export tests")
+    }
+
+    func listSubscriptions() throws -> [Subscription] {
+        // Simulates the real repository's behavior: unreadable records are
+        // dropped from the result and counted for reporting.
+        skippedRecordCountAfterLastLoad = self.skippedRecordCount
+        return readableSubscriptions.sorted {
+            $0.id.uuidString < $1.id.uuidString
+        }
+    }
+
+    func subscription(id: UUID) throws -> Subscription? {
+        readableSubscriptions.first { $0.id == id }
+    }
 }
 
 @MainActor
