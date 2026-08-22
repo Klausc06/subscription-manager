@@ -288,11 +288,6 @@ extension SubscriptionWorkspace {
             return .persistenceFailed
         }
     }
-    public func createMonthlySubscription(
-        _ input: SubscriptionCreationInput
-    ) {
-        createSubscription(input)
-    }
     func matchingCatalogSnapshot() -> CatalogSnapshot? {
         if let catalogSnapshot {
             return catalogSnapshot
