@@ -55,7 +55,7 @@ Run application tests from Xcode, or use:
 xcodebuild \
   -project SubscriptionManager.xcodeproj \
   -scheme SubscriptionManager \
-  -destination 'platform=iOS Simulator,name=iPhone 17 Pro,OS=latest' \
+  -destination 'platform=iOS Simulator,name=iPhone 17 Pro Max,OS=latest' \
   test
 ```
 

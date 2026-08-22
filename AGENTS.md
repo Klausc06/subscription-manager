@@ -18,7 +18,7 @@ Tracks personal subscriptions. The subscription library is authoritative; Calend
   xcodebuild \
     -project SubscriptionManager.xcodeproj \
     -scheme SubscriptionManager \
-    -destination 'platform=iOS Simulator,name=iPhone 17 Pro,OS=latest' \
+    -destination 'platform=iOS Simulator,name=iPhone 17 Pro Max,OS=latest' \
     test
   ```
 
