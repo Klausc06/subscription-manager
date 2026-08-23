@@ -37,14 +37,16 @@ func billingNextDateLabelKey(isTrial: Bool) -> String {
 }
 
 /// Posts an announcement for assistive tech when a visible inline message
-/// alone would go unheard (for example a failed form save).
+/// alone would go unheard (for example a failed form save). Skips silently
+/// when no main window exists to carry it.
+@MainActor
 func postAccessibilityAnnouncement(_ message: String) {
     #if canImport(UIKit)
     UIAccessibility.post(notification: .announcement, argument: message)
     #else
-    guard let app = NSApp else { return }
+    guard let window = NSApp?.mainWindow else { return }
     NSAccessibility.post(
-        element: app.mainWindow ?? app as NSAccessibilityElement,
+        element: window,
         notification: .announcementRequested,
         userInfo: [
             NSAccessibility.NotificationUserInfoKey.announcement: message
