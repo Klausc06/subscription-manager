@@ -14,7 +14,7 @@ struct MacMenuBarScene: Scene {
             systemImage: "creditcard",
             isInserted: Binding(
                 get: { menuBarModeEnabled },
-                set: { _ in }
+                set: { workspace?.setMenuBarModeEnabled($0) }
             )
         ) {
             if let workspace {

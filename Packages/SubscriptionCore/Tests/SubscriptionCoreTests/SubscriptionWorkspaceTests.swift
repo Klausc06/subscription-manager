@@ -9304,6 +9304,121 @@ private struct FailingSubscriptionRepository: SubscriptionRepository {
             try #require(stored.priceChanges.first)
         )))
     }
+
+    @Test("Menu bar mode command persists through workspace")
+    @MainActor
+    func menuBarModeCommandPersistsThroughWorkspace() throws {
+        let preferences = CalendarPreferencesFixture(preferences: .default)
+        let workspace = SubscriptionWorkspace(
+            repository: EmptySubscriptionRepository(),
+            preferencesRepository: preferences
+        )
+
+        workspace.loadSetup(libraryIsEmpty: false)
+        workspace.setMenuBarModeEnabled(true)
+
+        #expect(try preferences.loadPreferences()?.menuBarModeEnabled == true)
+        #expect(workspace.currentPreferences.menuBarModeEnabled == true)
+
+        workspace.setMenuBarModeEnabled(false)
+
+        #expect(try preferences.loadPreferences()?.menuBarModeEnabled == false)
+        #expect(workspace.currentPreferences.menuBarModeEnabled == false)
+    }
+
+    @Test("Amount hiding redacts widget snapshot amounts at rest")
+    @MainActor
+    func amountHidingRedactsWidgetSnapshotAtRest() throws {
+        let calendar = actionCalendar()
+        let now = try actionDate(
+            year: 2026, month: 7, day: 29, hour: 12, calendar: calendar
+        )
+        let subscription = try makeActionSubscription(
+            fixture: .active, calendar: calendar
+        )
+        let workspace = SubscriptionWorkspace(
+            repository: InMemorySubscriptionRepository(
+                subscriptions: [subscription]
+            ),
+            preferencesRepository: CalendarPreferencesFixture(
+                preferences: .default
+            ),
+            now: { now },
+            calendar: calendar
+        )
+
+        workspace.loadSetup(libraryIsEmpty: false)
+        workspace.updatePreferences(
+            primaryCurrency: .usd,
+            calendarProjectionHorizon: .twelveMonths,
+            hideAmountsInCalendar: true
+        )
+        workspace.loadLibrary()
+
+        #expect(
+            workspace.makeWidgetSnapshot()?.nextRenewal?.serviceName
+                == subscription.serviceName
+        )
+        #expect(
+            workspace.makeWidgetSnapshot()?.nextRenewal?.amountDescription
+                == nil
+        )
+    }
+
+    @Test("Toggling amount hiding republishes the widget snapshot")
+    @MainActor
+    func togglingAmountHidingRepublishesWidgetSnapshot() throws {
+        let calendar = actionCalendar()
+        let now = try actionDate(
+            year: 2026, month: 7, day: 29, hour: 12, calendar: calendar
+        )
+        let subscription = try makeActionSubscription(
+            fixture: .active, calendar: calendar
+        )
+        let publisher = WidgetSnapshotSpy()
+        let workspace = SubscriptionWorkspace(
+            repository: InMemorySubscriptionRepository(
+                subscriptions: [subscription]
+            ),
+            preferencesRepository: CalendarPreferencesFixture(
+                preferences: .default
+            ),
+            widgetSnapshotPublisher: publisher,
+            now: { now },
+            calendar: calendar
+        )
+
+        workspace.loadSetup(libraryIsEmpty: false)
+        workspace.loadLibrary()
+
+        #expect(publisher.published.count == 1)
+        #expect(publisher.published.last?.nextRenewal?.amountDescription != nil)
+
+        workspace.updatePreferences(
+            primaryCurrency: .usd,
+            calendarProjectionHorizon: .twelveMonths,
+            hideAmountsInCalendar: true
+        )
+        #expect(publisher.published.count == 2)
+        #expect(publisher.published.last?.nextRenewal?.amountDescription == nil)
+
+        workspace.updatePreferences(
+            primaryCurrency: .usd,
+            calendarProjectionHorizon: .twelveMonths,
+            hideAmountsInCalendar: false
+        )
+        #expect(publisher.published.count == 3)
+        #expect(publisher.published.last?.nextRenewal?.amountDescription != nil)
+    }
+}
+
+@MainActor
+private final class WidgetSnapshotSpy: WidgetSnapshotPublishing {
+    private(set) var published: [WidgetSnapshot] = []
+
+    func publish(_ snapshot: WidgetSnapshot) {
+        published.append(snapshot)
+    }
 }
 
 @MainActor

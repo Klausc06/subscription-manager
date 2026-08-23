@@ -1,0 +1,19 @@
+only_rules:
+  - closing_brace
+  - colon
+  - comma
+  - control_statement
+  - duplicate_imports
+  - force_cast
+  - force_try
+  - legacy_constructor
+  - redundant_string_enum_value
+  - trailing_newline
+  - trailing_semicolon
+  - trailing_whitespace
+  - unused_closure_parameter
+  - vertical_whitespace
+
+excluded:
+  - .build
+  - DerivedData

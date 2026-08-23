@@ -79,6 +79,18 @@ extension SubscriptionWorkspace {
             }
         )
         reloadInsightsIfNeeded()
+        if let hideAmountsInCalendar,
+           currentPreferences.hideAmountsInCalendar == hideAmountsInCalendar {
+            publishWidgetSnapshot()
+        }
+    }
+    public func setMenuBarModeEnabled(_ enabled: Bool) {
+        updatePreferences(
+            primaryCurrency: currentPreferences.primaryCurrency,
+            calendarProjectionHorizon:
+                currentPreferences.calendarProjectionHorizon,
+            menuBarModeEnabled: enabled
+        )
     }
     public func completeSetup() {
         persistPreferences(

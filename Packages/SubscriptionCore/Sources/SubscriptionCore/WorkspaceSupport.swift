@@ -3,6 +3,7 @@ import Observation
 
 extension SubscriptionWorkspace {
     public func makeWidgetSnapshot() -> WidgetSnapshot? {
+        let hidesAmounts = currentPreferences.hideAmountsInCalendar
         do {
             let nextRenewal = try repository.listSubscriptions()
                 .compactMap { subscription -> WidgetRenewalSnapshot? in
@@ -15,7 +16,8 @@ extension SubscriptionWorkspace {
                         subscriptionID: subscription.id,
                         serviceName: subscription.serviceName,
                         renewalDate: charge.scheduledDate,
-                        amountDescription: formattedWidgetAmount(charge.amount),
+                        amountDescription: hidesAmounts
+                            ? nil : formattedWidgetAmount(charge.amount),
                         isRateStale: false
                     )
                 }
