@@ -2,6 +2,7 @@ import Foundation
 import Observation
 
 extension SubscriptionWorkspace {
+    @discardableResult
     public func createSubscription(
         _ input: SubscriptionCreationInput
     ) -> SubscriptionCreationResult {
@@ -47,6 +48,7 @@ extension SubscriptionWorkspace {
             onBillingDay: subscription.confirmedNextRenewal
         )
     }
+    @discardableResult
     public func reconcileCatalogAssociations(
         locale: Locale
     ) -> CatalogAssociationReconciliationSummary {

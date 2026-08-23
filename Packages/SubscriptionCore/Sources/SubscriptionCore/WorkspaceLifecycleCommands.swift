@@ -2,6 +2,7 @@ import Foundation
 import Observation
 
 extension SubscriptionWorkspace {
+    @discardableResult
     public func editSubscription(
         id: UUID,
         input: SubscriptionEditInput,

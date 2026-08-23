@@ -249,7 +249,6 @@ public final class SubscriptionWorkspace {
         }
     }
 
-    @discardableResult
     /// Exports a portable backup and reports how many unreadable local
     /// records the repository skipped during that load, so callers can
     /// surface incomplete exports instead of failing silently.

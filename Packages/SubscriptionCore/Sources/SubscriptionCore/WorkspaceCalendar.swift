@@ -2,6 +2,7 @@ import Foundation
 import Observation
 
 extension SubscriptionWorkspace {
+    @discardableResult
     public func loadCalendarProjection(locale: Locale) -> Bool {
         calendarProjectionLocale = locale
         let horizon = calendar.date(
