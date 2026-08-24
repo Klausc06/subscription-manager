@@ -40,9 +40,11 @@
 		626F0533A4DF2230483BA384 /* CatalogAlphabetIndexTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 05BBB5AC4394BF7E865300C5 /* CatalogAlphabetIndexTests.swift */; };
 		665528E003EC11A9189C1B7D /* InfoPlist.xcstrings in Resources */ = {isa = PBXBuildFile; fileRef = 4D90D49FB3AEDF62EFA48202 /* InfoPlist.xcstrings */; };
 		6660C4236F0802CD6EA713D1 /* MoneyFormatting.swift in Sources */ = {isa = PBXBuildFile; fileRef = C3C019FF49A9B77C9987C82B /* MoneyFormatting.swift */; };
+		703F82B287B557E5B8BB69D0 /* SwiftDataCanonicalization.swift in Sources */ = {isa = PBXBuildFile; fileRef = 092E23F8DDC72B13CCD859E7 /* SwiftDataCanonicalization.swift */; };
 		71D3C438264BA1B8C68FE357 /* SubscriptionFormSupport.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2CAE4BF38A7217C53E4C047F /* SubscriptionFormSupport.swift */; };
 		73E4D9C5EAE129D2A72C26FC /* FileCatalogCache.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5B719388CA82311FED0FEB46 /* FileCatalogCache.swift */; };
 		7713C3F7DDE3D64560EAB84F /* FirstRunSetupView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 841FEEE72D5C89D215DFAC4F /* FirstRunSetupView.swift */; };
+		79FCEE45EC0325F4E139A776 /* SwiftDataPortableBackupImportRepository.swift in Sources */ = {isa = PBXBuildFile; fileRef = F5D08A9A901659C5BEFF8208 /* SwiftDataPortableBackupImportRepository.swift */; };
 		7C34EDA2D016C0D45A4E6D05 /* SubscriptionAppEntity.swift in Sources */ = {isa = PBXBuildFile; fileRef = 828D5E066B7CE82218F88BFF /* SubscriptionAppEntity.swift */; };
 		82667428542FCEE4B628F595 /* CatalogOfferSelection.swift in Sources */ = {isa = PBXBuildFile; fileRef = FC8A2E38EC05A9DE6A60E28B /* CatalogOfferSelection.swift */; };
 		842D256F471F88B7082CF25B /* WidgetSnapshotPublisher.swift in Sources */ = {isa = PBXBuildFile; fileRef = BF78C8D1470F9E0A4F09112F /* WidgetSnapshotPublisher.swift */; };
@@ -70,6 +72,7 @@
 		DEC01EB4E532BAC0F3359C00 /* PortableRestoreView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3D462734DE864FE8B34F0EFE /* PortableRestoreView.swift */; };
 		E1796CF7DD72261483D257B8 /* SubscriptionEditorSections.swift in Sources */ = {isa = PBXBuildFile; fileRef = 716C3B7A12BEED2F9CBF22B0 /* SubscriptionEditorSections.swift */; };
 		E3EC37D5EF593651F866C788 /* SubscriptionRow.swift in Sources */ = {isa = PBXBuildFile; fileRef = F24364E7E6897202F27AAE1B /* SubscriptionRow.swift */; };
+		E4CA27BC93205D252BC84E26 /* SwiftDataUserPreferencesRepository.swift in Sources */ = {isa = PBXBuildFile; fileRef = BF149452BE19E940BDE5C60E /* SwiftDataUserPreferencesRepository.swift */; };
 		EC0A59B50AA25BB403441267 /* UserPreferencesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7F957576394E938ED30DFD98 /* UserPreferencesView.swift */; };
 		F227D20F28F63E3A1A7D0681 /* SubscriptionManagerUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4C522F69323C0F092E76973D /* SubscriptionManagerUITests.swift */; };
 		F3C7A4E4041F38C489F6149B /* ConfirmChargeEligibility.swift in Sources */ = {isa = PBXBuildFile; fileRef = 74A6765C46714FF6898D0D68 /* ConfirmChargeEligibility.swift */; };
@@ -120,6 +123,7 @@
 		05B1EBC56F8861DB98D10F90 /* RecoveryLocalizationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecoveryLocalizationTests.swift; sourceTree = "<group>"; };
 		05BBB5AC4394BF7E865300C5 /* CatalogAlphabetIndexTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CatalogAlphabetIndexTests.swift; sourceTree = "<group>"; };
 		0842A2D743C1E14345B79D96 /* EventKitCalendarProjectionImporter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EventKitCalendarProjectionImporter.swift; sourceTree = "<group>"; };
+		092E23F8DDC72B13CCD859E7 /* SwiftDataCanonicalization.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SwiftDataCanonicalization.swift; sourceTree = "<group>"; };
 		0AB60CE097AABC95DB396296 /* Localizable.xcstrings */ = {isa = PBXFileReference; lastKnownFileType = text.json.xcstrings; path = Localizable.xcstrings; sourceTree = "<group>"; };
 		0ADA9475AF293852B7FA737C /* EventKitCalendarProjectionImporterTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EventKitCalendarProjectionImporterTests.swift; sourceTree = "<group>"; };
 		12BBDD4A3C3D5A6F92B3775B /* SubscriptionRecord.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SubscriptionRecord.swift; sourceTree = "<group>"; };
@@ -175,6 +179,7 @@
 		B0198E5B371AFE2C54EAD5CD /* ConfirmChargeEligibilityTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConfirmChargeEligibilityTests.swift; sourceTree = "<group>"; };
 		B59E02688F86D67614CE694A /* MacMenuBarPresentation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MacMenuBarPresentation.swift; sourceTree = "<group>"; };
 		BC563C5D4CFE9FE1F0148C35 /* SubscriptionCore */ = {isa = PBXFileReference; lastKnownFileType = folder; name = SubscriptionCore; path = Packages/SubscriptionCore; sourceTree = SOURCE_ROOT; };
+		BF149452BE19E940BDE5C60E /* SwiftDataUserPreferencesRepository.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SwiftDataUserPreferencesRepository.swift; sourceTree = "<group>"; };
 		BF78C8D1470F9E0A4F09112F /* WidgetSnapshotPublisher.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WidgetSnapshotPublisher.swift; sourceTree = "<group>"; };
 		C0A423C4110A0F526EE23D14 /* Localizable.xcstrings */ = {isa = PBXFileReference; lastKnownFileType = text.json.xcstrings; path = Localizable.xcstrings; sourceTree = "<group>"; };
 		C0EAF91956261FDFF4C91AAD /* CalendarProjectionView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CalendarProjectionView.swift; sourceTree = "<group>"; };
@@ -186,6 +191,7 @@
 		E06ED39F4F3A5F168380926E /* GitHubCatalogUpdateSource.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GitHubCatalogUpdateSource.swift; sourceTree = "<group>"; };
 		E8E32D343532C15910A82133 /* BundledCatalogRepositoryTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BundledCatalogRepositoryTests.swift; sourceTree = "<group>"; };
 		F24364E7E6897202F27AAE1B /* SubscriptionRow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SubscriptionRow.swift; sourceTree = "<group>"; };
+		F5D08A9A901659C5BEFF8208 /* SwiftDataPortableBackupImportRepository.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SwiftDataPortableBackupImportRepository.swift; sourceTree = "<group>"; };
 		F6158744F9B1B175056E79CA /* BundledCatalogRepository.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BundledCatalogRepository.swift; sourceTree = "<group>"; };
 		F739FEA6F1795C611154165F /* SubscriptionDraft.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SubscriptionDraft.swift; sourceTree = "<group>"; };
 		F97E335435D4B5871F1A384F /* MacMenuBarPresentationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MacMenuBarPresentationTests.swift; sourceTree = "<group>"; };
@@ -399,7 +405,10 @@
 			isa = PBXGroup;
 			children = (
 				12BBDD4A3C3D5A6F92B3775B /* SubscriptionRecord.swift */,
+				092E23F8DDC72B13CCD859E7 /* SwiftDataCanonicalization.swift */,
+				F5D08A9A901659C5BEFF8208 /* SwiftDataPortableBackupImportRepository.swift */,
 				58208DD28479A9E167C08113 /* SwiftDataSubscriptionRepository.swift */,
+				BF149452BE19E940BDE5C60E /* SwiftDataUserPreferencesRepository.swift */,
 			);
 			path = Persistence;
 			sourceTree = "<group>";
@@ -598,7 +607,10 @@
 				5EFACBCB58F5A772FF61FF4B /* SubscriptionManagerApp.swift in Sources */,
 				866177EEBBB6B76DADA471C2 /* SubscriptionRecord.swift in Sources */,
 				E3EC37D5EF593651F866C788 /* SubscriptionRow.swift in Sources */,
+				703F82B287B557E5B8BB69D0 /* SwiftDataCanonicalization.swift in Sources */,
+				79FCEE45EC0325F4E139A776 /* SwiftDataPortableBackupImportRepository.swift in Sources */,
 				54723BACD6E59DC50EEFDCED /* SwiftDataSubscriptionRepository.swift in Sources */,
+				E4CA27BC93205D252BC84E26 /* SwiftDataUserPreferencesRepository.swift in Sources */,
 				14770281FE52FBF34590097C /* UpcomingView.swift in Sources */,
 				EC0A59B50AA25BB403441267 /* UserPreferencesView.swift in Sources */,
 				842D256F471F88B7082CF25B /* WidgetSnapshotPublisher.swift in Sources */,
