@@ -637,7 +637,7 @@ private struct UpcomingView: View {
                     onDisplayedMonthChange: selectMonth
                 )
                 .frame(maxWidth: .infinity)
-                .frame(height: 360)
+                .frame(height: calendarHeight)
                 .padding(.horizontal, 12)
                 .padding(.vertical, 8)
                 .accessibilityIdentifier("upcoming.calendar")
@@ -715,6 +715,21 @@ private struct UpcomingView: View {
     private var nativeCalendarMinimumWidth: CGFloat {
         // Seven readable day cells plus the list's measured horizontal insets.
         7 * 36 + 32
+    }
+
+    private var calendarHeight: CGFloat {
+        // Scale calendar height for larger Dynamic Type sizes that remain
+        // below the accessibility threshold (where the calendar is hidden).
+        switch dynamicTypeSize {
+        case .xxxLarge:
+            420
+        case .xxLarge:
+            400
+        case .xLarge:
+            380
+        default:
+            360
+        }
     }
 
     private var calendar: Calendar {
@@ -1086,18 +1101,27 @@ private struct UpcomingMonthCalendar: UIViewRepresentable {
                 badge.text = count > 99 ? "99+" : "\(count)"
                 badge.textAlignment = .center
                 badge.font = .preferredFont(forTextStyle: .caption2)
-                badge.adjustsFontSizeToFitWidth = true
-                badge.minimumScaleFactor = 0.7
+                badge.adjustsFontForContentSizeCategory = true
                 badge.textColor = .white
-                badge.backgroundColor = .systemBlue
+                badge.backgroundColor = .tintColor
                 badge.layer.cornerCurve = .continuous
                 badge.layer.cornerRadius = 9
                 badge.clipsToBounds = true
                 badge.translatesAutoresizingMaskIntoConstraints = false
-                NSLayoutConstraint.activate([
-                    badge.widthAnchor.constraint(equalToConstant: 24),
-                    badge.heightAnchor.constraint(equalToConstant: 18),
-                ])
+                badge.widthAnchor.constraint(
+                    greaterThanOrEqualTo: badge.heightAnchor
+                ).isActive = true
+                badge.heightAnchor.constraint(
+                    greaterThanOrEqualToConstant: 18
+                ).isActive = true
+                badge.setContentHuggingPriority(.required, for: .horizontal)
+                badge.setContentHuggingPriority(.required, for: .vertical)
+                badge.setContentCompressionResistancePriority(
+                    .required, for: .horizontal
+                )
+                badge.setContentCompressionResistancePriority(
+                    .required, for: .vertical
+                )
                 badge.isAccessibilityElement = true
                 badge.accessibilityLabel = String(
                     localized: "\(count) charges"
@@ -1145,8 +1169,7 @@ private struct UpcomingTimelineRow: View {
             .layoutPriority(1)
             VStack(alignment: .trailing, spacing: 2) {
                 Text(formattedMoney(item.amount))
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.8)
+                    .lineLimit(2)
                 Text(
                     formattedBillingDate(
                         item.date,
@@ -1156,10 +1179,8 @@ private struct UpcomingTimelineRow: View {
                 )
                     .font(.footnote)
                     .foregroundStyle(.secondary)
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.8)
+                    .lineLimit(2)
             }
-            .fixedSize(horizontal: true, vertical: false)
         }
         .padding(.vertical, 4)
         .accessibilityElement(children: .combine)

@@ -84,8 +84,8 @@ struct CatalogAlphabetIndex: View {
                             .minimumScaleFactor(0.6)
                             .foregroundStyle(
                                 activeLetter == letter
-                                    ? Color.white
-                                    : Color.accentColor
+                                    ? AnyShapeStyle(.background)
+                                    : AnyShapeStyle(.tint)
                             )
                             .frame(
                                 maxWidth: .infinity,
@@ -95,7 +95,7 @@ struct CatalogAlphabetIndex: View {
                                 if activeLetter == letter {
                                     Circle()
                                         .fill(.tint)
-                                        .frame(width: 22, height: 22)
+                                        .frame(width: 28, height: 28)
                                 }
                             }
                             .contentShape(Rectangle())
@@ -118,7 +118,7 @@ struct CatalogAlphabetIndex: View {
                     }
             )
         }
-        .frame(width: 28)
+        .frame(width: 44)
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("catalog.alphabet-index")
         .task(id: activeLetter) {
