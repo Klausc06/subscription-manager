@@ -302,4 +302,65 @@ extension SubscriptionWorkspace {
         anchorComponents.day = min(anchorDay, dayRange.count)
         return calendar.date(from: anchorComponents)
     }
+    func billingTimeZone(
+        for subscription: Subscription
+    ) -> TimeZone {
+        TimeZone(
+            identifier: subscription.billingSchedule.timeZoneIdentifier
+        ) ?? calendar.timeZone
+    }
+    func expectedCharge(
+        for subscription: Subscription,
+        scheduledDate: Date,
+        calendar: Calendar
+    ) -> ExpectedCharge {
+        let components = calendar.dateComponents(
+            [.year, .month, .day],
+            from: scheduledDate
+        )
+        let id = ScheduledChargeID(
+            subscriptionID: subscription.id,
+            year: components.year ?? 0,
+            month: components.month ?? 0,
+            day: components.day ?? 0
+        )
+        let amount = subscription.amount(onBillingDay: scheduledDate)
+        return ExpectedCharge(
+            id: id,
+            subscriptionID: subscription.id,
+            scheduledDate: scheduledDate,
+            amount: amount
+        )
+    }
+    func isScheduledOccurrence(
+        _ date: Date,
+        for subscription: Subscription,
+        calendar: Calendar
+    ) -> Bool {
+        guard date >= subscription.startDate else {
+            return false
+        }
+        let firstCandidateIndex = estimatedOccurrenceIndex(
+            for: subscription.billingSchedule,
+            onOrAfter: date,
+            calendar: calendar
+        )
+        // The estimate is deliberately conservative so forecasting can find
+        // the first occurrence on or after a boundary. Check that candidate
+        // and the immediately following one when validating a user-selected
+        // past occurrence.
+        for occurrenceIndex in firstCandidateIndex...(firstCandidateIndex + 1) {
+            guard let occurrence = scheduledDate(
+                for: subscription.billingSchedule,
+                occurrenceIndex: occurrenceIndex,
+                calendar: calendar
+            ) else {
+                continue
+            }
+            if calendar.isDate(occurrence, inSameDayAs: date) {
+                return true
+            }
+        }
+        return false
+    }
 }

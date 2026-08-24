@@ -14,7 +14,9 @@
 		0B04FE82A821F3CEA01F23B7 /* PortableExportView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 164F6C4095D2303AF7680828 /* PortableExportView.swift */; };
 		0E185A93103BA6D997423247 /* SubscriptionIntentService.swift in Sources */ = {isa = PBXBuildFile; fileRef = CD9C6628BCAE93A6DD412A1A /* SubscriptionIntentService.swift */; };
 		0E86AD379625F773C972EC38 /* BillingDateTaskView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 44AE796EC987FE00823AEFD4 /* BillingDateTaskView.swift */; };
+		14770281FE52FBF34590097C /* UpcomingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 90B0BE2163703C6B893725B8 /* UpcomingView.swift */; };
 		1542C108546F4227953D1C2E /* BundledCatalogRepositoryTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E8E32D343532C15910A82133 /* BundledCatalogRepositoryTests.swift */; };
+		1B773EBAB75492A90C372DA0 /* ScopedLibraryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3409B77DE80BF7B1937C19BC /* ScopedLibraryView.swift */; };
 		1F05DF1DF4A0CE6BF63B6C89 /* RecoveryLocalizationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 05B1EBC56F8861DB98D10F90 /* RecoveryLocalizationTests.swift */; };
 		236AEB231AC8952E646F449C /* MacMenuBarPresentation.swift in Sources */ = {isa = PBXBuildFile; fileRef = B59E02688F86D67614CE694A /* MacMenuBarPresentation.swift */; };
 		28984F46B98D36A9E90C9FE2 /* Localizable.xcstrings in Resources */ = {isa = PBXBuildFile; fileRef = C0A423C4110A0F526EE23D14 /* Localizable.xcstrings */; };
@@ -33,12 +35,14 @@
 		573D19E1A08508BA1865924A /* EventKitCalendarProjectionImporter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0842A2D743C1E14345B79D96 /* EventKitCalendarProjectionImporter.swift */; };
 		58B72352085815D9533B35D4 /* SubscriptionDraft.swift in Sources */ = {isa = PBXBuildFile; fileRef = F739FEA6F1795C611154165F /* SubscriptionDraft.swift */; };
 		5A00649C395B2B471599C013 /* RecordCancellationView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 53CF076D96FF1C31ED7EC2A2 /* RecordCancellationView.swift */; };
+		5D74EDAB9F46A4BC76975F14 /* InsightsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 173FCD9667F36D513F588F19 /* InsightsView.swift */; };
 		5EFACBCB58F5A772FF61FF4B /* SubscriptionManagerApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 03DFA150363397FA01C93872 /* SubscriptionManagerApp.swift */; };
 		626F0533A4DF2230483BA384 /* CatalogAlphabetIndexTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 05BBB5AC4394BF7E865300C5 /* CatalogAlphabetIndexTests.swift */; };
 		665528E003EC11A9189C1B7D /* InfoPlist.xcstrings in Resources */ = {isa = PBXBuildFile; fileRef = 4D90D49FB3AEDF62EFA48202 /* InfoPlist.xcstrings */; };
 		6660C4236F0802CD6EA713D1 /* MoneyFormatting.swift in Sources */ = {isa = PBXBuildFile; fileRef = C3C019FF49A9B77C9987C82B /* MoneyFormatting.swift */; };
 		71D3C438264BA1B8C68FE357 /* SubscriptionFormSupport.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2CAE4BF38A7217C53E4C047F /* SubscriptionFormSupport.swift */; };
 		73E4D9C5EAE129D2A72C26FC /* FileCatalogCache.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5B719388CA82311FED0FEB46 /* FileCatalogCache.swift */; };
+		7713C3F7DDE3D64560EAB84F /* FirstRunSetupView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 841FEEE72D5C89D215DFAC4F /* FirstRunSetupView.swift */; };
 		7C34EDA2D016C0D45A4E6D05 /* SubscriptionAppEntity.swift in Sources */ = {isa = PBXBuildFile; fileRef = 828D5E066B7CE82218F88BFF /* SubscriptionAppEntity.swift */; };
 		82667428542FCEE4B628F595 /* CatalogOfferSelection.swift in Sources */ = {isa = PBXBuildFile; fileRef = FC8A2E38EC05A9DE6A60E28B /* CatalogOfferSelection.swift */; };
 		842D256F471F88B7082CF25B /* WidgetSnapshotPublisher.swift in Sources */ = {isa = PBXBuildFile; fileRef = BF78C8D1470F9E0A4F09112F /* WidgetSnapshotPublisher.swift */; };
@@ -66,6 +70,7 @@
 		DEC01EB4E532BAC0F3359C00 /* PortableRestoreView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3D462734DE864FE8B34F0EFE /* PortableRestoreView.swift */; };
 		E1796CF7DD72261483D257B8 /* SubscriptionEditorSections.swift in Sources */ = {isa = PBXBuildFile; fileRef = 716C3B7A12BEED2F9CBF22B0 /* SubscriptionEditorSections.swift */; };
 		E3EC37D5EF593651F866C788 /* SubscriptionRow.swift in Sources */ = {isa = PBXBuildFile; fileRef = F24364E7E6897202F27AAE1B /* SubscriptionRow.swift */; };
+		EC0A59B50AA25BB403441267 /* UserPreferencesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7F957576394E938ED30DFD98 /* UserPreferencesView.swift */; };
 		F227D20F28F63E3A1A7D0681 /* SubscriptionManagerUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4C522F69323C0F092E76973D /* SubscriptionManagerUITests.swift */; };
 		F3C7A4E4041F38C489F6149B /* ConfirmChargeEligibility.swift in Sources */ = {isa = PBXBuildFile; fileRef = 74A6765C46714FF6898D0D68 /* ConfirmChargeEligibility.swift */; };
 		F67C63EB88D910146E613A1A /* ManagementURLValidationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A40A43B15F2DC8026034E7B6 /* ManagementURLValidationTests.swift */; };
@@ -120,6 +125,7 @@
 		12BBDD4A3C3D5A6F92B3775B /* SubscriptionRecord.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SubscriptionRecord.swift; sourceTree = "<group>"; };
 		15EA34A86C81D0560BC4A8A0 /* LibraryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LibraryView.swift; sourceTree = "<group>"; };
 		164F6C4095D2303AF7680828 /* PortableExportView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PortableExportView.swift; sourceTree = "<group>"; };
+		173FCD9667F36D513F588F19 /* InsightsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InsightsView.swift; sourceTree = "<group>"; };
 		178B2F8071F3AA4EEB4EF445 /* AppDependenciesTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDependenciesTests.swift; sourceTree = "<group>"; };
 		1D36CEA8D99EFB69ED4ED3A3 /* MacMenuBarSupport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MacMenuBarSupport.swift; sourceTree = "<group>"; };
 		1D994A995E43724CEF005FA7 /* MoneyFormattingTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MoneyFormattingTests.swift; sourceTree = "<group>"; };
@@ -128,6 +134,7 @@
 		2CAE4BF38A7217C53E4C047F /* SubscriptionFormSupport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SubscriptionFormSupport.swift; sourceTree = "<group>"; };
 		3220F13255F0E1FBFAE282B1 /* MacWindowRouterTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MacWindowRouterTests.swift; sourceTree = "<group>"; };
 		33F67B88372C24F8FA06E7F1 /* EditSubscriptionView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EditSubscriptionView.swift; sourceTree = "<group>"; };
+		3409B77DE80BF7B1937C19BC /* ScopedLibraryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScopedLibraryView.swift; sourceTree = "<group>"; };
 		3D462734DE864FE8B34F0EFE /* PortableRestoreView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PortableRestoreView.swift; sourceTree = "<group>"; };
 		3E375325DBD112A5F485EF3F /* AddSubscriptionView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AddSubscriptionView.swift; sourceTree = "<group>"; };
 		3ED395A87C6661BAAA9E98BB /* SubscriptionLookupTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SubscriptionLookupTests.swift; sourceTree = "<group>"; };
@@ -153,9 +160,12 @@
 		6F7965D45867F28DAFB96A5D /* SubscriptionDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SubscriptionDetailView.swift; sourceTree = "<group>"; };
 		716C3B7A12BEED2F9CBF22B0 /* SubscriptionEditorSections.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SubscriptionEditorSections.swift; sourceTree = "<group>"; };
 		74A6765C46714FF6898D0D68 /* ConfirmChargeEligibility.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConfirmChargeEligibility.swift; sourceTree = "<group>"; };
+		7F957576394E938ED30DFD98 /* UserPreferencesView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UserPreferencesView.swift; sourceTree = "<group>"; };
 		80BE4889FA614AABADFAC968 /* SubscriptionManager.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = SubscriptionManager.entitlements; sourceTree = "<group>"; };
 		828D5E066B7CE82218F88BFF /* SubscriptionAppEntity.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SubscriptionAppEntity.swift; sourceTree = "<group>"; };
+		841FEEE72D5C89D215DFAC4F /* FirstRunSetupView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FirstRunSetupView.swift; sourceTree = "<group>"; };
 		8D1784DAF6D526C287B9B8CF /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
+		90B0BE2163703C6B893725B8 /* UpcomingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UpcomingView.swift; sourceTree = "<group>"; };
 		99D687DDF8D151CB8B4AB595 /* SubscriptionManagerTests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = SubscriptionManagerTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		9FEF1B3C25246E96015F3FB1 /* AppDependencies.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDependencies.swift; sourceTree = "<group>"; };
 		A40A43B15F2DC8026034E7B6 /* ManagementURLValidationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ManagementURLValidationTests.swift; sourceTree = "<group>"; };
@@ -290,18 +300,23 @@
 				74A6765C46714FF6898D0D68 /* ConfirmChargeEligibility.swift */,
 				433C5876A0B42C2F728CB2BA /* ConfirmChargeView.swift */,
 				33F67B88372C24F8FA06E7F1 /* EditSubscriptionView.swift */,
+				841FEEE72D5C89D215DFAC4F /* FirstRunSetupView.swift */,
+				173FCD9667F36D513F588F19 /* InsightsView.swift */,
 				15EA34A86C81D0560BC4A8A0 /* LibraryView.swift */,
 				C3C019FF49A9B77C9987C82B /* MoneyFormatting.swift */,
 				164F6C4095D2303AF7680828 /* PortableExportView.swift */,
 				3D462734DE864FE8B34F0EFE /* PortableRestoreView.swift */,
 				A93524FB8A11100D270A0930 /* ReactivateSubscriptionView.swift */,
 				53CF076D96FF1C31ED7EC2A2 /* RecordCancellationView.swift */,
+				3409B77DE80BF7B1937C19BC /* ScopedLibraryView.swift */,
 				6F7965D45867F28DAFB96A5D /* SubscriptionDetailView.swift */,
 				F739FEA6F1795C611154165F /* SubscriptionDraft.swift */,
 				716C3B7A12BEED2F9CBF22B0 /* SubscriptionEditorSections.swift */,
 				2CAE4BF38A7217C53E4C047F /* SubscriptionFormSupport.swift */,
 				4C0A8035198E253EFD0921C9 /* SubscriptionLifecycleSupport.swift */,
 				F24364E7E6897202F27AAE1B /* SubscriptionRow.swift */,
+				90B0BE2163703C6B893725B8 /* UpcomingView.swift */,
+				7F957576394E938ED30DFD98 /* UserPreferencesView.swift */,
 			);
 			path = Library;
 			sourceTree = "<group>";
@@ -560,7 +575,9 @@
 				CF6E7CA71A3B6B192FC10E3D /* EditSubscriptionView.swift in Sources */,
 				573D19E1A08508BA1865924A /* EventKitCalendarProjectionImporter.swift in Sources */,
 				73E4D9C5EAE129D2A72C26FC /* FileCatalogCache.swift in Sources */,
+				7713C3F7DDE3D64560EAB84F /* FirstRunSetupView.swift in Sources */,
 				BE216D6C64C7F5B6FBA9D245 /* GitHubCatalogUpdateSource.swift in Sources */,
+				5D74EDAB9F46A4BC76975F14 /* InsightsView.swift in Sources */,
 				C9F6A31BE02C4B3821562DFC /* LibraryView.swift in Sources */,
 				236AEB231AC8952E646F449C /* MacMenuBarPresentation.swift in Sources */,
 				D32F728952DAC6B8747123D8 /* MacMenuBarSupport.swift in Sources */,
@@ -569,6 +586,7 @@
 				DEC01EB4E532BAC0F3359C00 /* PortableRestoreView.swift in Sources */,
 				29ACA04B956288B794B208B0 /* ReactivateSubscriptionView.swift in Sources */,
 				5A00649C395B2B471599C013 /* RecordCancellationView.swift in Sources */,
+				1B773EBAB75492A90C372DA0 /* ScopedLibraryView.swift in Sources */,
 				7C34EDA2D016C0D45A4E6D05 /* SubscriptionAppEntity.swift in Sources */,
 				4C12D90EEC1CC642D35E22A2 /* SubscriptionDetailView.swift in Sources */,
 				58B72352085815D9533B35D4 /* SubscriptionDraft.swift in Sources */,
@@ -581,6 +599,8 @@
 				866177EEBBB6B76DADA471C2 /* SubscriptionRecord.swift in Sources */,
 				E3EC37D5EF593651F866C788 /* SubscriptionRow.swift in Sources */,
 				54723BACD6E59DC50EEFDCED /* SwiftDataSubscriptionRepository.swift in Sources */,
+				14770281FE52FBF34590097C /* UpcomingView.swift in Sources */,
+				EC0A59B50AA25BB403441267 /* UserPreferencesView.swift in Sources */,
 				842D256F471F88B7082CF25B /* WidgetSnapshotPublisher.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
