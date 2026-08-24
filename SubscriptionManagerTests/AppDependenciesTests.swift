@@ -157,7 +157,7 @@ struct AppDependenciesTests {
             path: "SubscriptionManagerCloudKitSchemaTests-\(UUID().uuidString)",
             directoryHint: .isDirectory
         )
-        defer { try? FileManager.default.removeItem(at: directory) }
+
         try FileManager.default.createDirectory(
             at: directory,
             withIntermediateDirectories: true
@@ -444,7 +444,7 @@ struct AppDependenciesTests {
             path: "SubscriptionManagerConfigurationTests-\(UUID().uuidString)",
             directoryHint: .isDirectory
         )
-        defer { try? FileManager.default.removeItem(at: rootDirectory) }
+
 
         guard case .ready(let dependencies) = AppDependencies.live(
             arguments: [
@@ -508,7 +508,7 @@ struct AppDependenciesTests {
             path: "SubscriptionManagerMappingMigration-\(UUID().uuidString)",
             directoryHint: .isDirectory
         )
-        defer { try? FileManager.default.removeItem(at: rootDirectory) }
+
         let token = "mapping-migration"
         let storeDirectory = rootDirectory.appending(
             path: "SubscriptionManagerUITests",
@@ -624,7 +624,7 @@ struct AppDependenciesTests {
             path: "SubscriptionManagerRetryableMappingMigration-\(UUID().uuidString)",
             directoryHint: .isDirectory
         )
-        defer { try? FileManager.default.removeItem(at: rootDirectory) }
+
         let token = "retryable-mapping-migration"
         let storeDirectory = rootDirectory.appending(
             path: "SubscriptionManagerUITests",
@@ -742,7 +742,7 @@ struct AppDependenciesTests {
                 path: "SubscriptionManagerMixedMappingMigration-\(UUID().uuidString)",
                 directoryHint: .isDirectory
             )
-            defer { try? FileManager.default.removeItem(at: rootDirectory) }
+    
             let token = foreignRowsFirst
                 ? "mixed-mapping-foreign-first"
                 : "mixed-mapping-current-first"
@@ -861,7 +861,7 @@ struct AppDependenciesTests {
             path: "SubscriptionManagerForeignMappingMigration-\(UUID().uuidString)",
             directoryHint: .isDirectory
         )
-        defer { try? FileManager.default.removeItem(at: rootDirectory) }
+
         let token = "foreign-mapping-migration"
         let storeDirectory = rootDirectory.appending(
             path: "SubscriptionManagerUITests",
@@ -953,7 +953,7 @@ struct AppDependenciesTests {
             path: "SubscriptionManagerMappingUpgrade-\(UUID().uuidString)",
             directoryHint: .isDirectory
         )
-        defer { try? FileManager.default.removeItem(at: rootDirectory) }
+
         let token = "mapping-upgrade"
         let storeDirectory = rootDirectory.appending(
             path: "SubscriptionManagerUITests",
@@ -1064,7 +1064,7 @@ struct AppDependenciesTests {
             path: "SubscriptionManagerEmptyMappingMigration-\(UUID().uuidString)",
             directoryHint: .isDirectory
         )
-        defer { try? FileManager.default.removeItem(at: rootDirectory) }
+
         let token = "empty-mapping-migration"
         let storeDirectory = rootDirectory.appending(
             path: "SubscriptionManagerUITests",
@@ -1316,7 +1316,7 @@ struct AppDependenciesTests {
             path: "SubscriptionManagerTask4LegacyStore-\(UUID().uuidString)",
             directoryHint: .isDirectory
         )
-        defer { try? FileManager.default.removeItem(at: directory) }
+
         try FileManager.default.createDirectory(
             at: directory,
             withIntermediateDirectories: true
@@ -1404,7 +1404,7 @@ struct AppDependenciesTests {
             path: "SubscriptionManagerTests-\(UUID().uuidString)",
             directoryHint: .isDirectory
         )
-        defer { try? FileManager.default.removeItem(at: directory) }
+
         let now = Date(timeIntervalSince1970: 1_769_356_800)
         let expected = ExchangeRateCacheState(
             snapshot: ExchangeRateSnapshot(
