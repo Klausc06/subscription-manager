@@ -1,3 +1,4 @@
+import AppIntents
 import Foundation
 import SubscriptionCore
 import SwiftUI
@@ -152,5 +153,49 @@ struct RenewalWidget: Widget {
 struct SubscriptionManagerWidgetBundle: WidgetBundle {
     var body: some Widget {
         RenewalWidget()
+        #if os(iOS)
+        RenewalControlWidget()
+        #endif
     }
 }
+
+#if os(iOS)
+struct RenewalControlWidget: ControlWidget {
+    let kind = "com.klausc06.SubscriptionManager.control.renewal"
+
+    var body: some ControlWidgetConfiguration {
+        StaticControlConfiguration(kind: kind) {
+            ControlWidgetButton(action: OpenSubscriptionManagerIntent()) {
+                let store = WidgetSnapshotStore(
+                    suiteName: WidgetSnapshotStore.appGroupIdentifier
+                )
+                let snapshot = store?.read()
+                if let renewal = snapshot?.nextRenewal {
+                    Label {
+                        Text(renewal.serviceName)
+                        Text(
+                            renewal.renewalDate,
+                            format: .dateTime.month(.abbreviated).day()
+                        )
+                    } icon: {
+                        Image(systemName: "calendar.badge.clock")
+                    }
+                } else {
+                    Label("No Renewals", systemImage: "checkmark.circle")
+                }
+            }
+        }
+        .displayName("Next Renewal")
+        .description("Shows your next upcoming subscription renewal.")
+    }
+}
+
+struct OpenSubscriptionManagerIntent: AppIntent {
+    static let title: LocalizedStringResource = "Open Subscription Manager"
+    static let openAppWhenRun = true
+
+    func perform() async throws -> some IntentResult {
+        .result()
+    }
+}
+#endif
