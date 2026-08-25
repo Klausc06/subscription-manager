@@ -8,6 +8,9 @@ struct SubscriptionAppEntity: AppEntity, Identifiable {
     let plan: String
     let category: String
     let isArchived: Bool
+    let amountDescription: String
+    let nextRenewalDate: Date?
+    let billingInterval: String
 
     init(subscription: Subscription) {
         id = subscription.id.uuidString
@@ -15,6 +18,13 @@ struct SubscriptionAppEntity: AppEntity, Identifiable {
         plan = subscription.plan
         category = subscription.category
         isArchived = subscription.isArchived
+        let amount = subscription.amount(
+            onBillingDay: subscription.confirmedNextRenewal
+        )
+        amountDescription = "\(Decimal(amount.minorUnits) / 100)"
+            + " \(amount.currency.rawValue)"
+        nextRenewalDate = subscription.confirmedNextRenewal
+        billingInterval = subscription.billingSchedule.interval.rawValue
     }
 
     static let typeDisplayRepresentation: TypeDisplayRepresentation =
@@ -25,7 +35,7 @@ struct SubscriptionAppEntity: AppEntity, Identifiable {
         DisplayRepresentation(
             title: LocalizedStringResource(stringLiteral: serviceName),
             subtitle: LocalizedStringResource(
-                stringLiteral: "\(plan) · \(category)"
+                stringLiteral: "\(plan) · \(amountDescription)"
             )
         )
     }
