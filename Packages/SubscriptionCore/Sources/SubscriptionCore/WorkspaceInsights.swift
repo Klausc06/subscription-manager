@@ -117,12 +117,19 @@ extension SubscriptionWorkspace {
         let annualizedMinorUnits = NSDecimalNumber(
             decimal: Decimal(totalMinorUnits) / Decimal(dayCount) * 365
         ).int64Value
+        let dailyMinorUnits = NSDecimalNumber(
+            decimal: Decimal(totalMinorUnits) / Decimal(dayCount)
+        ).int64Value
         return SpendingInsights(
             mode: mode,
             displayCurrency: displayCurrency,
             selectedRangeTotal: total,
             annualizedTotal: Money(
                 minorUnits: annualizedMinorUnits,
+                currency: displayCurrency
+            ),
+            dailyRate: Money(
+                minorUnits: dailyMinorUnits,
                 currency: displayCurrency
             ),
             monthlyTotals: monthTotals,

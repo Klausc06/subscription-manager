@@ -57,6 +57,11 @@ struct InsightsView: View {
                             value: formattedMoney(insights.selectedRangeTotal)
                         )
                         LabeledContent(
+                            "Daily Rate",
+                            value: formattedMoney(insights.dailyRate)
+                        )
+                        .accessibilityIdentifier("insights.daily-rate")
+                        LabeledContent(
                             "Annualized",
                             value: formattedMoney(insights.annualizedTotal)
                         )

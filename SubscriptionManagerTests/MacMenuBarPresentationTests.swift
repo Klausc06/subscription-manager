@@ -19,6 +19,7 @@ struct MacMenuBarPresentationTests {
             displayCurrency: .usd,
             selectedRangeTotal: forecast,
             annualizedTotal: forecast,
+            dailyRate: Money(minorUnits: 87, currency: .usd),
             monthlyTotals: [],
             categoryTotals: [],
             items: []

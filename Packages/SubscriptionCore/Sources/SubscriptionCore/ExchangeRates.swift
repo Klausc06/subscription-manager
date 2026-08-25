@@ -146,6 +146,7 @@ public struct SpendingInsights: Equatable, Sendable {
     public let displayCurrency: Currency
     public let selectedRangeTotal: Money
     public let annualizedTotal: Money
+    public let dailyRate: Money
     public let monthlyTotals: [SpendingMonthlyTotal]
     public let categoryTotals: [SpendingCategoryTotal]
     public let items: [SpendingInsightItem]
@@ -155,6 +156,7 @@ public struct SpendingInsights: Equatable, Sendable {
         displayCurrency: Currency,
         selectedRangeTotal: Money,
         annualizedTotal: Money,
+        dailyRate: Money,
         monthlyTotals: [SpendingMonthlyTotal],
         categoryTotals: [SpendingCategoryTotal],
         items: [SpendingInsightItem]
@@ -163,6 +165,7 @@ public struct SpendingInsights: Equatable, Sendable {
         self.displayCurrency = displayCurrency
         self.selectedRangeTotal = selectedRangeTotal
         self.annualizedTotal = annualizedTotal
+        self.dailyRate = dailyRate
         self.monthlyTotals = monthlyTotals
         self.categoryTotals = categoryTotals
         self.items = items

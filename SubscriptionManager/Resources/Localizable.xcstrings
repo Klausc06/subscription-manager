@@ -930,6 +930,7 @@
     "Select a Subscription" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Select a Subscription" } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "选择一项订阅" } } } },
     "Sort" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Sort" } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "排序" } } } },
     "Annualized" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Annualized" } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "年化" } } } },
+    "Daily Rate" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Daily Rate" } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "日均消费" } } } },
     "Category Totals" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Category Totals" } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "分类总额" } } } },
     "Confirmed" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Confirmed" } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "已确认" } } } },
     "Exchange rates are unavailable. Original subscription values are unchanged." : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Exchange rates are unavailable. Original subscription values are unchanged." } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "汇率暂不可用。原始订阅金额不会改变。" } } } },
