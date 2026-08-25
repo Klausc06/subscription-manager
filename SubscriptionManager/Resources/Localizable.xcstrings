@@ -903,6 +903,7 @@
     "System" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "System" } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "跟随系统" } } } },
     "Light" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Light" } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "日间" } } } },
     "Dark" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Dark" } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "夜间" } } } },
+    "days" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "days" } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "天" } } } },
     "Finish Setup" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Finish Setup" } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "完成设置" } } } },
     "Primary Currency" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Primary Currency" } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "主显示货币" } } } },
     "Run Setup Again" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Run Setup Again" } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "重新运行设置" } } } },

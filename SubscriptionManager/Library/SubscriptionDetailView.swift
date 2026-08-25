@@ -150,6 +150,12 @@ private struct SubscriptionSummaryView: View {
     var body: some View {
         ScrollView {
             VStack(spacing: 16) {
+                RenewalProgressView(
+                    subscription: subscription,
+                    now: .now
+                )
+                .padding(.top, 8)
+
                 VStack(spacing: 0) {
                     summaryRow(
                         "Service",
