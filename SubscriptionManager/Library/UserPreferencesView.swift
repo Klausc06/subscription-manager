@@ -12,7 +12,10 @@ struct UserPreferencesView: View {
     @State private var hideAmountsInCalendar = false
     @State private var menuBarModeEnabled = false
     @State private var appearanceMode: AppearanceMode = .system
+    @State private var notificationsEnabled = false
+    @State private var notificationAdvanceDays = 1
     @State private var saveFailed = false
+    private let notificationScheduler = RenewalNotificationScheduler()
 
     var body: some View {
         NavigationStack {
@@ -100,6 +103,24 @@ struct UserPreferencesView: View {
                     SyncStatusView(workspace: workspace)
                 }
 
+                Section("Notifications") {
+                    Toggle(
+                        "Renewal Reminders",
+                        isOn: $notificationsEnabled
+                    )
+                    .accessibilityIdentifier("preferences.notifications.enabled")
+                    if notificationsEnabled {
+                        Stepper(
+                            "\(notificationAdvanceDays) day(s) before",
+                            value: $notificationAdvanceDays,
+                            in: 1...30
+                        )
+                        .accessibilityIdentifier(
+                            "preferences.notifications.advance-days"
+                        )
+                    }
+                }
+
                 #if os(macOS)
                 Section("Menu Bar") {
                     Toggle(
@@ -168,6 +189,7 @@ struct UserPreferencesView: View {
                             menuBarModeEnabled: menuBarModeEnabled,
                             appearanceMode: appearanceMode
                         )
+                        saveNotificationPreferences()
                         saveFailed = isSetupSaveFailure
                         if !saveFailed {
                             dismiss()
@@ -225,6 +247,22 @@ struct UserPreferencesView: View {
             appearanceMode = preferences.appearanceMode
         case .notLoaded, .loadFailed:
             break
+        }
+        notificationsEnabled = notificationScheduler.isEnabled
+        notificationAdvanceDays = notificationScheduler.advanceDays
+    }
+
+    private func saveNotificationPreferences() {
+        let wasEnabled = notificationScheduler.isEnabled
+        notificationScheduler.isEnabled = notificationsEnabled
+        notificationScheduler.advanceDays = notificationAdvanceDays
+        if notificationsEnabled, !wasEnabled {
+            Task {
+                let granted = await notificationScheduler.requestAuthorization()
+                if !granted {
+                    notificationScheduler.isEnabled = false
+                }
+            }
         }
     }
 }

@@ -52,6 +52,7 @@ struct SubscriptionManagerApp: App {
                 await dependencies.workspace.reconcileCalendarProjection(
                     locale: .current
                 )
+                await rescheduleNotifications(workspace: dependencies.workspace)
             }
         }
         #if os(macOS)
@@ -137,6 +138,15 @@ struct SubscriptionManagerApp: App {
         case .dark:
             return .dark
         }
+    }
+
+    private let notificationScheduler = RenewalNotificationScheduler()
+
+    private func rescheduleNotifications(
+        workspace: SubscriptionWorkspace
+    ) async {
+        let subscriptions = (try? workspace.subscriptions()) ?? []
+        await notificationScheduler.reschedule(subscriptions: subscriptions)
     }
 
 }
