@@ -1,5 +1,4 @@
 import Foundation
-import Observation
 
 extension SubscriptionWorkspace {
     public func makeWidgetSnapshot() -> WidgetSnapshot? {

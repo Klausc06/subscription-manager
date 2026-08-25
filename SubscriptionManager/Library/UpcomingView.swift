@@ -290,6 +290,8 @@ struct UpcomingView: View {
     private var calendarHeight: CGFloat {
         // Scale calendar height for larger Dynamic Type sizes that remain
         // below the accessibility threshold (where the calendar is hidden).
+        // Accessibility sizes (accessibility1–5) hit the default case but
+        // never render because canUseNativeMonthCalendar returns false.
         switch dynamicTypeSize {
         case .xxxLarge:
             420
@@ -667,15 +669,13 @@ struct UpcomingMonthCalendar: UIViewRepresentable {
             guard count > 0 else { return nil }
 
             return .customView {
-                let badge = UILabel()
+                let badge = CalendarBadgeLabel()
                 badge.text = count > 99 ? "99+" : "\(count)"
                 badge.textAlignment = .center
                 badge.font = .preferredFont(forTextStyle: .caption2)
                 badge.adjustsFontForContentSizeCategory = true
                 badge.textColor = .white
                 badge.backgroundColor = .tintColor
-                badge.layer.cornerCurve = .continuous
-                badge.layer.cornerRadius = 9
                 badge.clipsToBounds = true
                 badge.translatesAutoresizingMaskIntoConstraints = false
                 badge.widthAnchor.constraint(
@@ -699,6 +699,28 @@ struct UpcomingMonthCalendar: UIViewRepresentable {
                 return badge
             }
         }
+    }
+}
+
+private final class CalendarBadgeLabel: UILabel {
+    private let insets = UIEdgeInsets(top: 2, left: 4, bottom: 2, right: 4)
+
+    override func drawText(in rect: CGRect) {
+        super.drawText(in: rect.inset(by: insets))
+    }
+
+    override var intrinsicContentSize: CGSize {
+        let size = super.intrinsicContentSize
+        return CGSize(
+            width: size.width + insets.left + insets.right,
+            height: size.height + insets.top + insets.bottom
+        )
+    }
+
+    override func layoutSubviews() {
+        super.layoutSubviews()
+        layer.cornerCurve = .continuous
+        layer.cornerRadius = bounds.height / 2
     }
 }
 #endif
