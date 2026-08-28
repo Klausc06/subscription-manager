@@ -87,14 +87,9 @@ final class SubscriptionManagerUITests: XCTestCase {
         let minimumDirectControlWidth = window.frame.width * 0.88
 
         topLevelTab("Upcoming", in: app).tap()
-        let monthTitle = app.staticTexts["upcoming.month.title"]
-        XCTAssertTrue(monthTitle.waitForExistence(timeout: 5))
-        XCTAssertTrue(app.buttons["upcoming.month.previous"].exists)
-        XCTAssertTrue(app.buttons["upcoming.month.next"].exists)
-        XCTAssertGreaterThan(
-            monthTitle.frame.width,
-            minimumDirectControlWidth * 0.2,
-            "Upcoming must expose its month context directly."
+        assertUpcomingMonthContextVisible(
+            in: app,
+            minimumWidth: minimumDirectControlWidth
         )
         attachScreenshot(named: "r2-14-upcoming-single-boundary")
 
@@ -1409,7 +1404,7 @@ final class SubscriptionManagerUITests: XCTestCase {
             ).firstMatch.exists
         )
 
-        app.buttons["upcoming.month.next"].tap()
+        tapUpcomingNextMonth(in: app)
         XCTAssertTrue(scrollToExistence(future, in: app, maximumSwipes: 6))
         XCTAssertFalse(
             app.descendants(matching: .any).matching(
@@ -1421,7 +1416,7 @@ final class SubscriptionManagerUITests: XCTestCase {
             ).firstMatch.exists
         )
 
-        app.buttons["upcoming.month.previous"].tap()
+        tapUpcomingPreviousMonth(in: app)
         XCTAssertTrue(due.waitForExistence(timeout: 5))
         let dueConfirmAfterReturning = app.descendants(matching: .any).matching(
             NSPredicate(
@@ -3858,6 +3853,63 @@ final class SubscriptionManagerUITests: XCTestCase {
             "Choosing a next-month day must update the compact date picker."
         )
         return selectedValue
+    }
+
+    private func tapUpcomingPreviousMonth(in app: XCUIApplication) {
+        let custom = app.buttons["upcoming.month.previous"]
+        if custom.waitForExistence(timeout: 2) {
+            custom.tap()
+            return
+        }
+        let native = app.buttons["DatePicker.PreviousMonth"]
+        XCTAssertTrue(
+            native.waitForExistence(timeout: 5),
+            "Expected custom or native previous-month control."
+        )
+        native.tap()
+    }
+
+    private func tapUpcomingNextMonth(in app: XCUIApplication) {
+        let custom = app.buttons["upcoming.month.next"]
+        if custom.waitForExistence(timeout: 2) {
+            custom.tap()
+            return
+        }
+        let native = app.buttons["DatePicker.NextMonth"]
+        XCTAssertTrue(
+            native.waitForExistence(timeout: 5),
+            "Expected custom or native next-month control."
+        )
+        native.tap()
+    }
+
+    private func assertUpcomingMonthContextVisible(
+        in app: XCUIApplication,
+        minimumWidth: CGFloat
+    ) {
+        let customTitle = app.staticTexts["upcoming.month.title"]
+        if customTitle.waitForExistence(timeout: 2) {
+            XCTAssertTrue(app.buttons["upcoming.month.previous"].exists)
+            XCTAssertTrue(app.buttons["upcoming.month.next"].exists)
+            XCTAssertGreaterThan(
+                customTitle.frame.width,
+                minimumWidth * 0.2,
+                "Upcoming must expose its month context directly."
+            )
+            return
+        }
+        let monthChrome = app.buttons["DatePicker.Show"]
+        XCTAssertTrue(
+            monthChrome.waitForExistence(timeout: 5),
+            "Expected native month chrome when custom header is absent."
+        )
+        XCTAssertTrue(app.buttons["DatePicker.PreviousMonth"].exists)
+        XCTAssertTrue(app.buttons["DatePicker.NextMonth"].exists)
+        XCTAssertGreaterThan(
+            monthChrome.frame.width,
+            minimumWidth * 0.2,
+            "Upcoming must expose its month context directly."
+        )
     }
 
     private func moveCalendarMonth(

@@ -24,41 +24,6 @@ struct UpcomingView: View {
         NavigationStack {
             GeometryReader { geometry in
                 List {
-                    Section {
-                        HStack {
-                            Button {
-                                moveMonth(by: -1)
-                            } label: {
-                                Label("Previous Month", systemImage: "chevron.left")
-                                    .labelStyle(.iconOnly)
-                            }
-                            .accessibilityLabel("Previous Month")
-                            .accessibilityIdentifier("upcoming.month.previous")
-                            .buttonStyle(.borderless)
-
-                            Spacer()
-                            Text(displayedMonth, format: .dateTime.year().month(.wide))
-                                .font(.headline)
-                                .accessibilityIdentifier("upcoming.month.title")
-                            Spacer()
-
-                            Button {
-                                moveMonth(by: 1)
-                            } label: {
-                                Label("Next Month", systemImage: "chevron.right")
-                                    .labelStyle(.iconOnly)
-                            }
-                            .accessibilityLabel("Next Month")
-                            .accessibilityIdentifier("upcoming.month.next")
-                            .buttonStyle(.borderless)
-                        }
-                        .frame(maxWidth: .infinity)
-                        .padding(.horizontal, 12)
-                    }
-                    .listRowInsets(
-                        EdgeInsets(top: 8, leading: 0, bottom: 8, trailing: 0)
-                    )
-
                     monthOverview(
                         availableWidth: geometry.size.width,
                         projection: projection
@@ -140,6 +105,12 @@ struct UpcomingView: View {
                         EdgeInsets(top: 8, leading: 12, bottom: 8, trailing: 12)
                     )
                 }
+                .safeAreaInset(edge: .top, spacing: 0) {
+                    if !canUseNativeMonthCalendar(availableWidth: geometry.size.width) {
+                        monthNavigationHeader
+                            .background(.background)
+                    }
+                }
                 .accessibilityIdentifier("upcoming.month")
             }
             .navigationTitle("Upcoming")
@@ -174,6 +145,36 @@ struct UpcomingView: View {
         .onChange(of: workspace.libraryState) { _, _ in
             refreshSubscriptionCaches()
         }
+    }
+
+    @ViewBuilder
+    private var monthNavigationHeader: some View {
+        HStack {
+            Button { moveMonth(by: -1) } label: {
+                Label("Previous Month", systemImage: "chevron.left")
+                    .labelStyle(.iconOnly)
+            }
+            .accessibilityLabel("Previous Month")
+            .accessibilityIdentifier("upcoming.month.previous")
+            .buttonStyle(.borderless)
+
+            Spacer()
+            Text(displayedMonth, format: .dateTime.year().month(.wide))
+                .font(.headline)
+                .accessibilityIdentifier("upcoming.month.title")
+            Spacer()
+
+            Button { moveMonth(by: 1) } label: {
+                Label("Next Month", systemImage: "chevron.right")
+                    .labelStyle(.iconOnly)
+            }
+            .accessibilityLabel("Next Month")
+            .accessibilityIdentifier("upcoming.month.next")
+            .buttonStyle(.borderless)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.horizontal, 12)
+        .padding(.vertical, 8)
     }
 
     @ViewBuilder
