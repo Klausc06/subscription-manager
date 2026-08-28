@@ -224,31 +224,13 @@ public struct BillingDateResolver: Sendable {
         return total.overflow ? 0 : max(0, total.partialValue)
     }
 
+    // The optional return no longer has a failing case; it is kept so the
+    // three `guard let` call sites stay as they are. Those guards also carry
+    // the `isValid` and finiteness checks, so removing this shell along with
+    // them would drop those checks too.
     private func calendarStep(
         for interval: BillingInterval
     ) -> (component: Calendar.Component, value: Int)? {
-        switch interval {
-        case .weekly:
-            (.weekOfYear, 1)
-        case .monthly:
-            (.month, 1)
-        case .quarterly:
-            (.month, 3)
-        case .halfYearly:
-            (.month, 6)
-        case .yearly:
-            (.year, 1)
-        case .custom(let value, let unit):
-            switch unit {
-            case .day:
-                (.day, value)
-            case .week:
-                (.weekOfYear, value)
-            case .month:
-                (.month, value)
-            case .year:
-                (.year, value)
-            }
-        }
+        interval.calendarStep
     }
 }

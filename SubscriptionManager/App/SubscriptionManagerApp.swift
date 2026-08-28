@@ -647,96 +647,12 @@ private struct MacLibraryView: View {
         else {
             return []
         }
-        return applyTableQuery(to: summaries)
-    }
-
-    private func applyTableQuery(
-        to summaries: [SubscriptionSummary]
-    ) -> [SubscriptionSummary] {
-        let query = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
-        return summaries
-            .filter { summary in
-                guard !query.isEmpty else { return true }
-                return [summary.serviceName, summary.plan, summary.category]
-                    .contains {
-                        $0.range(
-                            of: query,
-                            options: [.caseInsensitive, .diacriticInsensitive],
-                            range: nil,
-                            locale: locale
-                        ) != nil
-                    }
-            }
-            .sorted { lhs, rhs in
-                switch (lhs.pinnedAt, rhs.pinnedAt) {
-                case let (left?, right?):
-                    if left != right {
-                        return left > right
-                    }
-                    return lhs.id.uuidString < rhs.id.uuidString
-                case (_?, nil):
-                    return true
-                case (nil, _?):
-                    return false
-                case (nil, nil):
-                    break
-                }
-
-                let order = localizedComparison(of: lhs, and: rhs)
-                if order == .orderedSame {
-                    return lhs.id.uuidString < rhs.id.uuidString
-                }
-                return ascending
-                    ? order == .orderedAscending
-                    : order == .orderedDescending
-            }
-    }
-
-    private func localizedComparison(
-        of lhs: SubscriptionSummary,
-        and rhs: SubscriptionSummary
-    ) -> ComparisonResult {
-        switch sort {
-        case .serviceName:
-            return lhs.serviceName.compare(
-                rhs.serviceName,
-                options: [.caseInsensitive, .diacriticInsensitive],
-                range: nil,
-                locale: locale
-            )
-        case .plan:
-            return lhs.plan.compare(
-                rhs.plan,
-                options: [.caseInsensitive, .diacriticInsensitive],
-                range: nil,
-                locale: locale
-            )
-        case .category:
-            return lhs.category.compare(
-                rhs.category,
-                options: [.caseInsensitive, .diacriticInsensitive],
-                range: nil,
-                locale: locale
-            )
-        case .nextRenewal:
-            return lhs.confirmedNextRenewal.compare(rhs.confirmedNextRenewal)
-        case .amount:
-            let currencyOrder = lhs.amount.currency.rawValue.compare(
-                rhs.amount.currency.rawValue,
-                options: [.caseInsensitive, .diacriticInsensitive],
-                range: nil,
-                locale: locale
-            )
-            if currencyOrder != .orderedSame {
-                return currencyOrder
-            }
-            if lhs.amount.minorUnits == rhs.amount.minorUnits {
-                return .orderedSame
-            }
-            return lhs.amount.minorUnits < rhs.amount.minorUnits
-                ? .orderedAscending
-                : .orderedDescending
-        }
+        return SubscriptionTableQuery(
+            searchText: searchText,
+            sort: sort,
+            ascending: ascending
+        )
+        .apply(to: summaries, locale: locale)
     }
 
     private func reloadLibrary(scope targetScope: SubscriptionLibraryScope? = nil) {

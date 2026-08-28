@@ -109,4 +109,3 @@ public struct SubscriptionSummary: Codable, Equatable, Identifiable, Sendable {
         try container.encodeIfPresent(pinnedAt, forKey: .pinnedAt)
     }
 }
-

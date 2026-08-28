@@ -92,16 +92,19 @@ public struct SubscriptionTableQuery: Equatable, Sendable {
     ) -> ComparisonResult {
         switch sort {
         case .serviceName:
-            return lhs.serviceName.localizedCompare(rhs.serviceName)
+            return order(lhs.serviceName, rhs.serviceName, locale: locale)
         case .plan:
-            return lhs.plan.localizedCompare(rhs.plan)
+            return order(lhs.plan, rhs.plan, locale: locale)
         case .category:
-            return lhs.category.localizedCompare(rhs.category)
+            return order(lhs.category, rhs.category, locale: locale)
         case .nextRenewal:
             return lhs.confirmedNextRenewal.compare(rhs.confirmedNextRenewal)
         case .amount:
-            let currencyOrder = lhs.amount.currency.rawValue
-                .localizedCompare(rhs.amount.currency.rawValue)
+            let currencyOrder = order(
+                lhs.amount.currency.rawValue,
+                rhs.amount.currency.rawValue,
+                locale: locale
+            )
             if currencyOrder != .orderedSame {
                 return currencyOrder
             } else if lhs.amount.minorUnits == rhs.amount.minorUnits {
@@ -112,6 +115,37 @@ public struct SubscriptionTableQuery: Equatable, Sendable {
                     : .orderedDescending
             }
         }
+    }
+
+    /// Orders two user-facing strings in the caller's locale.
+    ///
+    /// `localizedCompare` is defined as an option-free comparison in the
+    /// current locale, so for the existing call sites that take the default
+    /// `.current` locale this is equivalent and their ordering does not
+    /// change. It also lets a surface that carries its own locale sort in
+    /// that locale instead.
+    ///
+    /// `MacLibraryView` previously sorted with
+    /// `[.caseInsensitive, .diacriticInsensitive]`. Folding its table query
+    /// into this single implementation moves it to the locale-sensitive
+    /// default ordering, which changes two things. Two rows differing only by
+    /// case or diacritic are no longer `.orderedSame`, so they stop falling
+    /// through to the uuid tiebreak and take an order of their own. And in a
+    /// locale that collates a diacritic apart from its base letter, such as
+    /// `sv_SE` sorting `Ä` after `Z`, those rows move a long way. Under the
+    /// en_US default `Ä` and `A` still share a primary weight, so `Äpple`
+    /// stays adjacent to `Apple` there. That is the behavior change approved
+    /// in issue #118 under ADR-0001, not a regression.
+    ///
+    /// The asymmetry with filtering is deliberate: `apply(to:locale:)` still
+    /// matches search text with `[.caseInsensitive, .diacriticInsensitive]`,
+    /// so search ignores diacritics while sorting respects them.
+    private func order(
+        _ lhs: String,
+        _ rhs: String,
+        locale: Locale
+    ) -> ComparisonResult {
+        lhs.compare(rhs, options: [], range: nil, locale: locale)
     }
 }
 

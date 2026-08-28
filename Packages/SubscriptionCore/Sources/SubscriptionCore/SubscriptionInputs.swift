@@ -177,4 +177,3 @@ public enum SubscriptionCreationResult: Equatable, Sendable {
     case validationFailed
     case persistenceFailed
 }
-

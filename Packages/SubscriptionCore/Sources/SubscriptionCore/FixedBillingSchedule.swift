@@ -116,6 +116,39 @@ public enum BillingInterval: Codable, Equatable, RawRepresentable, Sendable {
         return !value.multipliedReportingOverflow(by: 7).overflow
     }
 
+    /// The single calendar step that advances one billing occurrence.
+    ///
+    /// This is the canonical mapping for callers that add or subtract whole
+    /// occurrences. `WorkspaceScheduleMath` still keeps two forms of its own
+    /// because it multiplies the interval by an occurrence index and so needs
+    /// it normalized to a day or month scalar (weekly as 7 days, yearly as
+    /// 12 months), which this `(component, value)` shape cannot supply.
+    var calendarStep: (component: Calendar.Component, value: Int) {
+        switch self {
+        case .weekly:
+            (.weekOfYear, 1)
+        case .monthly:
+            (.month, 1)
+        case .quarterly:
+            (.month, 3)
+        case .halfYearly:
+            (.month, 6)
+        case .yearly:
+            (.year, 1)
+        case .custom(let value, let unit):
+            switch unit {
+            case .day:
+                (.day, value)
+            case .week:
+                (.weekOfYear, value)
+            case .month:
+                (.month, value)
+            case .year:
+                (.year, value)
+            }
+        }
+    }
+
     public init(from decoder: any Decoder) throws {
         if let singleValue = try? decoder.singleValueContainer(),
            let rawValue = try? singleValue.decode(String.self),
