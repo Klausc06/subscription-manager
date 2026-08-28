@@ -1,0 +1,176 @@
+# S2：Upcoming 月份导航与 UI 测试 — 设计
+
+**日期：** 2026-08-29
+**固定起点：** `d4fd91b`（S0 合并后的 `main` HEAD）
+**子项目：** S2，八子项目程序中的下一项。S6 依赖本子项目（均触及 `UpcomingView`）。
+
+---
+
+## 1. 目标
+
+修复 `UpcomingView` 在宽屏/iPhone 上使用 `UICalendarView` 时，自定义月份 header 与系统日历导航重复、且自定义控件在 `List` 滚动后从 accessibility 树消失，导致 UI 验收测试失败的问题。
+
+修复后，`testOnlyDueExpectedOccurrenceOffersConfirmCharge` 及受影响的 Upcoming 月份导航断言必须通过，且不引入第二套并行的月份状态源。
+
+## 2. 背景与根因
+
+### 2.1 症状
+
+```
+SubscriptionManagerUITests.swift:1424
+Failed to tap "upcoming.month.previous" Button: No matches found
+```
+
+单测 `testOnlyDueExpectedOccurrenceOffersConfirmCharge` 在 `main` @ `d4fd91b` 上本地复现（约 15 秒）。步骤：`upcoming.month.next` 成功 → `upcoming.month.previous` 失败。
+
+### 2.2 已确认根因
+
+`UpcomingView` 在 `canUseNativeMonthCalendar == true` 时同时渲染：
+
+1. **List 第一节**：自定义 `HStack`（`upcoming.month.previous` / `upcoming.month.title` / `upcoming.month.next`）
+2. **List 第二节**：`UpcomingMonthCalendar`（`UICalendarView`，自带 `DatePicker.PreviousMonth` / `DatePicker.NextMonth`）
+
+点「下月」后 `List` 重排/滚动，第一节滚出可见区域，自定义 identifier 从 XCUI 树消失；`UICalendarView` 的系统导航仍在树中。这不是 identifier 拼写错误——初始加载时 `testTopLevelSegmentedControlsUseOneVisualBoundary` 能查到自定义按钮。
+
+`UpcomingMonthCalendar.Coordinator` 已实现 `calendarView(_:didChangeVisibleDateComponentsFrom:)` 并调用 `onDisplayedMonthChange` → `selectMonth`，系统导航与 `displayedMonth` 的同步路径**已存在**。问题在于 UI 层重复导航 + 自定义控件不可达。
+
+### 2.3 与 Apple 平台惯例的对齐
+
+`docs/product-goal.md` 要求优先使用原生控件。`UICalendarView` / 系统日历 App 的惯例是：**月份导航内嵌于日历 chrome**，不在可滚动的 `List` 节中再叠一套 chevron。宽屏路径应遵循此模式；仅在无法展示网格日历时（无障碍 Dynamic Type）保留自定义月份控件。
+
+### 2.4 范围外（已证明）
+
+- S0 改动与此失败无关（基线 stash 隔离后同样失败）。
+- `_UICalendarDateViewCell` 的 Automation type mismatch 警告存在，但不是本次 tap 失败的直接原因；不纳入本子项目 unless 修复后仍阻塞。
+
+## 3. 设计方案（用户已批准 2026-08-29）
+
+### 3.1 宽屏路径（`canUseNativeMonthCalendar == true`）
+
+- **删除** List 中的自定义月份 header `Section`（chevron + `Text` 标题）。
+- **唯一**月份导航：`UICalendarView` 自带的 `DatePicker.PreviousMonth` / `DatePicker.NextMonth`（及系统月份标题 chrome）。
+- **状态**：继续通过现有 `Coordinator.calendarView(_:didChangeVisibleDateComponentsFrom:)` → `selectMonth` 同步 `displayedMonth` / `selectedDay`；**不得**再经 `moveMonth(by:)` 平行写入。
+- **程序化换月**（若 UI 内仍有需要）：通过 `UpcomingMonthCalendar` 暴露的 `setVisibleDateComponents` 路径驱动 `UICalendarView`，而不是自定义 Button。
+- **accessibility**：保留 `upcoming.calendar` 于 `UICalendarView`；不再声明 `upcoming.month.previous` / `next` / `title` 于宽屏路径。
+
+### 3.2 无障碍 / 紧凑路径（`canUseNativeMonthCalendar == false`）
+
+- 仍使用 `groupedDayList`，无 `UICalendarView`。
+- 自定义月份 header **移出 `List`**，置于 `safeAreaInset(edge: .top)`（或等价的非滚动容器），保证滚动日列表时月份控件始终在 accessibility 树中。
+- 保留 `upcoming.month.previous` / `upcoming.month.next` / `upcoming.month.title` identifier。
+- `moveMonth(by:)` 仅在此路径使用。
+
+### 3.3 布局结构（宽屏）
+
+```text
+NavigationStack
+  └─ List
+       ├─ (无月份 header Section)
+       ├─ Section: UpcomingMonthCalendar  [upcoming.calendar]
+       └─ Section: 当日 agenda / ContentUnavailable
+```
+
+### 3.4 布局结构（无障碍尺寸）
+
+```text
+NavigationStack
+  └─ safeAreaInset(top): 月份 header  [upcoming.month.*]
+  └─ List
+       └─ Section "Days": groupedDayList
+```
+
+## 4. UI 测试变更
+
+### 4.1 共享 helper（推荐）
+
+在 `SubscriptionManagerUITests.swift` 增加月份导航 helper，按当前树选择控件，避免测试再次绑定错误 surface：
+
+| 条件 | 上一月 | 下一月 | 月份上下文断言 |
+|---|---|---|---|
+| 存在 `upcoming.month.previous` | 点该 Button | 点 `upcoming.month.next` | `staticTexts["upcoming.month.title"]` |
+| 否则（原生日历） | 点 `DatePicker.PreviousMonth` | 点 `DatePicker.NextMonth` | `buttons` 含 `label == "Month"` 且 `value` 含目标年月，或 `DatePicker.Show` |
+
+Helper 名称建议：`tapUpcomingPreviousMonth(in:)` / `tapUpcomingNextMonth(in:)` / `assertUpcomingMonthContextVisible(in:minimumWidth:)`。
+
+### 4.2 受影响的测试
+
+| 测试 | 变更 |
+|---|---|
+| `testOnlyDueExpectedOccurrenceOffersConfirmCharge` | 1412、1424 行改用 helper |
+| `testTopLevelSegmentedControlsUseOneVisualBoundary` | 90–97 行改用 `assertUpcomingMonthContextVisible`；宽屏下断言系统 Month chrome 宽度，而非已删除的 `upcoming.month.title` |
+
+不得仅把失败断言改为 `XCTSkip`；必须覆盖「换月后仍能返回原月并点到 Confirm Charge」的行为。
+
+## 5. 验收标准
+
+| # | 标准 | 验证方式 |
+|---|---|---|
+| AC1 | 宽屏 iPhone 上不再同时存在两套月份 chevron | UI 测试通过后，失败快照中不应同时出现 `upcoming.month.next` 与 `DatePicker.NextMonth` 于同一可见层级（宽屏路径仅后者） |
+| AC2 | `testOnlyDueExpectedOccurrenceOffersConfirmCharge` 通过 | `-only-testing:…/testOnlyDueExpectedOccurrenceOffersConfirmCharge` |
+| AC3 | `testTopLevelSegmentedControlsUseOneVisualBoundary` 通过 | 同上 `-only-testing` |
+| AC4 | 无障碍 Dynamic Type 路径仍可通过自定义 header 换月 | 在模拟器将 Content Size 调至 accessibility 档位，手动或后续 UI 测试确认 `upcoming.month.*` 存在且换月有效（本子项目至少提供可运行的单元/快照级验证说明；完整 UI 覆盖 accessibility 档位可为 follow-up 若耗时） |
+| AC5 | `SubscriptionCore` 与 app 单元测试不退步 | 现有命令集通过；本子项目不修改 Core |
+| AC6 | SwiftLint 0；`verify_repository.py` 通过 | 标准仓库验证 |
+
+## 6. 变更面
+
+**允许修改：**
+
+- `SubscriptionManager/Library/UpcomingView.swift`
+- `SubscriptionManagerUITests/SubscriptionManagerUITests.swift`
+
+**不得修改：**
+
+- `Packages/SubscriptionCore/**`（S6 范围）
+- `Localizable.xcstrings`（无新用户可见文案）
+- CI 配置（S7）
+- 其他子项目的文件
+
+## 7. 排除项
+
+- 不重构 `UpcomingView` 其余 agenda / confirm 逻辑（S6）。
+- 不修改 `UICalendarView` decoration / badge 行为。
+- 不解决 macOS Upcoming（当前 macOS 无 `UICalendarView` 节）。
+- 不 filing / 修复 `_UICalendarDateViewCell` type mismatch 除非 AC2 仍失败且证据指向该警告。
+
+## 8. 验证命令
+
+```sh
+# Core（iCloud 仓库必须 scratch-path）
+swift test --package-path Packages/SubscriptionCore \
+  --scratch-path "$HOME/.cache/subscriptionmanager-spm" \
+  -Xswiftc -warnings-as-errors
+
+swiftlint lint
+
+python3 Scripts/verify_repository.py
+
+# 判别性 UI 测试（约 1–2 分钟 each）
+xcodebuild test \
+  -project SubscriptionManager.xcodeproj \
+  -scheme SubscriptionManager \
+  -destination 'platform=iOS Simulator,name=iPhone 17 Pro Max,OS=latest' \
+  -only-testing:SubscriptionManagerUITests/SubscriptionManagerUITests/testOnlyDueExpectedOccurrenceOffersConfirmCharge \
+  -parallel-testing-enabled NO \
+  CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO
+
+xcodebuild test \
+  -project SubscriptionManager.xcodeproj \
+  -scheme SubscriptionManager \
+  -destination 'platform=iOS Simulator,name=iPhone 17 Pro Max,OS=latest' \
+  -only-testing:SubscriptionManagerUITests/SubscriptionManagerUITests/testTopLevelSegmentedControlsUseOneVisualBoundary \
+  -parallel-testing-enabled NO \
+  CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO
+```
+
+完整 UI 套件（约 40 分钟）在 `artifact_verified` 阶段按需运行；本子项目至少跑上述两项判别测试。
+
+## 9. GitHub issue
+
+**#121** — https://github.com/Klausc06/subscription-manager/issues/121
+
+实现前 root-cause issue 已创建；Agent Brief 指向本文档。
+
+## 10. 批准记录
+
+- **2026-08-29**：维护者批准方案 B（宽屏用 `UICalendarView` 单一导航）+ 无障碍路径 pinned 自定义 header。
