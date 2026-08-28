@@ -320,7 +320,8 @@ xcodebuild test \
   SWIFT_TREAT_WARNINGS_AS_ERRORS=YES
 ```
 
-预期：Core **268/15**；SwiftLint **0**；verifier 通过；app unit **187/17** `TEST SUCCEEDED`。
+预期：Core **268/15**；SwiftLint **0**；verifier 通过；app unit **191/18** `TEST SUCCEEDED`
+（较基线 187/17 增加 `UpcomingMonthNavigationTests` 一个 suite / 四个 test，覆盖 AC1 互斥性与 AC7 失败态）。
 
 - [ ] **步骤 2：AC4 无障碍路径（手动，记录于 ledger）**
 
@@ -377,7 +378,7 @@ gh issue comment 121 --body "$(cat <<'EOF'
 |---|---|
 | AC2 `testOnlyDueExpectedOccurrenceOffersConfirmCharge` | TEST SUCCEEDED (paste log tail) |
 | AC3 `testTopLevelSegmentedControlsUseOneVisualBoundary` | TEST SUCCEEDED |
-| AC5 Core + app unit unchanged | 268/15 + 187/17 |
+| AC5 Core unchanged + app unit no regression | 268/15 + 191/18（基线 187/17 + `UpcomingMonthNavigationTests`） |
 | AC6 SwiftLint + verify_repository | 0 violations; verifier OK |
 | AC4 accessibility pinned header | Manual: <档位> — pass/fail |
 

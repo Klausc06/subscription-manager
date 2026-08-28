@@ -3938,6 +3938,14 @@ final class SubscriptionManagerUITests: XCTestCase {
         if customTitle.waitForExistence(timeout: 2) {
             XCTAssertTrue(app.buttons["upcoming.month.previous"].exists)
             XCTAssertTrue(app.buttons["upcoming.month.next"].exists)
+            XCTAssertFalse(
+                app.buttons["DatePicker.PreviousMonth"].exists,
+                "Upcoming must expose exactly one month navigation source."
+            )
+            XCTAssertFalse(
+                app.buttons["DatePicker.NextMonth"].exists,
+                "Upcoming must expose exactly one month navigation source."
+            )
             XCTAssertGreaterThan(
                 customTitle.frame.width,
                 minimumWidth * 0.2,
@@ -3952,6 +3960,14 @@ final class SubscriptionManagerUITests: XCTestCase {
         )
         XCTAssertTrue(app.buttons["DatePicker.PreviousMonth"].exists)
         XCTAssertTrue(app.buttons["DatePicker.NextMonth"].exists)
+        XCTAssertFalse(
+            app.buttons["upcoming.month.previous"].exists,
+            "Upcoming must expose exactly one month navigation source."
+        )
+        XCTAssertFalse(
+            app.buttons["upcoming.month.next"].exists,
+            "Upcoming must expose exactly one month navigation source."
+        )
         XCTAssertGreaterThan(
             monthChrome.frame.width,
             minimumWidth * 0.2,

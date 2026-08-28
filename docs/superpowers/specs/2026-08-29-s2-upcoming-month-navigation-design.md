@@ -16,7 +16,7 @@
 
 ### 2.1 症状
 
-```
+```text
 SubscriptionManagerUITests.swift:1424
 Failed to tap "upcoming.month.previous" Button: No matches found
 ```
@@ -45,22 +45,48 @@ Failed to tap "upcoming.month.previous" Button: No matches found
 
 ## 3. 设计方案（用户已批准 2026-08-29）
 
+### 3.0 唯一导航面不变量
+
+月份导航面由一个纯判定决定，两处渲染分支共用它，不各写一份条件：
+
+```swift
+UpcomingView.showsNativeMonthCalendar(
+    canUseNativeMonthCalendar:hasUpcomingFailure:
+) == canUseNativeMonthCalendar && !hasUpcomingFailure
+
+UpcomingView.showsPinnedMonthNavigation(...) == !showsNativeMonthCalendar(...)
+```
+
+因此在 (布局宽度 × 加载状态) 的每种组合下，`UICalendarView` chrome 与 pinned 自定义 header
+恰好挂载一个，永不同时出现、也永不同时缺席。`displayedMonth` 在任一时刻只有一个写者。
+
 ### 3.1 宽屏路径（`canUseNativeMonthCalendar == true`）
+
+**加载成功（`hasUpcomingFailure == false`）：**
 
 - **删除** List 中的自定义月份 header `Section`（chevron + `Text` 标题）。
 - **唯一**月份导航：`UICalendarView` 自带的 `DatePicker.PreviousMonth` / `DatePicker.NextMonth`（及系统月份标题 chrome）。
 - **状态**：继续通过现有 `Coordinator.calendarView(_:didChangeVisibleDateComponentsFrom:)` → `selectMonth` 同步 `displayedMonth` / `selectedDay`；**不得**再经 `moveMonth(by:)` 平行写入。
 - **程序化换月**（若 UI 内仍有需要）：通过 `UpcomingMonthCalendar` 暴露的 `setVisibleDateComponents` 路径驱动 `UICalendarView`，而不是自定义 Button。
-- **accessibility**：保留 `upcoming.calendar` 于 `UICalendarView`；不再声明 `upcoming.month.previous` / `next` / `title` 于宽屏路径。
+- **accessibility**：保留 `upcoming.calendar` 于 `UICalendarView`；此状态下不声明 `upcoming.month.previous` / `next` / `title`。
+
+**加载失败（`hasUpcomingFailure == true`）：**
+
+- 无 projection 可渲染，`UICalendarView` 不挂载，因此系统月份 chrome 不存在。
+- pinned 自定义 header **恢复**：它是此状态下唯一能改变 `displayedMonth`、从而触发
+  `.task(id: displayedMonth)` 重新加载的控件。声明 `upcoming.month.previous` / `next` / `title`。
+- 此状态下 `moveMonth(by:)` 是 `displayedMonth` 的唯一写者，与 §3.1 禁止的"平行写入"不冲突：
+  两个写者从不同时挂载，恢复后 `updateUIView` 会依据 `displayedMonth` 重新同步
+  `visibleDateComponents`。
 
 ### 3.2 无障碍 / 紧凑路径（`canUseNativeMonthCalendar == false`）
 
 - 仍使用 `groupedDayList`，无 `UICalendarView`。
 - 自定义月份 header **移出 `List`**，置于 `safeAreaInset(edge: .top)`（或等价的非滚动容器），保证滚动日列表时月份控件始终在 accessibility 树中。
 - 保留 `upcoming.month.previous` / `upcoming.month.next` / `upcoming.month.title` identifier。
-- `moveMonth(by:)` 仅在此路径使用。
+- `moveMonth(by:)` 用于所有未挂载 `UICalendarView` 的状态：紧凑 / 无障碍路径，以及宽屏加载失败态（§3.1）。
 
-### 3.3 布局结构（宽屏）
+### 3.3 布局结构（宽屏，加载成功）
 
 ```text
 NavigationStack
@@ -68,6 +94,16 @@ NavigationStack
        ├─ (无月份 header Section)
        ├─ Section: UpcomingMonthCalendar  [upcoming.calendar]
        └─ Section: 当日 agenda / ContentUnavailable
+```
+
+### 3.3.1 布局结构（宽屏，加载失败）
+
+```text
+NavigationStack
+  └─ safeAreaInset(top): 月份 header  [upcoming.month.*]
+  └─ List
+       ├─ Section: ContentUnavailableView  [upcoming.month.failed]
+       └─ Section: ContentUnavailableView  [upcoming.agenda.failed]
 ```
 
 ### 3.4 布局结构（无障碍尺寸）
@@ -105,12 +141,13 @@ Helper 名称建议：`tapUpcomingPreviousMonth(in:)` / `tapUpcomingNextMonth(in
 
 | # | 标准 | 验证方式 |
 |---|---|---|
-| AC1 | 宽屏 iPhone 上不再同时存在两套月份 chevron | UI 测试通过后，失败快照中不应同时出现 `upcoming.month.next` 与 `DatePicker.NextMonth` 于同一可见层级（宽屏路径仅后者） |
+| AC1 | `UICalendarView` chrome 与 pinned 自定义 header 在 (宽度 × 加载状态) 每种组合下恰好挂载一个：宽屏+成功仅原生、宽屏+失败仅自定义、紧凑 / 无障碍仅自定义 | 单元测试 `UpcomingMonthNavigationTests`（含互斥性断言 `showsNativeMonthCalendar != showsPinnedMonthNavigation`）+ `assertUpcomingMonthContextVisible` 在两个分支各断言另一套控件不存在 |
 | AC2 | `testOnlyDueExpectedOccurrenceOffersConfirmCharge` 通过 | `-only-testing:…/testOnlyDueExpectedOccurrenceOffersConfirmCharge` |
 | AC3 | `testTopLevelSegmentedControlsUseOneVisualBoundary` 通过 | 同上 `-only-testing` |
 | AC4 | 无障碍 Dynamic Type 路径仍可通过自定义 header 换月 | 在模拟器将 Content Size 调至 accessibility 档位，手动或后续 UI 测试确认 `upcoming.month.*` 存在且换月有效（本子项目至少提供可运行的单元/快照级验证说明；完整 UI 覆盖 accessibility 档位可为 follow-up 若耗时） |
 | AC5 | `SubscriptionCore` 与 app 单元测试不退步 | 现有命令集通过；本子项目不修改 Core |
 | AC6 | SwiftLint 0；`verify_repository.py` 通过 | 标准仓库验证 |
+| AC7 | 宽屏加载失败态仍存在可改变 `displayedMonth` 的控件（否则无法离开失败月份或重试） | `showsPinnedMonthNavigation(canUseNativeMonthCalendar: true, hasUpcomingFailure: true) == true`。**仅在纯判定层验证**：`upcomingTimelineState == .failed` 目前没有可注入的启动参数（仅有 `--ui-testing-fail-lifecycle-mutations`），新增失败注入 hook 超出本子项目变更面，UI 级覆盖延后 |
 
 ## 6. 变更面
 
@@ -118,6 +155,7 @@ Helper 名称建议：`tapUpcomingPreviousMonth(in:)` / `tapUpcomingNextMonth(in
 
 - `SubscriptionManager/Library/UpcomingView.swift`
 - `SubscriptionManagerUITests/SubscriptionManagerUITests.swift`
+- `SubscriptionManagerTests/ConfirmChargeEligibilityTests.swift`（纯判定的单元覆盖；`SubscriptionManager.xcodeproj` 已入库且无 file-system synchronized group，新建测试文件需重生成工程，故沿用既有文件）
 
 **不得修改：**
 
