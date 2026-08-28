@@ -309,11 +309,6 @@ struct UpcomingView: View {
 
     private func canUseNativeMonthCalendar(availableWidth: CGFloat) -> Bool {
 #if os(iOS)
-        if ProcessInfo.processInfo.arguments.contains(
-            "--ui-testing-accessibility-upcoming-layout"
-        ) {
-            return false
-        }
         guard !dynamicTypeSize.isAccessibilitySize else { return false }
         return availableWidth >= nativeCalendarMinimumWidth
 #else

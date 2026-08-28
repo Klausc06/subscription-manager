@@ -58,7 +58,9 @@ UpcomingView.showsPinnedMonthNavigation(...) == !showsNativeMonthCalendar(...)
 ```
 
 因此在 (布局宽度 × 加载状态) 的每种组合下，`UICalendarView` chrome 与 pinned 自定义 header
-恰好挂载一个，永不同时出现、也永不同时缺席。`displayedMonth` 在任一时刻只有一个写者。
+恰好挂载一个，永不同时出现、也永不同时缺席 —— 这由「后者定义为前者取反」保证，而非靠两处条件
+各自写对。`displayedMonth` 的**月份导航写者**在任一时刻只有一个（`loadTimeline` 的
+`selectsFirstChargeAfterMonthChange` 路径也会经 `selectMonth` 写入，但那不是导航控件）。
 
 ### 3.1 宽屏路径（`canUseNativeMonthCalendar == true`）
 
@@ -75,13 +77,14 @@ UpcomingView.showsPinnedMonthNavigation(...) == !showsNativeMonthCalendar(...)
 - 无 projection 可渲染，`UICalendarView` 不挂载，因此系统月份 chrome 不存在。
 - pinned 自定义 header **恢复**：它是此状态下唯一能改变 `displayedMonth`、从而触发
   `.task(id: displayedMonth)` 重新加载的控件。声明 `upcoming.month.previous` / `next` / `title`。
-- 此状态下 `moveMonth(by:)` 是 `displayedMonth` 的唯一写者，与 §3.1 禁止的"平行写入"不冲突：
-  两个写者从不同时挂载，恢复后 `updateUIView` 会依据 `displayedMonth` 重新同步
-  `visibleDateComponents`。
+- 此状态下 `moveMonth(by:)` 是唯一的月份导航写者，与 §3.1 禁止的"平行写入"不冲突：
+  两个写者从不同时挂载。失败恢复后 `UpcomingMonthCalendar` 是重新挂载，因此由
+  `makeUIView` 依据 `displayedMonth` 播种 `visibleDateComponents`（后续换月才走
+  `updateUIView`）。
 
 ### 3.2 无障碍 / 紧凑路径（`canUseNativeMonthCalendar == false`）
 
-- 仍使用 `groupedDayList`，无 `UICalendarView`。
+- 加载成功时使用 `groupedDayList`，加载失败时改为 `upcoming.month.failed`；两种情况都无 `UICalendarView`。
 - 自定义月份 header **移出 `List`**，置于 `safeAreaInset(edge: .top)`（或等价的非滚动容器），保证滚动日列表时月份控件始终在 accessibility 树中。
 - 保留 `upcoming.month.previous` / `upcoming.month.next` / `upcoming.month.title` identifier。
 - `moveMonth(by:)` 用于所有未挂载 `UICalendarView` 的状态：紧凑 / 无障碍路径，以及宽屏加载失败态（§3.1）。
@@ -141,10 +144,10 @@ Helper 名称建议：`tapUpcomingPreviousMonth(in:)` / `tapUpcomingNextMonth(in
 
 | # | 标准 | 验证方式 |
 |---|---|---|
-| AC1 | `UICalendarView` chrome 与 pinned 自定义 header 在 (宽度 × 加载状态) 每种组合下恰好挂载一个：宽屏+成功仅原生、宽屏+失败仅自定义、紧凑 / 无障碍仅自定义 | 单元测试 `UpcomingMonthNavigationTests`（含互斥性断言 `showsNativeMonthCalendar != showsPinnedMonthNavigation`）+ `assertUpcomingMonthContextVisible` 在两个分支各断言另一套控件不存在 |
+| AC1 | `UICalendarView` chrome 与 pinned 自定义 header 在 (宽度 × 加载状态) 每种组合下恰好挂载一个：宽屏+成功仅原生、宽屏+失败仅自定义、紧凑 / 无障碍仅自定义 | 判定层：`UpcomingMonthNavigationTests` 以字面值钉住全部四种组合的真值表。渲染层：`assertUpcomingMonthContextVisible` 在两个分支各断言另一套控件不存在（覆盖宽屏+成功、紧凑+成功），`testUpcomingAccessibilitySizeUsesPinnedMonthNavigation` 覆盖无障碍档位。**宽屏+失败的渲染层未覆盖**，原因同 AC7 |
 | AC2 | `testOnlyDueExpectedOccurrenceOffersConfirmCharge` 通过 | `-only-testing:…/testOnlyDueExpectedOccurrenceOffersConfirmCharge` |
 | AC3 | `testTopLevelSegmentedControlsUseOneVisualBoundary` 通过 | 同上 `-only-testing` |
-| AC4 | 无障碍 Dynamic Type 路径仍可通过自定义 header 换月 | 在模拟器将 Content Size 调至 accessibility 档位，手动或后续 UI 测试确认 `upcoming.month.*` 存在且换月有效（本子项目至少提供可运行的单元/快照级验证说明；完整 UI 覆盖 accessibility 档位可为 follow-up 若耗时） |
+| AC4 | 无障碍 Dynamic Type 路径仍可通过自定义 header 换月，且滚动日列表后 header 仍在 accessibility 树中 | 已自动化：`testUpcomingAccessibilitySizeUsesPinnedMonthNavigation`。经由 `-UIPreferredContentSizeCategoryName UICTContentSizeCategoryAccessibilityXXXL` 启动参数驱动真实 Dynamic Type 档位（UIKit 从 user defaults 的 argument domain 读取，故不能用 `launchEnvironment`），不使用任何生产开关。测试断言月份标题在 next / previous 后变化并回到起点，并以 `seedsTask6OccurrenceFixture` 保证日列表可滚动 |
 | AC5 | `SubscriptionCore` 与 app 单元测试不退步 | 现有命令集通过；本子项目不修改 Core |
 | AC6 | SwiftLint 0；`verify_repository.py` 通过 | 标准仓库验证 |
 | AC7 | 宽屏加载失败态仍存在可改变 `displayedMonth` 的控件（否则无法离开失败月份或重试） | `showsPinnedMonthNavigation(canUseNativeMonthCalendar: true, hasUpcomingFailure: true) == true`。**仅在纯判定层验证**：`upcomingTimelineState == .failed` 目前没有可注入的启动参数（仅有 `--ui-testing-fail-lifecycle-mutations`），新增失败注入 hook 超出本子项目变更面，UI 级覆盖延后 |
@@ -155,7 +158,8 @@ Helper 名称建议：`tapUpcomingPreviousMonth(in:)` / `tapUpcomingNextMonth(in
 
 - `SubscriptionManager/Library/UpcomingView.swift`
 - `SubscriptionManagerUITests/SubscriptionManagerUITests.swift`
-- `SubscriptionManagerTests/ConfirmChargeEligibilityTests.swift`（纯判定的单元覆盖；`SubscriptionManager.xcodeproj` 已入库且无 file-system synchronized group，新建测试文件需重生成工程，故沿用既有文件）
+- `SubscriptionManagerTests/ConfirmChargeEligibilityTests.swift`（纯判定的单元覆盖）
+- 本设计文档与对应 plan（记录失败态行为与 AC4 自动化方式）
 
 **不得修改：**
 
@@ -197,6 +201,7 @@ xcodebuild test \
   -scheme SubscriptionManager \
   -destination 'platform=iOS Simulator,name=iPhone 17 Pro Max,OS=latest' \
   -only-testing:SubscriptionManagerUITests/SubscriptionManagerUITests/testTopLevelSegmentedControlsUseOneVisualBoundary \
+  -only-testing:SubscriptionManagerUITests/SubscriptionManagerUITests/testUpcomingAccessibilitySizeUsesPinnedMonthNavigation \
   -parallel-testing-enabled NO \
   CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO
 ```

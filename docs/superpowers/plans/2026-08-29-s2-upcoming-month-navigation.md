@@ -320,18 +320,28 @@ xcodebuild test \
   SWIFT_TREAT_WARNINGS_AS_ERRORS=YES
 ```
 
-预期：Core **268/15**；SwiftLint **0**；verifier 通过；app unit **191/18** `TEST SUCCEEDED`
-（较基线 187/17 增加 `UpcomingMonthNavigationTests` 一个 suite / 四个 test，覆盖 AC1 互斥性与 AC7 失败态）。
+预期：Core **268/15**；SwiftLint **0**；verifier 通过；app unit **190/18** `TEST SUCCEEDED`
+（较基线 187/17 增加 `UpcomingMonthNavigationTests` 一个 suite / 三个 test，以字面值钉住 AC1 真值表与 AC7 失败态）。
 
-- [ ] **步骤 2：AC4 无障碍路径（手动，记录于 ledger）**
+- [ ] **步骤 2：AC4 无障碍路径（已自动化）**
 
-在模拟器：Settings → Accessibility → Display & Text Size → Larger Text → 调至 **Accessibility Extra Extra Extra Large**（或任一 `dynamicTypeSize.isAccessibilitySize` 为 true 的档位）。打开 Upcoming：
+```sh
+xcodebuild \
+  -project SubscriptionManager.xcodeproj \
+  -scheme SubscriptionManager \
+  -destination 'platform=iOS Simulator,name=iPhone 17 Pro Max,OS=latest' \
+  -only-testing:SubscriptionManagerUITests/SubscriptionManagerUITests/testUpcomingAccessibilitySizeUsesPinnedMonthNavigation \
+  test
+```
 
-- 应看到 `upcoming.month.previous` / `next` / `title`（pinned header）
-- 不应看到 `upcoming.calendar` 网格
-- 点 next/previous 后月份标题变化
+该测试以 `-UIPreferredContentSizeCategoryName UICTContentSizeCategoryAccessibilityXXXL`
+启动参数驱动真实无障碍档位（UIKit 从 user defaults 的 argument domain 读取，`launchEnvironment`
+不生效），覆盖：pinned header 三个 identifier 存在、`upcoming.calendar` 不存在、
+next / previous 使月份标题变化并回到起点、滚动日列表后 header 仍在 accessibility 树中。
+不需要生产代码开关，也不需要手动调 Settings。
 
-将结果写入 progress ledger；若无法自动化，在 #121 `artifact_verified` 评论中注明「AC4 手动验证通过」及档位名称。
+变异验证（确认该测试不是空跑）：去掉 `preferredContentSizeCategory` 实参后重跑，应得 6 条
+断言失败，含 `Accessibility sizes must not show the native calendar chrome`。
 
 - [ ] **步骤 3：§4 两轴审核**
 
@@ -378,9 +388,9 @@ gh issue comment 121 --body "$(cat <<'EOF'
 |---|---|
 | AC2 `testOnlyDueExpectedOccurrenceOffersConfirmCharge` | TEST SUCCEEDED (paste log tail) |
 | AC3 `testTopLevelSegmentedControlsUseOneVisualBoundary` | TEST SUCCEEDED |
-| AC5 Core unchanged + app unit no regression | 268/15 + 191/18（基线 187/17 + `UpcomingMonthNavigationTests`） |
+| AC5 Core unchanged + app unit no regression | 268/15 + 190/18（基线 187/17 + `UpcomingMonthNavigationTests`） |
 | AC6 SwiftLint + verify_repository | 0 violations; verifier OK |
-| AC4 accessibility pinned header | Manual: <档位> — pass/fail |
+| AC4 accessibility pinned header | `testUpcomingAccessibilitySizeUsesPinnedMonthNavigation` TEST SUCCEEDED（AccessibilityXXXL，含变异验证） |
 
 ### Review
 

@@ -84,17 +84,20 @@ final class SubscriptionManagerUITests: XCTestCase {
         let app = launch(
             language: "en",
             locale: "en_US",
-            accessibilityUpcomingLayout: true
+            seedsTask6OccurrenceFixture: true,
+            preferredContentSizeCategory:
+                "UICTContentSizeCategoryAccessibilityXXXL"
         )
         topLevelTab("Upcoming", in: app).tap()
         XCTAssertTrue(app.navigationBars["Upcoming"].waitForExistence(timeout: 5))
 
+        let title = app.staticTexts["upcoming.month.title"]
         XCTAssertTrue(
-            app.buttons["upcoming.month.previous"].waitForExistence(timeout: 5),
+            title.waitForExistence(timeout: 5),
             "Accessibility sizes must keep the custom month header reachable."
         )
+        XCTAssertTrue(app.buttons["upcoming.month.previous"].exists)
         XCTAssertTrue(app.buttons["upcoming.month.next"].exists)
-        XCTAssertTrue(app.staticTexts["upcoming.month.title"].exists)
         XCTAssertFalse(
             app.buttons["DatePicker.PreviousMonth"].exists,
             "Accessibility sizes must not show the native calendar chrome."
@@ -104,14 +107,55 @@ final class SubscriptionManagerUITests: XCTestCase {
             "Accessibility sizes must use the grouped day list instead of UICalendarView."
         )
 
+        // The pinned header is the only month control on this path, so it has
+        // to actually change the month, not merely exist.
+        let startingMonth = title.label
         tapUpcomingNextMonth(in: app)
+        XCTAssertTrue(
+            waitForMonthTitle(toChangeFrom: startingMonth, in: app),
+            "The pinned next-month control must advance the displayed month."
+        )
+        let nextMonth = title.label
         tapUpcomingPreviousMonth(in: app)
+        XCTAssertTrue(
+            waitForMonthTitle(toChangeFrom: nextMonth, in: app),
+            "The pinned previous-month control must return the displayed month."
+        )
+        XCTAssertEqual(
+            title.label,
+            startingMonth,
+            "Paging next then previous must land on the starting month."
+        )
 
+        // Scrolling the day list is what used to drop the header out of the
+        // accessibility tree, so the list has to have something to scroll.
+        XCTAssertTrue(
+            app.descendants(matching: .any)["upcoming.month.empty"].waitForNonExistence(
+                timeout: 5
+            ),
+            "The seeded fixture must produce a scrollable day list."
+        )
         app.swipeUp()
         XCTAssertTrue(
             app.buttons["upcoming.month.previous"].exists,
             "Pinned month navigation must stay in the accessibility tree while scrolling."
         )
+        XCTAssertTrue(app.staticTexts["upcoming.month.title"].exists)
+    }
+
+    private func waitForMonthTitle(
+        toChangeFrom previousLabel: String,
+        in app: XCUIApplication
+    ) -> Bool {
+        let title = app.staticTexts["upcoming.month.title"]
+        let deadline = Date().addingTimeInterval(5)
+        while Date() < deadline {
+            if title.exists, title.label != previousLabel {
+                return true
+            }
+            usleep(100_000)
+        }
+        return false
     }
 
     func testTopLevelSegmentedControlsUseOneVisualBoundary() throws {
@@ -3599,8 +3643,7 @@ final class SubscriptionManagerUITests: XCTestCase {
         seedsTask6OccurrenceFixture: Bool = false,
         opensArchivedLibrary: Bool = false,
         timeZoneIdentifier: String? = nil,
-        preferredContentSizeCategory: String? = nil,
-        accessibilityUpcomingLayout: Bool = false
+        preferredContentSizeCategory: String? = nil
     ) -> XCUIApplication {
         let app = XCUIApplication()
         app.launchArguments = [
@@ -3637,12 +3680,14 @@ final class SubscriptionManagerUITests: XCTestCase {
         if let timeZoneIdentifier {
             app.launchEnvironment["TZ"] = timeZoneIdentifier
         }
+        // UIKit reads the preferred content size from the argument domain of
+        // user defaults, so this has to be a launch argument pair rather than
+        // an environment variable.
         if let preferredContentSizeCategory {
-            app.launchEnvironment["UIPreferredContentSizeCategoryName"] =
-                preferredContentSizeCategory
-        }
-        if accessibilityUpcomingLayout {
-            app.launchArguments.append("--ui-testing-accessibility-upcoming-layout")
+            app.launchArguments += [
+                "-UIPreferredContentSizeCategoryName",
+                preferredContentSizeCategory,
+            ]
         }
         app.launch()
         return app

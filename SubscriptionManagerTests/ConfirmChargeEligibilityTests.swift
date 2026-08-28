@@ -182,21 +182,4 @@ struct UpcomingMonthNavigationTests {
             )
         }
     }
-
-    @Test("Exactly one month navigation surface is ever mounted")
-    func monthNavigationSurfacesAreMutuallyExclusive() {
-        for canUseNativeMonthCalendar in [false, true] {
-            for hasUpcomingFailure in [false, true] {
-                #expect(
-                    UpcomingView.showsNativeMonthCalendar(
-                        canUseNativeMonthCalendar: canUseNativeMonthCalendar,
-                        hasUpcomingFailure: hasUpcomingFailure
-                    ) != UpcomingView.showsPinnedMonthNavigation(
-                        canUseNativeMonthCalendar: canUseNativeMonthCalendar,
-                        hasUpcomingFailure: hasUpcomingFailure
-                    )
-                )
-            }
-        }
-    }
 }
