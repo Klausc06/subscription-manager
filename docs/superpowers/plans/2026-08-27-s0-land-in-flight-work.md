@@ -37,7 +37,7 @@ swift test --package-path Packages/SubscriptionCore \
 
 **RC1 组（10 条，全部已跟踪）** — 职责：lint 配置与被它掩盖的违规
 
-```
+```text
 .swiftlint.yml
 Packages/SubscriptionCore/Sources/SubscriptionCore/Catalog.swift
 Packages/SubscriptionCore/Sources/SubscriptionCore/DomainModels.swift
@@ -52,7 +52,7 @@ SubscriptionManagerTests/AppDependenciesTests.swift
 
 **RC2 组（7 条：5 已跟踪 + 2 新增）** — 职责：账单时区推导与本地化的无障碍标签
 
-```
+```text
 Packages/SubscriptionCore/Sources/SubscriptionCore/FixedBillingSchedule.swift
 Packages/SubscriptionCore/Sources/SubscriptionCore/BillingDateResolver.swift
 Packages/SubscriptionCore/Sources/SubscriptionCore/RenewalPeriodProgress.swift          ← 新增
@@ -64,7 +64,7 @@ CONTEXT.md
 
 **RC3 组（3 条：2 已跟踪 + 1 新增）** — 职责：库表查询收拢到 Core 单一实现
 
-```
+```text
 Packages/SubscriptionCore/Sources/SubscriptionCore/LibraryQueries.swift
 SubscriptionManager/App/SubscriptionManagerApp.swift
 Packages/SubscriptionCore/Tests/SubscriptionCoreTests/LibraryQueriesTests.swift         ← 新增
@@ -72,14 +72,14 @@ Packages/SubscriptionCore/Tests/SubscriptionCoreTests/LibraryQueriesTests.swift 
 
 **文档组（2 条，任务 1 提交）**
 
-```
+```text
 docs/superpowers/specs/2026-08-27-s0-land-in-flight-work-design.md
 docs/superpowers/plans/2026-08-27-s0-land-in-flight-work.md
 ```
 
 **范围外（6 条，不得进入任何提交）**
 
-```
+```text
 docs/research/2026-08-25-implementation-plan.md
 docs/research/2026-08-25-round-3-opportunities.md
 docs/research/evidence/screenshots/round-2-current-ui/03-manual-required-plan-category 2.jpg
@@ -125,13 +125,17 @@ git commit -m "docs(superpowers): add S0 spec and plan for landing in-flight wor
 - [ ] **步骤 4：记录新的固定起点**
 
 ```sh
-git rev-parse --short HEAD
+set -o errexit
+set -o pipefail
+printf 'FIXED_POINT=%s\n' "$(git rev-parse --short HEAD)" \
+  > /tmp/subscription-manager-s0.env
+cat /tmp/subscription-manager-s0.env
 git status --short --untracked-files=all | wc -l
 ```
 
 预期：条目数变为 **26**（28 减去两条已提交文档）。
 
-把 `git rev-parse --short HEAD` 的输出**直接写回本计划文件**，替换任务 3 与任务 7 中的 `<FIXED_POINT>` 占位记号。不要依赖 shell 变量跨步骤传递：若每个步骤在新 shell 里执行，空变量会让 `git log <FIXED_POINT>..HEAD` 退化成合法但为空的 `git log ..HEAD`，任务 7 会显示 0 个提交而看起来像失败。同理，任务 2 取得的三个 issue 号也写回正文。
+把 `git rev-parse --short HEAD` 的输出保存在仓库外的临时记录 `/tmp/subscription-manager-s0.env`。后续任务必须先读取该记录并检查值非空；不得把固定起点或 issue 号写回任何已跟踪文件。这样任务 3 的候选 diff 不会重新包含 `docs/superpowers/`，任务 6 也能满足“无已跟踪修改”的工作树约束。
 
 ---
 
@@ -251,10 +255,32 @@ Splitting `MacLibraryView` out of `SubscriptionManagerApp.swift`, which is S4. A
 - [ ] **步骤 4：记录三个 issue 号**
 
 ```sh
+set -o errexit
 gh issue list --state open --limit 5 --json number,title
+source /tmp/subscription-manager-s0.env
+test -n "$FIXED_POINT"
+ISSUE_RC1=$(gh issue list --state open --limit 20 \
+  --search 'SwiftLint excluded paths miss nested SwiftPM build directories in:title' \
+  --json number --jq '.[0].number // empty')
+ISSUE_RC2=$(gh issue list --state open --limit 20 \
+  --search 'Renewal progress is derived in the device time zone in:title' \
+  --json number --jq '.[0].number // empty')
+ISSUE_RC3=$(gh issue list --state open --limit 20 \
+  --search 'Mac library view duplicates the Core table query in:title' \
+  --json number --jq '.[0].number // empty')
+test -n "$ISSUE_RC1"
+test -n "$ISSUE_RC2"
+test -n "$ISSUE_RC3"
+{
+  printf 'FIXED_POINT=%s\n' "$FIXED_POINT"
+  printf 'ISSUE_RC1=%s\n' "$ISSUE_RC1"
+  printf 'ISSUE_RC2=%s\n' "$ISSUE_RC2"
+  printf 'ISSUE_RC3=%s\n' "$ISSUE_RC3"
+} > /tmp/subscription-manager-s0.env
+cat /tmp/subscription-manager-s0.env
 ```
 
-把三个号记为 `ISSUE_RC1`、`ISSUE_RC2`、`ISSUE_RC3`，任务 4–7 的提交尾注引用它们。
+确认临时记录中的 `FIXED_POINT`、`ISSUE_RC1`、`ISSUE_RC2`、`ISSUE_RC3` 均非空。任务 3–7 每次使用前都从该记录读取，不写回计划文件。
 
 ---
 
@@ -266,12 +292,16 @@ gh issue list --state open --limit 5 --json number,title
 
 - [ ] **步骤 1：生成清单与 diff 材料**
 
-把下面的 `<FIXED_POINT>` 替换为任务 1 步骤 4 记录的实际 SHA。
+从任务 1 步骤 4 创建的临时记录读取固定起点。
 
 ```sh
-git log <FIXED_POINT>..HEAD --oneline
+set -o errexit
+set -o pipefail
+source /tmp/subscription-manager-s0.env
+test -n "$FIXED_POINT"
+git log "$FIXED_POINT"..HEAD --oneline
 git status --short --untracked-files=all
-git diff --binary <FIXED_POINT> -- \
+git diff --binary "$FIXED_POINT" -- \
   .swiftlint.yml CONTEXT.md \
   Packages/SubscriptionCore/Sources/SubscriptionCore/ \
   SubscriptionManager/ SubscriptionManagerTests/ > /tmp/s0-tracked.diff
@@ -282,16 +312,17 @@ for p in \
   Packages/SubscriptionCore/Tests/SubscriptionCoreTests/LibraryQueriesTests.swift ; do
   git diff --no-index /dev/null "$p" >> /tmp/s0-untracked.diff || true
 done
-git diff --name-only <FIXED_POINT> -- \
+git diff --name-only "$FIXED_POINT" -- \
   .swiftlint.yml CONTEXT.md \
   Packages/SubscriptionCore/Sources/SubscriptionCore/ \
   SubscriptionManager/ SubscriptionManagerTests/ | wc -l
+test -z "$(git diff --name-only "$FIXED_POINT" -- docs/superpowers/)"
 wc -l /tmp/s0-tracked.diff /tmp/s0-untracked.diff
 ```
 
-预期：`git log` 为空（文档提交就是 `<FIXED_POINT>` 本身，不在其后）；清单 **26** 条；已跟踪 diff 恰好覆盖 **17** 个文件；两个 diff 文件均非空。
+预期：`git log` 为空（文档提交就是 `FIXED_POINT` 本身，不在其后）；清单 **26** 条；已跟踪 diff 恰好覆盖 **17** 个文件；两个 diff 文件均非空，且候选 diff 不含 `docs/superpowers/`。
 
-两处已核实的细节：`: >` 先清空追加目标，否则重跑会让内容翻倍；`git diff --no-index` 在有差异时退出 1，`|| true` 防止在 `set -e` 下中断循环。目录级 pathspec 已验证与不加限定的全量 diff 逐行相同（均 17 个文件），`Packages/SubscriptionCore/Tests/` 缺席无害——该目录下只有未跟踪新文件，`git diff <commit>` 本就不输出它们，由上面的 `--no-index` 循环覆盖。
+两处已核实的细节：`: >` 先清空追加目标，否则重跑会让内容翻倍；`git diff --no-index` 在有差异时退出 1，`|| true` 防止在 `set -e` 下中断循环。目录级 pathspec 已验证与不加限定的全量 diff 逐行相同（均 17 个文件），`Packages/SubscriptionCore/Tests/` 缺席无害——该目录下只有未跟踪新文件，`git diff "$FIXED_POINT"` 本就不输出它们，由上面的 `--no-index` 循环覆盖。
 
 - [ ] **步骤 2：派 Standards 轴审核者**
 
@@ -332,9 +363,12 @@ git diff --cached --name-only | wc -l
 - [ ] **步骤 2：提交**
 
 ```sh
+set -o errexit
+source /tmp/subscription-manager-s0.env
+test -n "$ISSUE_RC1"
 git commit -m "fix(lint): exclude nested build directories and clear masked violations
 
-Refs #<ISSUE_RC1>"
+Refs #$ISSUE_RC1"
 ```
 
 - [ ] **步骤 3：隔离出该提交的独立状态**
@@ -366,11 +400,18 @@ git status --short --untracked-files=all | wc -l
 - [ ] **步骤 4：验证该提交可独立编译并通过**
 
 ```sh
-swiftlint lint --quiet --reporter csv | tail -n +2 | grep -c . || true
-swiftlint lint --quiet --reporter csv | grep -c '/\.build/' || true
+set -o errexit
+set -o pipefail
+swiftlint lint --quiet --reporter csv > /tmp/s0-swiftlint.csv
+violations=$(awk 'NR > 1 { count++ } END { print count + 0 }' /tmp/s0-swiftlint.csv)
+nested_build_paths=$(awk '/\/\.build\// { count++ } END { print count + 0 }' /tmp/s0-swiftlint.csv)
+printf 'violations=%s nested_build_paths=%s\n' "$violations" "$nested_build_paths"
+test "$violations" -eq 0
+test "$nested_build_paths" -eq 0
 swift test --package-path Packages/SubscriptionCore \
   --scratch-path "$HOME/.cache/subscriptionmanager-spm" \
-  -Xswiftc -warnings-as-errors 2>&1 | grep -E "Test run with|✘"
+  -Xswiftc -warnings-as-errors 2>&1 \
+  | grep -E 'Test run with 253 tests in 12 suites passed'
 ```
 
 预期：两个计数均输出 `0`；`Test run with 253 tests in 12 suites passed`。若测试数不是 253/12，说明步骤 3 的隔离未生效，回到步骤 3 排查。
@@ -408,13 +449,16 @@ git diff --cached --name-only | wc -l
 - [ ] **步骤 2：提交**
 
 ```sh
+set -o errexit
+source /tmp/subscription-manager-s0.env
+test -n "$ISSUE_RC2"
 git commit -m "fix(ui): derive renewal progress in the billing time zone
 
 Move the billing-period derivation into a testable SubscriptionCore value
 type, add the authoritative BillingInterval calendar step, and build the
 VoiceOver label as a localized key.
 
-Refs #<ISSUE_RC2>"
+Refs #$ISSUE_RC2"
 ```
 
 - [ ] **步骤 3：隔离出该提交的独立状态**
@@ -437,21 +481,28 @@ git status --short --untracked-files=all | wc -l
 规格 §4 的 RC2 验收标准要求 iOS 与 macOS 两个平台都构建成功，所以此处两个都要跑——否则 RC2 的 macOS 条目要等到任务 6 才首次验证，那时 RC3 已落地，就不再是隔离验证。
 
 ```sh
+set -o errexit
+set -o pipefail
 swift test --package-path Packages/SubscriptionCore \
   --scratch-path "$HOME/.cache/subscriptionmanager-spm" \
-  -Xswiftc -warnings-as-errors 2>&1 | grep -E "Test run with|✘"
-PYTHONDONTWRITEBYTECODE=1 python3 Scripts/verify_repository.py | tail -1
-swiftlint lint --quiet --reporter csv | tail -n +2 | grep -c . || true
+  -Xswiftc -warnings-as-errors 2>&1 \
+  | grep -E 'Test run with 262 tests in 14 suites passed'
+PYTHONDONTWRITEBYTECODE=1 python3 Scripts/verify_repository.py \
+  | grep -E '^repository verification passed: files=[0-9]+ structured=[0-9]+$'
+swiftlint lint --quiet --reporter csv > /tmp/s0-swiftlint.csv
+violations=$(awk 'NR > 1 { count++ } END { print count + 0 }' /tmp/s0-swiftlint.csv)
+printf 'violations=%s\n' "$violations"
+test "$violations" -eq 0
 xcodebuild build -project SubscriptionManager.xcodeproj -scheme SubscriptionManager \
   -destination 'platform=iOS Simulator,name=iPhone 17 Pro Max,OS=latest' \
   CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO \
   SWIFT_TREAT_WARNINGS_AS_ERRORS=YES GCC_TREAT_WARNINGS_AS_ERRORS=YES \
-  2>&1 | grep -E "error:|warning:|BUILD SUCCEEDED|BUILD FAILED"
+  2>&1 | grep -F '** BUILD SUCCEEDED **'
 xcodebuild build -project SubscriptionManager.xcodeproj -scheme SubscriptionManager \
   -destination 'platform=macOS' \
   CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO \
   SWIFT_TREAT_WARNINGS_AS_ERRORS=YES GCC_TREAT_WARNINGS_AS_ERRORS=YES \
-  2>&1 | grep -E "error:|warning:|BUILD SUCCEEDED|BUILD FAILED"
+  2>&1 | grep -F '** BUILD SUCCEEDED **'
 ```
 
 预期：`Test run with 262 tests in 14 suites passed`；verifier 通过；violations 输出 `0`；两个构建均 `** BUILD SUCCEEDED **` 且无 `error:`/`warning:`。
@@ -485,12 +536,15 @@ git diff --cached --name-only | wc -l
 - [ ] **步骤 2：提交**
 
 ```sh
+set -o errexit
+source /tmp/subscription-manager-s0.env
+test -n "$ISSUE_RC3"
 git commit -m "refactor(mac): route library table query through SubscriptionCore
 
 Delete the divergent private filter and sort from MacLibraryView, and make
 the Core comparison honor the locale argument it already declared.
 
-Refs #<ISSUE_RC3>"
+Refs #$ISSUE_RC3"
 ```
 
 - [ ] **步骤 3：确认工作树只剩范围外条目**
@@ -505,19 +559,30 @@ git diff --shortstat
 - [ ] **步骤 4：跑完整验证集**
 
 ```sh
+set -o errexit
+set -o pipefail
 swift test --package-path Packages/SubscriptionCore \
   --scratch-path "$HOME/.cache/subscriptionmanager-spm" \
-  -Xswiftc -warnings-as-errors 2>&1 | grep -E "Test run with|✘"
-swiftlint lint --quiet --reporter csv | tail -n +2 | grep -c . || true
-PYTHONDONTWRITEBYTECODE=1 python3 -m unittest Scripts.verify_repository_tests 2>&1 | tail -3
-PYTHONDONTWRITEBYTECODE=1 python3 Scripts/verify_repository.py | tail -1
-Scripts/verify_release_logs_tests.sh 2>&1 | tail -4
+  -Xswiftc -warnings-as-errors 2>&1 \
+  | grep -E 'Test run with 268 tests in 15 suites passed'
+swiftlint lint --quiet --reporter csv > /tmp/s0-swiftlint.csv
+violations=$(awk 'NR > 1 { count++ } END { print count + 0 }' /tmp/s0-swiftlint.csv)
+printf 'violations=%s\n' "$violations"
+test "$violations" -eq 0
+PYTHONDONTWRITEBYTECODE=1 python3 -m unittest Scripts.verify_repository_tests 2>&1 \
+  | grep -E '^OK$'
+PYTHONDONTWRITEBYTECODE=1 python3 Scripts/verify_repository.py \
+  | grep -E '^repository verification passed: files=[0-9]+ structured=[0-9]+$'
+Scripts/verify_release_logs_tests.sh | tee /tmp/s0-release-log-tests.txt
+test "$(grep -c '^PASS:' /tmp/s0-release-log-tests.txt)" -eq 7
 swift run --package-path Packages/SubscriptionCore \
   --scratch-path "$HOME/.cache/subscriptionmanager-spm" \
   -Xswiftc -warnings-as-errors CatalogValidator \
-  SubscriptionManager/Resources/catalog-v1.json 2>&1 | tail -1
-xcodegen generate --spec project.yml >/dev/null && \
-  git status --short -- SubscriptionManager.xcodeproj SubscriptionManager/Info.plist
+  SubscriptionManager/Resources/catalog-v1.json 2>&1 \
+  | grep -E '^valid catalog: schema=1 version=12 presets=93 offers=190$'
+xcodegen generate --spec project.yml >/dev/null
+test -z "$(git status --short -- SubscriptionManager.xcodeproj SubscriptionManager/Info.plist)"
+echo 'xcodegen: no drift'
 ```
 
 预期：`Test run with 268 tests in 15 suites passed`；violations 0；verifier 单测 20 通过；verifier 通过；release-log 校验全 PASS；catalog 有效 `presets=93 offers=190`；xcodegen 无漂移输出。
@@ -525,19 +590,21 @@ xcodegen generate --spec project.yml >/dev/null && \
 - [ ] **步骤 5：跑应用测试与 Release 构建**
 
 ```sh
+set -o errexit
+set -o pipefail
 for D in 'platform=iOS Simulator,name=iPhone 17 Pro Max,OS=latest' 'platform=macOS' ; do
   xcodebuild test -project SubscriptionManager.xcodeproj -scheme SubscriptionManager \
     -destination "$D" -only-testing:SubscriptionManagerTests \
     -parallel-testing-enabled NO CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO \
     SWIFT_TREAT_WARNINGS_AS_ERRORS=YES GCC_TREAT_WARNINGS_AS_ERRORS=YES \
-    2>&1 | grep -E "Test run with|TEST SUCCEEDED|TEST FAILED"
+    2>&1 | grep -F '** TEST SUCCEEDED **'
 done
 for D in 'generic/platform=macOS' 'generic/platform=iOS' ; do
   xcodebuild build -project SubscriptionManager.xcodeproj -scheme SubscriptionManager \
     -configuration Release -destination "$D" \
     CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO \
     SWIFT_TREAT_WARNINGS_AS_ERRORS=YES GCC_TREAT_WARNINGS_AS_ERRORS=YES \
-    2>&1 | grep -E "error:|BUILD SUCCEEDED|BUILD FAILED"
+    2>&1 | grep -F '** BUILD SUCCEEDED **'
 done
 ```
 
@@ -553,18 +620,22 @@ UI 验收套件不在本任务重跑：规格 §3 已记录它有一项既有失
 
 - [ ] **步骤 1：确认三个提交的形状**
 
-把 `<FIXED_POINT>` 替换为任务 1 步骤 4 记录的实际 SHA。
+从任务 1 步骤 4 创建的临时记录读取固定起点。
 
 ```sh
-git log <FIXED_POINT>..HEAD --stat --oneline
-git log <FIXED_POINT>..HEAD --oneline | wc -l
+set -o errexit
+set -o pipefail
+source /tmp/subscription-manager-s0.env
+test -n "$FIXED_POINT"
+git log "$FIXED_POINT"..HEAD --stat --oneline
+git log "$FIXED_POINT"..HEAD --oneline | wc -l
 ```
 
 预期：恰好三个提交，文件数依次为 10、7、3，无任何文件出现在两个提交里。
 
 - [ ] **步骤 2：在每个 issue 上记录证据**
 
-对任务 2 步骤 4 记录的三个 issue 号各执行一次 `gh issue comment <n> --body "..."`，正文首行为 `> *This was generated by AI during triage.*`，并记录：该提交 SHA、验收标准逐条结果、任务 4–6 引用的实测命令输出、两轴审核结论与裁决。按 `issue-tracker.md`，issue 在 `artifact_verified` 保持开启，只有 `remote_verified` 之后才关闭。
+读取 `/tmp/subscription-manager-s0.env`，依次对 `$ISSUE_RC1`、`$ISSUE_RC2`、`$ISSUE_RC3` 执行 `gh issue comment "$ISSUE_RC1" --body "..."`（按当前变量替换参数）。正文首行为 `> *This was generated by AI during triage.*`，并记录：该提交 SHA、验收标准逐条结果、任务 4–6 引用的实测命令输出、两轴审核结论与裁决。按 `issue-tracker.md`，issue 在 `artifact_verified` 保持开启，只有 `remote_verified` 之后才关闭。
 
 - [ ] **步骤 3：报告未推送状态并请求授权**
 
@@ -576,7 +647,7 @@ git log <FIXED_POINT>..HEAD --oneline | wc -l
 
 **1. 规格覆盖度。** 规格 §4 三个 root cause 分别由任务 4、5、6 实现；§5 步骤 0 由任务 1 实现；§5 步骤 1 由任务 2 实现；§5 步骤 2–4 由任务 3 实现；§5 步骤 5 由任务 4–6 的验证步骤实现；§5 步骤 6 由任务 7 步骤 3 实现。§3 的验证矩阵由任务 6 步骤 4–5 复现。§6 的排除项在文件结构"范围外"一节固定为 6 条，并由任务 6 步骤 3 断言。无遗漏。
 
-**2. 占位符扫描。** 无"待定"、"TODO"、"类似任务 N"。每个代码步骤都给出可直接执行的命令与预期输出。文中仅有四个待替换记号 `<FIXED_POINT>`、`<ISSUE_RC1>`、`<ISSUE_RC2>`、`<ISSUE_RC3>`，它们由任务 1 步骤 4 与任务 2 步骤 4 取得后**写回本文件正文**，而不是靠 shell 变量跨步骤传递——原因见任务 1 步骤 4 的说明。所有多词命令与多路径列表均为字面量，不经变量展开，理由见前置事实的 Shell 约束。
+**2. 运行时记录扫描。** 无"待定"、"TODO"、"类似任务 N"或待替换占位记号。每个代码步骤都给出可直接执行的命令与预期输出。固定起点与三个 issue 号仅保存在仓库外的 `/tmp/subscription-manager-s0.env`，后续任务显式读取并检查非空，不修改已跟踪计划文件。所有多词命令与多路径列表均为字面量，不经变量展开，理由见前置事实的 Shell 约束。
 
 **3. 类型一致性。** 全篇引用同一批标识符：`BillingInterval.calendarStep`、`RenewalPeriodProgress(schedule:confirmedNextRenewal:asOf:)` 及其 `fraction` / `daysRemaining` / `percentElapsed`、`BillingCalendar.calendar(timeZoneIdentifier:)`、`SubscriptionTableQuery(searchText:sort:ascending:)` 与 `.apply(to:locale:)`、Core 私有 `order(_:_:locale:)`。与规格 §4 逐一吻合，无改名漂移。
 
