@@ -191,7 +191,7 @@ Progress and remaining days are derived in the billing time zone so they agree w
 
 ## Change surface
 
-- Add `public var calendarStep` on `BillingInterval` as the authoritative mapping.
+- Add `var calendarStep` on `BillingInterval` as the authoritative mapping. It stays `internal`: its only consumers are inside the module.
 - `BillingDateResolver.calendarStep(for:)` delegates to it, keeping its optional return so the existing `guard let` sites at `:17`, `:68`, `:119` still compile.
 - Add Core value type `RenewalPeriodProgress(schedule:confirmedNextRenewal:asOf:)` exposing `fraction`, `daysRemaining`, `percentElapsed`. It resolves the billing calendar through `BillingCalendar.calendar(timeZoneIdentifier:)`. The derivation moves to Core because it is unverifiable inside the view private computed properties.
 - `RenewalProgressView` renders that type and builds the label as a single `Text` literal.
@@ -201,7 +201,7 @@ Progress and remaining days are derived in the billing time zone so they agree w
 ## Acceptance criteria
 
 - At one instant, a subscription billed in `Asia/Tokyo` reports `daysRemaining == 0` while a `UTC` one reports `1`, proving the derivation follows the billing zone rather than the process zone.
-- `SubscriptionCore` reaches 261 tests / 14 suites.
+- `SubscriptionCore` reaches 262 tests / 14 suites.
 - `swiftlint` and `Scripts/verify_repository.py` pass; the latter enforces that every string-catalog leaf is translated and non-empty.
 - iOS build succeeds under `-warnings-as-errors`.
 
@@ -236,7 +236,7 @@ Every surface shares one filter and sort behavior per ADR-0001. Core honors the 
 ## Acceptance criteria
 
 - Under `en_US`, `Äpple` sorts before `Zebra`; under `sv_SE` the order reverses. This is discriminating because `localizedCompare` ignored the argument, so both would previously match.
-- `SubscriptionCore` reaches 267 tests / 15 suites.
+- `SubscriptionCore` reaches 268 tests / 15 suites.
 - macOS build succeeds under `-warnings-as-errors`.
 
 ## Approved behavior change
@@ -454,7 +454,7 @@ xcodebuild build -project SubscriptionManager.xcodeproj -scheme SubscriptionMana
   2>&1 | grep -E "error:|warning:|BUILD SUCCEEDED|BUILD FAILED"
 ```
 
-预期：`Test run with 261 tests in 14 suites passed`；verifier 通过；violations 输出 `0`；两个构建均 `** BUILD SUCCEEDED **` 且无 `error:`/`warning:`。
+预期：`Test run with 262 tests in 14 suites passed`；verifier 通过；violations 输出 `0`；两个构建均 `** BUILD SUCCEEDED **` 且无 `error:`/`warning:`。
 
 - [ ] **步骤 5：恢复剩余改动**
 
@@ -520,7 +520,7 @@ xcodegen generate --spec project.yml >/dev/null && \
   git status --short -- SubscriptionManager.xcodeproj SubscriptionManager/Info.plist
 ```
 
-预期：`Test run with 267 tests in 15 suites passed`；violations 0；verifier 单测 20 通过；verifier 通过；release-log 校验全 PASS；catalog 有效 `presets=93 offers=190`；xcodegen 无漂移输出。
+预期：`Test run with 268 tests in 15 suites passed`；violations 0；verifier 单测 20 通过；verifier 通过；release-log 校验全 PASS；catalog 有效 `presets=93 offers=190`；xcodegen 无漂移输出。
 
 - [ ] **步骤 5：跑应用测试与 Release 构建**
 
@@ -580,4 +580,4 @@ git log <FIXED_POINT>..HEAD --oneline | wc -l
 
 **3. 类型一致性。** 全篇引用同一批标识符：`BillingInterval.calendarStep`、`RenewalPeriodProgress(schedule:confirmedNextRenewal:asOf:)` 及其 `fraction` / `daysRemaining` / `percentElapsed`、`BillingCalendar.calendar(timeZoneIdentifier:)`、`SubscriptionTableQuery(searchText:sort:ascending:)` 与 `.apply(to:locale:)`、Core 私有 `order(_:_:locale:)`。与规格 §4 逐一吻合，无改名漂移。
 
-**4. 测试数递进自洽。** 253/12（基线与 commit 1）→ 261/14（commit 2，+8 测试 +2 套件）→ 267/15（commit 3，+6 测试 +1 套件）。两个新测试文件实测含 3 个 `@Suite` 与 14 个 `@Test`，与递进吻合。
+**4. 测试数递进自洽。** 253/12（基线与 commit 1）→ 262/14（commit 2，+9 测试 +2 套件）→ 268/15（commit 3，+6 测试 +1 套件）。两个新测试文件实测含 3 个 `@Suite` 与 15 个 `@Test`，与递进吻合。

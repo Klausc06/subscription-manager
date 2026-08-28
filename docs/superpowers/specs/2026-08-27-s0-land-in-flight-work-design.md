@@ -55,7 +55,7 @@ Packages/SubscriptionCore/Tests/SubscriptionCoreTests/LibraryQueriesTests.swift
 
 | 检查项 | 结果 |
 |---|---|
-| `SubscriptionCore` | 267 tests / 15 suites 通过（`-warnings-as-errors`）。`cc7818d` 基线为 253 tests / 12 suites，新增 14 个测试与 3 个套件 |
+| `SubscriptionCore` | 268 tests / 15 suites 通过（`-warnings-as-errors`）。`cc7818d` 基线为 253 tests / 12 suites，新增 15 个测试与 3 个套件 |
 | App 单元测试 iOS Simulator（iPhone 17 Pro Max） | 187 tests / 17 suites，`TEST SUCCEEDED` |
 | App 单元测试 macOS | 188 tests / 17 suites，`TEST SUCCEEDED` |
 | Release 构建 macOS 与 iOS | 均 `BUILD SUCCEEDED` |
@@ -101,7 +101,7 @@ swift test --package-path Packages/SubscriptionCore \
 **期望行为：** 进度与剩余天数在账单时区推导，与投影出的到期扣款一致；VoiceOver 朗读用户语言；间隔映射只有一处权威定义。
 
 **变更：**
-1. 在 `BillingInterval` 上新增 `public var calendarStep: (component: Calendar.Component, value: Int)`，作为权威的间隔到日历步长映射，置于 `isValid` 之后。
+1. 在 `BillingInterval` 上新增 `var calendarStep: (component: Calendar.Component, value: Int)`，作为权威的间隔到日历步长映射，置于 `isValid` 之后。它保持 `internal`：消费者都在模块内。
 2. `BillingDateResolver` 的私有 `calendarStep(for:)` 改为委托 `interval.calendarStep`，保留可选返回类型以便三处既有 `guard let`（`:17`、`:68`、`:119`）继续编译。
 3. 新增 Core 值类型 `RenewalPeriodProgress(schedule:confirmedNextRenewal:asOf:)`，暴露 `fraction`、`daysRemaining`、`percentElapsed`。它经 `BillingCalendar.calendar(timeZoneIdentifier:)` 取账单时区日历；标识符不可用时回落 `BillingCalendar.calendar(timeZone: .autoupdatingCurrent)`。注意该回落并非设备日历——`BillingCalendar` 始终把 `identifier` 钉在 `.gregorian`、`locale` 钉在 `en_US_POSIX`，只有时区取自参数，所以回落只影响时区一项。选择建立此类型的原因是：留在视图的 `private` 计算属性里该推导无法验证。
 4. `RenewalProgressView` 删除本地推导，只渲染 `RenewalPeriodProgress`；无障碍标签改为单个 `Text("...")` 字面量，使其成为 `LocalizedStringKey`。注意不能用 `+` 拼接字符串，那会重新绑定逐字重载。
@@ -131,7 +131,7 @@ Core 的 `makeLibraryState` 只以默认参数调用 `SubscriptionTableQuery()`�
 
 **已知行为变更：** macOS 排序规则收敛到 iOS，即由"忽略大小写与音标"改为 locale 敏感的默认排序。筛选行为不变，因为 Core 与 Mac 原本使用相同的 `[.caseInsensitive, .diacriticInsensitive]` 选项加 locale。依据为 ADR-0001"SwiftUI、widgets、App Intents 与菜单栏共享同一行为"。
 
-**授权状态：已批准。** 它是本子项目唯一的用户可见行为变更，按 `production-flow.md` §3"仅产品/UX 选择、实质范围变更或授权缺失才上报用户"的规定属于必须上报的一类，已于 2026-08-27 规格审查关卡上报并获用户明确接受。曾评估的替代方案是反向收敛——改动 Core 的 `comparison` 让两端统一采用"忽略大小写与音标"的排序——因其会改变 iOS 现有行为且缺少产品依据而未采纳。
+**授权状态：已批准。** 它并非本子项目唯一的用户可见行为变更：RC2 同样改变用户可见输出（跨时区订阅的 `daysRemaining` 会移动一天量级，zh-Hans 设备上 VoiceOver 由英文改为中文），只是那一项已由本规格 §4 RC2 与 issue #117 明示批准。两项都不构成范围蔓延。本项按 `production-flow.md` §3"仅产品/UX 选择、实质范围变更或授权缺失才上报用户"的规定属于必须上报的一类，已于 2026-08-27 规格审查关卡上报并获用户明确接受。曾评估的替代方案是反向收敛——改动 Core 的 `comparison` 让两端统一采用"忽略大小写与音标"的排序——因其会改变 iOS 现有行为且缺少产品依据而未采纳。
 
 需要说明的是，两个平台收敛到同一个**排序算法**，但不必然是同一个 locale：macOS 的 locale 取自 `@Environment(\.locale)`，而 iOS 经 `WorkspaceLibrary.swift:91` 走 `apply(to:)` 的默认值 `Locale.current`。这是刻意的——`apply(to:locale:)` 的契约就是"按调用方给出的 locale 排序"，谁提供 locale 由调用方决定。
 
