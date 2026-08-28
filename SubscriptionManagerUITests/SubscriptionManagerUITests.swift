@@ -76,6 +76,44 @@ final class SubscriptionManagerUITests: XCTestCase {
         XCTAssertTrue(app.navigationBars["添加订阅"].waitForExistence(timeout: 5))
     }
 
+    func testUpcomingAccessibilitySizeUsesPinnedMonthNavigation() throws {
+        try XCTSkipIf(
+            UIDevice.current.userInterfaceIdiom == .pad,
+            "The compact phone layout owns this accessibility contract."
+        )
+        let app = launch(
+            language: "en",
+            locale: "en_US",
+            accessibilityUpcomingLayout: true
+        )
+        topLevelTab("Upcoming", in: app).tap()
+        XCTAssertTrue(app.navigationBars["Upcoming"].waitForExistence(timeout: 5))
+
+        XCTAssertTrue(
+            app.buttons["upcoming.month.previous"].waitForExistence(timeout: 5),
+            "Accessibility sizes must keep the custom month header reachable."
+        )
+        XCTAssertTrue(app.buttons["upcoming.month.next"].exists)
+        XCTAssertTrue(app.staticTexts["upcoming.month.title"].exists)
+        XCTAssertFalse(
+            app.buttons["DatePicker.PreviousMonth"].exists,
+            "Accessibility sizes must not show the native calendar chrome."
+        )
+        XCTAssertFalse(
+            app.descendants(matching: .any)["upcoming.calendar"].exists,
+            "Accessibility sizes must use the grouped day list instead of UICalendarView."
+        )
+
+        tapUpcomingNextMonth(in: app)
+        tapUpcomingPreviousMonth(in: app)
+
+        app.swipeUp()
+        XCTAssertTrue(
+            app.buttons["upcoming.month.previous"].exists,
+            "Pinned month navigation must stay in the accessibility tree while scrolling."
+        )
+    }
+
     func testTopLevelSegmentedControlsUseOneVisualBoundary() throws {
         try XCTSkipIf(
             UIDevice.current.userInterfaceIdiom == .pad,
@@ -3560,7 +3598,9 @@ final class SubscriptionManagerUITests: XCTestCase {
         seedsLegacyChatGPTPlus: Bool = false,
         seedsTask6OccurrenceFixture: Bool = false,
         opensArchivedLibrary: Bool = false,
-        timeZoneIdentifier: String? = nil
+        timeZoneIdentifier: String? = nil,
+        preferredContentSizeCategory: String? = nil,
+        accessibilityUpcomingLayout: Bool = false
     ) -> XCUIApplication {
         let app = XCUIApplication()
         app.launchArguments = [
@@ -3596,6 +3636,13 @@ final class SubscriptionManagerUITests: XCTestCase {
         }
         if let timeZoneIdentifier {
             app.launchEnvironment["TZ"] = timeZoneIdentifier
+        }
+        if let preferredContentSizeCategory {
+            app.launchEnvironment["UIPreferredContentSizeCategoryName"] =
+                preferredContentSizeCategory
+        }
+        if accessibilityUpcomingLayout {
+            app.launchArguments.append("--ui-testing-accessibility-upcoming-layout")
         }
         app.launch()
         return app
