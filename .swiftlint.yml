@@ -15,5 +15,9 @@ only_rules:
   - vertical_whitespace
 
 excluded:
+  # Paths are resolved relative to this file, so a bare `.build` misses the
+  # nested SwiftPM scratch directories under Packages/*. Keep both spellings.
   - .build
+  - "**/.build"
   - DerivedData
+  - "**/DerivedData"

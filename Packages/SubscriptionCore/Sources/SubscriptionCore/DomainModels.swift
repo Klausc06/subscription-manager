@@ -43,4 +43,3 @@ public struct ExpectedCharge: Codable, Equatable, Sendable {
         self.amount = amount
     }
 }
-

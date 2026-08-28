@@ -382,8 +382,8 @@ public struct CatalogSnapshot: Codable, Equatable, Sendable {
                 )
             }
             if let url = preset.managementURL {
-                guard (url.scheme?.lowercased() == "http"
-                    || url.scheme?.lowercased() == "https"),
+                guard url.scheme?.lowercased() == "http"
+                    || url.scheme?.lowercased() == "https",
                     let host = url.host,
                     !host.isEmpty
                 else {

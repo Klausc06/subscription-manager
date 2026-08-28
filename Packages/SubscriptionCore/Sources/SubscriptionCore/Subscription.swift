@@ -126,4 +126,3 @@ public struct Subscription: Codable, Equatable, Identifiable, Sendable {
         )
     }
 }
-

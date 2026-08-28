@@ -81,4 +81,3 @@ public struct UpcomingCalendarProjection: Equatable, Sendable {
             .sorted { $0.date < $1.date }
     }
 }
-

@@ -53,4 +53,3 @@ internal enum HistoryOccurrenceSearch {
         return nil
     }
 }
-

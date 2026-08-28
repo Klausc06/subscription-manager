@@ -41,4 +41,3 @@ public enum LibrarySyncStatus: Equatable, Sendable {
 public protocol LibrarySyncMonitor: Sendable {
     func refreshStatus() async -> LibrarySyncStatus
 }
-

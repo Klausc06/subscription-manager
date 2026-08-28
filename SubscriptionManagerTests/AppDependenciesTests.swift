@@ -445,7 +445,6 @@ struct AppDependenciesTests {
             directoryHint: .isDirectory
         )
 
-
         guard case .ready(let dependencies) = AppDependencies.live(
             arguments: [
                 "SubscriptionManager",
@@ -742,7 +741,7 @@ struct AppDependenciesTests {
                 path: "SubscriptionManagerMixedMappingMigration-\(UUID().uuidString)",
                 directoryHint: .isDirectory
             )
-    
+
             let token = foreignRowsFirst
                 ? "mixed-mapping-foreign-first"
                 : "mixed-mapping-current-first"
