@@ -16,7 +16,7 @@
 
 已跟踪文件（按关注点归组见 §4）：
 
-```
+```text
 .swiftlint.yml
 CONTEXT.md
 Packages/SubscriptionCore/Sources/SubscriptionCore/BillingDateResolver.swift
@@ -38,7 +38,7 @@ SubscriptionManagerTests/AppDependenciesTests.swift
 
 未跟踪新文件：
 
-```
+```text
 Packages/SubscriptionCore/Sources/SubscriptionCore/RenewalPeriodProgress.swift
 Packages/SubscriptionCore/Tests/SubscriptionCoreTests/RenewalPeriodProgressTests.swift
 Packages/SubscriptionCore/Tests/SubscriptionCoreTests/LibraryQueriesTests.swift
