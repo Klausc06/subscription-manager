@@ -39,6 +39,22 @@
   internal Renewal Anchor. Date-only form input is stored at local noon in the
   billing time zone. For a trial it is presented as First Paid Charge; changing
   Trial Start or the paid interval does not move it.
+- **Renewal Period Progress**: The elapsed fraction of the current billing
+  period and the whole days remaining before the Confirmed Next Renewal,
+  derived at a specific instant. The period starts one billing interval before
+  the Confirmed Next Renewal, by the same derivation Editing Next Renewal uses
+  for the preceding Start Date. The fraction is clamped to 0 through 1 and the
+  days remaining never fall below zero, so a renewal already past reads as a
+  complete period with no days left rather than counting backwards. An interval
+  that cannot step back, such as a custom value outside the representable
+  range, degrades to a zero-length period and reports a fraction of 0; that is
+  the only case that leaves the reading wholly empty. The Fixed Billing
+  Schedule's billing time zone rather than the device's fixes the period start
+  and the day boundaries the days remaining are counted across. The fraction is
+  a ratio of absolute time, so the billing time zone reaches it only through
+  that period start. When the billing time zone identifier cannot be resolved,
+  the derivation falls back to the device's time zone. Like Effective
+  Subscription Status it is derived on demand, never stored.
 - **Confirmed Charge**: An immutable record that a past expected charge
   occurred. Editing a Fixed Billing Schedule never rewrites it.
   _Avoid_: Expected charge, transaction.

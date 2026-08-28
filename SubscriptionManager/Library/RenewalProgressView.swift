@@ -4,78 +4,35 @@ import SwiftUI
 /// A circular progress ring showing how far the current billing period has
 /// elapsed. The fraction is derived from the subscription's billing interval
 /// and confirmed next renewal date.
+///
+/// Every derivation runs in the subscription's billing time zone, so the ring
+/// and the remaining-day count agree with the projected charge rather than
+/// with wherever the device happens to be.
 struct RenewalProgressView: View {
     let subscription: Subscription
     let now: Date
 
-    private var progress: Double {
-        let interval = subscription.billingSchedule.interval
-        let nextRenewal = subscription.confirmedNextRenewal
-        let calendar = Calendar(identifier: .gregorian)
-
-        // Derive the period start by subtracting one billing interval
-        // from the next renewal date.
-        let periodStart: Date
-        switch interval {
-        case .weekly:
-            periodStart = calendar.date(
-                byAdding: .day, value: -7, to: nextRenewal
-            ) ?? nextRenewal
-        case .monthly:
-            periodStart = calendar.date(
-                byAdding: .month, value: -1, to: nextRenewal
-            ) ?? nextRenewal
-        case .quarterly:
-            periodStart = calendar.date(
-                byAdding: .month, value: -3, to: nextRenewal
-            ) ?? nextRenewal
-        case .halfYearly:
-            periodStart = calendar.date(
-                byAdding: .month, value: -6, to: nextRenewal
-            ) ?? nextRenewal
-        case .yearly:
-            periodStart = calendar.date(
-                byAdding: .year, value: -1, to: nextRenewal
-            ) ?? nextRenewal
-        case .custom(let value, let unit):
-            switch unit {
-            case .day:
-                periodStart = calendar.date(
-                    byAdding: .day, value: -value, to: nextRenewal
-                ) ?? nextRenewal
-            case .week:
-                periodStart = calendar.date(
-                    byAdding: .day, value: -value * 7, to: nextRenewal
-                ) ?? nextRenewal
-            case .month:
-                periodStart = calendar.date(
-                    byAdding: .month, value: -value, to: nextRenewal
-                ) ?? nextRenewal
-            case .year:
-                periodStart = calendar.date(
-                    byAdding: .year, value: -value, to: nextRenewal
-                ) ?? nextRenewal
-            }
-        }
-
-        let totalDuration = nextRenewal.timeIntervalSince(periodStart)
-        guard totalDuration > 0 else { return 0 }
-
-        let elapsed = now.timeIntervalSince(periodStart)
-        return min(max(elapsed / totalDuration, 0), 1)
+    private var periodProgress: RenewalPeriodProgress {
+        RenewalPeriodProgress(
+            schedule: subscription.billingSchedule,
+            confirmedNextRenewal: subscription.confirmedNextRenewal,
+            asOf: now
+        )
     }
 
-    private var daysRemaining: Int {
-        let calendar = Calendar(identifier: .gregorian)
-        let components = calendar.dateComponents(
-            [.day],
-            from: calendar.startOfDay(for: now),
-            to: calendar.startOfDay(for: subscription.confirmedNextRenewal)
+    /// Built as a single localized key so VoiceOver reads the person's
+    /// language. Interpolating into `String` would bind the verbatim
+    /// `Text` overload and ship English to every locale.
+    private func accessibilityLabel(
+        for progress: RenewalPeriodProgress
+    ) -> Text {
+        Text(
+            "\(progress.daysRemaining) days until renewal, \(progress.percentElapsed) percent elapsed"
         )
-        return max(components.day ?? 0, 0)
     }
 
     var body: some View {
+        let progress = periodProgress
         VStack(spacing: 6) {
             ZStack {
                 Circle()
@@ -84,15 +41,18 @@ struct RenewalProgressView: View {
                         style: StrokeStyle(lineWidth: 6, lineCap: .round)
                     )
                 Circle()
-                    .trim(from: 0, to: progress)
+                    .trim(from: 0, to: progress.fraction)
                     .stroke(
                         Color.accentColor,
                         style: StrokeStyle(lineWidth: 6, lineCap: .round)
                     )
                     .rotationEffect(.degrees(-90))
-                    .animation(.easeInOut(duration: 0.6), value: progress)
+                    .animation(
+                        .easeInOut(duration: 0.6),
+                        value: progress.fraction
+                    )
                 VStack(spacing: 2) {
-                    Text("\(daysRemaining)")
+                    Text("\(progress.daysRemaining)")
                         .font(.title2.weight(.semibold).monospacedDigit())
                     Text("days")
                         .font(.caption)
@@ -101,9 +61,7 @@ struct RenewalProgressView: View {
             }
             .frame(width: 72, height: 72)
             .accessibilityElement(children: .ignore)
-            .accessibilityLabel(
-                "\(daysRemaining) days until renewal, \(Int(progress * 100)) percent elapsed"
-            )
+            .accessibilityLabel(accessibilityLabel(for: progress))
             .accessibilityIdentifier("subscription.renewal-progress")
         }
     }

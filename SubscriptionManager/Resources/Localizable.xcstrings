@@ -273,6 +273,12 @@
         "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "下次续费" } }
       }
     },
+    "%lld days until renewal, %lld percent elapsed" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "%1$lld days until renewal, %2$lld percent elapsed" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "距下次续订还有 %1$lld 天，本期已过 %2$lld%%" } }
+      }
+    },
     "No Subscriptions Yet" : {
       "localizations" : {
         "en" : {
