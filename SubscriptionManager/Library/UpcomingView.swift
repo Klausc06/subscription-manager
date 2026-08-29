@@ -154,7 +154,7 @@ struct UpcomingView: View {
     /// The native calendar is mounted only when the layout can host it and the
     /// month actually loaded. A failed load unmounts it, because there is no
     /// projection to render.
-    static func showsNativeMonthCalendar(
+    nonisolated static func showsNativeMonthCalendar(
         canUseNativeMonthCalendar: Bool,
         hasUpcomingFailure: Bool
     ) -> Bool {
@@ -165,7 +165,7 @@ struct UpcomingView: View {
     /// calendar owns it whenever that calendar is mounted; otherwise the pinned
     /// header does, including on a wide layout whose load failed, where it is
     /// the only control able to change the month and retry.
-    static func showsPinnedMonthNavigation(
+    nonisolated static func showsPinnedMonthNavigation(
         canUseNativeMonthCalendar: Bool,
         hasUpcomingFailure: Bool
     ) -> Bool {
