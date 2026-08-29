@@ -276,10 +276,17 @@
     "%lld days until renewal, %lld percent elapsed" : {
       "localizations" : {
         "en" : {
-          "variations" : {
-            "plural" : {
-              "one" : { "stringUnit" : { "state" : "translated", "value" : "%1$lld day until renewal, %2$lld percent elapsed" } },
-              "other" : { "stringUnit" : { "state" : "translated", "value" : "%1$lld days until renewal, %2$lld percent elapsed" } }
+          "stringUnit" : { "state" : "translated", "value" : "%#@daysUntilRenewal@, %2$lld percent elapsed" },
+          "substitutions" : {
+            "daysUntilRenewal" : {
+              "argNum" : 1,
+              "formatSpecifier" : "lld",
+              "variations" : {
+                "plural" : {
+                  "one" : { "stringUnit" : { "state" : "translated", "value" : "%arg day until renewal" } },
+                  "other" : { "stringUnit" : { "state" : "translated", "value" : "%arg days until renewal" } }
+                }
+              }
             }
           }
         },
