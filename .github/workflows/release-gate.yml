@@ -125,6 +125,15 @@ jobs:
           Scripts/verify_release_logs_tests.sh \
             2>&1 | tee artifacts/release-log-verifier-tests.log
 
+      - name: Test the simulator selector
+        env:
+          PYTHONDONTWRITEBYTECODE: "1"
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m unittest Scripts.select_simulator_tests \
+            2>&1 | tee artifacts/simulator-selector-tests.log
+
       - name: Verify release logs
         if: ${{ always() }}
         shell: bash
@@ -147,10 +156,6 @@ jobs:
     name: macOS application tests
     runs-on: xcode-27
     timeout-minutes: 45
-    # The xcode-27 image ships macOS 26.5.2, below the app's macOS 27.0
-    # deployment target, so this job cannot build until GitHub updates the
-    # image (#83). Keep it visible but non-blocking; remove once green.
-    continue-on-error: true
 
     steps:
       - name: Check out the exact candidate
@@ -161,6 +166,13 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p artifacts
+          # The xcode-27 image pairs Xcode 27 with macOS 26.5.2, so a bundle
+          # built at the shipping macOS 27.0 deployment target cannot run here
+          # (#83). Building this test bundle at 26.0 keeps the job real: the
+          # sources are identical, no `@available(macOS 27, *)` guard exists in
+          # the tree, and every Mach-O in the bundle then reports minos 26.0.
+          # `Release builds` still verifies the shipping 27.0 products. Drop
+          # this override once the image ships macOS 27.
           xcodebuild test \
             -project SubscriptionManager.xcodeproj \
             -scheme SubscriptionManager \
@@ -173,6 +185,7 @@ jobs:
             CODE_SIGNING_REQUIRED=NO \
             SWIFT_TREAT_WARNINGS_AS_ERRORS=YES \
             GCC_TREAT_WARNINGS_AS_ERRORS=YES \
+            MACOSX_DEPLOYMENT_TARGET=26.0 \
             2>&1 | tee artifacts/macos-tests.log
 
       - name: Verify release logs
@@ -202,6 +215,19 @@ jobs:
       - name: Check out the exact candidate
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
+      - name: Boot the iPhone simulator
+        id: unit_test_simulator
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p artifacts
+          udid="$(
+            Scripts/boot_simulator.sh 'iPhone 17 Pro' \
+              2> artifacts/unit-test-simulator-boot.txt
+          )"
+          cat artifacts/unit-test-simulator-boot.txt
+          printf 'udid=%s\n' "${udid}" >> "${GITHUB_OUTPUT}"
+
       - name: Test the iOS application module
         shell: bash
         run: |
@@ -210,7 +236,7 @@ jobs:
           xcodebuild test \
             -project SubscriptionManager.xcodeproj \
             -scheme SubscriptionManager \
-            -destination 'platform=iOS Simulator,name=iPhone 17 Pro,OS=latest' \
+            -destination 'platform=iOS Simulator,id=${{ steps.unit_test_simulator.outputs.udid }}' \
             -derivedDataPath .build/ci-ios-unit-tests \
             -resultBundlePath artifacts/ios-unit-tests.xcresult \
             -only-testing:SubscriptionManagerTests \
@@ -248,6 +274,19 @@ jobs:
       - name: Check out the exact candidate
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
+      - name: Boot the iPhone simulator
+        id: iphone_simulator
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p artifacts
+          udid="$(
+            Scripts/boot_simulator.sh 'iPhone 17 Pro' \
+              2> artifacts/iphone-simulator-boot.txt
+          )"
+          cat artifacts/iphone-simulator-boot.txt
+          printf 'udid=%s\n' "${udid}" >> "${GITHUB_OUTPUT}"
+
       - name: Run the existing iOS UI acceptance suite
         shell: bash
         run: |
@@ -256,7 +295,7 @@ jobs:
           xcodebuild test \
             -project SubscriptionManager.xcodeproj \
             -scheme SubscriptionManager \
-            -destination 'platform=iOS Simulator,name=iPhone 17 Pro,OS=latest' \
+            -destination 'platform=iOS Simulator,id=${{ steps.iphone_simulator.outputs.udid }}' \
             -derivedDataPath .build/ci-ios-ui-tests \
             -resultBundlePath artifacts/ios-ui-tests.xcresult \
             -only-testing:SubscriptionManagerUITests \
@@ -294,6 +333,19 @@ jobs:
       - name: Check out the exact candidate
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
+      - name: Boot the iPad simulator
+        id: ipad_simulator
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p artifacts
+          udid="$(
+            Scripts/boot_simulator.sh 'iPad Air 11-inch (M4)' \
+              2> artifacts/ipad-simulator-boot.txt
+          )"
+          cat artifacts/ipad-simulator-boot.txt
+          printf 'udid=%s\n' "${udid}" >> "${GITHUB_OUTPUT}"
+
       - name: Run the iPad-only adaptive layout contract
         shell: bash
         run: |
@@ -302,7 +354,7 @@ jobs:
           xcodebuild test \
             -project SubscriptionManager.xcodeproj \
             -scheme SubscriptionManager \
-            -destination 'platform=iOS Simulator,name=iPad Air 11-inch (M4),OS=latest' \
+            -destination 'platform=iOS Simulator,id=${{ steps.ipad_simulator.outputs.udid }}' \
             -derivedDataPath .build/ci-ipad-ui-tests \
             -resultBundlePath artifacts/ipad-ui-tests.xcresult \
             -only-testing:SubscriptionManagerUITests/SubscriptionManagerUITests/testWideIPadUsesSidebarToSwitchDestinations \
