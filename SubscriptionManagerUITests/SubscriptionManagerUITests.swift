@@ -98,17 +98,14 @@ final class SubscriptionManagerUITests: XCTestCase {
         topLevelTab("Upcoming", in: app).tap()
         XCTAssertTrue(app.navigationBars["Upcoming"].waitForExistence(timeout: settleTimeout))
 
+        let window = app.windows.firstMatch
+        XCTAssertTrue(window.waitForExistence(timeout: settleTimeout))
+        assertUpcomingMonthContext(
+            .pinned,
+            in: app,
+            minimumWidth: window.frame.width * 0.88
+        )
         let title = app.staticTexts["upcoming.month.title"]
-        XCTAssertTrue(
-            title.waitForExistence(timeout: settleTimeout),
-            "Accessibility sizes must keep the custom month header reachable."
-        )
-        XCTAssertTrue(app.buttons["upcoming.month.previous"].exists)
-        XCTAssertTrue(app.buttons["upcoming.month.next"].exists)
-        XCTAssertFalse(
-            app.buttons["DatePicker.PreviousMonth"].exists,
-            "Accessibility sizes must not show the native calendar chrome."
-        )
         XCTAssertFalse(
             app.descendants(matching: .any)["upcoming.calendar"].exists,
             "Accessibility sizes must use the grouped day list instead of UICalendarView."
@@ -135,11 +132,14 @@ final class SubscriptionManagerUITests: XCTestCase {
         )
 
         // Scrolling the day list is what used to drop the header out of the
-        // accessibility tree, so the list has to have something to scroll.
+        // accessibility tree, so assert the list actually has rows rather than
+        // that the empty state is absent -- the latter also passes when the
+        // section never rendered, which would make the swipe below vacuous.
+        let anyDayRow = app.descendants(matching: .any).matching(
+            NSPredicate(format: "identifier BEGINSWITH %@", "upcoming.day.")
+        ).firstMatch
         XCTAssertTrue(
-            app.descendants(matching: .any)["upcoming.month.empty"].waitForNonExistence(
-                timeout: settleTimeout
-            ),
+            anyDayRow.waitForExistence(timeout: settleTimeout),
             "The seeded fixture must produce a scrollable day list."
         )
         app.swipeUp()
@@ -154,15 +154,10 @@ final class SubscriptionManagerUITests: XCTestCase {
         toChangeFrom previousLabel: String,
         in app: XCUIApplication
     ) -> Bool {
-        let title = app.staticTexts["upcoming.month.title"]
-        let deadline = Date().addingTimeInterval(5)
-        while Date() < deadline {
-            if title.exists, title.label != previousLabel {
-                return true
-            }
-            usleep(100_000)
-        }
-        return false
+        waitForElement(
+            app.staticTexts["upcoming.month.title"],
+            matching: NSPredicate(format: "label != %@", previousLabel)
+        )
     }
 
     func testTopLevelSegmentedControlsUseOneVisualBoundary() throws {
@@ -176,7 +171,10 @@ final class SubscriptionManagerUITests: XCTestCase {
         let minimumDirectControlWidth = window.frame.width * 0.88
 
         topLevelTab("Upcoming", in: app).tap()
-        assertUpcomingMonthContextVisible(
+        // A default-size phone is wide enough for UICalendarView, so the native
+        // chrome is the only correct surface here.
+        assertUpcomingMonthContext(
+            .native,
             in: app,
             minimumWidth: minimumDirectControlWidth
         )
@@ -3412,13 +3410,17 @@ final class SubscriptionManagerUITests: XCTestCase {
         line: UInt = #line
     ) {
         XCTAssertTrue(
-            field.waitForExistence(timeout: 10),
+            field.waitForExistence(timeout: settleTimeout),
             "Expected a text field to replace.",
             file: file,
             line: line
         )
         field.tap()
-        let existing = (field.value as? String) ?? ""
+        // An empty SwiftUI TextField reports its placeholder as the
+        // accessibility value, so comparing the two keeps the delete count tied
+        // to real content instead of prompt text.
+        let value = (field.value as? String) ?? ""
+        let existing = value == field.placeholderValue ? "" : value
         if !existing.isEmpty {
             field.typeText(
                 String(
@@ -3441,17 +3443,24 @@ final class SubscriptionManagerUITests: XCTestCase {
 
     private func waitForValue(
         _ expected: String,
-        of element: XCUIElement,
-        timeout: TimeInterval = 10
+        of element: XCUIElement
     ) -> Bool {
-        let deadline = Date().addingTimeInterval(timeout)
-        while Date() < deadline {
-            if (element.value as? String) == expected {
-                return true
-            }
-            usleep(100_000)
-        }
-        return (element.value as? String) == expected
+        waitForElement(
+            element,
+            matching: NSPredicate(format: "value == %@", expected)
+        )
+    }
+
+    private func waitForElement(
+        _ element: XCUIElement,
+        matching predicate: NSPredicate
+    ) -> Bool {
+        let expectation = XCTNSPredicateExpectation(
+            predicate: predicate,
+            object: element
+        )
+        return XCTWaiter.wait(for: [expectation], timeout: settleTimeout)
+            == .completed
     }
 
     private func fillRequiredEditorFacts(
@@ -4030,49 +4039,107 @@ final class SubscriptionManagerUITests: XCTestCase {
         native.tap()
     }
 
-    private func assertUpcomingMonthContextVisible(
+    private enum MonthNavigationSurface {
+        case pinned
+        case native
+    }
+
+    /// Asserts that Upcoming shows the month navigation surface the caller
+    /// expects, and only that one.
+    ///
+    /// The expectation is a parameter rather than something the helper probes
+    /// for. Probing would let the assertion pass on whichever surface happened
+    /// to appear, so the AC1 contract -- exactly one source per layout -- would
+    /// no longer be enforced.
+    private func assertUpcomingMonthContext(
+        _ expected: MonthNavigationSurface,
         in app: XCUIApplication,
-        minimumWidth: CGFloat
+        minimumWidth: CGFloat,
+        file: StaticString = #filePath,
+        line: UInt = #line
     ) {
-        let customTitle = app.staticTexts["upcoming.month.title"]
-        if customTitle.waitForExistence(timeout: 2) {
-            XCTAssertTrue(app.buttons["upcoming.month.previous"].exists)
-            XCTAssertTrue(app.buttons["upcoming.month.next"].exists)
+        switch expected {
+        case .pinned:
+            let customTitle = app.staticTexts["upcoming.month.title"]
+            XCTAssertTrue(
+                customTitle.waitForExistence(timeout: settleTimeout),
+                "Expected the pinned month header on this layout.",
+                file: file,
+                line: line
+            )
+            XCTAssertTrue(
+                app.buttons["upcoming.month.previous"].exists,
+                file: file,
+                line: line
+            )
+            XCTAssertTrue(
+                app.buttons["upcoming.month.next"].exists,
+                file: file,
+                line: line
+            )
             XCTAssertFalse(
                 app.buttons["DatePicker.PreviousMonth"].exists,
-                "Upcoming must expose exactly one month navigation source."
+                "Upcoming must expose exactly one month navigation source.",
+                file: file,
+                line: line
             )
             XCTAssertFalse(
                 app.buttons["DatePicker.NextMonth"].exists,
-                "Upcoming must expose exactly one month navigation source."
+                "Upcoming must expose exactly one month navigation source.",
+                file: file,
+                line: line
             )
             XCTAssertGreaterThan(
                 customTitle.frame.width,
                 minimumWidth * 0.2,
-                "Upcoming must expose its month context directly."
+                "Upcoming must expose its month context directly.",
+                file: file,
+                line: line
             )
-            return
+        case .native:
+            let monthChrome = app.buttons["DatePicker.Show"]
+            XCTAssertTrue(
+                monthChrome.waitForExistence(timeout: settleTimeout),
+                "Expected the native month chrome on this layout.",
+                file: file,
+                line: line
+            )
+            XCTAssertTrue(
+                app.buttons["DatePicker.PreviousMonth"].exists,
+                file: file,
+                line: line
+            )
+            XCTAssertTrue(
+                app.buttons["DatePicker.NextMonth"].exists,
+                file: file,
+                line: line
+            )
+            XCTAssertFalse(
+                app.staticTexts["upcoming.month.title"].exists,
+                "Upcoming must expose exactly one month navigation source.",
+                file: file,
+                line: line
+            )
+            XCTAssertFalse(
+                app.buttons["upcoming.month.previous"].exists,
+                "Upcoming must expose exactly one month navigation source.",
+                file: file,
+                line: line
+            )
+            XCTAssertFalse(
+                app.buttons["upcoming.month.next"].exists,
+                "Upcoming must expose exactly one month navigation source.",
+                file: file,
+                line: line
+            )
+            XCTAssertGreaterThan(
+                monthChrome.frame.width,
+                minimumWidth * 0.2,
+                "Upcoming must expose its month context directly.",
+                file: file,
+                line: line
+            )
         }
-        let monthChrome = app.buttons["DatePicker.Show"]
-        XCTAssertTrue(
-            monthChrome.waitForExistence(timeout: settleTimeout),
-            "Expected native month chrome when custom header is absent."
-        )
-        XCTAssertTrue(app.buttons["DatePicker.PreviousMonth"].exists)
-        XCTAssertTrue(app.buttons["DatePicker.NextMonth"].exists)
-        XCTAssertFalse(
-            app.buttons["upcoming.month.previous"].exists,
-            "Upcoming must expose exactly one month navigation source."
-        )
-        XCTAssertFalse(
-            app.buttons["upcoming.month.next"].exists,
-            "Upcoming must expose exactly one month navigation source."
-        )
-        XCTAssertGreaterThan(
-            monthChrome.frame.width,
-            minimumWidth * 0.2,
-            "Upcoming must expose its month context directly."
-        )
     }
 
     private func moveCalendarMonth(

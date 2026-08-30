@@ -1,6 +1,7 @@
 # S2 Upcoming 月份导航 实现计划
 
-> **面向 AI 代理的工作者：** 必需子技能：使用 `subagent-driven-development`（推荐）或 `executing-plans` 逐任务实现此计划。步骤使用复选框（`- [ ]`）语法来跟踪进度。
+> **面向 AI 代理的工作者：** 按 `docs/agents/production-flow.md` 执行本计划；步骤用复选框（`- [ ]`）跟踪进度。
+> 该流程 §7 已废止任何 Luna 路由、替代评审拓扑或 `.superpowers/sdd/progress.md` ledger 的指示，不得执行。
 
 **目标：** 消除宽屏 `UpcomingView` 上重复的月份导航，修复 UI 测试在换月后找不到 `upcoming.month.previous` 的失败；无障碍 Dynamic Type 路径保留 pinned 自定义 header。
 
@@ -82,7 +83,7 @@ EOF
 git rev-parse HEAD
 ```
 
-将输出 SHA 记入 `.superpowers/sdd/2026-08-29-s2-upcoming-month-navigation/progress.md`（gitignored ledger），作为后续 §4 审核的 `<fixed-point>`。**不要**把 FIXED_POINT 写回已提交的计划文件正文（CodeRabbit S0 教训）。
+把输出 SHA 记在拥有本根因的上下文里（production-flow §3「记录 pinned starting commit」），作为后续 §4 审核的 `<fixed-point>`。**不要**把 FIXED_POINT 写回已提交的计划文件正文（CodeRabbit S0 教训），也不要建 ledger 文件 —— production-flow §7 已废止。
 
 ---
 
@@ -137,14 +138,21 @@ private var monthNavigationHeader: some View {
 
 ```swift
 .safeAreaInset(edge: .top, spacing: 0) {
-    if !canUseNativeMonthCalendar(availableWidth: geometry.size.width) {
+    if Self.showsPinnedMonthNavigation(
+        canUseNativeMonthCalendar: canUseNativeMonthCalendar(
+            availableWidth: geometry.size.width
+        ),
+        hasUpcomingFailure: hasUpcomingFailure
+    ) {
         monthNavigationHeader
             .background(.background)
     }
 }
 ```
 
-宽屏（`canUseNativeMonthCalendar == true`）时 inset 为空，不渲染自定义 header。
+条件必须走共享判定，**不要**写成 `!canUseNativeMonthCalendar(...)`：加载失败时 `UpcomingMonthCalendar`
+也不挂载，那样宽屏会一个月份控件都没有，用户困在失败月份无法重试（Bugbot 在 PR #122 上报出的回归，
+见 §3.1 失败态与 AC7）。宽屏**且加载成功**时 inset 为空，不渲染自定义 header。
 
 - [ ] **步骤 4：确认 `moveMonth` 仅服务紧凑路径**
 
@@ -320,8 +328,8 @@ xcodebuild test \
   SWIFT_TREAT_WARNINGS_AS_ERRORS=YES
 ```
 
-预期：Core **268/15**；SwiftLint **0**；verifier 通过；app unit **190/18** `TEST SUCCEEDED`
-（较基线 187/17 增加 `UpcomingMonthNavigationTests` 一个 suite / 三个 test，以字面值钉住 AC1 真值表与 AC7 失败态）。
+预期：Core **268/15**；SwiftLint **0**；verifier 通过（`files=174`）；app unit iOS **192/19**、macOS **193/19** `TEST SUCCEEDED`；iPhone UI 套件 **72 执行 / 1 跳过 / 0 失败**
+（较基线 187/17 增加 `UpcomingMonthNavigationTests` 与 `RenewalCountdownLocalizationTests` 两个 suite / 五个 test；macOS 另有一个平台专属 suite。iPad 专属测试在 iPhone 上跳过，故 72 执行含 1 跳过。）
 
 - [ ] **步骤 2：AC4 无障碍路径（已自动化）**
 
@@ -388,7 +396,7 @@ gh issue comment 121 --body "$(cat <<'EOF'
 |---|---|
 | AC2 `testOnlyDueExpectedOccurrenceOffersConfirmCharge` | TEST SUCCEEDED (paste log tail) |
 | AC3 `testTopLevelSegmentedControlsUseOneVisualBoundary` | TEST SUCCEEDED |
-| AC5 Core unchanged + app unit no regression | 268/15 + 190/18（基线 187/17 + `UpcomingMonthNavigationTests`） |
+| AC5 Core unchanged + app unit no regression | 268/15；app unit iOS 192/19、macOS 193/19（基线 187/17） |
 | AC6 SwiftLint + verify_repository | 0 violations; verifier OK |
 | AC4 accessibility pinned header | `testUpcomingAccessibilitySizeUsesPinnedMonthNavigation` TEST SUCCEEDED（AccessibilityXXXL，含变异验证） |
 
@@ -424,9 +432,7 @@ EOF
 
 ## 执行方式
 
-计划已保存。两种执行方式：
-
-1. **子代理驱动（推荐）** — 每任务一个新子代理 + 任务审查；用 `subagent-driven-development`，ledger 目录 `.superpowers/sdd/2026-08-29-s2-upcoming-month-navigation/`
-2. **内联执行** — 当前会话用 `executing-plans`，批量执行并在任务 4 前设检查点
+一个上下文从诊断持续拥有本根因，直到 `remote_verified` 与 issue 关闭（production-flow §3）。
+§4 双轴审核派两个只读评审上下文；不建进度 ledger（§7 已废止）。
 
 维护者要求：**代码改动同步更新相关文档**；**严格 §4 双轴审查**。本子项目无新用户文案，无需改 `Localizable.xcstrings`。

@@ -144,7 +144,7 @@ Helper 名称建议：`tapUpcomingPreviousMonth(in:)` / `tapUpcomingNextMonth(in
 
 | # | 标准 | 验证方式 |
 |---|---|---|
-| AC1 | `UICalendarView` chrome 与 pinned 自定义 header 在 (宽度 × 加载状态) 每种组合下恰好挂载一个：宽屏+成功仅原生、宽屏+失败仅自定义、紧凑 / 无障碍仅自定义 | 判定层：`UpcomingMonthNavigationTests` 以字面值钉住全部四种组合的真值表。渲染层：`assertUpcomingMonthContextVisible` 在两个分支各断言另一套控件不存在（覆盖宽屏+成功、紧凑+成功），`testUpcomingAccessibilitySizeUsesPinnedMonthNavigation` 覆盖无障碍档位。**宽屏+失败的渲染层未覆盖**，原因同 AC7 |
+| AC1 | `UICalendarView` chrome 与 pinned 自定义 header 在 (宽度 × 加载状态) 每种组合下恰好挂载一个：宽屏+成功仅原生、宽屏+失败仅自定义、紧凑 / 无障碍仅自定义 | 判定层：`UpcomingMonthNavigationTests` 以字面值钉住全部四种组合的真值表。渲染层：`assertUpcomingMonthContext(_:in:minimumWidth:)` 由调用方**声明**期望的那一套控件（不是探测哪套出现，否则任一套出现都能通过、AC1 就不再被强制），两个分支都断言另一套不存在 —— `testTopLevelSegmentedControlsUseOneVisualBoundary` 以 `.native` 断言宽屏+成功，`testUpcomingAccessibilitySizeUsesPinnedMonthNavigation` 以 `.pinned` 断言无障碍档位。**宽屏+失败仅判定层覆盖**（原因同 AC7）；**紧凑+成功无渲染层覆盖**，因为默认字号下最窄 iPhone 宽度也超过 `nativeCalendarMinimumWidth`（7×36+32=284pt），现有目标机型进不去该组合 |
 | AC2 | `testOnlyDueExpectedOccurrenceOffersConfirmCharge` 通过 | `-only-testing:…/testOnlyDueExpectedOccurrenceOffersConfirmCharge` |
 | AC3 | `testTopLevelSegmentedControlsUseOneVisualBoundary` 通过 | 同上 `-only-testing` |
 | AC4 | 无障碍 Dynamic Type 路径仍可通过自定义 header 换月，且滚动日列表后 header 仍在 accessibility 树中 | 已自动化：`testUpcomingAccessibilitySizeUsesPinnedMonthNavigation`。经由 `-UIPreferredContentSizeCategoryName UICTContentSizeCategoryAccessibilityXXXL` 启动参数驱动真实 Dynamic Type 档位（UIKit 从 user defaults 的 argument domain 读取，故不能用 `launchEnvironment`），不使用任何生产开关。测试断言月份标题在 next / previous 后变化并回到起点，并以 `seedsTask6OccurrenceFixture` 保证日列表可滚动 |
@@ -164,9 +164,15 @@ Helper 名称建议：`tapUpcomingPreviousMonth(in:)` / `tapUpcomingNextMonth(in
 **不得修改：**
 
 - `Packages/SubscriptionCore/**`（S6 范围）
-- `Localizable.xcstrings`（无新用户可见文案）
+- `Localizable.xcstrings`（本根因无新用户可见文案）
 - CI 配置（S7）
 - 其他子项目的文件
+
+**同分支上的其他根因：** 承载本根因的分支还叠放了 #123（`Localizable.xcstrings` 复数键触发
+零警告闸门）与 #83 / #84（`.github/workflows/release-gate.yml`、`Scripts/**`）的修复。原因是
+Release Gate 在这三者都解决前不可能变绿，而在已知红灯下合并已被维护者排除。那些路径由各自
+issue 管辖，上面的「不得修改」只约束本根因自身的改动；`production-flow.md` 以单一根因为工作
+单元，这次叠放是记录在案的有意偏离（另见 PR #122 正文与各 issue 的 `artifact_verified` 评论）。
 
 ## 7. 排除项
 
