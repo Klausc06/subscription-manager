@@ -10,6 +10,11 @@ final class SubscriptionManagerUITests: XCTestCase {
     /// arrives. Negative assertions keep their own short timeouts.
     private let settleTimeout: TimeInterval = 20
 
+    /// How long a text field may take to echo text that was just typed into it.
+    /// Separate from `settleTimeout` because this is local UI echo, not a
+    /// persistence write, and because `replaceText` spends it once per attempt.
+    private let fieldEchoTimeout: TimeInterval = 5
+
     private enum Task6Fixture {
         static let directEditor = "Direct Editor Fixture"
         static let archivedEditor = "Archived Editor Fixture"
@@ -224,8 +229,7 @@ final class SubscriptionManagerUITests: XCTestCase {
 
         let serviceNameField = app.textFields["subscription.editor.service-name"]
         XCTAssertTrue(serviceNameField.waitForExistence(timeout: settleTimeout))
-        serviceNameField.tap()
-        serviceNameField.typeText("88")
+        replaceText(in: serviceNameField, with: "88")
 
         let match = app.buttons["subscription.catalog-match.taobao-88vip"]
         XCTAssertTrue(match.waitForExistence(timeout: settleTimeout))
@@ -1274,13 +1278,11 @@ final class SubscriptionManagerUITests: XCTestCase {
 
         let category = app.textFields["subscription.editor.category"]
         XCTAssertTrue(scrollToHittable(category, in: app, maximumSwipes: 8))
-        category.tap()
-        category.typeText("Software")
+        replaceText(in: category, with: "Software")
 
         let notes = app.descendants(matching: .any)["subscription.editor.notes"]
         XCTAssertTrue(scrollToHittable(notes, in: app, maximumSwipes: 8))
-        notes.tap()
-        notes.typeText("Keep for work")
+        replaceText(in: notes, with: "Keep for work")
 
         XCTAssertFalse(
             app.descendants(matching: .any)["subscription.editor.status"].exists
@@ -1886,8 +1888,7 @@ final class SubscriptionManagerUITests: XCTestCase {
 
         let customValue = app.textFields["subscription.editor.custom-interval-value"]
         XCTAssertTrue(customValue.waitForExistence(timeout: settleTimeout))
-        customValue.tap()
-        customValue.typeText("0")
+        replaceText(in: customValue, with: "0")
         let customUnit = app.buttons["subscription.editor.custom-interval-unit"]
         customUnit.tap()
         app.buttons["Weeks"].tap()
@@ -2128,8 +2129,7 @@ final class SubscriptionManagerUITests: XCTestCase {
         musicCategory.tap()
         let search = app.searchFields.firstMatch
         XCTAssertTrue(search.waitForExistence(timeout: settleTimeout))
-        search.tap()
-        search.typeText("Spotify")
+        replaceText(in: search, with: "Spotify")
         app.keyboards.buttons["Search"].tap()
         let closeSearch = app.buttons["close"]
         XCTAssertTrue(closeSearch.waitForExistence(timeout: settleTimeout))
@@ -2148,8 +2148,7 @@ final class SubscriptionManagerUITests: XCTestCase {
         )
 
         let reopenedSearch = app.searchFields.firstMatch
-        reopenedSearch.tap()
-        reopenedSearch.typeText("ChatGPT")
+        replaceText(in: reopenedSearch, with: "ChatGPT")
         app.buttons["catalog.preset.chatgpt"].tap()
         acceptEditorDate(
             identifier: "subscription.editor.start-date",
@@ -2205,8 +2204,7 @@ final class SubscriptionManagerUITests: XCTestCase {
         XCTAssertTrue(musicCategory.waitForExistence(timeout: settleTimeout))
         musicCategory.tap()
         let search = app.searchFields.firstMatch
-        search.tap()
-        search.typeText("Spotify")
+        replaceText(in: search, with: "Spotify")
         app.keyboards.buttons["Search"].tap()
         let closeSearch = app.buttons["close"]
         XCTAssertTrue(closeSearch.waitForExistence(timeout: settleTimeout))
@@ -3040,13 +3038,11 @@ final class SubscriptionManagerUITests: XCTestCase {
 
         let serviceName = app.textFields["subscription.editor.service-name"]
         XCTAssertTrue(serviceName.waitForExistence(timeout: settleTimeout))
-        serviceName.tap()
-        serviceName.typeText("Example Music")
+        replaceText(in: serviceName, with: "Example Music")
 
         let amount = app.textFields["subscription.editor.amount"]
         XCTAssertTrue(scrollToHittable(amount, in: app, maximumSwipes: 6))
-        amount.tap()
-        amount.typeText("twelve")
+        replaceText(in: amount, with: "twelve")
 
         app.buttons["subscription.form.save"].tap()
 
@@ -3262,8 +3258,7 @@ final class SubscriptionManagerUITests: XCTestCase {
         app.buttons["Custom"].tap()
         let customValue = app.textFields["subscription.editor.custom-interval-value"]
         XCTAssertTrue(customValue.waitForExistence(timeout: settleTimeout))
-        customValue.tap()
-        customValue.typeText("0")
+        replaceText(in: customValue, with: "0")
         app.buttons["subscription.form.save"].tap()
 
         XCTAssertTrue(
@@ -3394,15 +3389,23 @@ final class SubscriptionManagerUITests: XCTestCase {
         )
     }
 
-    /// Replaces a text field's contents deterministically.
+    /// Sets a text field's contents deterministically. Every field in this
+    /// suite goes through here rather than calling `typeText` directly.
+    ///
+    /// Two separate CI failures motivate each half.
     ///
     /// `tap(withNumberOfTaps: 3, ...)` selects all only when the three taps
     /// land inside the multi-tap recognition window. On a loaded machine they
     /// arrive too far apart, the gesture degrades into a caret move, and the
     /// following `typeText` inserts instead of replacing -- which is how
-    /// `"99.00" + "100"` became `"99.00100"` on CI. Deleting one character per
-    /// existing character does not depend on gesture cadence, and confirming
-    /// the resulting value keeps the caller from reading the field mid-edit.
+    /// `"99.00" + "100"` became `"99.00100"`. Deleting one character per
+    /// existing character has no timing dependency.
+    ///
+    /// `typeText` also drops keystrokes when the field processes them slower
+    /// than they arrive: `"Example Archive"` landed as `"Example Arc"`, and the
+    /// test only failed later, looking for a row that had been saved under a
+    /// truncated name. Confirming the resulting value turns that into an
+    /// immediate, named failure at the field instead.
     private func replaceText(
         in field: XCUIElement,
         with text: String,
@@ -3415,25 +3418,32 @@ final class SubscriptionManagerUITests: XCTestCase {
             file: file,
             line: line
         )
-        field.tap()
-        // An empty SwiftUI TextField reports its placeholder as the
-        // accessibility value, so comparing the two keeps the delete count tied
-        // to real content instead of prompt text.
-        let value = (field.value as? String) ?? ""
-        let existing = value == field.placeholderValue ? "" : value
-        if !existing.isEmpty {
-            field.typeText(
-                String(
-                    repeating: XCUIKeyboardKey.delete.rawValue,
-                    count: existing.count
+        // Retry bounded rather than unbounded: a dropped keystroke is recovered
+        // by clearing and typing again, but a field that genuinely refuses the
+        // text still fails, and fails naming what it holds.
+        for _ in 1...3 {
+            field.tap()
+            // An empty SwiftUI TextField reports its placeholder as the
+            // accessibility value, so comparing the two keeps the delete count
+            // tied to real content instead of prompt text.
+            let value = (field.value as? String) ?? ""
+            let existing = value == field.placeholderValue ? "" : value
+            if !existing.isEmpty {
+                field.typeText(
+                    String(
+                        repeating: XCUIKeyboardKey.delete.rawValue,
+                        count: existing.count
+                    )
                 )
-            )
+            }
+            field.typeText(text)
+            if waitForValue(text, of: field, timeout: fieldEchoTimeout) {
+                return
+            }
         }
-        field.typeText(text)
-        XCTAssertTrue(
-            waitForValue(text, of: field),
+        XCTFail(
             """
-            Expected the field to hold \(text) after replacement, \
+            Expected the field to hold \(text) after three attempts, \
             found \(String(describing: field.value)).
             """,
             file: file,
@@ -3443,24 +3453,29 @@ final class SubscriptionManagerUITests: XCTestCase {
 
     private func waitForValue(
         _ expected: String,
-        of element: XCUIElement
+        of element: XCUIElement,
+        timeout: TimeInterval? = nil
     ) -> Bool {
         waitForElement(
             element,
-            matching: NSPredicate(format: "value == %@", expected)
+            matching: NSPredicate(format: "value == %@", expected),
+            timeout: timeout
         )
     }
 
     private func waitForElement(
         _ element: XCUIElement,
-        matching predicate: NSPredicate
+        matching predicate: NSPredicate,
+        timeout: TimeInterval? = nil
     ) -> Bool {
         let expectation = XCTNSPredicateExpectation(
             predicate: predicate,
             object: element
         )
-        return XCTWaiter.wait(for: [expectation], timeout: settleTimeout)
-            == .completed
+        return XCTWaiter.wait(
+            for: [expectation],
+            timeout: timeout ?? settleTimeout
+        ) == .completed
     }
 
     private func fillRequiredEditorFacts(
@@ -3472,13 +3487,11 @@ final class SubscriptionManagerUITests: XCTestCase {
             "subscription.editor.service-name"
         ]
         XCTAssertTrue(serviceNameField.waitForExistence(timeout: settleTimeout))
-        serviceNameField.tap()
-        serviceNameField.typeText(serviceName)
+        replaceText(in: serviceNameField, with: serviceName)
 
         let amount = app.textFields["subscription.editor.amount"]
         XCTAssertTrue(scrollToExistence(amount, in: app, maximumSwipes: 3))
-        amount.tap()
-        amount.typeText(amountValue)
+        replaceText(in: amount, with: amountValue)
 
         let currency = app.buttons["subscription.editor.currency"]
         XCTAssertTrue(scrollToExistence(currency, in: app, maximumSwipes: 3))
@@ -3524,13 +3537,11 @@ final class SubscriptionManagerUITests: XCTestCase {
     ) {
         let plan = app.textFields["subscription.editor.plan"]
         XCTAssertTrue(scrollToHittable(plan, in: app, maximumSwipes: 8))
-        plan.tap()
-        plan.typeText(planValue)
+        replaceText(in: plan, with: planValue)
 
         let category = app.textFields["subscription.editor.category"]
         XCTAssertTrue(scrollToHittable(category, in: app, maximumSwipes: 8))
-        category.tap()
-        category.typeText(categoryValue)
+        replaceText(in: category, with: categoryValue)
     }
 
     private func openFirstSubscriptionEditor(in app: XCUIApplication) {
@@ -3626,8 +3637,7 @@ final class SubscriptionManagerUITests: XCTestCase {
 
         let plan = app.textFields["subscription.editor.plan"]
         XCTAssertTrue(scrollToHittable(plan, in: app, maximumSwipes: 8))
-        plan.tap()
-        plan.typeText(planValue)
+        replaceText(in: plan, with: planValue)
 
         let form = app.descendants(matching: .any)["subscription.form"]
         app.buttons["subscription.form.save"].tap()
