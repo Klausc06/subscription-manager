@@ -3,6 +3,18 @@ import UIKit
 
 @MainActor
 final class SubscriptionManagerUITests: XCTestCase {
+    /// Waits that follow a persistence write or a fresh app launch settle far
+    /// slower on a shared CI runner than on a developer Mac, and no product
+    /// requirement caps them at five seconds. One named budget keeps the suite
+    /// from failing on runner load while still failing when the UI never
+    /// arrives. Negative assertions keep their own short timeouts.
+    private let settleTimeout: TimeInterval = 20
+
+    /// How long a text field may take to echo text that was just typed into it.
+    /// Separate from `settleTimeout` because this is local UI echo, not a
+    /// persistence write, and because `replaceText` spends it once per attempt.
+    private let fieldEchoTimeout: TimeInterval = 5
+
     private enum Task6Fixture {
         static let directEditor = "Direct Editor Fixture"
         static let archivedEditor = "Archived Editor Fixture"
@@ -21,18 +33,18 @@ final class SubscriptionManagerUITests: XCTestCase {
 
         XCTAssertTrue(
             app.descendants(matching: .any)["root.sidebar"]
-                .waitForExistence(timeout: 5)
+                .waitForExistence(timeout: settleTimeout)
         )
         let upcoming = app.descendants(matching: .any)["root.sidebar.upcoming"]
-        XCTAssertTrue(upcoming.waitForExistence(timeout: 5))
+        XCTAssertTrue(upcoming.waitForExistence(timeout: settleTimeout))
         upcoming.tap()
-        XCTAssertTrue(app.navigationBars["Upcoming"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.navigationBars["Upcoming"].waitForExistence(timeout: settleTimeout))
     }
 
     func testTopLevelNavigationProvidesSubscriptionsUpcomingAndInsights() {
         let app = launch(language: "en", locale: "en_US")
 
-        XCTAssertTrue(topLevelTab("Subscriptions", in: app).waitForExistence(timeout: 5))
+        XCTAssertTrue(topLevelTab("Subscriptions", in: app).waitForExistence(timeout: settleTimeout))
         XCTAssertTrue(topLevelTab("Upcoming", in: app).exists)
         XCTAssertTrue(topLevelTab("Insights", in: app).exists)
     }
@@ -41,7 +53,7 @@ final class SubscriptionManagerUITests: XCTestCase {
         let app = launch(language: "en", locale: "en_US")
 
         XCTAssertTrue(
-            app.navigationBars["My Subscriptions"].waitForExistence(timeout: 5)
+            app.navigationBars["My Subscriptions"].waitForExistence(timeout: settleTimeout)
         )
         XCTAssertTrue(app.buttons["library.settings"].exists)
         XCTAssertTrue(app.buttons["subscription.add"].exists)
@@ -52,7 +64,7 @@ final class SubscriptionManagerUITests: XCTestCase {
         let app = launch(language: "zh-Hans", locale: "zh_CN")
 
         XCTAssertTrue(
-            app.navigationBars["我的订阅"].waitForExistence(timeout: 5)
+            app.navigationBars["我的订阅"].waitForExistence(timeout: settleTimeout)
         )
         XCTAssertTrue(app.buttons["library.settings"].exists)
         XCTAssertTrue(app.buttons["subscription.add"].exists)
@@ -62,18 +74,95 @@ final class SubscriptionManagerUITests: XCTestCase {
     func testCatalogUsesCenteredTitleAndToolbarManualAddPath() {
         let app = launch(language: "zh-Hans", locale: "zh_CN")
 
-        XCTAssertTrue(app.buttons["subscription.add"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.buttons["subscription.add"].waitForExistence(timeout: settleTimeout))
         app.buttons["subscription.add"].tap()
 
         XCTAssertTrue(
-            app.navigationBars["浏览目录"].waitForExistence(timeout: 5)
+            app.navigationBars["浏览目录"].waitForExistence(timeout: settleTimeout)
         )
         let addManually = app.buttons["catalog.add-manually"]
-        XCTAssertTrue(addManually.waitForExistence(timeout: 5))
+        XCTAssertTrue(addManually.waitForExistence(timeout: settleTimeout))
         XCTAssertFalse(app.cells["catalog.add-manually"].exists)
         addManually.tap()
 
-        XCTAssertTrue(app.navigationBars["添加订阅"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.navigationBars["添加订阅"].waitForExistence(timeout: settleTimeout))
+    }
+
+    func testUpcomingAccessibilitySizeUsesPinnedMonthNavigation() throws {
+        try XCTSkipIf(
+            UIDevice.current.userInterfaceIdiom == .pad,
+            "The compact phone layout owns this accessibility contract."
+        )
+        let app = launch(
+            language: "en",
+            locale: "en_US",
+            seedsTask6OccurrenceFixture: true,
+            preferredContentSizeCategory:
+                "UICTContentSizeCategoryAccessibilityXXXL"
+        )
+        topLevelTab("Upcoming", in: app).tap()
+        XCTAssertTrue(app.navigationBars["Upcoming"].waitForExistence(timeout: settleTimeout))
+
+        let window = app.windows.firstMatch
+        XCTAssertTrue(window.waitForExistence(timeout: settleTimeout))
+        assertUpcomingMonthContext(
+            .pinned,
+            in: app,
+            minimumWidth: window.frame.width * 0.88
+        )
+        let title = app.staticTexts["upcoming.month.title"]
+        XCTAssertFalse(
+            app.descendants(matching: .any)["upcoming.calendar"].exists,
+            "Accessibility sizes must use the grouped day list instead of UICalendarView."
+        )
+
+        // The pinned header is the only month control on this path, so it has
+        // to actually change the month, not merely exist.
+        let startingMonth = title.label
+        tapUpcomingNextMonth(in: app)
+        XCTAssertTrue(
+            waitForMonthTitle(toChangeFrom: startingMonth, in: app),
+            "The pinned next-month control must advance the displayed month."
+        )
+        let nextMonth = title.label
+        tapUpcomingPreviousMonth(in: app)
+        XCTAssertTrue(
+            waitForMonthTitle(toChangeFrom: nextMonth, in: app),
+            "The pinned previous-month control must return the displayed month."
+        )
+        XCTAssertEqual(
+            title.label,
+            startingMonth,
+            "Paging next then previous must land on the starting month."
+        )
+
+        // Scrolling the day list is what used to drop the header out of the
+        // accessibility tree, so assert the list actually has rows rather than
+        // that the empty state is absent -- the latter also passes when the
+        // section never rendered, which would make the swipe below vacuous.
+        let anyDayRow = app.descendants(matching: .any).matching(
+            NSPredicate(format: "identifier BEGINSWITH %@", "upcoming.day.")
+        ).firstMatch
+        XCTAssertTrue(
+            anyDayRow.waitForExistence(timeout: settleTimeout),
+            "The seeded fixture must produce a scrollable day list."
+        )
+        app.swipeUp()
+        XCTAssertTrue(
+            app.buttons["upcoming.month.previous"].exists,
+            "Pinned month navigation must stay in the accessibility tree while scrolling."
+        )
+        XCTAssertTrue(app.staticTexts["upcoming.month.title"].exists)
+    }
+
+    private func waitForMonthTitle(
+        toChangeFrom previousLabel: String,
+        in app: XCUIApplication
+    ) -> Bool {
+        waitForElement(
+            app.staticTexts["upcoming.month.title"],
+            matching: NSPredicate(format: "label != %@", previousLabel)
+        )
     }
 
     func testTopLevelSegmentedControlsUseOneVisualBoundary() throws {
@@ -83,24 +172,22 @@ final class SubscriptionManagerUITests: XCTestCase {
         )
         let app = launch(language: "en", locale: "en_US")
         let window = app.windows.firstMatch
-        XCTAssertTrue(window.waitForExistence(timeout: 5))
+        XCTAssertTrue(window.waitForExistence(timeout: settleTimeout))
         let minimumDirectControlWidth = window.frame.width * 0.88
 
         topLevelTab("Upcoming", in: app).tap()
-        let monthTitle = app.staticTexts["upcoming.month.title"]
-        XCTAssertTrue(monthTitle.waitForExistence(timeout: 5))
-        XCTAssertTrue(app.buttons["upcoming.month.previous"].exists)
-        XCTAssertTrue(app.buttons["upcoming.month.next"].exists)
-        XCTAssertGreaterThan(
-            monthTitle.frame.width,
-            minimumDirectControlWidth * 0.2,
-            "Upcoming must expose its month context directly."
+        // A default-size phone is wide enough for UICalendarView, so the native
+        // chrome is the only correct surface here.
+        assertUpcomingMonthContext(
+            .native,
+            in: app,
+            minimumWidth: minimumDirectControlWidth
         )
         attachScreenshot(named: "r2-14-upcoming-single-boundary")
 
         topLevelTab("Insights", in: app).tap()
         let insightsMode = app.segmentedControls["insights.mode"]
-        XCTAssertTrue(insightsMode.waitForExistence(timeout: 5))
+        XCTAssertTrue(insightsMode.waitForExistence(timeout: settleTimeout))
         XCTAssertGreaterThan(
             insightsMode.frame.width,
             minimumDirectControlWidth,
@@ -116,7 +203,7 @@ final class SubscriptionManagerUITests: XCTestCase {
         )
         let app = launch(language: "en", locale: "en_US")
         let window = app.windows.firstMatch
-        XCTAssertTrue(window.waitForExistence(timeout: 5))
+        XCTAssertTrue(window.waitForExistence(timeout: settleTimeout))
 
         app.buttons["subscription.add"].tap()
         let chatGPT = app.buttons["catalog.preset.chatgpt"]
@@ -124,10 +211,10 @@ final class SubscriptionManagerUITests: XCTestCase {
         chatGPT.tap()
 
         XCTAssertTrue(
-            app.navigationBars["Confirm Subscription"].waitForExistence(timeout: 5)
+            app.navigationBars["Confirm Subscription"].waitForExistence(timeout: settleTimeout)
         )
         let initialStatus = app.segmentedControls["subscription.form.initial-status"]
-        XCTAssertTrue(initialStatus.waitForExistence(timeout: 5))
+        XCTAssertTrue(initialStatus.waitForExistence(timeout: settleTimeout))
         XCTAssertGreaterThan(
             initialStatus.frame.width,
             window.frame.width * 0.88,
@@ -141,12 +228,11 @@ final class SubscriptionManagerUITests: XCTestCase {
         openManualAdd(in: app)
 
         let serviceNameField = app.textFields["subscription.editor.service-name"]
-        XCTAssertTrue(serviceNameField.waitForExistence(timeout: 5))
-        serviceNameField.tap()
-        serviceNameField.typeText("88")
+        XCTAssertTrue(serviceNameField.waitForExistence(timeout: settleTimeout))
+        replaceText(in: serviceNameField, with: "88")
 
         let match = app.buttons["subscription.catalog-match.taobao-88vip"]
-        XCTAssertTrue(match.waitForExistence(timeout: 5))
+        XCTAssertTrue(match.waitForExistence(timeout: settleTimeout))
         XCTAssertTrue(match.label.contains("88VIP"))
         match.tap()
 
@@ -160,7 +246,7 @@ final class SubscriptionManagerUITests: XCTestCase {
         let offerPlan = app.descendants(matching: .any)[
             "subscription.form.offer-plan"
         ]
-        XCTAssertTrue(offerPlan.waitForExistence(timeout: 5))
+        XCTAssertTrue(offerPlan.waitForExistence(timeout: settleTimeout))
         attachScreenshot(named: "r2-04-taobao-88vip-service-only")
 
         let category = app.descendants(matching: .any)[
@@ -192,11 +278,11 @@ final class SubscriptionManagerUITests: XCTestCase {
 
         XCTAssertTrue(
             app.descendants(matching: .any)["insights.mode"]
-                .waitForExistence(timeout: 5)
+                .waitForExistence(timeout: settleTimeout)
         )
         XCTAssertTrue(
             app.descendants(matching: .any)["insights.unavailable"]
-                .waitForExistence(timeout: 5)
+                .waitForExistence(timeout: settleTimeout)
         )
     }
 
@@ -206,7 +292,7 @@ final class SubscriptionManagerUITests: XCTestCase {
         app.buttons["library.settings"].tap()
 
         XCTAssertTrue(
-            app.buttons["preferences.currency.eur"].waitForExistence(timeout: 5)
+            app.buttons["preferences.currency.eur"].waitForExistence(timeout: settleTimeout)
         )
     }
 
@@ -220,7 +306,7 @@ final class SubscriptionManagerUITests: XCTestCase {
         let systemProbe = app.descendants(matching: .any)[
             "appearance.debug.probe"
         ]
-        XCTAssertTrue(systemProbe.waitForExistence(timeout: 5))
+        XCTAssertTrue(systemProbe.waitForExistence(timeout: settleTimeout))
         let systemBaseline = systemProbe.value as? String
         XCTAssertTrue(
             systemBaseline == "light" || systemBaseline == "dark",
@@ -229,7 +315,7 @@ final class SubscriptionManagerUITests: XCTestCase {
 
         app.buttons["library.settings"].tap()
         let dark = app.buttons["preferences.appearance.dark"]
-        XCTAssertTrue(dark.waitForExistence(timeout: 5))
+        XCTAssertTrue(dark.waitForExistence(timeout: settleTimeout))
         dark.tap()
         XCTAssertEqual(dark.value as? String, "Selected")
         app.buttons["preferences.save"].tap()
@@ -239,7 +325,7 @@ final class SubscriptionManagerUITests: XCTestCase {
         let darkProbe = app.descendants(matching: .any)[
             "appearance.debug.probe"
         ]
-        XCTAssertTrue(darkProbe.waitForExistence(timeout: 5))
+        XCTAssertTrue(darkProbe.waitForExistence(timeout: settleTimeout))
         XCTAssertEqual(darkProbe.value as? String, "dark")
         app.buttons["library.settings"].tap()
         XCTAssertEqual(
@@ -254,7 +340,7 @@ final class SubscriptionManagerUITests: XCTestCase {
         let lightProbe = app.descendants(matching: .any)[
             "appearance.debug.probe"
         ]
-        XCTAssertTrue(lightProbe.waitForExistence(timeout: 5))
+        XCTAssertTrue(lightProbe.waitForExistence(timeout: settleTimeout))
         XCTAssertEqual(lightProbe.value as? String, "light")
         app.buttons["library.settings"].tap()
         XCTAssertEqual(
@@ -269,7 +355,7 @@ final class SubscriptionManagerUITests: XCTestCase {
         let restoredSystemProbe = app.descendants(matching: .any)[
             "appearance.debug.probe"
         ]
-        XCTAssertTrue(restoredSystemProbe.waitForExistence(timeout: 5))
+        XCTAssertTrue(restoredSystemProbe.waitForExistence(timeout: settleTimeout))
         XCTAssertEqual(restoredSystemProbe.value as? String, systemBaseline)
         app.buttons["library.settings"].tap()
         XCTAssertEqual(
@@ -287,7 +373,7 @@ final class SubscriptionManagerUITests: XCTestCase {
         exportEntry.tap()
 
         XCTAssertTrue(
-            app.buttons["portable-export.json"].waitForExistence(timeout: 5)
+            app.buttons["portable-export.json"].waitForExistence(timeout: settleTimeout)
         )
         XCTAssertTrue(app.buttons["portable-export.csv"].exists)
     }
@@ -301,7 +387,7 @@ final class SubscriptionManagerUITests: XCTestCase {
         restoreEntry.tap()
 
         XCTAssertTrue(
-            app.buttons["portable-restore.select-file"].waitForExistence(timeout: 5)
+            app.buttons["portable-restore.select-file"].waitForExistence(timeout: settleTimeout)
         )
     }
 
@@ -311,7 +397,7 @@ final class SubscriptionManagerUITests: XCTestCase {
         topLevelTab("Upcoming", in: app).tap()
         XCTAssertTrue(
             app.descendants(matching: .any)["upcoming.calendar"]
-                .waitForExistence(timeout: 5)
+                .waitForExistence(timeout: settleTimeout)
         )
         let calendar = app.descendants(matching: .any)["upcoming.calendar"]
         let window = app.windows.firstMatch
@@ -326,30 +412,30 @@ final class SubscriptionManagerUITests: XCTestCase {
             "The native month calendar must remain fully inside the window."
         )
         XCTAssertTrue(
-            app.staticTexts["upcoming.agenda"].waitForExistence(timeout: 5)
+            app.staticTexts["upcoming.agenda"].waitForExistence(timeout: settleTimeout)
         )
         let expectedCharge = upcomingRow(
             named: Task6Fixture.due,
             identifier: "upcoming.row.expected",
             in: app
         )
-        XCTAssertTrue(expectedCharge.waitForExistence(timeout: 5))
+        XCTAssertTrue(expectedCharge.waitForExistence(timeout: settleTimeout))
         expectedCharge.tap()
         XCTAssertTrue(
-            app.buttons["subscription.edit"].waitForExistence(timeout: 5)
+            app.buttons["subscription.edit"].waitForExistence(timeout: settleTimeout)
         )
         app.buttons["subscription.edit"].tap()
         XCTAssertTrue(
             app.descendants(matching: .any)["subscription.form"]
-                .waitForExistence(timeout: 5)
+                .waitForExistence(timeout: settleTimeout)
         )
         XCTAssertTrue(
             app.textFields["subscription.editor.service-name"]
-                .waitForExistence(timeout: 5)
+                .waitForExistence(timeout: settleTimeout)
         )
         XCTAssertTrue(
             app.descendants(matching: .any)["subscription.editor.next-charge"]
-                .waitForExistence(timeout: 5)
+                .waitForExistence(timeout: settleTimeout)
         )
     }
 
@@ -362,7 +448,7 @@ final class SubscriptionManagerUITests: XCTestCase {
             identifier: "upcoming.row.expected",
             in: app
         )
-        XCTAssertTrue(due.waitForExistence(timeout: 5))
+        XCTAssertTrue(due.waitForExistence(timeout: settleTimeout))
         let confirm = app.descendants(matching: .any).matching(
             NSPredicate(
                 format: "identifier == %@ AND label CONTAINS %@",
@@ -370,10 +456,10 @@ final class SubscriptionManagerUITests: XCTestCase {
                 Task6Fixture.due
             )
         ).firstMatch
-        XCTAssertTrue(confirm.waitForExistence(timeout: 5))
+        XCTAssertTrue(confirm.waitForExistence(timeout: settleTimeout))
         confirm.tap()
         let save = app.buttons["subscription.confirm.save"]
-        XCTAssertTrue(save.waitForExistence(timeout: 5))
+        XCTAssertTrue(save.waitForExistence(timeout: settleTimeout))
         save.tap()
 
         let confirmed = upcomingRow(
@@ -381,7 +467,7 @@ final class SubscriptionManagerUITests: XCTestCase {
             identifier: "upcoming.row.confirmed",
             in: app
         )
-        XCTAssertTrue(confirmed.waitForExistence(timeout: 5))
+        XCTAssertTrue(confirmed.waitForExistence(timeout: settleTimeout))
         XCTAssertTrue(confirmed.label.contains("Confirmed Payment"))
     }
 
@@ -392,7 +478,7 @@ final class SubscriptionManagerUITests: XCTestCase {
             onboarding: true
         )
 
-        XCTAssertTrue(app.staticTexts["Set Up Your Library"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts["Set Up Your Library"].waitForExistence(timeout: settleTimeout))
         XCTAssertTrue(app.buttons["setup.continue"].exists)
         XCTAssertTrue(app.buttons["CNY"].exists)
         XCTAssertTrue(app.buttons["12 Months"].exists)
@@ -406,7 +492,7 @@ final class SubscriptionManagerUITests: XCTestCase {
             onboarding: true
         )
 
-        XCTAssertTrue(app.buttons["setup.continue"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.buttons["setup.continue"].waitForExistence(timeout: settleTimeout))
         app.buttons["setup.continue"].tap()
         let spotify = app.buttons["setup.preset.spotify"]
         XCTAssertTrue(scrollToExistence(spotify, in: app))
@@ -417,7 +503,7 @@ final class SubscriptionManagerUITests: XCTestCase {
 
         XCTAssertTrue(
             app.buttons["subscription.form.offer-plan"]
-                .waitForExistence(timeout: 5)
+                .waitForExistence(timeout: settleTimeout)
         )
         acceptEditorDate(
             identifier: "subscription.editor.start-date",
@@ -425,11 +511,11 @@ final class SubscriptionManagerUITests: XCTestCase {
         )
         app.buttons["subscription.form.save"].tap()
 
-        XCTAssertTrue(app.buttons["setup.actions"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.buttons["setup.actions"].waitForExistence(timeout: settleTimeout))
         app.buttons["setup.actions"].tap()
         XCTAssertTrue(app.buttons["setup.finish"].isEnabled)
         app.buttons["setup.finish"].tap()
-        XCTAssertTrue(app.staticTexts["Spotify"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts["Spotify"].waitForExistence(timeout: settleTimeout))
     }
 
     func testInterruptedSetupResumesWithoutDuplicatingConfirmedPreset() {
@@ -441,7 +527,7 @@ final class SubscriptionManagerUITests: XCTestCase {
             onboarding: true
         )
 
-        XCTAssertTrue(app.buttons["setup.continue"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.buttons["setup.continue"].waitForExistence(timeout: settleTimeout))
         app.buttons["setup.continue"].tap()
         let initialSpotify = app.buttons["setup.preset.spotify"]
         XCTAssertTrue(scrollToExistence(initialSpotify, in: app))
@@ -451,18 +537,18 @@ final class SubscriptionManagerUITests: XCTestCase {
 
         XCTAssertTrue(
             app.buttons["subscription.form.offer-plan"]
-                .waitForExistence(timeout: 5)
+                .waitForExistence(timeout: settleTimeout)
         )
         acceptEditorDate(
             identifier: "subscription.editor.start-date",
             in: app
         )
         app.buttons["subscription.form.save"].tap()
-        XCTAssertTrue(app.buttons["setup.actions"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.buttons["setup.actions"].waitForExistence(timeout: settleTimeout))
 
         app.terminate()
         app.launch()
-        XCTAssertTrue(app.staticTexts["Set Up Your Library"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts["Set Up Your Library"].waitForExistence(timeout: settleTimeout))
         app.buttons["setup.continue"].tap()
         let spotify = app.buttons["setup.preset.spotify"]
         XCTAssertTrue(scrollToExistence(spotify, in: app))
@@ -485,7 +571,7 @@ final class SubscriptionManagerUITests: XCTestCase {
             seedsLegacyChatGPTPlus: true
         )
 
-        XCTAssertTrue(app.buttons["setup.continue"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.buttons["setup.continue"].waitForExistence(timeout: settleTimeout))
         app.buttons["setup.continue"].tap()
         let chatGPT = app.buttons["setup.preset.chatgpt"]
         XCTAssertTrue(scrollToExistence(chatGPT, in: app))
@@ -509,7 +595,7 @@ final class SubscriptionManagerUITests: XCTestCase {
         )
 
         let row = app.buttons["subscription.row"].firstMatch
-        XCTAssertTrue(row.waitForExistence(timeout: 5))
+        XCTAssertTrue(row.waitForExistence(timeout: settleTimeout))
         XCTAssertTrue(row.label.contains("ChatGPT, Plus"))
         XCTAssertFalse(row.label.contains("ChatGPT Plus,"))
     }
@@ -523,11 +609,11 @@ final class SubscriptionManagerUITests: XCTestCase {
             onboarding: true
         )
 
-        XCTAssertTrue(app.buttons["setup.skip"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.buttons["setup.skip"].waitForExistence(timeout: settleTimeout))
         app.buttons["setup.skip"].tap()
-        XCTAssertTrue(app.buttons["library.settings"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.buttons["library.settings"].waitForExistence(timeout: settleTimeout))
         app.buttons["library.settings"].tap()
-        XCTAssertTrue(app.buttons["preferences.currency.usd"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.buttons["preferences.currency.usd"].waitForExistence(timeout: settleTimeout))
         app.buttons["preferences.currency.usd"].tap()
         app.buttons["preferences.horizon.six-months"].tap()
         app.buttons["preferences.save"].tap()
@@ -552,17 +638,17 @@ final class SubscriptionManagerUITests: XCTestCase {
             onboarding: true
         )
 
-        XCTAssertTrue(app.buttons["setup.skip"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.buttons["setup.skip"].waitForExistence(timeout: settleTimeout))
         app.buttons["setup.skip"].tap()
-        XCTAssertTrue(app.buttons["library.settings"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.buttons["library.settings"].waitForExistence(timeout: settleTimeout))
         app.buttons["library.settings"].tap()
         let resumeSetup = app.buttons["preferences.resume-setup"]
         if !resumeSetup.waitForExistence(timeout: 2) {
             app.swipeUp()
         }
-        XCTAssertTrue(resumeSetup.waitForExistence(timeout: 5))
+        XCTAssertTrue(resumeSetup.waitForExistence(timeout: settleTimeout))
         resumeSetup.tap()
-        XCTAssertTrue(app.staticTexts["Set Up Your Library"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts["Set Up Your Library"].waitForExistence(timeout: settleTimeout))
     }
 
     func testFreshLaunchShowsEnglishEmptyLibrary() {
@@ -570,7 +656,7 @@ final class SubscriptionManagerUITests: XCTestCase {
 
         XCTAssertTrue(
             app.descendants(matching: .any)["library.empty-state"]
-                .waitForExistence(timeout: 5)
+                .waitForExistence(timeout: settleTimeout)
         )
         XCTAssertTrue(app.staticTexts["No Subscriptions Yet"].exists)
     }
@@ -580,7 +666,7 @@ final class SubscriptionManagerUITests: XCTestCase {
 
         XCTAssertTrue(
             app.descendants(matching: .any)["library.empty-state"]
-                .waitForExistence(timeout: 5)
+                .waitForExistence(timeout: settleTimeout)
         )
         XCTAssertTrue(app.staticTexts["还没有订阅"].exists)
     }
@@ -609,13 +695,13 @@ final class SubscriptionManagerUITests: XCTestCase {
 
         XCTAssertTrue(
             app.buttons["subscription.row"].firstMatch
-                .waitForExistence(timeout: 5)
+                .waitForExistence(timeout: settleTimeout)
         )
         app.terminate()
         app.launch()
 
         let row = app.buttons["subscription.row"].firstMatch
-        XCTAssertTrue(row.waitForExistence(timeout: 5))
+        XCTAssertTrue(row.waitForExistence(timeout: settleTimeout))
         XCTAssertTrue(app.staticTexts["Example Video"].exists)
         XCTAssertTrue(app.staticTexts["Standard"].exists)
         let rowAmount = app.staticTexts["subscription.row.amount"]
@@ -624,13 +710,13 @@ final class SubscriptionManagerUITests: XCTestCase {
 
         row.tap()
         XCTAssertTrue(
-            app.buttons["subscription.edit"].waitForExistence(timeout: 5)
+            app.buttons["subscription.edit"].waitForExistence(timeout: settleTimeout)
         )
         app.buttons["subscription.edit"].tap()
 
         XCTAssertTrue(
             app.descendants(matching: .any)["subscription.form"]
-                .waitForExistence(timeout: 5)
+                .waitForExistence(timeout: settleTimeout)
         )
         let detailService = app.textFields["subscription.editor.service-name"]
         XCTAssertTrue(detailService.exists)
@@ -667,7 +753,7 @@ final class SubscriptionManagerUITests: XCTestCase {
         app.buttons["subscription.form.save"].tap()
 
         XCTAssertTrue(
-            app.staticTexts[serviceName].waitForExistence(timeout: 5),
+            app.staticTexts[serviceName].waitForExistence(timeout: settleTimeout),
             "Plan, category, and notes must remain optional."
         )
     }
@@ -713,12 +799,11 @@ final class SubscriptionManagerUITests: XCTestCase {
         openFirstSubscriptionEditor(in: app)
 
         let amount = app.textFields["subscription.editor.amount"]
-        XCTAssertTrue(amount.waitForExistence(timeout: 5))
-        amount.tap(withNumberOfTaps: 3, numberOfTouches: 1)
-        amount.typeText("14.99")
+        XCTAssertTrue(amount.waitForExistence(timeout: settleTimeout))
+        replaceText(in: amount, with: "14.99")
         app.buttons["subscription.form.save"].tap()
         XCTAssertTrue(
-            app.buttons["subscription.edit"].waitForExistence(timeout: 5)
+            app.buttons["subscription.edit"].waitForExistence(timeout: settleTimeout)
         )
         app.buttons["subscription.edit"].tap()
 
@@ -751,7 +836,7 @@ final class SubscriptionManagerUITests: XCTestCase {
 
         startDate.tap()
         let picker = app.datePickers["subscription.date-task.picker"]
-        XCTAssertTrue(picker.waitForExistence(timeout: 5))
+        XCTAssertTrue(picker.waitForExistence(timeout: settleTimeout))
         _ = selectDateTaskInNextMonth(in: picker, app: app, day: 10)
         XCTAssertTrue(app.buttons["subscription.date-task.done"].exists)
         XCTAssertTrue(app.buttons["subscription.date-task.cancel"].exists)
@@ -762,7 +847,7 @@ final class SubscriptionManagerUITests: XCTestCase {
 
         startDate.tap()
         let committedPicker = app.datePickers["subscription.date-task.picker"]
-        XCTAssertTrue(committedPicker.waitForExistence(timeout: 5))
+        XCTAssertTrue(committedPicker.waitForExistence(timeout: settleTimeout))
         _ = selectDateTaskInNextMonth(
             in: committedPicker,
             app: app,
@@ -791,7 +876,7 @@ final class SubscriptionManagerUITests: XCTestCase {
         let reopenedStartPicker = app.datePickers[
             "subscription.date-task.picker"
         ]
-        XCTAssertTrue(reopenedStartPicker.waitForExistence(timeout: 5))
+        XCTAssertTrue(reopenedStartPicker.waitForExistence(timeout: settleTimeout))
         _ = selectDateTaskInNextMonth(
             in: reopenedStartPicker,
             app: app,
@@ -805,7 +890,7 @@ final class SubscriptionManagerUITests: XCTestCase {
         // real no-op, while Done publishes the paired date to the editor.
         nextRenewal.tap()
         let renewalPicker = app.datePickers["subscription.date-task.picker"]
-        XCTAssertTrue(renewalPicker.waitForExistence(timeout: 5))
+        XCTAssertTrue(renewalPicker.waitForExistence(timeout: settleTimeout))
         _ = selectDateTaskInNextMonth(
             in: renewalPicker,
             app: app,
@@ -818,7 +903,7 @@ final class SubscriptionManagerUITests: XCTestCase {
         let committedRenewalPicker = app.datePickers[
             "subscription.date-task.picker"
         ]
-        XCTAssertTrue(committedRenewalPicker.waitForExistence(timeout: 5))
+        XCTAssertTrue(committedRenewalPicker.waitForExistence(timeout: settleTimeout))
         _ = selectDateTaskInNextMonth(
             in: committedRenewalPicker,
             app: app,
@@ -834,7 +919,7 @@ final class SubscriptionManagerUITests: XCTestCase {
         let reopenedRenewalPicker = app.datePickers[
             "subscription.date-task.picker"
         ]
-        XCTAssertTrue(reopenedRenewalPicker.waitForExistence(timeout: 5))
+        XCTAssertTrue(reopenedRenewalPicker.waitForExistence(timeout: settleTimeout))
         _ = selectDateTaskInNextMonth(
             in: reopenedRenewalPicker,
             app: app,
@@ -873,7 +958,7 @@ final class SubscriptionManagerUITests: XCTestCase {
 
         trialStart.tap()
         let startPicker = app.datePickers["subscription.date-task.picker"]
-        XCTAssertTrue(startPicker.waitForExistence(timeout: 5))
+        XCTAssertTrue(startPicker.waitForExistence(timeout: settleTimeout))
         _ = selectDateTaskInNextMonth(in: startPicker, app: app, day: 15)
         XCTAssertTrue(app.buttons["subscription.date-task.cancel"].exists)
         app.buttons["subscription.date-task.cancel"].tap()
@@ -884,7 +969,7 @@ final class SubscriptionManagerUITests: XCTestCase {
         let committedStartPicker = app.datePickers[
             "subscription.date-task.picker"
         ]
-        XCTAssertTrue(committedStartPicker.waitForExistence(timeout: 5))
+        XCTAssertTrue(committedStartPicker.waitForExistence(timeout: settleTimeout))
         _ = selectDateTaskInNextMonth(
             in: committedStartPicker,
             app: app,
@@ -899,7 +984,7 @@ final class SubscriptionManagerUITests: XCTestCase {
         let reopenedStartPicker = app.datePickers[
             "subscription.date-task.picker"
         ]
-        XCTAssertTrue(reopenedStartPicker.waitForExistence(timeout: 5))
+        XCTAssertTrue(reopenedStartPicker.waitForExistence(timeout: settleTimeout))
         _ = selectDateTaskInNextMonth(
             in: reopenedStartPicker,
             app: app,
@@ -914,7 +999,7 @@ final class SubscriptionManagerUITests: XCTestCase {
         )
         firstPaidCharge.tap()
         let chargePicker = app.datePickers["subscription.date-task.picker"]
-        XCTAssertTrue(chargePicker.waitForExistence(timeout: 5))
+        XCTAssertTrue(chargePicker.waitForExistence(timeout: settleTimeout))
         _ = selectDateTaskInNextMonth(in: chargePicker, app: app, day: 16)
         XCTAssertTrue(app.buttons["subscription.date-task.cancel"].exists)
         app.buttons["subscription.date-task.cancel"].tap()
@@ -925,7 +1010,7 @@ final class SubscriptionManagerUITests: XCTestCase {
         let committedChargePicker = app.datePickers[
             "subscription.date-task.picker"
         ]
-        XCTAssertTrue(committedChargePicker.waitForExistence(timeout: 5))
+        XCTAssertTrue(committedChargePicker.waitForExistence(timeout: settleTimeout))
         _ = selectDateTaskInNextMonth(
             in: committedChargePicker,
             app: app,
@@ -940,7 +1025,7 @@ final class SubscriptionManagerUITests: XCTestCase {
         let reopenedChargePicker = app.datePickers[
             "subscription.date-task.picker"
         ]
-        XCTAssertTrue(reopenedChargePicker.waitForExistence(timeout: 5))
+        XCTAssertTrue(reopenedChargePicker.waitForExistence(timeout: settleTimeout))
         _ = selectDateTaskInNextMonth(
             in: reopenedChargePicker,
             app: app,
@@ -963,7 +1048,7 @@ final class SubscriptionManagerUITests: XCTestCase {
         chatGPT.tap()
 
         let plan = app.buttons["subscription.form.offer-plan"]
-        XCTAssertTrue(plan.waitForExistence(timeout: 5))
+        XCTAssertTrue(plan.waitForExistence(timeout: settleTimeout))
         plan.tap()
         app.buttons["Pro (5x)"].tap()
 
@@ -984,17 +1069,16 @@ final class SubscriptionManagerUITests: XCTestCase {
             in: app
         )
         XCTAssertTrue(scrollBackToHittable(amount, in: app, maximumSwipes: 8))
-        amount.tap(withNumberOfTaps: 3, numberOfTouches: 1)
-        amount.typeText("101")
+        replaceText(in: amount, with: "101")
         app.buttons["subscription.form.save"].tap()
 
         app.terminate()
         app.launch()
         let row = app.buttons["subscription.row"].firstMatch
-        XCTAssertTrue(row.waitForExistence(timeout: 5))
+        XCTAssertTrue(row.waitForExistence(timeout: settleTimeout))
         row.tap()
         XCTAssertTrue(
-            app.buttons["subscription.edit"].waitForExistence(timeout: 5)
+            app.buttons["subscription.edit"].waitForExistence(timeout: settleTimeout)
         )
         app.buttons["subscription.edit"].tap()
         waitForCurrentSubscriptionEditor(in: app)
@@ -1008,12 +1092,12 @@ final class SubscriptionManagerUITests: XCTestCase {
         XCTAssertTrue(
             app.descendants(matching: .any)[
                 "subscription.editor.user-adjusted-price"
-            ].waitForExistence(timeout: 5)
+            ].waitForExistence(timeout: settleTimeout)
         )
         XCTAssertTrue(
             app.descendants(matching: .any)[
                 "subscription.editor.user-adjusted-schedule"
-            ].waitForExistence(timeout: 5)
+            ].waitForExistence(timeout: settleTimeout)
         )
     }
 
@@ -1026,12 +1110,12 @@ final class SubscriptionManagerUITests: XCTestCase {
         createSubscription(named: "Summary Card", in: app)
 
         let row = subscriptionRow(named: "Summary Card", in: app)
-        XCTAssertTrue(row.waitForExistence(timeout: 5))
+        XCTAssertTrue(row.waitForExistence(timeout: settleTimeout))
         row.tap()
 
         XCTAssertTrue(
             app.descendants(matching: .any)["subscription.summary"]
-                .waitForExistence(timeout: 5)
+                .waitForExistence(timeout: settleTimeout)
         )
         XCTAssertFalse(
             app.descendants(matching: .any)["subscription.form"].exists
@@ -1059,7 +1143,7 @@ final class SubscriptionManagerUITests: XCTestCase {
             named: Task6Fixture.directEditor,
             in: app
         )
-        XCTAssertTrue(row.waitForExistence(timeout: 5))
+        XCTAssertTrue(row.waitForExistence(timeout: settleTimeout))
 
         let unlabeledChevron = row.images.matching(
             NSPredicate(format: "label == '' AND identifier == ''")
@@ -1072,16 +1156,16 @@ final class SubscriptionManagerUITests: XCTestCase {
         row.tap()
         XCTAssertTrue(
             app.descendants(matching: .any)["subscription.summary"]
-                .waitForExistence(timeout: 5)
+                .waitForExistence(timeout: settleTimeout)
         )
         let navigationBarCount = app.navigationBars.count
         XCTAssertTrue(
-            app.buttons["subscription.edit"].waitForExistence(timeout: 5)
+            app.buttons["subscription.edit"].waitForExistence(timeout: settleTimeout)
         )
         app.buttons["subscription.edit"].tap()
         let editor = app.descendants(matching: .any)["subscription.form"]
         XCTAssertTrue(
-            editor.waitForExistence(timeout: 5),
+            editor.waitForExistence(timeout: settleTimeout),
             "Editing must replace the summary in the same presentation."
         )
         XCTAssertFalse(
@@ -1136,14 +1220,13 @@ final class SubscriptionManagerUITests: XCTestCase {
 
         let amount = app.textFields["subscription.editor.amount"]
         XCTAssertTrue(scrollToHittable(amount, in: app, maximumSwipes: 8))
-        amount.tap(withNumberOfTaps: 3, numberOfTouches: 1)
-        amount.typeText("14.99")
+        replaceText(in: amount, with: "14.99")
         app.buttons["subscription.form.save"].tap()
 
         let summaryAmount = app.descendants(matching: .any)[
             "subscription.summary.amount"
         ]
-        XCTAssertTrue(summaryAmount.waitForExistence(timeout: 5))
+        XCTAssertTrue(summaryAmount.waitForExistence(timeout: settleTimeout))
         XCTAssertTrue(summaryAmount.label.contains("14.99"))
         XCTAssertFalse(
             app.descendants(matching: .any)["subscription.form"].exists
@@ -1158,23 +1241,22 @@ final class SubscriptionManagerUITests: XCTestCase {
         )
         createSubscription(named: "Summary Cancel", in: app)
         let row = subscriptionRow(named: "Summary Cancel", in: app)
-        XCTAssertTrue(row.waitForExistence(timeout: 5))
+        XCTAssertTrue(row.waitForExistence(timeout: settleTimeout))
         row.tap()
 
         let originalAmount = app.descendants(matching: .any)[
             "subscription.summary.amount"
         ]
-        XCTAssertTrue(originalAmount.waitForExistence(timeout: 5))
+        XCTAssertTrue(originalAmount.waitForExistence(timeout: settleTimeout))
         let originalAmountLabel = originalAmount.label
         app.buttons["subscription.edit"].tap()
 
         let amount = app.textFields["subscription.editor.amount"]
         XCTAssertTrue(scrollToHittable(amount, in: app, maximumSwipes: 8))
-        amount.tap(withNumberOfTaps: 3, numberOfTouches: 1)
-        amount.typeText("24.99")
+        replaceText(in: amount, with: "24.99")
         app.buttons["subscription.form.cancel"].tap()
 
-        XCTAssertTrue(originalAmount.waitForExistence(timeout: 5))
+        XCTAssertTrue(originalAmount.waitForExistence(timeout: settleTimeout))
         XCTAssertEqual(originalAmount.label, originalAmountLabel)
         XCTAssertFalse(
             app.descendants(matching: .any)["subscription.form"].exists
@@ -1196,13 +1278,11 @@ final class SubscriptionManagerUITests: XCTestCase {
 
         let category = app.textFields["subscription.editor.category"]
         XCTAssertTrue(scrollToHittable(category, in: app, maximumSwipes: 8))
-        category.tap()
-        category.typeText("Software")
+        replaceText(in: category, with: "Software")
 
         let notes = app.descendants(matching: .any)["subscription.editor.notes"]
         XCTAssertTrue(scrollToHittable(notes, in: app, maximumSwipes: 8))
-        notes.tap()
-        notes.typeText("Keep for work")
+        replaceText(in: notes, with: "Keep for work")
 
         XCTAssertFalse(
             app.descendants(matching: .any)["subscription.editor.status"].exists
@@ -1219,15 +1299,15 @@ final class SubscriptionManagerUITests: XCTestCase {
 
         let form = app.descendants(matching: .any)["subscription.form"]
         app.buttons["subscription.form.save"].tap()
-        XCTAssertTrue(form.waitForNonExistence(timeout: 5))
+        XCTAssertTrue(form.waitForNonExistence(timeout: settleTimeout))
         let row = subscriptionRow(named: "Clean Editor", in: app)
         XCTAssertTrue(scrollToHittable(row, in: app, maximumSwipes: 4))
         let serviceLabel = app.staticTexts["Clean Editor"]
-        XCTAssertTrue(serviceLabel.waitForExistence(timeout: 5))
+        XCTAssertTrue(serviceLabel.waitForExistence(timeout: settleTimeout))
         serviceLabel.tap()
 
         let summary = app.descendants(matching: .any)["subscription.summary"]
-        XCTAssertTrue(summary.waitForExistence(timeout: 5))
+        XCTAssertTrue(summary.waitForExistence(timeout: settleTimeout))
 
         let summaryCategory = app.descendants(matching: .any)[
             "subscription.summary.category"
@@ -1235,17 +1315,17 @@ final class SubscriptionManagerUITests: XCTestCase {
         let summaryNote = app.descendants(matching: .any)[
             "subscription.summary.note"
         ]
-        XCTAssertTrue(summaryCategory.waitForExistence(timeout: 5))
-        XCTAssertTrue(summaryNote.waitForExistence(timeout: 5))
+        XCTAssertTrue(summaryCategory.waitForExistence(timeout: settleTimeout))
+        XCTAssertTrue(summaryNote.waitForExistence(timeout: settleTimeout))
         XCTAssertTrue(summaryCategory.label.contains("Software"))
         XCTAssertTrue(summaryNote.label.contains("Keep for work"))
 
         let edit = app.buttons["subscription.edit"]
-        XCTAssertTrue(edit.waitForExistence(timeout: 5))
+        XCTAssertTrue(edit.waitForExistence(timeout: settleTimeout))
         edit.tap()
         XCTAssertTrue(
             app.descendants(matching: .any)["subscription.form"]
-                .waitForExistence(timeout: 5)
+                .waitForExistence(timeout: settleTimeout)
         )
         XCTAssertFalse(
             app.descendants(matching: .any)["subscription.editor.status"].exists
@@ -1269,8 +1349,7 @@ final class SubscriptionManagerUITests: XCTestCase {
 
         let amount = app.textFields["subscription.editor.amount"]
         XCTAssertTrue(scrollToHittable(amount, in: app, maximumSwipes: 8))
-        amount.tap(withNumberOfTaps: 3, numberOfTouches: 1)
-        amount.typeText("47")
+        replaceText(in: amount, with: "47")
         app.buttons["subscription.form.save"].tap()
 
         let saveError = app.staticTexts["subscription.validation.save"]
@@ -1295,10 +1374,10 @@ final class SubscriptionManagerUITests: XCTestCase {
             named: Task6Fixture.archivedEditor,
             in: app
         )
-        XCTAssertTrue(currentRow.waitForExistence(timeout: 5))
+        XCTAssertTrue(currentRow.waitForExistence(timeout: settleTimeout))
         revealTrailingActions(on: currentRow)
         let archive = app.buttons["subscription.archive"]
-        XCTAssertTrue(archive.waitForExistence(timeout: 5))
+        XCTAssertTrue(archive.waitForExistence(timeout: settleTimeout))
         archive.tap()
         waitForLifecyclePersistence()
 
@@ -1311,15 +1390,15 @@ final class SubscriptionManagerUITests: XCTestCase {
             named: Task6Fixture.archivedEditor,
             in: archivedApp
         )
-        XCTAssertTrue(archivedRow.waitForExistence(timeout: 5))
+        XCTAssertTrue(archivedRow.waitForExistence(timeout: settleTimeout))
         archivedRow.tap()
         XCTAssertTrue(
-            archivedApp.buttons["subscription.edit"].waitForExistence(timeout: 5)
+            archivedApp.buttons["subscription.edit"].waitForExistence(timeout: settleTimeout)
         )
         archivedApp.buttons["subscription.edit"].tap()
 
         let editor = archivedApp.descendants(matching: .any)["subscription.form"]
-        XCTAssertTrue(editor.waitForExistence(timeout: 5))
+        XCTAssertTrue(editor.waitForExistence(timeout: settleTimeout))
         let status = archivedApp.descendants(matching: .any)[
             "subscription.editor.status"
         ]
@@ -1345,15 +1424,15 @@ final class SubscriptionManagerUITests: XCTestCase {
             named: Task6Fixture.archivedEditor,
             in: reopenedArchivedApp
         )
-        XCTAssertTrue(archivedListRow.waitForExistence(timeout: 5))
+        XCTAssertTrue(archivedListRow.waitForExistence(timeout: settleTimeout))
         revealTrailingActions(on: archivedListRow)
         XCTAssertTrue(
             reopenedArchivedApp.buttons["subscription.restore"]
-                .waitForExistence(timeout: 5)
+                .waitForExistence(timeout: settleTimeout)
         )
         XCTAssertTrue(
             reopenedArchivedApp.buttons["subscription.delete"]
-                .waitForExistence(timeout: 5)
+                .waitForExistence(timeout: settleTimeout)
         )
     }
 
@@ -1376,8 +1455,8 @@ final class SubscriptionManagerUITests: XCTestCase {
             identifier: "upcoming.row.confirmed",
             in: app
         )
-        XCTAssertTrue(due.waitForExistence(timeout: 5))
-        XCTAssertTrue(confirmed.waitForExistence(timeout: 5))
+        XCTAssertTrue(due.waitForExistence(timeout: settleTimeout))
+        XCTAssertTrue(confirmed.waitForExistence(timeout: settleTimeout))
 
         let dueConfirm = app.descendants(matching: .any).matching(
             NSPredicate(
@@ -1387,7 +1466,7 @@ final class SubscriptionManagerUITests: XCTestCase {
             )
         ).firstMatch
         XCTAssertTrue(
-            dueConfirm.waitForExistence(timeout: 5),
+            dueConfirm.waitForExistence(timeout: settleTimeout),
             "Only a due expected occurrence gets Confirm Charge."
         )
         XCTAssertFalse(
@@ -1409,7 +1488,7 @@ final class SubscriptionManagerUITests: XCTestCase {
             ).firstMatch.exists
         )
 
-        app.buttons["upcoming.month.next"].tap()
+        tapUpcomingNextMonth(in: app)
         XCTAssertTrue(scrollToExistence(future, in: app, maximumSwipes: 6))
         XCTAssertFalse(
             app.descendants(matching: .any).matching(
@@ -1421,8 +1500,8 @@ final class SubscriptionManagerUITests: XCTestCase {
             ).firstMatch.exists
         )
 
-        app.buttons["upcoming.month.previous"].tap()
-        XCTAssertTrue(due.waitForExistence(timeout: 5))
+        tapUpcomingPreviousMonth(in: app)
+        XCTAssertTrue(due.waitForExistence(timeout: settleTimeout))
         let dueConfirmAfterReturning = app.descendants(matching: .any).matching(
             NSPredicate(
                 format: "identifier == %@ AND label CONTAINS %@",
@@ -1430,14 +1509,14 @@ final class SubscriptionManagerUITests: XCTestCase {
                 Task6Fixture.due
             )
         ).firstMatch
-        XCTAssertTrue(dueConfirmAfterReturning.waitForExistence(timeout: 5))
+        XCTAssertTrue(dueConfirmAfterReturning.waitForExistence(timeout: settleTimeout))
         dueConfirmAfterReturning.tap()
         XCTAssertTrue(
-            app.navigationBars["Confirm Charge"].waitForExistence(timeout: 5)
+            app.navigationBars["Confirm Charge"].waitForExistence(timeout: settleTimeout)
         )
         XCTAssertTrue(app.buttons["subscription.confirm.save"].exists)
         let cancel = app.navigationBars["Confirm Charge"].buttons["Cancel"]
-        XCTAssertTrue(cancel.waitForExistence(timeout: 5))
+        XCTAssertTrue(cancel.waitForExistence(timeout: settleTimeout))
         cancel.tap()
     }
 
@@ -1455,18 +1534,18 @@ final class SubscriptionManagerUITests: XCTestCase {
         let expectedConfirm = expected.descendants(matching: .any)[
             "subscription.history.expected.confirm"
         ]
-        XCTAssertTrue(expectedConfirm.waitForExistence(timeout: 5))
+        XCTAssertTrue(expectedConfirm.waitForExistence(timeout: settleTimeout))
         expectedConfirm.tap()
         XCTAssertTrue(
             successApp.navigationBars["Confirm Charge"]
-                .waitForExistence(timeout: 5)
+                .waitForExistence(timeout: settleTimeout)
         )
         let confirmationAmount = successApp.textFields[
             "subscription.confirm.amount"
         ]
-        XCTAssertTrue(confirmationAmount.waitForExistence(timeout: 5))
+        XCTAssertTrue(confirmationAmount.waitForExistence(timeout: settleTimeout))
         let successSave = successApp.buttons["subscription.confirm.save"]
-        XCTAssertTrue(successSave.waitForExistence(timeout: 5))
+        XCTAssertTrue(successSave.waitForExistence(timeout: settleTimeout))
         successSave.tap()
 
         let confirmed = successApp.descendants(matching: .any)[
@@ -1520,20 +1599,20 @@ final class SubscriptionManagerUITests: XCTestCase {
             "subscription.history.expected.confirm"
         ]
         XCTAssertTrue(
-            failureConfirm.waitForExistence(timeout: 5)
+            failureConfirm.waitForExistence(timeout: settleTimeout)
         )
         failureConfirm.tap()
         let failureSave = failureApp.buttons["subscription.confirm.save"]
-        XCTAssertTrue(failureSave.waitForExistence(timeout: 5))
+        XCTAssertTrue(failureSave.waitForExistence(timeout: settleTimeout))
         failureSave.tap()
         XCTAssertTrue(
             failureApp.descendants(matching: .any)[
                 "subscription.confirm.error"
-            ].waitForExistence(timeout: 5)
+            ].waitForExistence(timeout: settleTimeout)
         )
         let failureCancel = failureApp.navigationBars["Confirm Charge"]
             .buttons["Cancel"]
-        XCTAssertTrue(failureCancel.waitForExistence(timeout: 5))
+        XCTAssertTrue(failureCancel.waitForExistence(timeout: settleTimeout))
         failureCancel.tap()
         let failureExpectedAfterDismiss = failureApp.descendants(matching: .any)[
             "subscription.history.expected"
@@ -1574,15 +1653,14 @@ final class SubscriptionManagerUITests: XCTestCase {
         // the row tap cannot land on the covered library during the transition.
         XCTAssertTrue(
             app.descendants(matching: .any)["catalog.list"]
-                .waitForNonExistence(timeout: 5),
+                .waitForNonExistence(timeout: settleTimeout),
             "Catalog flow must dismiss before the saved row is reopened."
         )
 
         openSubscriptionEditor(named: "ChatGPT", in: app)
         let amount = app.textFields["subscription.editor.amount"]
-        XCTAssertTrue(amount.waitForExistence(timeout: 5))
-        amount.tap(withNumberOfTaps: 3, numberOfTouches: 1)
-        amount.typeText("9")
+        XCTAssertTrue(amount.waitForExistence(timeout: settleTimeout))
+        replaceText(in: amount, with: "9")
         app.buttons["subscription.form.save"].tap()
 
         openCurrentSubscriptionEditor(in: app)
@@ -1593,8 +1671,7 @@ final class SubscriptionManagerUITests: XCTestCase {
                 .contains("9") == true
         )
 
-        retainedName.tap(withNumberOfTaps: 3, numberOfTouches: 1)
-        retainedName.typeText("Personal AI")
+        replaceText(in: retainedName, with: "Personal AI")
         app.buttons["subscription.form.save"].tap()
         openCurrentSubscriptionEditor(in: app)
         XCTAssertEqual(
@@ -1614,12 +1691,12 @@ final class SubscriptionManagerUITests: XCTestCase {
         )
 
         XCTAssertTrue(
-            app.buttons["subscription.add"].waitForExistence(timeout: 5)
+            app.buttons["subscription.add"].waitForExistence(timeout: settleTimeout)
         )
         app.buttons["subscription.add"].tap()
 
         XCTAssertTrue(
-            app.navigationBars["Browse Catalog"].waitForExistence(timeout: 5)
+            app.navigationBars["Browse Catalog"].waitForExistence(timeout: settleTimeout)
         )
         XCTAssertFalse(app.buttons["subscription.add.catalog"].exists)
 
@@ -1629,13 +1706,13 @@ final class SubscriptionManagerUITests: XCTestCase {
 
         XCTAssertTrue(
             app.navigationBars["Confirm Subscription"]
-                .waitForExistence(timeout: 5)
+                .waitForExistence(timeout: settleTimeout)
         )
         XCTAssertFalse(app.buttons["subscription.form.cancel"].exists)
         XCTAssertTrue(app.buttons["subscription.form.save"].exists)
 
         let planPicker = app.buttons["subscription.form.offer-plan"]
-        XCTAssertTrue(planPicker.waitForExistence(timeout: 5))
+        XCTAssertTrue(planPicker.waitForExistence(timeout: settleTimeout))
         planPicker.tap()
         app.buttons["Pro (5x)"].tap()
         acceptEditorDate(
@@ -1645,7 +1722,7 @@ final class SubscriptionManagerUITests: XCTestCase {
         app.buttons["subscription.form.save"].tap()
 
         let row = app.buttons["subscription.row"].firstMatch
-        XCTAssertTrue(row.waitForExistence(timeout: 5))
+        XCTAssertTrue(row.waitForExistence(timeout: settleTimeout))
         XCTAssertTrue(row.label.contains("ChatGPT"))
         XCTAssertTrue(row.label.contains("Pro (5x)"))
         XCTAssertTrue(row.label.contains("$100"))
@@ -1659,7 +1736,7 @@ final class SubscriptionManagerUITests: XCTestCase {
         )
 
         XCTAssertTrue(
-            app.buttons["subscription.add"].waitForExistence(timeout: 5)
+            app.buttons["subscription.add"].waitForExistence(timeout: settleTimeout)
         )
         app.buttons["subscription.add"].tap()
 
@@ -1668,7 +1745,7 @@ final class SubscriptionManagerUITests: XCTestCase {
         chatGPT.tap()
 
         let planPicker = app.buttons["subscription.form.offer-plan"]
-        XCTAssertTrue(planPicker.waitForExistence(timeout: 5))
+        XCTAssertTrue(planPicker.waitForExistence(timeout: settleTimeout))
         planPicker.tap()
         app.buttons["Pro (5x)"].tap()
 
@@ -1734,7 +1811,7 @@ final class SubscriptionManagerUITests: XCTestCase {
         jdPlus.tap()
 
         let plan = app.buttons["subscription.form.offer-plan"]
-        XCTAssertTrue(plan.waitForExistence(timeout: 5))
+        XCTAssertTrue(plan.waitForExistence(timeout: settleTimeout))
         XCTAssertTrue(plan.label.contains("JD PLUS Annual"))
 
         let price = app.descendants(matching: .any)[
@@ -1753,8 +1830,7 @@ final class SubscriptionManagerUITests: XCTestCase {
 
         let amount = app.textFields["subscription.editor.amount"]
         XCTAssertTrue(scrollToHittable(amount, in: app, maximumSwipes: 8))
-        amount.tap(withNumberOfTaps: 3, numberOfTouches: 1)
-        amount.typeText("100")
+        replaceText(in: amount, with: "100")
         XCTAssertEqual(amount.value as? String, "100")
     }
 
@@ -1771,8 +1847,7 @@ final class SubscriptionManagerUITests: XCTestCase {
 
         let amount = app.textFields["subscription.editor.amount"]
         XCTAssertTrue(scrollToHittable(amount, in: app, maximumSwipes: 8))
-        amount.tap(withNumberOfTaps: 3, numberOfTouches: 1)
-        amount.typeText("0")
+        replaceText(in: amount, with: "0")
         XCTAssertEqual(amount.value as? String, "0")
 
         acceptEditorDate(
@@ -1782,7 +1857,7 @@ final class SubscriptionManagerUITests: XCTestCase {
 
         app.buttons["subscription.form.save"].tap()
 
-        XCTAssertTrue(amount.waitForExistence(timeout: 5))
+        XCTAssertTrue(amount.waitForExistence(timeout: settleTimeout))
         XCTAssertTrue(
             app.staticTexts["subscription.validation.amount"].exists
         )
@@ -1812,9 +1887,8 @@ final class SubscriptionManagerUITests: XCTestCase {
         app.buttons["Custom"].tap()
 
         let customValue = app.textFields["subscription.editor.custom-interval-value"]
-        XCTAssertTrue(customValue.waitForExistence(timeout: 5))
-        customValue.tap()
-        customValue.typeText("0")
+        XCTAssertTrue(customValue.waitForExistence(timeout: settleTimeout))
+        replaceText(in: customValue, with: "0")
         let customUnit = app.buttons["subscription.editor.custom-interval-unit"]
         customUnit.tap()
         app.buttons["Weeks"].tap()
@@ -1863,10 +1937,10 @@ final class SubscriptionManagerUITests: XCTestCase {
         app.buttons["subscription.form.save"].tap()
 
         let row = app.buttons["subscription.row"].firstMatch
-        XCTAssertTrue(row.waitForExistence(timeout: 5))
+        XCTAssertTrue(row.waitForExistence(timeout: settleTimeout))
         row.tap()
         XCTAssertTrue(
-            app.buttons["subscription.edit"].waitForExistence(timeout: 5)
+            app.buttons["subscription.edit"].waitForExistence(timeout: settleTimeout)
         )
         app.buttons["subscription.edit"].tap()
         let yearlySchedule = app.buttons["subscription.editor.billing-interval"]
@@ -1926,7 +2000,7 @@ final class SubscriptionManagerUITests: XCTestCase {
         )
         nextRenewal.tap()
         let nextPicker = app.datePickers["subscription.date-task.picker"]
-        XCTAssertTrue(nextPicker.waitForExistence(timeout: 5))
+        XCTAssertTrue(nextPicker.waitForExistence(timeout: settleTimeout))
         let selectedNextRenewal = selectDateTaskInNextMonth(
             in: nextPicker,
             app: app,
@@ -1965,7 +2039,7 @@ final class SubscriptionManagerUITests: XCTestCase {
 
         startDate.tap()
         let startPicker = app.datePickers["subscription.date-task.picker"]
-        XCTAssertTrue(startPicker.waitForExistence(timeout: 5))
+        XCTAssertTrue(startPicker.waitForExistence(timeout: settleTimeout))
         let editedStartDate = selectDateTaskInNextMonth(
             in: startPicker,
             app: app,
@@ -2003,7 +2077,7 @@ final class SubscriptionManagerUITests: XCTestCase {
         )
         openManualAdd(in: app)
         let initialStatus = app.segmentedControls["subscription.form.initial-status"]
-        XCTAssertTrue(initialStatus.waitForExistence(timeout: 5))
+        XCTAssertTrue(initialStatus.waitForExistence(timeout: settleTimeout))
         initialStatus.buttons["Trial"].tap()
         fillRequiredEditorFacts(
             serviceName: "Trial Dates",
@@ -2028,7 +2102,7 @@ final class SubscriptionManagerUITests: XCTestCase {
         )
         firstPaidCharge.tap()
         let chargePicker = app.datePickers["subscription.date-task.picker"]
-        XCTAssertTrue(chargePicker.waitForExistence(timeout: 5))
+        XCTAssertTrue(chargePicker.waitForExistence(timeout: settleTimeout))
         _ = selectDateTaskInNextMonth(
             in: chargePicker,
             app: app,
@@ -2051,18 +2125,17 @@ final class SubscriptionManagerUITests: XCTestCase {
             withNormalizedOffset: CGVector(dx: 0.2, dy: 0.5)
         ).tap()
         let musicCategory = app.buttons["Music"]
-        XCTAssertTrue(musicCategory.waitForExistence(timeout: 5))
+        XCTAssertTrue(musicCategory.waitForExistence(timeout: settleTimeout))
         musicCategory.tap()
         let search = app.searchFields.firstMatch
-        XCTAssertTrue(search.waitForExistence(timeout: 5))
-        search.tap()
-        search.typeText("Spotify")
+        XCTAssertTrue(search.waitForExistence(timeout: settleTimeout))
+        replaceText(in: search, with: "Spotify")
         app.keyboards.buttons["Search"].tap()
         let closeSearch = app.buttons["close"]
-        XCTAssertTrue(closeSearch.waitForExistence(timeout: 5))
+        XCTAssertTrue(closeSearch.waitForExistence(timeout: settleTimeout))
         closeSearch.tap()
         let cancel = app.buttons["catalog.cancel"]
-        XCTAssertTrue(cancel.waitForExistence(timeout: 5))
+        XCTAssertTrue(cancel.waitForExistence(timeout: settleTimeout))
         cancel.tap()
 
         app.buttons["subscription.add"].tap()
@@ -2075,8 +2148,7 @@ final class SubscriptionManagerUITests: XCTestCase {
         )
 
         let reopenedSearch = app.searchFields.firstMatch
-        reopenedSearch.tap()
-        reopenedSearch.typeText("ChatGPT")
+        replaceText(in: reopenedSearch, with: "ChatGPT")
         app.buttons["catalog.preset.chatgpt"].tap()
         acceptEditorDate(
             identifier: "subscription.editor.start-date",
@@ -2085,7 +2157,7 @@ final class SubscriptionManagerUITests: XCTestCase {
         app.buttons["subscription.form.save"].tap()
         XCTAssertTrue(
             app.buttons["subscription.row"].firstMatch
-                .waitForExistence(timeout: 5)
+                .waitForExistence(timeout: settleTimeout)
         )
 
         app.buttons["subscription.add"].tap()
@@ -2106,10 +2178,10 @@ final class SubscriptionManagerUITests: XCTestCase {
         ).tap()
 
         let aiCategory = app.buttons["AI 工具"]
-        XCTAssertTrue(aiCategory.waitForExistence(timeout: 5))
+        XCTAssertTrue(aiCategory.waitForExistence(timeout: settleTimeout))
         aiCategory.tap()
 
-        XCTAssertTrue(app.buttons["catalog.preset.chatgpt"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.buttons["catalog.preset.chatgpt"].waitForExistence(timeout: settleTimeout))
         XCTAssertFalse(app.buttons["catalog.preset.wps-office"].exists)
         XCTAssertTrue(app.buttons["catalog.category"].label.contains("AI 工具"))
     }
@@ -2121,25 +2193,24 @@ final class SubscriptionManagerUITests: XCTestCase {
             storeToken: "setup-filter-\(UUID().uuidString)",
             onboarding: true
         )
-        XCTAssertTrue(app.buttons["setup.skip"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.buttons["setup.skip"].waitForExistence(timeout: settleTimeout))
         app.buttons["setup.skip"].tap()
-        XCTAssertTrue(app.buttons["subscription.add"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.buttons["subscription.add"].waitForExistence(timeout: settleTimeout))
         app.buttons["subscription.add"].tap()
         app.buttons["catalog.category"].coordinate(
             withNormalizedOffset: CGVector(dx: 0.2, dy: 0.5)
         ).tap()
         let musicCategory = app.buttons["Music"]
-        XCTAssertTrue(musicCategory.waitForExistence(timeout: 5))
+        XCTAssertTrue(musicCategory.waitForExistence(timeout: settleTimeout))
         musicCategory.tap()
         let search = app.searchFields.firstMatch
-        search.tap()
-        search.typeText("Spotify")
+        replaceText(in: search, with: "Spotify")
         app.keyboards.buttons["Search"].tap()
         let closeSearch = app.buttons["close"]
-        XCTAssertTrue(closeSearch.waitForExistence(timeout: 5))
+        XCTAssertTrue(closeSearch.waitForExistence(timeout: settleTimeout))
         closeSearch.tap()
         let cancel = app.buttons["catalog.cancel"]
-        XCTAssertTrue(cancel.waitForExistence(timeout: 5))
+        XCTAssertTrue(cancel.waitForExistence(timeout: settleTimeout))
         cancel.tap()
 
         app.buttons["library.settings"].tap()
@@ -2148,7 +2219,7 @@ final class SubscriptionManagerUITests: XCTestCase {
         resumeSetup.tap()
         XCTAssertTrue(
             app.staticTexts["Set Up Your Library"]
-                .waitForExistence(timeout: 5)
+                .waitForExistence(timeout: settleTimeout)
         )
         XCTAssertTrue(app.buttons["setup.continue"].exists)
     }
@@ -2161,19 +2232,19 @@ final class SubscriptionManagerUITests: XCTestCase {
         )
 
         XCTAssertTrue(
-            app.buttons["subscription.add"].waitForExistence(timeout: 5)
+            app.buttons["subscription.add"].waitForExistence(timeout: settleTimeout)
         )
         app.buttons["subscription.add"].tap()
 
         let index = app.otherElements["catalog.alphabet-index"]
-        XCTAssertTrue(index.waitForExistence(timeout: 5))
+        XCTAssertTrue(index.waitForExistence(timeout: settleTimeout))
 
         let letterB = app.buttons["catalog.alphabet-index.B"]
         XCTAssertTrue(letterB.exists)
         letterB.tap()
         XCTAssertTrue(
             app.staticTexts["catalog.section.B"]
-                .waitForExistence(timeout: 5)
+                .waitForExistence(timeout: settleTimeout)
         )
 
         let start = index.coordinate(
@@ -2185,7 +2256,7 @@ final class SubscriptionManagerUITests: XCTestCase {
         start.press(forDuration: 0.2, thenDragTo: end)
         XCTAssertTrue(
             app.staticTexts["catalog.section.#"]
-                .waitForExistence(timeout: 5)
+                .waitForExistence(timeout: settleTimeout)
         )
     }
 
@@ -2203,10 +2274,10 @@ final class SubscriptionManagerUITests: XCTestCase {
             in: app
         )
         let trialRow = subscriptionRow(named: "Example Trial", in: app)
-        XCTAssertTrue(trialRow.waitForExistence(timeout: 5))
+        XCTAssertTrue(trialRow.waitForExistence(timeout: settleTimeout))
         trialRow.tap()
         XCTAssertTrue(
-            app.buttons["subscription.edit"].waitForExistence(timeout: 5)
+            app.buttons["subscription.edit"].waitForExistence(timeout: settleTimeout)
         )
         app.buttons["subscription.edit"].tap()
 
@@ -2231,29 +2302,29 @@ final class SubscriptionManagerUITests: XCTestCase {
             NSPredicate(format: "label CONTAINS %@", "Beta Service")
         )
         .firstMatch
-        XCTAssertTrue(betaRow.waitForExistence(timeout: 5))
+        XCTAssertTrue(betaRow.waitForExistence(timeout: settleTimeout))
         betaRow.swipeRight()
 
         let pin = app.buttons["subscription.pin"]
-        XCTAssertTrue(pin.waitForExistence(timeout: 5))
+        XCTAssertTrue(pin.waitForExistence(timeout: settleTimeout))
         pin.tap()
 
         let firstPinnedRow = app.buttons[
             "subscription.row"
         ].firstMatch
-        XCTAssertTrue(firstPinnedRow.waitForExistence(timeout: 5))
+        XCTAssertTrue(firstPinnedRow.waitForExistence(timeout: settleTimeout))
         XCTAssertTrue(firstPinnedRow.label.contains("Beta Service"))
         XCTAssertTrue(firstPinnedRow.value as? String == "Pinned")
 
         firstPinnedRow.swipeRight()
         let unpin = app.buttons["subscription.unpin"]
-        XCTAssertTrue(unpin.waitForExistence(timeout: 5))
+        XCTAssertTrue(unpin.waitForExistence(timeout: settleTimeout))
         unpin.tap()
 
         let firstUnpinnedRow = app.buttons[
             "subscription.row"
         ].firstMatch
-        XCTAssertTrue(firstUnpinnedRow.waitForExistence(timeout: 5))
+        XCTAssertTrue(firstUnpinnedRow.waitForExistence(timeout: settleTimeout))
         XCTAssertTrue(firstUnpinnedRow.label.contains("Alpha Service"))
     }
 
@@ -2273,20 +2344,20 @@ final class SubscriptionManagerUITests: XCTestCase {
             NSPredicate(format: "label CONTAINS %@", serviceName)
         )
         .firstMatch
-        XCTAssertTrue(row.waitForExistence(timeout: 5))
+        XCTAssertTrue(row.waitForExistence(timeout: settleTimeout))
         revealTrailingActions(on: row)
         XCTAssertTrue(
-            app.buttons["subscription.delete"].waitForExistence(timeout: 5)
+            app.buttons["subscription.delete"].waitForExistence(timeout: settleTimeout)
         )
         XCTAssertTrue(
-            app.buttons["subscription.archive"].waitForExistence(timeout: 5)
+            app.buttons["subscription.archive"].waitForExistence(timeout: settleTimeout)
         )
 
         revealTrailingActions(on: row)
         app.buttons["subscription.delete"].tap()
 
         var confirmation = app.alerts.firstMatch
-        XCTAssertTrue(confirmation.waitForExistence(timeout: 5))
+        XCTAssertTrue(confirmation.waitForExistence(timeout: settleTimeout))
         XCTAssertTrue(row.exists)
         XCTAssertTrue(
             confirmation.staticTexts
@@ -2315,14 +2386,14 @@ final class SubscriptionManagerUITests: XCTestCase {
             ].exists
         )
         let cancel = confirmation.buttons["Cancel"]
-        XCTAssertTrue(cancel.waitForExistence(timeout: 5))
+        XCTAssertTrue(cancel.waitForExistence(timeout: settleTimeout))
         cancel.tap()
-        XCTAssertTrue(row.waitForExistence(timeout: 5))
+        XCTAssertTrue(row.waitForExistence(timeout: settleTimeout))
 
         revealTrailingActions(on: row)
         app.buttons["subscription.delete"].tap()
         confirmation = app.alerts.firstMatch
-        XCTAssertTrue(confirmation.waitForExistence(timeout: 5))
+        XCTAssertTrue(confirmation.waitForExistence(timeout: settleTimeout))
         confirmation.buttons["Delete Permanently"].tap()
         XCTAssertFalse(row.waitForExistence(timeout: 2))
     }
@@ -2346,7 +2417,7 @@ final class SubscriptionManagerUITests: XCTestCase {
         .firstMatch
         revealTrailingActions(on: row)
         let archive = app.buttons["subscription.archive"]
-        XCTAssertTrue(archive.waitForExistence(timeout: 5))
+        XCTAssertTrue(archive.waitForExistence(timeout: settleTimeout))
         archive.tap()
         XCTAssertFalse(row.waitForExistence(timeout: 2))
         waitForLifecyclePersistence()
@@ -2365,13 +2436,13 @@ final class SubscriptionManagerUITests: XCTestCase {
             NSPredicate(format: "label CONTAINS %@", serviceName)
         )
         .firstMatch
-        XCTAssertTrue(row.waitForExistence(timeout: 5))
+        XCTAssertTrue(row.waitForExistence(timeout: settleTimeout))
         revealTrailingActions(on: row)
         XCTAssertTrue(
-            archivedApp.buttons["subscription.delete"].waitForExistence(timeout: 5)
+            archivedApp.buttons["subscription.delete"].waitForExistence(timeout: settleTimeout)
         )
         let restore = archivedApp.buttons["subscription.restore"]
-        XCTAssertTrue(restore.waitForExistence(timeout: 5))
+        XCTAssertTrue(restore.waitForExistence(timeout: settleTimeout))
         XCTAssertFalse(archivedApp.buttons["subscription.pin"].exists)
         restore.tap()
         XCTAssertFalse(row.waitForExistence(timeout: 2))
@@ -2382,7 +2453,7 @@ final class SubscriptionManagerUITests: XCTestCase {
             locale: "en_US",
             storeToken: storeToken
         )
-        XCTAssertTrue(restoredApp.staticTexts[serviceName].waitForExistence(timeout: 5))
+        XCTAssertTrue(restoredApp.staticTexts[serviceName].waitForExistence(timeout: settleTimeout))
 
         row = restoredApp.buttons.matching(
             identifier: "subscription.row"
@@ -2409,10 +2480,10 @@ final class SubscriptionManagerUITests: XCTestCase {
             NSPredicate(format: "label CONTAINS %@", serviceName)
         )
         .firstMatch
-        XCTAssertTrue(row.waitForExistence(timeout: 5))
+        XCTAssertTrue(row.waitForExistence(timeout: settleTimeout))
         triggerFullTrailingSwipe(on: row)
         let confirmation = archivedDeleteApp.alerts.firstMatch
-        XCTAssertTrue(confirmation.waitForExistence(timeout: 5))
+        XCTAssertTrue(confirmation.waitForExistence(timeout: settleTimeout))
         XCTAssertTrue(row.exists)
         confirmation.buttons["Delete Permanently"].tap()
         XCTAssertFalse(row.waitForExistence(timeout: 2))
@@ -2442,23 +2513,23 @@ final class SubscriptionManagerUITests: XCTestCase {
             NSPredicate(format: "label CONTAINS %@", serviceName)
         )
         .firstMatch
-        XCTAssertTrue(row.waitForExistence(timeout: 5))
+        XCTAssertTrue(row.waitForExistence(timeout: settleTimeout))
         revealTrailingActions(on: row)
         failingApp.buttons["subscription.archive"].tap()
 
         var error = failingApp.alerts["Couldn’t Complete Action"]
-        XCTAssertTrue(error.waitForExistence(timeout: 5))
+        XCTAssertTrue(error.waitForExistence(timeout: settleTimeout))
         XCTAssertTrue(row.exists)
         error.buttons["OK"].tap()
-        XCTAssertTrue(error.waitForNonExistence(timeout: 5))
+        XCTAssertTrue(error.waitForNonExistence(timeout: settleTimeout))
 
         revealTrailingActions(on: row)
         failingApp.buttons["subscription.delete"].tap()
         let confirmation = failingApp.alerts.firstMatch
-        XCTAssertTrue(confirmation.waitForExistence(timeout: 5))
+        XCTAssertTrue(confirmation.waitForExistence(timeout: settleTimeout))
         confirmation.buttons["Delete Permanently"].tap()
         error = failingApp.alerts["Couldn’t Complete Action"]
-        XCTAssertTrue(error.waitForExistence(timeout: 5))
+        XCTAssertTrue(error.waitForExistence(timeout: settleTimeout))
         XCTAssertTrue(row.exists)
     }
 
@@ -2478,11 +2549,11 @@ final class SubscriptionManagerUITests: XCTestCase {
         let trialRow = subscriptionRow(named: "示例试用", in: app)
         XCTAssertTrue(scrollToHittable(trialRow, in: app, maximumSwipes: 4))
         let serviceLabel = app.staticTexts["示例试用"]
-        XCTAssertTrue(serviceLabel.waitForExistence(timeout: 5))
+        XCTAssertTrue(serviceLabel.waitForExistence(timeout: settleTimeout))
         serviceLabel.tap()
         let edit = app.buttons["subscription.edit"]
         XCTAssertTrue(
-            edit.waitForExistence(timeout: 5)
+            edit.waitForExistence(timeout: settleTimeout)
         )
         edit.tap()
 
@@ -2507,15 +2578,15 @@ final class SubscriptionManagerUITests: XCTestCase {
         )
 
         let currentRow = subscriptionRow(named: serviceName, in: app)
-        XCTAssertTrue(currentRow.waitForExistence(timeout: 5))
+        XCTAssertTrue(currentRow.waitForExistence(timeout: settleTimeout))
         revealTrailingActions(on: currentRow)
         let archive = app.buttons["subscription.archive"]
-        XCTAssertTrue(archive.waitForExistence(timeout: 5))
+        XCTAssertTrue(archive.waitForExistence(timeout: settleTimeout))
         archive.tap()
 
         XCTAssertTrue(
             app.descendants(matching: .any)["library.empty-state"]
-                .waitForExistence(timeout: 5)
+                .waitForExistence(timeout: settleTimeout)
         )
         XCTAssertFalse(app.staticTexts["Example Archive"].exists)
         waitForLifecyclePersistence()
@@ -2528,20 +2599,20 @@ final class SubscriptionManagerUITests: XCTestCase {
             opensArchivedLibrary: true
         )
 
-        XCTAssertTrue(archivedApp.navigationBars["Archived"].waitForExistence(timeout: 5))
-        XCTAssertTrue(archivedApp.staticTexts["Example Archive"].waitForExistence(timeout: 5))
+        XCTAssertTrue(archivedApp.navigationBars["Archived"].waitForExistence(timeout: settleTimeout))
+        XCTAssertTrue(archivedApp.staticTexts["Example Archive"].waitForExistence(timeout: settleTimeout))
         let archivedRow = subscriptionRow(named: serviceName, in: archivedApp)
-        XCTAssertTrue(archivedRow.waitForExistence(timeout: 5))
+        XCTAssertTrue(archivedRow.waitForExistence(timeout: settleTimeout))
         XCTAssertTrue(archivedRow.label.contains("Trial"))
 
         archivedRow.tap()
         XCTAssertTrue(
-            archivedApp.buttons["subscription.edit"].waitForExistence(timeout: 5)
+            archivedApp.buttons["subscription.edit"].waitForExistence(timeout: settleTimeout)
         )
         archivedApp.buttons["subscription.edit"].tap()
         XCTAssertTrue(
             archivedApp.descendants(matching: .any)["subscription.form"]
-                .waitForExistence(timeout: 5)
+                .waitForExistence(timeout: settleTimeout)
         )
         let archivedStatus = archivedApp.descendants(matching: .any)[
             "subscription.editor.status"
@@ -2566,15 +2637,15 @@ final class SubscriptionManagerUITests: XCTestCase {
             named: serviceName,
             in: archivedListApp
         )
-        XCTAssertTrue(archivedListRow.waitForExistence(timeout: 5))
+        XCTAssertTrue(archivedListRow.waitForExistence(timeout: settleTimeout))
         revealTrailingActions(on: archivedListRow)
         let restore = archivedListApp.buttons["subscription.restore"]
-        XCTAssertTrue(restore.waitForExistence(timeout: 5))
+        XCTAssertTrue(restore.waitForExistence(timeout: settleTimeout))
         restore.tap()
 
         XCTAssertTrue(
             archivedListApp.descendants(matching: .any)["library.empty-state"]
-                .waitForExistence(timeout: 5)
+                .waitForExistence(timeout: settleTimeout)
         )
         XCTAssertFalse(archivedListApp.staticTexts["Example Archive"].exists)
 
@@ -2584,9 +2655,9 @@ final class SubscriptionManagerUITests: XCTestCase {
             locale: "en_US",
             storeToken: storeToken
         )
-        XCTAssertTrue(restoredApp.staticTexts["Example Archive"].waitForExistence(timeout: 5))
+        XCTAssertTrue(restoredApp.staticTexts["Example Archive"].waitForExistence(timeout: settleTimeout))
         let restoredRow = subscriptionRow(named: serviceName, in: restoredApp)
-        XCTAssertTrue(restoredRow.waitForExistence(timeout: 5))
+        XCTAssertTrue(restoredRow.waitForExistence(timeout: settleTimeout))
         XCTAssertTrue(restoredRow.label.contains("Trial"))
     }
 
@@ -2606,16 +2677,16 @@ final class SubscriptionManagerUITests: XCTestCase {
         )
 
         let currentRow = subscriptionRow(named: serviceName, in: app)
-        XCTAssertTrue(currentRow.waitForExistence(timeout: 5))
+        XCTAssertTrue(currentRow.waitForExistence(timeout: settleTimeout))
         XCTAssertTrue(currentRow.label.contains("Trial"))
         revealTrailingActions(on: currentRow)
         let archive = app.buttons["subscription.archive"]
-        XCTAssertTrue(archive.waitForExistence(timeout: 5))
+        XCTAssertTrue(archive.waitForExistence(timeout: settleTimeout))
         archive.tap()
 
         XCTAssertTrue(
             app.descendants(matching: .any)["library.empty-state"]
-                .waitForExistence(timeout: 5)
+                .waitForExistence(timeout: settleTimeout)
         )
         waitForLifecyclePersistence()
 
@@ -2626,12 +2697,12 @@ final class SubscriptionManagerUITests: XCTestCase {
             storeToken: storeToken,
             opensArchivedLibrary: true
         )
-        XCTAssertTrue(archivedApp.staticTexts[serviceName].waitForExistence(timeout: 5))
+        XCTAssertTrue(archivedApp.staticTexts[serviceName].waitForExistence(timeout: settleTimeout))
         let archivedRow = subscriptionRow(named: serviceName, in: archivedApp)
-        XCTAssertTrue(archivedRow.waitForExistence(timeout: 5))
+        XCTAssertTrue(archivedRow.waitForExistence(timeout: settleTimeout))
         archivedRow.tap()
         XCTAssertTrue(
-            archivedApp.buttons["subscription.edit"].waitForExistence(timeout: 5)
+            archivedApp.buttons["subscription.edit"].waitForExistence(timeout: settleTimeout)
         )
         archivedApp.buttons["subscription.edit"].tap()
 
@@ -2654,12 +2725,12 @@ final class SubscriptionManagerUITests: XCTestCase {
             named: serviceName,
             in: archivedListApp
         )
-        XCTAssertTrue(archivedListRow.waitForExistence(timeout: 5))
+        XCTAssertTrue(archivedListRow.waitForExistence(timeout: settleTimeout))
         revealTrailingActions(on: archivedListRow)
-        XCTAssertTrue(archivedListApp.buttons["subscription.delete"].waitForExistence(timeout: 5))
+        XCTAssertTrue(archivedListApp.buttons["subscription.delete"].waitForExistence(timeout: settleTimeout))
         let confirmation = archivedListApp.alerts.firstMatch
         triggerFullTrailingSwipe(on: archivedListRow)
-        XCTAssertTrue(confirmation.waitForExistence(timeout: 5))
+        XCTAssertTrue(confirmation.waitForExistence(timeout: settleTimeout))
         XCTAssertTrue(
             confirmation.staticTexts
                 .matching(
@@ -2676,15 +2747,15 @@ final class SubscriptionManagerUITests: XCTestCase {
             ].exists
         )
         let cancel = confirmation.buttons["Cancel"]
-        XCTAssertTrue(cancel.waitForExistence(timeout: 5))
+        XCTAssertTrue(cancel.waitForExistence(timeout: settleTimeout))
         cancel.tap()
         triggerFullTrailingSwipe(on: archivedListRow)
         let confirmedDeletion = archivedListApp.alerts.firstMatch
-        XCTAssertTrue(confirmedDeletion.waitForExistence(timeout: 5))
+        XCTAssertTrue(confirmedDeletion.waitForExistence(timeout: settleTimeout))
         confirmedDeletion.buttons["Delete Permanently"].tap()
 
         XCTAssertTrue(
-            archivedListRow.waitForNonExistence(timeout: 5),
+            archivedListRow.waitForNonExistence(timeout: settleTimeout),
             "Permanent deletion removes the archived list row after confirmation."
         )
     }
@@ -2699,12 +2770,12 @@ final class SubscriptionManagerUITests: XCTestCase {
         createSubscription(named: "Current Failure", in: app)
         createSubscription(named: "Archived Failure", in: app)
         let archivedRow = subscriptionRow(named: "Archived Failure", in: app)
-        XCTAssertTrue(archivedRow.waitForExistence(timeout: 5))
+        XCTAssertTrue(archivedRow.waitForExistence(timeout: settleTimeout))
         revealTrailingActions(on: archivedRow)
-        XCTAssertTrue(app.buttons["subscription.archive"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.buttons["subscription.archive"].waitForExistence(timeout: settleTimeout))
         app.buttons["subscription.archive"].tap()
         XCTAssertTrue(
-            app.staticTexts["Current Failure"].waitForExistence(timeout: 5)
+            app.staticTexts["Current Failure"].waitForExistence(timeout: settleTimeout)
         )
         waitForLifecyclePersistence()
         app.terminate()
@@ -2717,16 +2788,16 @@ final class SubscriptionManagerUITests: XCTestCase {
         )
         XCTAssertTrue(
             failingApp.staticTexts["Current Failure"]
-                .waitForExistence(timeout: 5)
+                .waitForExistence(timeout: settleTimeout)
         )
         let currentRow = subscriptionRow(named: "Current Failure", in: failingApp)
-        XCTAssertTrue(currentRow.waitForExistence(timeout: 5))
+        XCTAssertTrue(currentRow.waitForExistence(timeout: settleTimeout))
         revealTrailingActions(on: currentRow)
-        XCTAssertTrue(failingApp.buttons["subscription.archive"].waitForExistence(timeout: 5))
+        XCTAssertTrue(failingApp.buttons["subscription.archive"].waitForExistence(timeout: settleTimeout))
         failingApp.buttons["subscription.archive"].tap()
 
         let actionError = failingApp.alerts["Couldn’t Complete Action"]
-        XCTAssertTrue(actionError.waitForExistence(timeout: 5))
+        XCTAssertTrue(actionError.waitForExistence(timeout: settleTimeout))
         XCTAssertTrue(
             actionError.staticTexts[
                 "Couldn’t save lifecycle changes. Try again."
@@ -2740,10 +2811,10 @@ final class SubscriptionManagerUITests: XCTestCase {
         revealTrailingActions(on: currentRow)
         failingApp.buttons["subscription.delete"].tap()
         let confirmation = failingApp.alerts.firstMatch
-        XCTAssertTrue(confirmation.waitForExistence(timeout: 5))
+        XCTAssertTrue(confirmation.waitForExistence(timeout: settleTimeout))
         XCTAssertFalse(actionError.exists)
         confirmation.buttons["Delete Permanently"].tap()
-        XCTAssertTrue(actionError.waitForExistence(timeout: 5))
+        XCTAssertTrue(actionError.waitForExistence(timeout: settleTimeout))
         XCTAssertTrue(currentRow.exists)
         actionError.buttons["OK"].tap()
 
@@ -2757,22 +2828,22 @@ final class SubscriptionManagerUITests: XCTestCase {
         )
         XCTAssertTrue(
             archivedFailingApp.staticTexts["Archived Failure"]
-                .waitForExistence(timeout: 5)
+                .waitForExistence(timeout: settleTimeout)
         )
         let failingArchivedRow = subscriptionRow(
             named: "Archived Failure",
             in: archivedFailingApp
         )
-        XCTAssertTrue(failingArchivedRow.waitForExistence(timeout: 5))
+        XCTAssertTrue(failingArchivedRow.waitForExistence(timeout: settleTimeout))
         revealTrailingActions(on: failingArchivedRow)
         XCTAssertTrue(
             archivedFailingApp.buttons["subscription.restore"]
-                .waitForExistence(timeout: 5)
+                .waitForExistence(timeout: settleTimeout)
         )
         archivedFailingApp.buttons["subscription.restore"].tap()
 
         let archivedActionError = archivedFailingApp.alerts["Couldn’t Complete Action"]
-        XCTAssertTrue(archivedActionError.waitForExistence(timeout: 5))
+        XCTAssertTrue(archivedActionError.waitForExistence(timeout: settleTimeout))
         XCTAssertTrue(
             archivedActionError.staticTexts[
                 "Couldn’t save lifecycle changes. Try again."
@@ -2793,7 +2864,7 @@ final class SubscriptionManagerUITests: XCTestCase {
         createSubscription(named: "Example Streaming", in: app)
         app.buttons["subscription.row"].firstMatch.tap()
         XCTAssertTrue(
-            app.buttons["subscription.edit"].waitForExistence(timeout: 5)
+            app.buttons["subscription.edit"].waitForExistence(timeout: settleTimeout)
         )
         app.buttons["subscription.edit"].tap()
 
@@ -2807,7 +2878,7 @@ final class SubscriptionManagerUITests: XCTestCase {
 
         XCTAssertTrue(
             app.descendants(matching: .any)["subscription.cancellation.form"]
-                .waitForExistence(timeout: 5)
+                .waitForExistence(timeout: settleTimeout)
         )
         let cancellationPicker = app.datePickers[
             "subscription.cancellation.date"
@@ -2845,7 +2916,7 @@ final class SubscriptionManagerUITests: XCTestCase {
         let confirmCancellation = app.buttons[
             "subscription.cancellation.confirmDialog"
         ].firstMatch
-        XCTAssertTrue(confirmCancellation.waitForExistence(timeout: 5))
+        XCTAssertTrue(confirmCancellation.waitForExistence(timeout: settleTimeout))
         confirmCancellation.tap()
 
         XCTAssertFalse(
@@ -2866,7 +2937,7 @@ final class SubscriptionManagerUITests: XCTestCase {
         createSubscription(named: "Example Cloud", in: app)
         app.buttons["subscription.row"].firstMatch.tap()
         XCTAssertTrue(
-            app.buttons["subscription.edit"].waitForExistence(timeout: 5)
+            app.buttons["subscription.edit"].waitForExistence(timeout: settleTimeout)
         )
         app.buttons["subscription.edit"].tap()
 
@@ -2883,14 +2954,14 @@ final class SubscriptionManagerUITests: XCTestCase {
         recordCancellation.tap()
         XCTAssertTrue(
             app.buttons["subscription.cancellation.save"]
-                .waitForExistence(timeout: 5)
+                .waitForExistence(timeout: settleTimeout)
         )
         app.buttons["subscription.cancellation.save"].tap()
 
         let confirmCancellation = app.buttons[
             "subscription.cancellation.confirmDialog"
         ].firstMatch
-        XCTAssertTrue(confirmCancellation.waitForExistence(timeout: 5))
+        XCTAssertTrue(confirmCancellation.waitForExistence(timeout: settleTimeout))
         confirmCancellation.tap()
 
         let reactivate = app.descendants(matching: .any)[
@@ -2902,7 +2973,7 @@ final class SubscriptionManagerUITests: XCTestCase {
         let nextRenewal = app.datePickers[
             "subscription.reactivation.next-renewal"
         ]
-        XCTAssertTrue(nextRenewal.waitForExistence(timeout: 5))
+        XCTAssertTrue(nextRenewal.waitForExistence(timeout: settleTimeout))
         let previousRenewal = selectedDate(in: nextRenewal)
         let locale = Locale(identifier: "en_US")
         var calendar = Calendar(identifier: .gregorian)
@@ -2957,29 +3028,27 @@ final class SubscriptionManagerUITests: XCTestCase {
         let app = launch(language: "en", locale: "en_US")
 
         XCTAssertTrue(
-            app.buttons["subscription.add"].waitForExistence(timeout: 5)
+            app.buttons["subscription.add"].waitForExistence(timeout: settleTimeout)
         )
         app.buttons["subscription.add"].tap()
         XCTAssertTrue(
-            app.buttons["catalog.add-manually"].waitForExistence(timeout: 5)
+            app.buttons["catalog.add-manually"].waitForExistence(timeout: settleTimeout)
         )
         app.buttons["catalog.add-manually"].tap()
 
         let serviceName = app.textFields["subscription.editor.service-name"]
-        XCTAssertTrue(serviceName.waitForExistence(timeout: 5))
-        serviceName.tap()
-        serviceName.typeText("Example Music")
+        XCTAssertTrue(serviceName.waitForExistence(timeout: settleTimeout))
+        replaceText(in: serviceName, with: "Example Music")
 
         let amount = app.textFields["subscription.editor.amount"]
         XCTAssertTrue(scrollToHittable(amount, in: app, maximumSwipes: 6))
-        amount.tap()
-        amount.typeText("twelve")
+        replaceText(in: amount, with: "twelve")
 
         app.buttons["subscription.form.save"].tap()
 
         XCTAssertTrue(
             app.staticTexts["subscription.validation.amount"]
-                .waitForExistence(timeout: 5)
+                .waitForExistence(timeout: settleTimeout)
         )
         XCTAssertTrue(app.staticTexts["Enter a valid amount."].exists)
         XCTAssertTrue(
@@ -2999,7 +3068,7 @@ final class SubscriptionManagerUITests: XCTestCase {
         openFirstSubscriptionEditor(in: app)
 
         let billingInterval = app.buttons["subscription.editor.billing-interval"]
-        XCTAssertTrue(billingInterval.waitForExistence(timeout: 5))
+        XCTAssertTrue(billingInterval.waitForExistence(timeout: settleTimeout))
         billingInterval.tap()
         app.buttons["Yearly"].tap()
         let startDateButton = app.buttons["subscription.editor.start-date"]
@@ -3034,27 +3103,27 @@ final class SubscriptionManagerUITests: XCTestCase {
         app.buttons["subscription.form.save"].tap()
 
         let savedRow = app.buttons["subscription.row"].firstMatch
-        XCTAssertTrue(savedRow.waitForExistence(timeout: 5))
+        XCTAssertTrue(savedRow.waitForExistence(timeout: settleTimeout))
         savedRow.tap()
         XCTAssertTrue(
-            app.buttons["subscription.edit"].waitForExistence(timeout: 5)
+            app.buttons["subscription.edit"].waitForExistence(timeout: settleTimeout)
         )
         app.buttons["subscription.edit"].tap()
         let detailInterval = app.buttons["subscription.editor.billing-interval"]
-        XCTAssertTrue(detailInterval.waitForExistence(timeout: 5))
+        XCTAssertTrue(detailInterval.waitForExistence(timeout: settleTimeout))
         XCTAssertTrue(detailInterval.label.contains("Yearly"))
 
         app.terminate()
         app.launch()
         let row = app.buttons["subscription.row"].firstMatch
-        XCTAssertTrue(row.waitForExistence(timeout: 5))
+        XCTAssertTrue(row.waitForExistence(timeout: settleTimeout))
         row.tap()
         XCTAssertTrue(
-            app.buttons["subscription.edit"].waitForExistence(timeout: 5)
+            app.buttons["subscription.edit"].waitForExistence(timeout: settleTimeout)
         )
         app.buttons["subscription.edit"].tap()
         let relaunchedInterval = app.buttons["subscription.editor.billing-interval"]
-        XCTAssertTrue(relaunchedInterval.waitForExistence(timeout: 5))
+        XCTAssertTrue(relaunchedInterval.waitForExistence(timeout: settleTimeout))
         XCTAssertTrue(relaunchedInterval.label.contains("Yearly"))
     }
 
@@ -3071,7 +3140,7 @@ final class SubscriptionManagerUITests: XCTestCase {
         XCTAssertTrue(scrollToHittable(nextRenewal, in: app, maximumSwipes: 6))
         nextRenewal.tap()
         let nextPicker = app.datePickers["subscription.date-task.picker"]
-        XCTAssertTrue(nextPicker.waitForExistence(timeout: 5))
+        XCTAssertTrue(nextPicker.waitForExistence(timeout: settleTimeout))
         let selectedNextRenewal = selectDateTaskInNextMonth(
             in: nextPicker,
             app: app,
@@ -3109,7 +3178,7 @@ final class SubscriptionManagerUITests: XCTestCase {
 
         startDate.tap()
         let startPicker = app.datePickers["subscription.date-task.picker"]
-        XCTAssertTrue(startPicker.waitForExistence(timeout: 5))
+        XCTAssertTrue(startPicker.waitForExistence(timeout: settleTimeout))
         let editedStartDate = selectDateTaskInNextMonth(
             in: startPicker,
             app: app,
@@ -3152,20 +3221,19 @@ final class SubscriptionManagerUITests: XCTestCase {
         let confirm = expected.descendants(matching: .any)[
             "subscription.history.expected.confirm"
         ]
-        XCTAssertTrue(confirm.waitForExistence(timeout: 5))
+        XCTAssertTrue(confirm.waitForExistence(timeout: settleTimeout))
         confirm.tap()
         let confirmSave = app.buttons["subscription.confirm.save"]
-        XCTAssertTrue(confirmSave.waitForExistence(timeout: 5))
+        XCTAssertTrue(confirmSave.waitForExistence(timeout: settleTimeout))
         confirmSave.tap()
         XCTAssertTrue(
             app.descendants(matching: .any)["subscription.history.confirmed"]
-                .waitForExistence(timeout: 5)
+                .waitForExistence(timeout: settleTimeout)
         )
 
         let amount = app.textFields["subscription.editor.amount"]
         XCTAssertTrue(scrollBackToHittable(amount, in: app, maximumSwipes: 8))
-        amount.tap(withNumberOfTaps: 3, numberOfTouches: 1)
-        amount.typeText("31")
+        replaceText(in: amount, with: "31")
         app.buttons["subscription.form.save"].tap()
         openTask6Editor(named: Task6Fixture.overdue, in: app)
         XCTAssertTrue(
@@ -3185,18 +3253,17 @@ final class SubscriptionManagerUITests: XCTestCase {
         openFirstSubscriptionEditor(in: app)
 
         let billingInterval = app.buttons["subscription.editor.billing-interval"]
-        XCTAssertTrue(billingInterval.waitForExistence(timeout: 5))
+        XCTAssertTrue(billingInterval.waitForExistence(timeout: settleTimeout))
         billingInterval.tap()
         app.buttons["Custom"].tap()
         let customValue = app.textFields["subscription.editor.custom-interval-value"]
-        XCTAssertTrue(customValue.waitForExistence(timeout: 5))
-        customValue.tap()
-        customValue.typeText("0")
+        XCTAssertTrue(customValue.waitForExistence(timeout: settleTimeout))
+        replaceText(in: customValue, with: "0")
         app.buttons["subscription.form.save"].tap()
 
         XCTAssertTrue(
             app.staticTexts["subscription.validation.billing-interval"]
-                .waitForExistence(timeout: 5)
+                .waitForExistence(timeout: settleTimeout)
         )
         XCTAssertTrue(
             app.staticTexts["Enter an interval greater than zero."].exists
@@ -3207,15 +3274,15 @@ final class SubscriptionManagerUITests: XCTestCase {
         let app = launch(language: "zh-Hans", locale: "zh_CN")
 
         XCTAssertTrue(
-            app.buttons["subscription.add"].waitForExistence(timeout: 5)
+            app.buttons["subscription.add"].waitForExistence(timeout: settleTimeout)
         )
         app.buttons["subscription.add"].tap()
         XCTAssertTrue(
-            app.buttons["catalog.add-manually"].waitForExistence(timeout: 5)
+            app.buttons["catalog.add-manually"].waitForExistence(timeout: settleTimeout)
         )
         app.buttons["catalog.add-manually"].tap()
 
-        XCTAssertTrue(app.navigationBars["添加订阅"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.navigationBars["添加订阅"].waitForExistence(timeout: settleTimeout))
         XCTAssertTrue(app.staticTexts["服务"].exists)
         XCTAssertTrue(app.staticTexts["价格"].exists)
         XCTAssertTrue(app.staticTexts["账单计划"].exists)
@@ -3244,7 +3311,7 @@ final class SubscriptionManagerUITests: XCTestCase {
         currency.tap()
 
         for option in ["CNY", "USD", "EUR"] {
-            XCTAssertTrue(app.buttons[option].waitForExistence(timeout: 5))
+            XCTAssertTrue(app.buttons[option].waitForExistence(timeout: settleTimeout))
         }
         XCTAssertFalse(app.buttons["Select Currency"].exists)
     }
@@ -3296,30 +3363,119 @@ final class SubscriptionManagerUITests: XCTestCase {
         in app: XCUIApplication
     ) {
         let row = subscriptionRow(named: serviceName, in: app)
-        XCTAssertTrue(row.waitForExistence(timeout: 5))
+        XCTAssertTrue(row.waitForExistence(timeout: settleTimeout))
         row.tap()
         XCTAssertTrue(
-            app.buttons["subscription.edit"].waitForExistence(timeout: 5)
+            app.buttons["subscription.edit"].waitForExistence(timeout: settleTimeout)
         )
         app.buttons["subscription.edit"].tap()
         XCTAssertTrue(
             app.descendants(matching: .any)["subscription.form"]
-                .waitForExistence(timeout: 5)
+                .waitForExistence(timeout: settleTimeout)
         )
     }
 
     private func openManualAdd(in app: XCUIApplication) {
         XCTAssertTrue(
-            app.buttons["subscription.add"].waitForExistence(timeout: 5)
+            app.buttons["subscription.add"].waitForExistence(timeout: settleTimeout)
         )
         app.buttons["subscription.add"].tap()
         let addManually = app.buttons["catalog.add-manually"]
-        XCTAssertTrue(addManually.waitForExistence(timeout: 5))
+        XCTAssertTrue(addManually.waitForExistence(timeout: settleTimeout))
         addManually.tap()
         XCTAssertTrue(
             app.descendants(matching: .any)["subscription.form"]
-                .waitForExistence(timeout: 5)
+                .waitForExistence(timeout: settleTimeout)
         )
+    }
+
+    /// Sets a text field's contents deterministically. Every field in this
+    /// suite goes through here rather than calling `typeText` directly.
+    ///
+    /// Two separate CI failures motivate each half.
+    ///
+    /// `tap(withNumberOfTaps: 3, ...)` selects all only when the three taps
+    /// land inside the multi-tap recognition window. On a loaded machine they
+    /// arrive too far apart, the gesture degrades into a caret move, and the
+    /// following `typeText` inserts instead of replacing -- which is how
+    /// `"99.00" + "100"` became `"99.00100"`. Deleting one character per
+    /// existing character has no timing dependency.
+    ///
+    /// `typeText` also drops keystrokes when the field processes them slower
+    /// than they arrive: `"Example Archive"` landed as `"Example Arc"`, and the
+    /// test only failed later, looking for a row that had been saved under a
+    /// truncated name. Confirming the resulting value turns that into an
+    /// immediate, named failure at the field instead.
+    private func replaceText(
+        in field: XCUIElement,
+        with text: String,
+        file: StaticString = #filePath,
+        line: UInt = #line
+    ) {
+        XCTAssertTrue(
+            field.waitForExistence(timeout: settleTimeout),
+            "Expected a text field to replace.",
+            file: file,
+            line: line
+        )
+        // Retry bounded rather than unbounded: a dropped keystroke is recovered
+        // by clearing and typing again, but a field that genuinely refuses the
+        // text still fails, and fails naming what it holds.
+        for _ in 1...3 {
+            field.tap()
+            // An empty SwiftUI TextField reports its placeholder as the
+            // accessibility value, so comparing the two keeps the delete count
+            // tied to real content instead of prompt text.
+            let value = (field.value as? String) ?? ""
+            let existing = value == field.placeholderValue ? "" : value
+            if !existing.isEmpty {
+                field.typeText(
+                    String(
+                        repeating: XCUIKeyboardKey.delete.rawValue,
+                        count: existing.count
+                    )
+                )
+            }
+            field.typeText(text)
+            if waitForValue(text, of: field, timeout: fieldEchoTimeout) {
+                return
+            }
+        }
+        XCTFail(
+            """
+            Expected the field to hold \(text) after three attempts, \
+            found \(String(describing: field.value)).
+            """,
+            file: file,
+            line: line
+        )
+    }
+
+    private func waitForValue(
+        _ expected: String,
+        of element: XCUIElement,
+        timeout: TimeInterval? = nil
+    ) -> Bool {
+        waitForElement(
+            element,
+            matching: NSPredicate(format: "value == %@", expected),
+            timeout: timeout
+        )
+    }
+
+    private func waitForElement(
+        _ element: XCUIElement,
+        matching predicate: NSPredicate,
+        timeout: TimeInterval? = nil
+    ) -> Bool {
+        let expectation = XCTNSPredicateExpectation(
+            predicate: predicate,
+            object: element
+        )
+        return XCTWaiter.wait(
+            for: [expectation],
+            timeout: timeout ?? settleTimeout
+        ) == .completed
     }
 
     private func fillRequiredEditorFacts(
@@ -3330,19 +3486,17 @@ final class SubscriptionManagerUITests: XCTestCase {
         let serviceNameField = app.textFields[
             "subscription.editor.service-name"
         ]
-        XCTAssertTrue(serviceNameField.waitForExistence(timeout: 5))
-        serviceNameField.tap()
-        serviceNameField.typeText(serviceName)
+        XCTAssertTrue(serviceNameField.waitForExistence(timeout: settleTimeout))
+        replaceText(in: serviceNameField, with: serviceName)
 
         let amount = app.textFields["subscription.editor.amount"]
         XCTAssertTrue(scrollToExistence(amount, in: app, maximumSwipes: 3))
-        amount.tap()
-        amount.typeText(amountValue)
+        replaceText(in: amount, with: amountValue)
 
         let currency = app.buttons["subscription.editor.currency"]
         XCTAssertTrue(scrollToExistence(currency, in: app, maximumSwipes: 3))
         currency.tap()
-        XCTAssertTrue(app.buttons["USD"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.buttons["USD"].waitForExistence(timeout: settleTimeout))
         app.buttons["USD"].tap()
 
         let interval = app.buttons["subscription.editor.billing-interval"]
@@ -3353,7 +3507,7 @@ final class SubscriptionManagerUITests: XCTestCase {
         let monthlyOption = englishMonthly.exists
             ? englishMonthly
             : simplifiedChineseMonthly
-        XCTAssertTrue(monthlyOption.waitForExistence(timeout: 5))
+        XCTAssertTrue(monthlyOption.waitForExistence(timeout: settleTimeout))
         monthlyOption.tap()
 
         acceptEditorDate(
@@ -3370,9 +3524,9 @@ final class SubscriptionManagerUITests: XCTestCase {
         XCTAssertTrue(scrollToHittable(date, in: app, maximumSwipes: 6))
         date.tap()
         let picker = app.datePickers["subscription.date-task.picker"]
-        XCTAssertTrue(picker.waitForExistence(timeout: 5))
+        XCTAssertTrue(picker.waitForExistence(timeout: settleTimeout))
         let done = app.buttons["subscription.date-task.done"]
-        XCTAssertTrue(done.waitForExistence(timeout: 5))
+        XCTAssertTrue(done.waitForExistence(timeout: settleTimeout))
         done.tap()
     }
 
@@ -3383,18 +3537,16 @@ final class SubscriptionManagerUITests: XCTestCase {
     ) {
         let plan = app.textFields["subscription.editor.plan"]
         XCTAssertTrue(scrollToHittable(plan, in: app, maximumSwipes: 8))
-        plan.tap()
-        plan.typeText(planValue)
+        replaceText(in: plan, with: planValue)
 
         let category = app.textFields["subscription.editor.category"]
         XCTAssertTrue(scrollToHittable(category, in: app, maximumSwipes: 8))
-        category.tap()
-        category.typeText(categoryValue)
+        replaceText(in: category, with: categoryValue)
     }
 
     private func openFirstSubscriptionEditor(in app: XCUIApplication) {
         let row = app.buttons["subscription.row"].firstMatch
-        XCTAssertTrue(row.waitForExistence(timeout: 5))
+        XCTAssertTrue(row.waitForExistence(timeout: settleTimeout))
         XCTAssertTrue(
             scrollToHittable(row, in: app, maximumSwipes: 4),
             "The saved subscription row must settle before it is opened."
@@ -3402,11 +3554,11 @@ final class SubscriptionManagerUITests: XCTestCase {
         row.tap()
         XCTAssertTrue(
             app.descendants(matching: .any)["subscription.summary"]
-                .waitForExistence(timeout: 5),
+                .waitForExistence(timeout: settleTimeout),
             "Opening a saved row must present its summary card."
         )
         XCTAssertTrue(
-            app.buttons["subscription.edit"].waitForExistence(timeout: 5)
+            app.buttons["subscription.edit"].waitForExistence(timeout: settleTimeout)
         )
         app.buttons["subscription.edit"].tap()
         waitForCurrentSubscriptionEditor(in: app)
@@ -3417,7 +3569,7 @@ final class SubscriptionManagerUITests: XCTestCase {
         in app: XCUIApplication
     ) {
         let row = subscriptionRow(named: serviceName, in: app)
-        XCTAssertTrue(row.waitForExistence(timeout: 5))
+        XCTAssertTrue(row.waitForExistence(timeout: settleTimeout))
         XCTAssertTrue(
             scrollToHittable(row, in: app, maximumSwipes: 4),
             "The named saved subscription row must settle before it is opened."
@@ -3425,11 +3577,11 @@ final class SubscriptionManagerUITests: XCTestCase {
         row.tap()
         XCTAssertTrue(
             app.descendants(matching: .any)["subscription.summary"]
-                .waitForExistence(timeout: 5),
+                .waitForExistence(timeout: settleTimeout),
             "Opening the named saved row must present its summary card."
         )
         XCTAssertTrue(
-            app.buttons["subscription.edit"].waitForExistence(timeout: 5)
+            app.buttons["subscription.edit"].waitForExistence(timeout: settleTimeout)
         )
         app.buttons["subscription.edit"].tap()
         waitForCurrentSubscriptionEditor(in: app)
@@ -3438,11 +3590,11 @@ final class SubscriptionManagerUITests: XCTestCase {
     private func openCurrentSubscriptionEditor(in app: XCUIApplication) {
         XCTAssertTrue(
             app.descendants(matching: .any)["subscription.summary"]
-                .waitForExistence(timeout: 5),
+                .waitForExistence(timeout: settleTimeout),
             "A successful edit must return to the same summary card."
         )
         XCTAssertTrue(
-            app.buttons["subscription.edit"].waitForExistence(timeout: 5)
+            app.buttons["subscription.edit"].waitForExistence(timeout: settleTimeout)
         )
         app.buttons["subscription.edit"].tap()
         waitForCurrentSubscriptionEditor(in: app)
@@ -3451,7 +3603,7 @@ final class SubscriptionManagerUITests: XCTestCase {
     private func waitForCurrentSubscriptionEditor(in app: XCUIApplication) {
         XCTAssertTrue(
             app.descendants(matching: .any)["subscription.form"]
-                .waitForExistence(timeout: 5)
+                .waitForExistence(timeout: settleTimeout)
         )
     }
 
@@ -3467,7 +3619,7 @@ final class SubscriptionManagerUITests: XCTestCase {
             let initialStatus = app.segmentedControls[
                 "subscription.form.initial-status"
             ]
-            XCTAssertTrue(initialStatus.waitForExistence(timeout: 5))
+            XCTAssertTrue(initialStatus.waitForExistence(timeout: settleTimeout))
             initialStatus.buttons[statusButton].tap()
         }
 
@@ -3485,15 +3637,14 @@ final class SubscriptionManagerUITests: XCTestCase {
 
         let plan = app.textFields["subscription.editor.plan"]
         XCTAssertTrue(scrollToHittable(plan, in: app, maximumSwipes: 8))
-        plan.tap()
-        plan.typeText(planValue)
+        replaceText(in: plan, with: planValue)
 
         let form = app.descendants(matching: .any)["subscription.form"]
         app.buttons["subscription.form.save"].tap()
-        XCTAssertTrue(form.waitForNonExistence(timeout: 5))
+        XCTAssertTrue(form.waitForNonExistence(timeout: settleTimeout))
         XCTAssertTrue(
             app.staticTexts[serviceNameValue]
-                .waitForExistence(timeout: 5)
+                .waitForExistence(timeout: settleTimeout)
         )
     }
 
@@ -3565,7 +3716,8 @@ final class SubscriptionManagerUITests: XCTestCase {
         seedsLegacyChatGPTPlus: Bool = false,
         seedsTask6OccurrenceFixture: Bool = false,
         opensArchivedLibrary: Bool = false,
-        timeZoneIdentifier: String? = nil
+        timeZoneIdentifier: String? = nil,
+        preferredContentSizeCategory: String? = nil
     ) -> XCUIApplication {
         let app = XCUIApplication()
         app.launchArguments = [
@@ -3601,6 +3753,15 @@ final class SubscriptionManagerUITests: XCTestCase {
         }
         if let timeZoneIdentifier {
             app.launchEnvironment["TZ"] = timeZoneIdentifier
+        }
+        // UIKit reads the preferred content size from the argument domain of
+        // user defaults, so this has to be a launch argument pair rather than
+        // an environment variable.
+        if let preferredContentSizeCategory {
+            app.launchArguments += [
+                "-UIPreferredContentSizeCategoryName",
+                preferredContentSizeCategory,
+            ]
         }
         app.launch()
         return app
@@ -3748,7 +3909,7 @@ final class SubscriptionManagerUITests: XCTestCase {
         let sourceValue = app.descendants(matching: .any)[
             "subscription.date-task.source-value"
         ]
-        XCTAssertTrue(sourceValue.waitForExistence(timeout: 5))
+        XCTAssertTrue(sourceValue.waitForExistence(timeout: settleTimeout))
         let originalValue = accessibilityValue(of: sourceValue)
         let month = picker.buttons["DatePicker.Show"]
         let nextMonth = picker.buttons["DatePicker.NextMonth"]
@@ -3793,7 +3954,7 @@ final class SubscriptionManagerUITests: XCTestCase {
         dayFormatter.locale = monthFormatter.locale
         dayFormatter.dateFormat = "EEEE, MMMM d"
         let target = picker.buttons[dayFormatter.string(from: targetDate)]
-        XCTAssertTrue(target.waitForExistence(timeout: 5))
+        XCTAssertTrue(target.waitForExistence(timeout: settleTimeout))
         target.tap()
         let selectedValue = accessibilityValue(of: sourceValue)
         XCTAssertNotEqual(
@@ -3829,7 +3990,7 @@ final class SubscriptionManagerUITests: XCTestCase {
 
         let nextMonth = app.buttons["DatePicker.NextMonth"]
         let month = app.buttons["DatePicker.Show"]
-        XCTAssertTrue(nextMonth.waitForExistence(timeout: 5))
+        XCTAssertTrue(nextMonth.waitForExistence(timeout: settleTimeout))
         let originalMonth = month.value as? String
         nextMonth.tap()
         if let originalMonth {
@@ -3848,7 +4009,7 @@ final class SubscriptionManagerUITests: XCTestCase {
         }
 
         let target = app.staticTexts[String(day)].firstMatch
-        XCTAssertTrue(target.waitForExistence(timeout: 5))
+        XCTAssertTrue(target.waitForExistence(timeout: settleTimeout))
         target.tap()
 
         let selectedValue = selectedDate(in: picker)
@@ -3858,6 +4019,137 @@ final class SubscriptionManagerUITests: XCTestCase {
             "Choosing a next-month day must update the compact date picker."
         )
         return selectedValue
+    }
+
+    private func tapUpcomingPreviousMonth(in app: XCUIApplication) {
+        let custom = app.buttons["upcoming.month.previous"]
+        if custom.waitForExistence(timeout: 2) {
+            custom.tap()
+            return
+        }
+        let native = app.buttons["DatePicker.PreviousMonth"]
+        XCTAssertTrue(
+            native.waitForExistence(timeout: settleTimeout),
+            "Expected custom or native previous-month control."
+        )
+        native.tap()
+    }
+
+    private func tapUpcomingNextMonth(in app: XCUIApplication) {
+        let custom = app.buttons["upcoming.month.next"]
+        if custom.waitForExistence(timeout: 2) {
+            custom.tap()
+            return
+        }
+        let native = app.buttons["DatePicker.NextMonth"]
+        XCTAssertTrue(
+            native.waitForExistence(timeout: settleTimeout),
+            "Expected custom or native next-month control."
+        )
+        native.tap()
+    }
+
+    private enum MonthNavigationSurface {
+        case pinned
+        case native
+    }
+
+    /// Asserts that Upcoming shows the month navigation surface the caller
+    /// expects, and only that one.
+    ///
+    /// The expectation is a parameter rather than something the helper probes
+    /// for. Probing would let the assertion pass on whichever surface happened
+    /// to appear, so the AC1 contract -- exactly one source per layout -- would
+    /// no longer be enforced.
+    private func assertUpcomingMonthContext(
+        _ expected: MonthNavigationSurface,
+        in app: XCUIApplication,
+        minimumWidth: CGFloat,
+        file: StaticString = #filePath,
+        line: UInt = #line
+    ) {
+        switch expected {
+        case .pinned:
+            let customTitle = app.staticTexts["upcoming.month.title"]
+            XCTAssertTrue(
+                customTitle.waitForExistence(timeout: settleTimeout),
+                "Expected the pinned month header on this layout.",
+                file: file,
+                line: line
+            )
+            XCTAssertTrue(
+                app.buttons["upcoming.month.previous"].exists,
+                file: file,
+                line: line
+            )
+            XCTAssertTrue(
+                app.buttons["upcoming.month.next"].exists,
+                file: file,
+                line: line
+            )
+            XCTAssertFalse(
+                app.buttons["DatePicker.PreviousMonth"].exists,
+                "Upcoming must expose exactly one month navigation source.",
+                file: file,
+                line: line
+            )
+            XCTAssertFalse(
+                app.buttons["DatePicker.NextMonth"].exists,
+                "Upcoming must expose exactly one month navigation source.",
+                file: file,
+                line: line
+            )
+            XCTAssertGreaterThan(
+                customTitle.frame.width,
+                minimumWidth * 0.2,
+                "Upcoming must expose its month context directly.",
+                file: file,
+                line: line
+            )
+        case .native:
+            let monthChrome = app.buttons["DatePicker.Show"]
+            XCTAssertTrue(
+                monthChrome.waitForExistence(timeout: settleTimeout),
+                "Expected the native month chrome on this layout.",
+                file: file,
+                line: line
+            )
+            XCTAssertTrue(
+                app.buttons["DatePicker.PreviousMonth"].exists,
+                file: file,
+                line: line
+            )
+            XCTAssertTrue(
+                app.buttons["DatePicker.NextMonth"].exists,
+                file: file,
+                line: line
+            )
+            XCTAssertFalse(
+                app.staticTexts["upcoming.month.title"].exists,
+                "Upcoming must expose exactly one month navigation source.",
+                file: file,
+                line: line
+            )
+            XCTAssertFalse(
+                app.buttons["upcoming.month.previous"].exists,
+                "Upcoming must expose exactly one month navigation source.",
+                file: file,
+                line: line
+            )
+            XCTAssertFalse(
+                app.buttons["upcoming.month.next"].exists,
+                "Upcoming must expose exactly one month navigation source.",
+                file: file,
+                line: line
+            )
+            XCTAssertGreaterThan(
+                monthChrome.frame.width,
+                minimumWidth * 0.2,
+                "Upcoming must expose its month context directly.",
+                file: file,
+                line: line
+            )
+        }
     }
 
     private func moveCalendarMonth(

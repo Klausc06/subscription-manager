@@ -24,41 +24,6 @@ struct UpcomingView: View {
         NavigationStack {
             GeometryReader { geometry in
                 List {
-                    Section {
-                        HStack {
-                            Button {
-                                moveMonth(by: -1)
-                            } label: {
-                                Label("Previous Month", systemImage: "chevron.left")
-                                    .labelStyle(.iconOnly)
-                            }
-                            .accessibilityLabel("Previous Month")
-                            .accessibilityIdentifier("upcoming.month.previous")
-                            .buttonStyle(.borderless)
-
-                            Spacer()
-                            Text(displayedMonth, format: .dateTime.year().month(.wide))
-                                .font(.headline)
-                                .accessibilityIdentifier("upcoming.month.title")
-                            Spacer()
-
-                            Button {
-                                moveMonth(by: 1)
-                            } label: {
-                                Label("Next Month", systemImage: "chevron.right")
-                                    .labelStyle(.iconOnly)
-                            }
-                            .accessibilityLabel("Next Month")
-                            .accessibilityIdentifier("upcoming.month.next")
-                            .buttonStyle(.borderless)
-                        }
-                        .frame(maxWidth: .infinity)
-                        .padding(.horizontal, 12)
-                    }
-                    .listRowInsets(
-                        EdgeInsets(top: 8, leading: 0, bottom: 8, trailing: 0)
-                    )
-
                     monthOverview(
                         availableWidth: geometry.size.width,
                         projection: projection
@@ -140,7 +105,17 @@ struct UpcomingView: View {
                         EdgeInsets(top: 8, leading: 12, bottom: 8, trailing: 12)
                     )
                 }
-                .accessibilityIdentifier("upcoming.month")
+                .safeAreaInset(edge: .top, spacing: 0) {
+                    if Self.showsPinnedMonthNavigation(
+                        canUseNativeMonthCalendar: canUseNativeMonthCalendar(
+                            availableWidth: geometry.size.width
+                        ),
+                        hasUpcomingFailure: hasUpcomingFailure
+                    ) {
+                        monthNavigationHeader
+                            .background(.background)
+                    }
+                }
             }
             .navigationTitle("Upcoming")
             .navigationDestination(for: UUID.self) { subscriptionID in
@@ -176,24 +151,72 @@ struct UpcomingView: View {
         }
     }
 
+    /// The native calendar is mounted only when the layout can host it and the
+    /// month actually loaded. A failed load unmounts it, because there is no
+    /// projection to render.
+    nonisolated static func showsNativeMonthCalendar(
+        canUseNativeMonthCalendar: Bool,
+        hasUpcomingFailure: Bool
+    ) -> Bool {
+        canUseNativeMonthCalendar && !hasUpcomingFailure
+    }
+
+    /// Upcoming exposes exactly one month navigation surface. The native
+    /// calendar owns it whenever that calendar is mounted; otherwise the pinned
+    /// header does, including on a wide layout whose load failed, where it is
+    /// the only control able to change the month and retry.
+    nonisolated static func showsPinnedMonthNavigation(
+        canUseNativeMonthCalendar: Bool,
+        hasUpcomingFailure: Bool
+    ) -> Bool {
+        !showsNativeMonthCalendar(
+            canUseNativeMonthCalendar: canUseNativeMonthCalendar,
+            hasUpcomingFailure: hasUpcomingFailure
+        )
+    }
+
+    @ViewBuilder
+    private var monthNavigationHeader: some View {
+        HStack {
+            Button { moveMonth(by: -1) } label: {
+                Label("Previous Month", systemImage: "chevron.left")
+                    .labelStyle(.iconOnly)
+            }
+            .accessibilityLabel("Previous Month")
+            .accessibilityIdentifier("upcoming.month.previous")
+            .buttonStyle(.borderless)
+
+            Spacer()
+            Text(displayedMonth, format: .dateTime.year().month(.wide))
+                .font(.headline)
+                .accessibilityIdentifier("upcoming.month.title")
+            Spacer()
+
+            Button { moveMonth(by: 1) } label: {
+                Label("Next Month", systemImage: "chevron.right")
+                    .labelStyle(.iconOnly)
+            }
+            .accessibilityLabel("Next Month")
+            .accessibilityIdentifier("upcoming.month.next")
+            .buttonStyle(.borderless)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.horizontal, 12)
+        .padding(.vertical, 8)
+    }
+
     @ViewBuilder
     private func monthOverview(
         availableWidth: CGFloat,
         projection: UpcomingCalendarProjection
     ) -> some View {
 #if os(iOS)
-        if hasUpcomingFailure {
-            Section {
-                ContentUnavailableView(
-                    "Upcoming Unavailable",
-                    systemImage: "exclamationmark.triangle",
-                    description: Text(
-                        "Renewals could not be loaded. Try again later."
-                    )
-                )
-                .accessibilityIdentifier("upcoming.month.failed")
-            }
-        } else if canUseNativeMonthCalendar(availableWidth: availableWidth) {
+        if Self.showsNativeMonthCalendar(
+            canUseNativeMonthCalendar: canUseNativeMonthCalendar(
+                availableWidth: availableWidth
+            ),
+            hasUpcomingFailure: hasUpcomingFailure
+        ) {
             Section {
                 UpcomingMonthCalendar(
                     selectedDay: $selectedDay,
@@ -215,6 +238,17 @@ struct UpcomingView: View {
             .listRowInsets(
                 EdgeInsets(top: 0, leading: 0, bottom: 0, trailing: 0)
             )
+        } else if hasUpcomingFailure {
+            Section {
+                ContentUnavailableView(
+                    "Upcoming Unavailable",
+                    systemImage: "exclamationmark.triangle",
+                    description: Text(
+                        "Renewals could not be loaded. Try again later."
+                    )
+                )
+                .accessibilityIdentifier("upcoming.month.failed")
+            }
         } else {
             groupedDayList(projection: projection)
         }
