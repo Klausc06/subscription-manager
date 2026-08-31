@@ -5,6 +5,66 @@ public struct BillingDateResolver: Sendable {
 
     public init() {}
 
+    /// The first occurrence of `schedule` falling on or after `date`.
+    ///
+    /// Unlike `nextRenewal(afterStart:interval:asOf:timeZone:)` this can return
+    /// the schedule's own anchor, because `FixedBillingSchedule.renewalAnchor`
+    /// *is* an occurrence. Use this when the caller holds a schedule and wants
+    /// the next charge from a point in time; use `nextRenewal(afterStart:)` only
+    /// when the caller genuinely means "strictly after this date".
+    ///
+    /// Occurrences are derived from the anchor, so month-end anchors do not
+    /// drift: an Oct 31 anchor yields Oct 31, Nov 30, Dec 31.
+    public func firstOccurrence(
+        onOrAfter date: Date,
+        schedule: FixedBillingSchedule
+    ) -> Date? {
+        guard date.timeIntervalSinceReferenceDate.isFinite,
+              schedule.renewalAnchor.timeIntervalSinceReferenceDate.isFinite,
+              schedule.interval.isValid,
+              let timeZone = TimeZone(
+                  identifier: schedule.timeZoneIdentifier
+              ),
+              let step = calendarStep(for: schedule.interval)
+        else {
+            return nil
+        }
+
+        let calendar = BillingCalendar.calendar(timeZone: timeZone)
+        let targetDay = calendar.startOfDay(for: date)
+        var occurrenceIndex = estimatedOccurrenceIndex(
+            anchor: schedule.renewalAnchor,
+            onOrAfter: targetDay,
+            step: step,
+            calendar: calendar
+        )
+
+        for _ in 0 ..< Self.searchSlack {
+            guard let occurrence = occurrence(
+                anchor: schedule.renewalAnchor,
+                index: occurrenceIndex,
+                step: step,
+                calendar: calendar
+            ) else {
+                return nil
+            }
+            if calendar.startOfDay(for: occurrence) >= targetDay {
+                return occurrence
+            }
+            guard occurrenceIndex < Int.max else {
+                return nil
+            }
+            occurrenceIndex += 1
+        }
+        return nil
+    }
+
+    /// The first renewal falling **strictly after** `start`.
+    ///
+    /// The search begins at occurrence index 1, so a date equal to `start` is
+    /// never returned. That is deliberate and is why this must not be handed a
+    /// `FixedBillingSchedule.renewalAnchor` when the anchor itself could be the
+    /// answer -- see `firstOccurrence(onOrAfter:schedule:)`.
     public func nextRenewal(
         afterStart start: Date,
         interval: BillingInterval,

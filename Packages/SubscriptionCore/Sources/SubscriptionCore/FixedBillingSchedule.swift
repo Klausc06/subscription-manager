@@ -204,9 +204,30 @@ public enum BillingInterval: Codable, Equatable, RawRepresentable, Sendable {
 @available(*, deprecated, renamed: "BillingInterval")
 public typealias BillingCycle = BillingInterval
 
+/// A recurrence defined by one known occurrence and a fixed interval.
 public struct FixedBillingSchedule: Codable, Equatable, Sendable {
     public let interval: BillingInterval
+
+    /// A date on which this subscription renews. **The anchor is itself an
+    /// occurrence**, not the cycle that precedes one: the schedule is
+    /// `renewalAnchor + n * interval` for `n >= 0`.
+    ///
+    /// This was undocumented, and two readings of it coexisted long enough to
+    /// ship a defect (#125). `BillingDateResolver.expectedOccurrences` already
+    /// assumed the reading above, while `nextRenewal(afterStart:)` answers a
+    /// deliberately different question -- the first renewal *strictly after* a
+    /// given date -- so feeding it an anchor returns the one after the anchor.
+    /// Callers that want "the next renewal from here, the anchor included" want
+    /// `firstOccurrence(onOrAfter:schedule:)`.
+    ///
+    /// Each occurrence is derived from the anchor rather than from its
+    /// predecessor, so `Calendar` clamping never accumulates: a Jan 31 anchor
+    /// yields Feb 28, Mar 31, Apr 30 rather than drifting to the 28th. That
+    /// property only holds while the anchor keeps its own day-of-month, which is
+    /// why deriving an anchor by subtracting an interval from a month-end date
+    /// destroys the schedule.
     public let renewalAnchor: Date
+
     public let timeZoneIdentifier: String
 
     public init(

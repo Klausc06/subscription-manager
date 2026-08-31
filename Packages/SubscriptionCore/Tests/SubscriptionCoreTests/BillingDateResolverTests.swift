@@ -402,3 +402,174 @@ private func date(
         )
     )
 }
+
+@Suite("Billing date resolver first occurrence")
+struct BillingDateResolverFirstOccurrenceTests {
+    /// The distinction `nextRenewal(afterStart:)` cannot express, and the reason
+    /// #125 shipped: the anchor is itself an occurrence.
+    @Test("An anchor on the target day is the first occurrence")
+    func anchorOnTargetDayIsReturned() throws {
+        let timeZone = try #require(TimeZone(identifier: "UTC"))
+        let calendar = BillingCalendar.calendar(timeZone: timeZone)
+        let anchor = try date(year: 2026, month: 10, day: 31, calendar: calendar)
+
+        #expect(
+            BillingDateResolver().firstOccurrence(
+                onOrAfter: anchor,
+                schedule: schedule(anchor: anchor, interval: .monthly)
+            ) == anchor
+        )
+    }
+
+    @Test("The same anchor is excluded by nextRenewal(afterStart:)")
+    func nextRenewalExcludesTheAnchor() throws {
+        let timeZone = try #require(TimeZone(identifier: "UTC"))
+        let calendar = BillingCalendar.calendar(timeZone: timeZone)
+        let anchor = try date(year: 2026, month: 10, day: 31, calendar: calendar)
+        let expected = try date(
+            year: 2026,
+            month: 11,
+            day: 30,
+            calendar: calendar
+        )
+
+        // Pinned so the two contracts stay legible to the next reader rather
+        // than being rediscovered from a `max(1, ...)` in the implementation.
+        #expect(
+            BillingDateResolver().nextRenewal(
+                afterStart: anchor,
+                interval: .monthly,
+                asOf: anchor,
+                timeZone: timeZone
+            ) == expected
+        )
+    }
+
+    @Test("A month-end anchor does not drift across occurrences")
+    func monthEndAnchorDoesNotDrift() throws {
+        let timeZone = try #require(TimeZone(identifier: "UTC"))
+        let calendar = BillingCalendar.calendar(timeZone: timeZone)
+        let anchor = try date(year: 2026, month: 10, day: 31, calendar: calendar)
+        let resolver = BillingDateResolver()
+        let monthly = schedule(anchor: anchor, interval: .monthly)
+
+        // November clamps to the 30th, and December must return to the 31st.
+        // Deriving each occurrence from the anchor is what makes that hold;
+        // chaining from the clamped November date would give Dec 30.
+        let expectations = [
+            (month: 11, day: 30),
+            (month: 12, day: 31),
+        ]
+        var probe = anchor
+        for expectation in expectations {
+            let nextDay = try #require(
+                calendar.date(byAdding: .day, value: 1, to: probe)
+            )
+            let occurrence = try #require(
+                resolver.firstOccurrence(onOrAfter: nextDay, schedule: monthly)
+            )
+            let components = calendar.dateComponents(
+                [.month, .day],
+                from: occurrence
+            )
+            #expect(components.month == expectation.month)
+            #expect(components.day == expectation.day)
+            probe = occurrence
+        }
+    }
+
+    @Test("A target between occurrences finds the following one")
+    func targetBetweenOccurrencesFindsTheFollowing() throws {
+        let timeZone = try #require(TimeZone(identifier: "UTC"))
+        let calendar = BillingCalendar.calendar(timeZone: timeZone)
+        let anchor = try date(year: 2026, month: 3, day: 10, calendar: calendar)
+        let target = try date(year: 2026, month: 5, day: 1, calendar: calendar)
+        let expected = try date(year: 2026, month: 6, day: 10, calendar: calendar)
+
+        #expect(
+            BillingDateResolver().firstOccurrence(
+                onOrAfter: target,
+                schedule: schedule(anchor: anchor, interval: .quarterly)
+            ) == expected
+        )
+    }
+
+    @Test("A target before the anchor returns the anchor")
+    func targetBeforeAnchorReturnsTheAnchor() throws {
+        let timeZone = try #require(TimeZone(identifier: "UTC"))
+        let calendar = BillingCalendar.calendar(timeZone: timeZone)
+        let anchor = try date(year: 2026, month: 10, day: 31, calendar: calendar)
+        let target = try date(year: 2026, month: 1, day: 1, calendar: calendar)
+
+        #expect(
+            BillingDateResolver().firstOccurrence(
+                onOrAfter: target,
+                schedule: schedule(anchor: anchor, interval: .monthly)
+            ) == anchor
+        )
+    }
+
+    @Test("An unknown time zone identifier fails closed")
+    func unknownTimeZoneFailsClosed() throws {
+        let timeZone = try #require(TimeZone(identifier: "UTC"))
+        let calendar = BillingCalendar.calendar(timeZone: timeZone)
+        let anchor = try date(year: 2026, month: 10, day: 31, calendar: calendar)
+
+        #expect(
+            BillingDateResolver().firstOccurrence(
+                onOrAfter: anchor,
+                schedule: FixedBillingSchedule(
+                    interval: .monthly,
+                    renewalAnchor: anchor,
+                    timeZoneIdentifier: "Not/AZone"
+                )
+            ) == nil
+        )
+    }
+
+    @Test("An invalid custom interval fails closed")
+    func invalidIntervalFailsClosed() throws {
+        let timeZone = try #require(TimeZone(identifier: "UTC"))
+        let calendar = BillingCalendar.calendar(timeZone: timeZone)
+        let anchor = try date(year: 2026, month: 10, day: 31, calendar: calendar)
+
+        #expect(
+            BillingDateResolver().firstOccurrence(
+                onOrAfter: anchor,
+                schedule: schedule(
+                    anchor: anchor,
+                    interval: .custom(value: 0, unit: .month)
+                )
+            ) == nil
+        )
+    }
+
+    private func schedule(
+        anchor: Date,
+        interval: BillingInterval
+    ) -> FixedBillingSchedule {
+        FixedBillingSchedule(
+            interval: interval,
+            renewalAnchor: anchor,
+            timeZoneIdentifier: "UTC"
+        )
+    }
+
+    private func date(
+        year: Int,
+        month: Int,
+        day: Int,
+        calendar: Calendar
+    ) throws -> Date {
+        try #require(
+            calendar.date(
+                from: DateComponents(
+                    year: year,
+                    month: month,
+                    day: day,
+                    hour: 12
+                )
+            )
+        )
+    }
+}
