@@ -156,12 +156,6 @@ jobs:
     name: macOS application tests
     runs-on: xcode-27
     timeout-minutes: 45
-    # Stays non-blocking until one run proves the deployment-target override
-    # below actually executes on the image's macOS 26.5.2 (#83). `bootstatus`
-    # aside, nothing here can be verified from a macOS 27 developer machine, and
-    # this flag already reports `success` to the aggregate gate, so keeping it
-    # costs no signal while removing it early could make the gate unreachable.
-    continue-on-error: true
 
     steps:
       - name: Check out the exact candidate
@@ -179,18 +173,18 @@ jobs:
           # tree holds no `@available(macOS 27, *)` guard, and the app and
           # xctest Mach-Os then carry `minos 26.0`.
           #
-          # Two caveats a future reader needs. The override is deliberately
-          # below `Packages/SubscriptionCore/Package.swift`'s declared
-          # `.macOS("27.0")` floor -- SwiftPM does not enforce that floor
-          # against a build-setting override today, and `SubscriptionCore.o`
-          # still compiles at `minos 27.0` even though the linked binaries do
-          # not. That is only safe because the package imports nothing beyond
-          # Foundation and Observation. Second, this whole path is unverifiable
-          # from a macOS 27 developer machine, so the job stays
-          # `continue-on-error` until a run here proves it green.
+          # The override is deliberately below
+          # `Packages/SubscriptionCore/Package.swift`'s declared `.macOS("27.0")`
+          # floor. SwiftPM does not enforce that floor against a build-setting
+          # override today, and `SubscriptionCore.o` still compiles at
+          # `minos 27.0` even though the linked binaries do not. That is only
+          # safe while the package imports nothing beyond Foundation and
+          # Observation: **if Core adopts a macOS 27-only API, remove this
+          # override** rather than trying to interpret the resulting failure.
           #
-          # `Release builds` still verifies the shipping 27.0 products. Drop
-          # both the override and the flag once the image ships macOS 27.
+          # `Release builds` still verifies the shipping 27.0 products, so this
+          # job covers the module's logic rather than its deployment floor.
+          # Drop the override once the image ships macOS 27.
           xcodebuild test \
             -project SubscriptionManager.xcodeproj \
             -scheme SubscriptionManager \
