@@ -408,7 +408,11 @@ extension SubscriptionWorkspace {
                 lifecycle: .active,
                 billingSchedule: FixedBillingSchedule(
                     interval: existing.billingSchedule.interval,
-                    renewalAnchor: startDate,
+                    // The confirmed renewal is itself an occurrence, so it
+                    // anchors the schedule directly. Deriving the anchor from
+                    // the clamped previous cycle start would lose a month-end
+                    // day-of-month (#125).
+                    renewalAnchor: normalizedRenewal,
                     timeZoneIdentifier:
                         existing.billingSchedule.timeZoneIdentifier
                 ),

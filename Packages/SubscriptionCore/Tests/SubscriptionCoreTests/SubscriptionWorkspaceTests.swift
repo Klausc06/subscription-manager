@@ -5319,6 +5319,103 @@ struct SubscriptionWorkspaceTests {
         )
     }
 
+    @Test("Reactivating to a month-end renewal keeps the month-end schedule")
+    @MainActor
+    func monthEndReactivationKeepsMonthEndSchedule() throws {
+        let calendar = actionCalendar()
+        let now = try actionDate(
+            year: 2026,
+            month: 10,
+            day: 15,
+            hour: 18,
+            calendar: calendar
+        )
+        let subscription = try makeActionSubscription(
+            fixture: .cancelledWithAccess,
+            calendar: calendar
+        )
+        let repository = InMemorySubscriptionRepository(
+            subscriptions: [subscription]
+        )
+        let workspace = SubscriptionWorkspace(
+            repository: repository,
+            now: { now },
+            calendar: calendar
+        )
+        let confirmedRenewal = try actionDate(
+            year: 2026,
+            month: 10,
+            day: 31,
+            hour: 12,
+            calendar: calendar
+        )
+        // Oct 31 -> Nov 30 -> Dec 31: November clamps and December returns
+        // to the 31st. A schedule anchored on a clamped Sep 30 would give
+        // Oct 30 -> Nov 30 -> Dec 30 instead.
+        let expectedOccurrences = try [(10, 31), (11, 30), (12, 31)].map {
+            try actionDate(
+                year: 2026,
+                month: $0.0,
+                day: $0.1,
+                hour: 12,
+                calendar: calendar
+            )
+        }
+
+        workspace.loadLibrary(scope: .current)
+        workspace.loadSubscription(id: subscription.id)
+        workspace.loadExpectedCharges(
+            subscriptionID: subscription.id,
+            through: try actionDate(
+                year: 2027,
+                month: 1,
+                day: 15,
+                hour: 12,
+                calendar: calendar
+            )
+        )
+
+        workspace.reactivate(
+            id: subscription.id,
+            nextRenewal: try actionDate(
+                year: 2026,
+                month: 10,
+                day: 31,
+                hour: 1,
+                calendar: calendar
+            )
+        )
+
+        #expect(workspace.lifecycleActionError == nil)
+        let stored = try #require(
+            repository.storedSubscription(id: subscription.id)
+        )
+        #expect(stored.confirmedNextRenewal == confirmedRenewal)
+        #expect(
+            workspace.expectedCharges?.map(\.scheduledDate)
+                == expectedOccurrences
+        )
+        guard case .loaded(
+            let detail,
+            .active,
+            let nextExpectedCharge
+        ) = workspace.detailState else {
+            Issue.record("Expected refreshed active detail")
+            return
+        }
+        #expect(detail.confirmedNextRenewal == confirmedRenewal)
+        #expect(nextExpectedCharge?.scheduledDate == confirmedRenewal)
+        guard case .loaded(.current, let summaries) = workspace.libraryState else {
+            Issue.record("Expected refreshed current library")
+            return
+        }
+        #expect(summaries.first?.confirmedNextRenewal == confirmedRenewal)
+        #expect(
+            summaries.first?.nextExpectedCharge?.scheduledDate
+                == confirmedRenewal
+        )
+    }
+
     @Test("Reactivation before the current billing-local day is rejected")
     @MainActor
     func pastReactivationDayIsRejected() throws {

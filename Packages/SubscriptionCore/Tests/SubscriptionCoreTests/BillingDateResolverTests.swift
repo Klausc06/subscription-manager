@@ -108,6 +108,34 @@ struct BillingDateResolverTests {
         #expect(start == expected)
     }
 
+    @Test("A month-end renewal reverses to a clamped previous start")
+    func monthEndRenewalClampsPreviousMonthlyStart() throws {
+        let timeZone = try #require(TimeZone(identifier: "UTC"))
+        let calendar = BillingCalendar.calendar(timeZone: timeZone)
+        let renewal = try date(
+            year: 2026,
+            month: 10,
+            day: 31,
+            calendar: calendar
+        )
+        // Sep 31 does not exist, so the previous start clamps to Sep 30 and
+        // no longer carries the renewal's day-of-month.
+        let expected = try date(
+            year: 2026,
+            month: 9,
+            day: 30,
+            calendar: calendar
+        )
+
+        let start = BillingDateResolver().previousCycleStart(
+            before: renewal,
+            interval: .monthly,
+            timeZone: timeZone
+        )
+
+        #expect(start == expected)
+    }
+
     @Test("An occurrence on today advances to the following cycle")
     func occurrenceOnTodayIsNotTheNextRenewal() throws {
         let timeZone = try #require(TimeZone(identifier: "UTC"))

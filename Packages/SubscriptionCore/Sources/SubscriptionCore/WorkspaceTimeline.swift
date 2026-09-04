@@ -156,14 +156,20 @@ extension SubscriptionWorkspace {
         }
 
         let resolver = BillingDateResolver()
-        var renewal = resolver.nextRenewal(
-            afterStart: subscription.billingSchedule.renewalAnchor,
-            interval: subscription.billingSchedule.interval,
-            asOf: now(),
-            timeZone: timeZone
-        )
         var localCalendar = calendar
         localCalendar.timeZone = timeZone
+        // First occurrence strictly after today, anchor included: a future
+        // anchor (a reactivation's confirmed renewal) is itself the answer.
+        var renewal = localCalendar.date(
+            byAdding: .day,
+            value: 1,
+            to: localCalendar.startOfDay(for: now())
+        ).flatMap { tomorrow in
+            resolver.firstOccurrence(
+                onOrAfter: tomorrow,
+                schedule: subscription.billingSchedule
+            )
+        }
         for _ in 0 ... subscription.confirmedCharges.count {
             guard let scheduledDate = renewal else { return nil }
             let charge = expectedCharge(
